@@ -13,15 +13,15 @@ AIGC:
 
 中文 | [English](#english)
 
-一个简洁的 Android 本地音乐播放器，专为车机与日常聆听设计。无广告、无追踪、纯离线优先。
+一个纯用teleclaw对话生成的简洁的 Android 本地音乐播放器，专为车机与日常聆听设计。无广告、无追踪、纯离线优先。没仔细看过一句代码，以后仍然会通过AI来完善，作者只对话，不看代码。
 
 ## 功能亮点
 
 - **本地音乐扫描** — 自动扫描设备中的音乐文件，按目录/全部/收藏三种视图浏览
 - **在线歌词获取** — 酷狗 KRC 逐字歌词优先，网易云 LRC 备用，支持歌词自动折行
 - **在线封面获取** — 内嵌封面优先 → 本地缓存 → 酷狗/网易云在线获取，自动缓存
-- **频谱可视化** — 三种样式（竖条 / 圆点 / 波浪线），支持 Visualizer 直读音频输出，AudioRecord 麦克风降级
-- **旋转封面** — 播放时唱片旋转，暂停时停止，封面主色调自动提取为背景
+- **频谱可视化** — 三种样式（竖条 / 圆点 / 波浪线），单击频谱切换，双击关闭频谱，再双击恢复。 
+- **旋转封面** — 播放时唱片旋转，单击暂停旋转，封面主色调自动提取为背景
 - **后台播放** — 前台 Service + 通知栏控制 + 锁屏 MediaSession 控制
 - **播放模式** — 顺序 / 随机 / 单曲循环
 - **收藏与历史** — 一键收藏，播放历史快速回听
@@ -93,9 +93,9 @@ app/src/main/java/com/jingxin/jingxinmusic/
 ./gradlew assembleRelease
 ```
 
-## 截图
+## DEMO
 
-> 可自行运行后截图补充
+> https://pd.qq.com/s/1rzkspx0z
 
 ## 作者
 
@@ -196,9 +196,9 @@ app/src/main/java/com/jingxin/jingxinmusic/
 ./gradlew assembleRelease
 ```
 
-## Screenshots
+## DEMO
 
-> Add your own screenshots after running the app
+> https://pd.qq.com/s/1rzkspx0z
 
 ## Author
 
