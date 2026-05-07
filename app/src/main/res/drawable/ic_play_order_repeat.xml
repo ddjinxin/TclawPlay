@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 单曲循环：重复 + 数字1 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7,7h10v2H7V7zM17,12H7v-2h10V12z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,5l-4,4l4,4V5zM19,19H4V5H6V17H18V8.35l2,2.65V19z" />
+</vector>

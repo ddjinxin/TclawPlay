@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 背景轨道 -->
+    <item android:id="@android:id/background">
+        <shape>
+            <solid android:color="#FFFFFF" />
+            <corners android:radius="1dp" />
+            <size android:height="1dp" />
+        </shape>
+    </item>
+    
+    <!-- 已播放进度 -->
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape>
+                <solid android:color="#FFD54F" />
+                <corners android:radius="1dp" />
+                <size android:height="1dp" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

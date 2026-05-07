@@ -1,0 +1,29 @@
+# 构建产物
+/build/
+/app/build/
+*.apk
+*.aab
+
+# Gradle
+.gradle/
+/local.properties
+
+# IDE
+.idea/
+*.iml
+
+# 签名密钥（绝不能上传）
+*.jks
+*.keystore
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 备份文件
+*_backup*
+*_backup_*/
+/backups/
+
+# 日志
+*.log

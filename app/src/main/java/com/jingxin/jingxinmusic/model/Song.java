@@ -1,0 +1,135 @@
+package com.jingxin.jingxinmusic.model;
+
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.util.Log;
+
+import java.io.File;
+import java.io.OutputStream;
+
+/**
+ * 歌曲数据模型
+ */
+public class Song {
+    private static final String TAG = "Song";
+    private static final String COVER_FOLDER = "静心音乐";
+    public long id;           // MediaStore 中的 ID
+    public String title;      // 歌曲名
+    public String artist;     // 歌手
+    public String album;      // 专辑
+    public long duration;    // 时长（毫秒）
+    public String filePath;   // 文件路径
+    public String contentUri; // MediaStore Content URI（ExoPlayer 用这个播放）
+    public String albumArt;   // 专辑封面 URI
+    public String displayName;// 显示名（歌手 - 歌曲名 或歌曲名）
+
+    @Override
+    public String toString() {
+        return displayName + " (" + formatDuration(duration) + ")";
+    }
+
+    public static String formatDuration(long ms) {
+        int totalSeconds = (int) (ms / 1000);
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        return String.format("%d:%02d", minutes, seconds);
+    }
+
+    /**
+     * 生成统一的缓存文件名（歌名 - 歌手名）
+     * 和歌词文件命名规则一致，去掉文件系统不允许的字符
+     */
+    public static String toFileName(String title, String artist) {
+        String name = title;
+        if (artist != null && !artist.isEmpty() && !"<unknown>".equals(artist)) {
+            name = title + " - " + artist;
+        }
+        // 去掉文件名不允许的字符: / \ : * ? " < > |
+        return name.replaceAll("[/\\\\:*?\"<>|]", "_");
+    }
+
+    /**
+     * 保存封面到公共 Pictures/静心音乐/ 目录（通过 MediaStore API）
+     * 其他应用可通过返回的 URI 读取封面
+     * @return 公共 content URI，失败返回 null
+     */
+    public static Uri saveCoverToPublic(android.content.Context ctx, String fileName, Bitmap bitmap) {
+        // 先保存到应用缓存目录
+        File cacheDir = new File(ctx.getExternalFilesDir(null), "covers");
+        if (!cacheDir.exists()) cacheDir.mkdirs();
+        File cacheFile = new File(cacheDir, fileName);
+        try {
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+            fos.close();
+        } catch (Exception e) {
+            Log.e(TAG, "保存缓存封面失败: " + e.getMessage());
+        }
+
+        // 写入公共目录（MediaStore API）
+        try {
+            ContentResolver resolver = ctx.getContentResolver();
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            values.put(MediaStore.Images.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER);
+            values.put(MediaStore.Images.Media.IS_PENDING, 1);
+
+            Uri uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) {
+                Log.e(TAG, "MediaStore insert 失败: " + fileName);
+                return null;
+            }
+
+            try (OutputStream os = resolver.openOutputStream(uri)) {
+                if (os != null) {
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, os);
+                    os.flush();
+                }
+            }
+
+            values.clear();
+            values.put(MediaStore.Images.Media.IS_PENDING, 0);
+            resolver.update(uri, values, null, null);
+
+            Log.d(TAG, "封面已保存到公共目录: " + uri);
+            return uri;
+        } catch (Exception e) {
+            Log.e(TAG, "保存公共封面失败: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 查询公共目录中已有的封面 URI（如果存在）
+     * @return 公共 content URI，不存在返回 null
+     */
+    public static Uri getCoverPublicUri(android.content.Context ctx, String fileName) {
+        try {
+            ContentResolver resolver = ctx.getContentResolver();
+            String selection = MediaStore.Images.Media.DISPLAY_NAME + " = ? AND " +
+                    MediaStore.Images.Media.RELATIVE_PATH + " LIKE ? ";
+            String[] selectionArgs = new String[]{fileName,
+                    "%" + Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER + "%"};
+            Uri queryUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+            java.io.File[] result = ctx.getExternalFilesDirs(null);
+            android.database.Cursor cursor = resolver.query(queryUri,
+                    new String[]{MediaStore.Images.Media._ID},
+                    selection, selectionArgs, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                long id = cursor.getLong(0);
+                cursor.close();
+                return Uri.withAppendedPath(queryUri, String.valueOf(id));
+            }
+            if (cursor != null) cursor.close();
+        } catch (Exception e) {
+            Log.e(TAG, "查询公共封面失败: " + e.getMessage());
+        }
+        return null;
+    }
+}

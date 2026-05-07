@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 顺序播放：列表 + 播放三角 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7,7h10v2H7V7zM7,11h10v2H7V11zM20,19H4V5H6V17H18V8.35l2,2.65V19z" />
+</vector>

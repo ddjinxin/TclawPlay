@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- 顶部栏 -->
+    <FrameLayout
+        android:id="@+id/title_bar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp">
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="静心音乐"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- 关闭按钮（左上角） -->
+        <ImageView
+            android:id="@+id/close_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="12dp"
+            android:src="@drawable/ic_close"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <!-- 主题切换按钮（右上角） -->
+        <ImageView
+            android:id="@+id/theme_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="12dp"
+            android:src="@drawable/ic_theme"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+    </FrameLayout>
+
+    <!-- Tab 栏 -->
+    <LinearLayout
+        android:id="@+id/tab_bar"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/tab_folder"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="目录"
+            android:textSize="15sp" />
+
+        <View
+            android:id="@+id/tab_divider_1"
+            android:layout_width="1dp"
+            android:layout_height="20dp" />
+
+        <TextView
+            android:id="@+id/tab_all"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="全部"
+            android:textSize="15sp" />
+
+        <View
+            android:id="@+id/tab_divider_2"
+            android:layout_width="1dp"
+            android:layout_height="20dp" />
+
+        <TextView
+            android:id="@+id/tab_favorite"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="收藏"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+    <!-- 搜索栏 -->
+    <EditText
+        android:id="@+id/et_search"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="4dp"
+        android:background="@android:color/transparent"
+        android:hint="搜索歌曲或歌手..."
+        android:textSize="14sp"
+        android:inputType="text" />
+
+    <!-- 歌曲数量 -->
+    <TextView
+        android:id="@+id/tv_song_count"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="8dp"
+        android:text="0 首歌曲"
+        android:textSize="12sp" />
+
+    <!-- 歌曲列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_song_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:scrollbars="vertical" />
+
+    <!-- 版权信息 -->
+    <TextView
+        android:id="@+id/tv_copyright"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="12dp"
+        android:gravity="center"
+        android:text="静心音乐 © 2026 静心 | TeleClaw 盲搓制作"
+        android:textSize="11sp" />
+
+    <!-- Mini 播放条 -->
+    <LinearLayout
+        android:id="@+id/mini_player"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <!-- 左侧：歌名+歌手（点击区域） -->
+        <LinearLayout
+            android:id="@+id/mini_player_info"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="16dp"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/mini_song_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/mini_song_artist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- 播放/暂停按钮 -->
+        <ImageView
+            android:id="@+id/mini_play_pause"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="12dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_play"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+    </LinearLayout>
+
+    <!-- 加载中提示 -->
+    <TextView
+        android:id="@+id/tv_loading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="正在扫描音乐..."
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+</LinearLayout>

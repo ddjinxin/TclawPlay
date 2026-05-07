@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 随机播放：交叉箭头 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10.59,9.17L5.41,4L4,5.41l5.17,5.17L4,15.82L5.41,17.23l5.17,-5.17zM14.5,4l2.04,2.04L4,18.59L5.41,20l12.7,-12.7L14.5,4z" />
+</vector>
