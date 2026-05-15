@@ -633,7 +633,6 @@ public class PlayerActivity extends AppCompatActivity {
 
         if (isImmersiveMode) {
             immersiveOverlay.setVisibility(View.VISIBLE);
-            immersiveOverlay.setLandscapeMode(isLandscapeMode);
             overlayView.setVisibility(View.GONE);
             whiteOverlay.setVisibility(View.GONE);
             tvSongName.setVisibility(View.VISIBLE);
@@ -789,6 +788,9 @@ public class PlayerActivity extends AppCompatActivity {
         } else {
             applyPortraitLayout();
         }
+        // 非沉浸模式下也同步 landscapeMode，防止横屏→竖屏后残留 true，导致下次进入沉浸时渐变丢失
+        immersiveOverlay.setLandscapeMode(isLandscapeMode);
+
         // 沉浸模式下，横竖屏切换需要同步遮罩和封面
         if (isImmersiveMode) {
             immersiveOverlay.setLandscapeMode(isLandscapeMode);
@@ -1474,8 +1476,10 @@ public class PlayerActivity extends AppCompatActivity {
 
         if (isImmersiveMode) {
             // 进入沉浸模式
-            immersiveOverlay.setVisibility(View.VISIBLE);
+            // 先设状态再VISIBLE，防止系统在状态未就绪时触发绘制
             immersiveOverlay.setNightMode(isNightMode);
+            immersiveOverlay.setLandscapeMode(isLandscapeMode);
+            immersiveOverlay.setVisibility(View.VISIBLE);
             // 隐藏非沉浸遮罩
             overlayView.setVisibility(View.GONE);
             whiteOverlay.setVisibility(View.GONE);
@@ -1486,7 +1490,6 @@ public class PlayerActivity extends AppCompatActivity {
 
             if (isLandscapeMode) {
                 // 横屏沉浸：immersiveOverlay(底层实色) → coverView(封面) → 渐变过渡层
-                immersiveOverlay.setLandscapeMode(true);
                 // 夜间模式显示半透明黑色遮罩
                 immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
                 // 先定位封面
@@ -1508,9 +1511,10 @@ public class PlayerActivity extends AppCompatActivity {
                 resetLyricMargin();
             } else {
                 // 竖屏沉浸：原图铺背景，旋转封面隐藏
-                immersiveOverlay.setLandscapeMode(false);
                 blurBackground.setVisibility(View.VISIBLE);
                 blurBackground.setAlpha(1.0f);
+                // 确保 immersiveOverlay 在 blurBackground 上面，防止被盖住导致渐变丢失
+                restoreOverlayHierarchy();
                 // 夜间模式显示半透明黑色遮罩，压暗封面保留色调
                 immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
                 coverView.setVisibility(View.GONE);
@@ -1588,9 +1592,10 @@ public class PlayerActivity extends AppCompatActivity {
     private void updateThemeUI() {
         if (isImmersiveMode) {
             // 沉浸模式：用沉浸遮罩替代普通遮罩
-            immersiveOverlay.setVisibility(View.VISIBLE);
+            // 先设状态再VISIBLE，防止状态未就绪时触发绘制
             immersiveOverlay.setLandscapeMode(isLandscapeMode);
             immersiveOverlay.setNightMode(isNightMode);
+            immersiveOverlay.setVisibility(View.VISIBLE);
             // 横屏沉浸：同步更新封面边缘渐变颜色和渐变过渡层颜色
             if (isLandscapeMode && coverBorderGradient != null) {
                 coverBorderGradient.setOverlayColor(immersiveOverlay.getOverlayColor());
