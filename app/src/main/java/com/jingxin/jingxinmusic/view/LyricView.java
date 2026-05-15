@@ -61,8 +61,8 @@ public class LyricView extends View {
     
     // 白天模式颜色配置
     private static final int TEXT_COLOR_NORMAL_DAY = Color.parseColor("#333333");
-    private static final int TEXT_COLOR_PLAYED_DAY = Color.parseColor("#FFD54F");
-    private static final int TEXT_COLOR_CURRENT_DAY = Color.parseColor("#B8860B");
+    private static final int TEXT_COLOR_PLAYED_DAY = Color.parseColor("#FFEB3B");
+    private static final int TEXT_COLOR_CURRENT_DAY = Color.parseColor("#FFEB3B");
     
     // 当前使用的颜色（根据主题切换）
     private int textColorNormal = TEXT_COLOR_NORMAL_NIGHT;
@@ -73,6 +73,9 @@ public class LyricView extends View {
     private float textSizeNormal = 36f;
     private float textSizeCurrent = 48f;
     private float textSizeKaraoke = 60f;
+
+    /** 获取当前行歌词字体大小（像素），供外部动态调整歌名字号 */
+    public float getTextSizeCurrent() { return textSizeCurrent; }
     private float lineSpacing = 60f;     // 歌词行之间的间距（不同时间戳的行之间）
     
     // 字体大小计算比例
@@ -115,7 +118,7 @@ public class LyricView extends View {
     }
     
     public LyricView(Context context, AttributeSet attrs, int defStyleAttr) {
-        super(context, attrs);
+        super(context, attrs, defStyleAttr);
         init();
     }
     
@@ -148,12 +151,6 @@ public class LyricView extends View {
         invalidate();
     }
     
-    public void setDisplayMode(DisplayMode mode) {
-        this.currentMode = mode;
-        Log.d(TAG, "切换歌词模式: " + mode);
-        invalidate();
-    }
-    
     public void setOnModeChangeListener(OnModeChangeListener listener) {
         this.modeChangeListener = listener;
     }
@@ -164,7 +161,26 @@ public class LyricView extends View {
     }
     
     /**
-     * 切换到下一个模式
+     * 获取当前歌词显示模式
+     */
+    public DisplayMode getDisplayMode() {
+        return currentMode;
+    }
+
+    /**
+     * 直接设置歌词显示模式（用于沉浸模式下跳过全屏歌词）
+     */
+    public void setDisplayMode(DisplayMode mode) {
+        this.currentMode = mode;
+        invalidate();
+        if (modeChangeListener != null) {
+            modeChangeListener.onModeChanged(mode);
+        }
+        Log.d(TAG, "设置歌词模式: " + mode);
+    }
+
+    /**
+     * 切换歌词显示模式
      * 三行 -> 五行 -> 多行 -> 三行
      */
     public DisplayMode toggleMode() {

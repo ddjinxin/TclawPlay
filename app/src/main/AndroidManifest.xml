@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     
     <!-- 读取存储权限（扫描音乐和读取歌词文件） -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
+    <!-- Android 9及以下写公共目录（歌词复制到Download/lyrics/） -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
     
     <!-- 前台服务权限（后台播放） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -35,7 +35,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/Theme.JingxinMusic">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -47,7 +47,7 @@
         <activity
             android:name=".PlayerActivity"
             android:exported="false"
-            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/Theme.JingxinMusic" />
         
         <!-- 播放服务 -->

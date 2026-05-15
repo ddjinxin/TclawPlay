@@ -8,11 +8,7 @@ import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -81,7 +77,7 @@ public class CoverFetcher {
                 }
                 
                 Log.d(TAG, "酷狗封面 URL: " + coverUrl);
-                Bitmap coverBitmap = downloadImage(coverUrl);
+                Bitmap coverBitmap = HttpUtil.getBitmap(coverUrl);
                 if (coverBitmap == null) {
                     Log.e(TAG, "酷狗下载封面失败（第" + (retry + 1) + "次）");
                     if (retry < maxRetries - 1) Thread.sleep(3000);
@@ -111,7 +107,7 @@ public class CoverFetcher {
                 }
 
                 Log.d(TAG, "网易云封面 URL: " + coverUrl);
-                Bitmap coverBitmap = downloadImage(coverUrl);
+                Bitmap coverBitmap = HttpUtil.getBitmap(coverUrl);
                 if (coverBitmap == null) {
                     Log.e(TAG, "网易云下载封面失败（第" + (retry + 1) + "次）");
                     if (retry < 2) Thread.sleep(3000);
@@ -137,7 +133,7 @@ public class CoverFetcher {
             
             Log.d(TAG, "搜索 API: " + apiUrl);
             
-            String response = httpRequest(apiUrl);
+            String response = HttpUtil.get(apiUrl);
             
             if (response == null) {
                 Log.e(TAG, "搜索 API 请求失败");
@@ -230,7 +226,7 @@ public class CoverFetcher {
             String apiUrl = NETEASE_SEARCH_API + "?s=" +
                     URLEncoder.encode(keyword, "UTF-8") + "&limit=5&type=1&offset=0";
             
-            String response = httpRequest(apiUrl);
+            String response = HttpUtil.get(apiUrl);
             if (response == null) return null;
             
             JSONObject json = new JSONObject(response);
@@ -278,81 +274,6 @@ public class CoverFetcher {
         }
     }
     
-    /**
-     * 发送 HTTP GET 请求，返回响应内容
-     */
-    private static String httpRequest(String apiUrl) {
-        try {
-            URL url = new URL(apiUrl);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(10000); // 10 秒超时
-            conn.setReadTimeout(10000);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-            
-            int responseCode = conn.getResponseCode();
-            
-            if (responseCode != 200) {
-                Log.e(TAG, "HTTP 响应码: " + responseCode);
-                return null;
-            }
-            
-            InputStream is = conn.getInputStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
-            
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
-            }
-            
-            reader.close();
-            is.close();
-            conn.disconnect();
-            
-            return response.toString();
-            
-        } catch (Exception e) {
-            Log.e(TAG, "HTTP 请求失败: " + e.getMessage(), e);
-            return null;
-        }
-    }
-    
-    /**
-     * 下载图片并返回 Bitmap
-     */
-    private static Bitmap downloadImage(String imageUrl) {
-        try {
-            URL url = new URL(imageUrl);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-            
-            int responseCode = conn.getResponseCode();
-            
-            if (responseCode != 200) {
-                Log.e(TAG, "下载图片响应码: " + responseCode);
-                return null;
-            }
-            
-            InputStream is = conn.getInputStream();
-            Bitmap bitmap = BitmapFactory.decodeStream(is);
-            
-            is.close();
-            conn.disconnect();
-            
-            return bitmap;
-            
-        } catch (Exception e) {
-            Log.e(TAG, "下载图片失败: " + e.getMessage(), e);
-            return null;
-        }
-    }
-
     /**
      * 从音频文件中提取内嵌封面
      * @param filePath 音频文件路径（绝对路径）

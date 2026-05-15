@@ -5,15 +5,31 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <!-- 模糊背景 -->
+    <!-- 沉浸封面背景（封面原图铺满） -->
     <ImageView
         android:id="@+id/blur_background"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
-        android:alpha="0" />
+        android:alpha="0"
+        android:visibility="gone" />
 
-    <!-- 白色遮罩层 -->
+    <!-- 沉浸模式渐变遮罩 -->
+    <com.jingxin.jingxinmusic.view.ImmersiveOverlayView
+        android:id="@+id/immersive_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- 沉浸模式夜间半透明黑色遮罩（压暗封面，保留色调） -->
+    <View
+        android:id="@+id/immersive_dark_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#80000000"
+        android:visibility="gone" />
+
+    <!-- 白色遮罩层（白天模式非沉浸时使用） -->
     <View
         android:id="@+id/white_overlay"
         android:layout_width="match_parent"
@@ -21,55 +37,28 @@
         android:background="#66FEFEFE"
         android:visibility="gone" />
 
-    <!-- 半透明遮罩 -->
+    <!-- 半透明遮罩（夜间模式非沉浸时使用） -->
     <View
         android:id="@+id/overlay_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#AA000000" />
 
-    <!-- 返回按钮（左上角，最上层） -->
-    <ImageView
-        android:id="@+id/back_button"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginStart="16dp"
-        android:layout_gravity="start|top"
-        android:src="@drawable/ic_back"
-        android:padding="6dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackgroundBorderless" />
-
-    <!-- 主题切换按钮（右上角，最上层） -->
-    <ImageView
-        android:id="@+id/theme_button"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_gravity="end|top"
-        android:src="@drawable/ic_theme"
-        android:padding="4dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackgroundBorderless" />
-
-    <!-- 主内容 -->
+    <!-- 主内容：左侧信息区 -->
     <LinearLayout
+        android:id="@+id/info_panel"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center_horizontal">
 
-        <!-- 旋转封面 -->
-        <com.jingxin.jingxinmusic.view.RotatingCoverView
-            android:id="@+id/cover_view"
-            android:layout_width="180dp"
-            android:layout_height="180dp"
-            android:layout_marginTop="32dp"
-            android:background="@drawable/circle_cover_background" />
+        <!-- 封面占位（竖屏时留出封面空间） -->
+        <View
+            android:id="@+id/cover_placeholder"
+            android:layout_width="1dp"
+            android:layout_height="0dp"
+            android:layout_weight="0"
+            android:visibility="gone" />
 
         <!-- 歌名 -->
         <TextView
@@ -239,5 +228,42 @@
         </LinearLayout>
 
     </LinearLayout>
+
+    <!-- 旋转封面（独立于 info_panel，通过 LayoutParams 定位） -->
+    <com.jingxin.jingxinmusic.view.RotatingCoverView
+        android:id="@+id/cover_view"
+        android:layout_width="180dp"
+        android:layout_height="180dp"
+        android:layout_gravity="center_horizontal|top"
+        android:layout_marginTop="32dp"
+        android:background="@drawable/circle_cover_background" />
+
+    <!-- 返回按钮（左上角，最上层） -->
+    <ImageView
+        android:id="@+id/back_button"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_gravity="start|top"
+        android:src="@drawable/ic_back"
+        android:padding="6dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?attr/selectableItemBackgroundBorderless" />
+
+    <!-- 主题切换按钮（右上角，最上层） -->
+    <ImageView
+        android:id="@+id/theme_button"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_gravity="end|top"
+        android:src="@drawable/ic_theme"
+        android:padding="4dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?attr/selectableItemBackgroundBorderless" />
 
 </FrameLayout>

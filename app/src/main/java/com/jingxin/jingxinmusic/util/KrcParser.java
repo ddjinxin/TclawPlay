@@ -99,6 +99,8 @@ public class KrcParser {
         try {
             if (base64Content == null || base64Content.isEmpty()) return false;
             byte[] data = Base64.decode(base64Content, Base64.DEFAULT);
+            File parentDir = targetFile.getParentFile();
+            if (parentDir != null && !parentDir.exists()) parentDir.mkdirs();
             FileOutputStream fos = new FileOutputStream(targetFile);
             fos.write(data);
             fos.close();

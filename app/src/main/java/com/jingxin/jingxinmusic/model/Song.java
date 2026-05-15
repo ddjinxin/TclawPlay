@@ -2,11 +2,15 @@ package com.jingxin.jingxinmusic.model;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
+
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.OutputStream;
@@ -103,6 +107,98 @@ public class Song {
             Log.e(TAG, "保存公共封面失败: " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 从 Intent 中读取 Song 对象（用于 PlayerActivity 接收、广播接收等）
+     * key 定义与 MusicPlayerService.EXTRA_* 常量对应
+     */
+    public static Song fromIntent(Intent intent) {
+        if (intent == null) return null;
+        Song song = new Song();
+        song.id = intent.getLongExtra("song_id", 0);
+        song.title = intent.getStringExtra("song_title");
+        song.artist = intent.getStringExtra("song_artist");
+        song.album = intent.getStringExtra("song_album");
+        song.duration = intent.getLongExtra("song_duration", 0);
+        song.filePath = intent.getStringExtra("song_path");
+        song.contentUri = intent.getStringExtra("song_uri");
+        song.albumArt = intent.getStringExtra("album_art");
+        song.displayName = song.title;
+        return song;
+    }
+
+    /**
+     * 将 Song 对象写入 Intent（用于 MainActivity 发起播放、恢复上次播放等）
+     */
+    public void toIntent(Intent intent) {
+        if (intent == null) return;
+        intent.putExtra("song_id", id);
+        intent.putExtra("song_title", title);
+        intent.putExtra("song_artist", artist);
+        intent.putExtra("song_album", album);
+        intent.putExtra("song_duration", duration);
+        intent.putExtra("song_path", filePath != null ? filePath : "");
+        intent.putExtra("song_uri", contentUri != null ? contentUri : "");
+        intent.putExtra("album_art", albumArt != null ? albumArt : "");
+    }
+
+    /**
+     * 从 JSONObject 中读取 Song 对象（用于 FavoriteManager 加载收藏等）
+     * 字段名：id, title, artist, album, duration, filePath, contentUri, albumArt
+     */
+    public static Song fromJson(JSONObject obj) {
+        if (obj == null) return null;
+        Song song = new Song();
+        song.id = obj.optLong("id", 0);
+        song.title = obj.optString("title", "");
+        song.artist = obj.optString("artist", "");
+        song.album = obj.optString("album", "");
+        song.duration = obj.optLong("duration", 0);
+        song.filePath = obj.optString("filePath", "");
+        song.contentUri = obj.optString("contentUri", "");
+        song.albumArt = obj.optString("albumArt", "");
+        song.displayName = song.title;
+        return song;
+    }
+
+    /**
+     * 将 Song 对象转为 JSONObject（用于 FavoriteManager 保存收藏等）
+     */
+    public JSONObject toJson() {
+        JSONObject obj = new JSONObject();
+        try {
+            obj.put("id", id);
+            obj.put("title", title);
+            obj.put("artist", artist);
+            obj.put("album", album);
+            obj.put("duration", duration);
+            obj.put("filePath", filePath);
+            obj.put("contentUri", contentUri);
+            obj.put("albumArt", albumArt);
+        } catch (Exception e) {
+            Log.e(TAG, "Song toJson 失败: " + e.getMessage());
+        }
+        return obj;
+    }
+
+    /**
+     * 清理歌手名：去掉 <unknown>、空字符串等无效值
+     * @return 清理后的歌手名，无效则返回空字符串
+     */
+    public String getCleanArtist() {
+        if (artist == null || artist.isEmpty() || "<unknown>".equals(artist)) {
+            return "";
+        }
+        return artist;
+    }
+
+    /**
+     * 生成封面缓存文件名（歌名 - 歌手名.jpg）
+     * 与 SaveCoverTask 中的命名规则一致
+     */
+    public String getCoverFileName() {
+        return toFileName(title, artist) + ".jpg";
     }
 
     /**

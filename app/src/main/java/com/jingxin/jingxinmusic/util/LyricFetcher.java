@@ -1,16 +1,14 @@
 package com.jingxin.jingxinmusic.util;
 
+import android.content.Context;
 import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+
 import java.net.URLEncoder;
 
 /**
@@ -44,10 +42,15 @@ public class LyricFetcher {
         void onError(String errorMessage);
     }
 
+    public static void loadLyric(String songTitle, String artistName, String filePath, File lyricsDir, LyricCallback callback) {
+        loadLyric(songTitle, artistName, filePath, lyricsDir, callback, null);
+    }
+
     /**
      * 加载歌词（主入口）：本地 → 酷狗KRC → 网易云LRC
+     * @param context 上下文，用于复制歌词到公共目录（可为null）
      */
-    public static void loadLyric(String songTitle, String artistName, String filePath, File lyricsDir, LyricCallback callback) {
+    public static void loadLyric(String songTitle, String artistName, String filePath, File lyricsDir, LyricCallback callback, Context context) {
         new Thread(() -> {
             try {
                 String safeName = buildFileName(songTitle, artistName);
@@ -79,6 +82,14 @@ public class LyricFetcher {
                                 if (lrcText != null) {
                                     KrcParser.LyricData data = LrcParser.parse(lrcText);
                                     if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                                        // 复制一份到歌词目录，方便统一管理
+                                        File lrcCopy = new File(lyricsDir, safeName + ".lrc");
+                                        if (!lrcCopy.exists()) {
+                                            FileUtil.writeFile(lrcCopy, lrcText);
+                                            Log.d(TAG, "LRC 已复制到歌词目录: " + lrcCopy.getName());
+                                            // 额外复制到公共下载目录
+                                            if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcCopy);
+                                        }
                                         callback.onLyricFetched(data);
                                         return;
                                     }
@@ -130,6 +141,8 @@ public class LyricFetcher {
                     // 保存 KRC 到本地
                     KrcParser.saveKrcFromBase64(base64Content, krcFile);
                     Log.d(TAG, "KRC 保存到本地: " + krcFile.getName());
+                    // 额外复制到公共下载目录
+                    if (context != null) LyricPublicUtil.copyToPublicDir(context, krcFile);
 
                     KrcParser.LyricData data = KrcParser.parseKrcFromBase64(base64Content);
                     if (data != null && data.lines != null && !data.lines.isEmpty()) {
@@ -145,6 +158,8 @@ public class LyricFetcher {
                     // 保存 LRC 到本地
                     FileUtil.writeFile(lrcFile, lrcText);
                     Log.d(TAG, "LRC 保存到本地: " + lrcFile.getName());
+                    // 额外复制到公共下载目录
+                    if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcFile);
 
                     KrcParser.LyricData data = LrcParser.parse(lrcText);
                     if (data != null && data.lines != null && !data.lines.isEmpty()) {
@@ -220,7 +235,7 @@ public class LyricFetcher {
             String apiUrl = KUGOU_SEARCH_API + "?format=json&keyword=" +
                     URLEncoder.encode(keyword, "UTF-8") + "&page=1&pagesize=10";
 
-            String response = httpGet(apiUrl);
+            String response = HttpUtil.get(apiUrl);
             if (response == null) return null;
 
             JSONObject json = new JSONObject(response);
@@ -249,7 +264,7 @@ public class LyricFetcher {
     private static String[] searchKugouLyric(String hash) {
         try {
             String apiUrl = KUGOU_LYRIC_SEARCH_API + "?ver=1&man=yes&client=mobi&hash=" + hash;
-            String response = httpGet(apiUrl);
+            String response = HttpUtil.get(apiUrl);
             if (response == null) return null;
 
             JSONObject json = new JSONObject(response);
@@ -270,7 +285,7 @@ public class LyricFetcher {
         try {
             String apiUrl = KUGOU_LYRIC_DOWNLOAD_API + "?ver=1&client=pc&id=" + id
                     + "&accesskey=" + accesskey + "&fmt=krc&charset=utf8";
-            String response = httpGet(apiUrl);
+            String response = HttpUtil.get(apiUrl);
             if (response == null) return null;
 
             JSONObject json = new JSONObject(response);
@@ -297,7 +312,7 @@ public class LyricFetcher {
                 }
 
                 String apiUrl = NETEASE_LYRIC_API + "?id=" + songId + "&lv=1";
-                String response = httpGet(apiUrl);
+                String response = HttpUtil.get(apiUrl);
                 if (response == null) {
                     Log.e(TAG, "网易云歌词请求失败（第" + (retry + 1) + "次）");
                     if (retry < 2) Thread.sleep(3000);
@@ -338,7 +353,7 @@ public class LyricFetcher {
             String apiUrl = NETEASE_SEARCH_API + "?s=" +
                     URLEncoder.encode(keyword, "UTF-8") + "&limit=5&type=1&offset=0";
 
-            String response = httpGet(apiUrl);
+            String response = HttpUtil.get(apiUrl);
             if (response == null) return 0;
 
             JSONObject json = new JSONObject(response);
@@ -370,35 +385,4 @@ public class LyricFetcher {
         }
     }
 
-    // ========== HTTP 工具 ==========
-
-    private static String httpGet(String apiUrl) {
-        try {
-            URL url = new URL(apiUrl);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-
-            int code = conn.getResponseCode();
-            if (code != 200) {
-                Log.e(TAG, "HTTP 失败: " + code + " URL: " + apiUrl);
-                return null;
-            }
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
-            }
-            reader.close();
-            conn.disconnect();
-            return sb.toString();
-        } catch (Exception e) {
-            Log.e(TAG, "HTTP GET 失败: " + e.getMessage());
-            return null;
-        }
-    }
 }

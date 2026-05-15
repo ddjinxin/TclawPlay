@@ -2,9 +2,7 @@ package com.jingxin.jingxinmusic.view;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Matrix;
 
 import android.util.AttributeSet;
 import android.util.Log;
@@ -155,6 +153,17 @@ public class RotatingCoverView extends AppCompatImageView {
             // 停止动画，保留当前角度
             rotationAnimator.pause();
         }
+    }
+    
+    /**
+     * 停止旋转并重置角度为0（用于横屏沉浸模式，封面不旋转）
+     */
+    public void stopAndResetRotation() {
+        isRotating = false;
+        userPaused = false;
+        currentRotationAngle = 0f;
+        rotationAnimator.cancel();
+        invalidate();
     }
     
     @Override

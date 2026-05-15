@@ -89,17 +89,8 @@ public class FavoriteManager {
             JSONArray array = new JSONArray(content);
             List<Song> list = new ArrayList<>();
             for (int i = 0; i < array.length(); i++) {
-                JSONObject obj = array.getJSONObject(i);
-                Song song = new Song();
-                song.id = obj.optLong("id", 0);
-                song.title = obj.optString("title", "");
-                song.artist = obj.optString("artist", "");
-                song.album = obj.optString("album", "");
-                song.duration = obj.optLong("duration", 0);
-                song.filePath = obj.optString("filePath", "");
-                song.contentUri = obj.optString("contentUri", "");
-                song.albumArt = obj.optString("albumArt", "");
-                if (!song.title.isEmpty()) {
+                Song song = Song.fromJson(array.getJSONObject(i));
+                if (song != null && song.title != null && !song.title.isEmpty()) {
                     list.add(song);
                 }
             }
@@ -126,16 +117,7 @@ public class FavoriteManager {
             favDir.mkdirs();
             JSONArray array = new JSONArray();
             for (Song song : list) {
-                JSONObject obj = new JSONObject();
-                obj.put("id", song.id);
-                obj.put("title", song.title);
-                obj.put("artist", song.artist);
-                obj.put("album", song.album);
-                obj.put("duration", song.duration);
-                obj.put("filePath", song.filePath);
-                obj.put("contentUri", song.contentUri);
-                obj.put("albumArt", song.albumArt);
-                array.put(obj);
+                array.put(song.toJson());
             }
             FileUtil.writeFile(new File(favDir, "favorites.json"), array.toString());
         } catch (Exception e) {

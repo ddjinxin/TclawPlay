@@ -35,6 +35,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory;
 import com.jingxin.jingxinmusic.MainActivity;
 import com.jingxin.jingxinmusic.PlayerActivity;
 import com.jingxin.jingxinmusic.model.Song;
+import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.HistoryManager;
 
 import java.io.File;
@@ -248,11 +249,7 @@ public class MusicPlayerService extends Service {
         filter.addAction("ACTION_PLAY_PAUSE");
         filter.addAction("ACTION_PREVIOUS");
         filter.addAction("ACTION_NEXT");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(notificationActionReceiver, filter, RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(notificationActionReceiver, filter);
-        }
+        CompatUtil.safeRegisterReceiver(this, notificationActionReceiver, filter);
 
         // 启动为前台服务
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

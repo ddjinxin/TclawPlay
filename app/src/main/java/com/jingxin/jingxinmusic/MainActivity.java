@@ -6,14 +6,18 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.Uri;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.graphics.Typeface;
@@ -35,6 +39,7 @@ import com.jingxin.jingxinmusic.model.FolderInfo;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService.MusicPlayerBinder;
+import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.FavoriteManager;
 import com.jingxin.jingxinmusic.util.MusicScanner;
 
@@ -82,7 +87,20 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
 
     private File favDir;
 
+    // 是否已从列表页跳转过播放页（防止返回时重复跳转）
+    private boolean hasAutoResumed = false;
+
     private ActivityResultLauncher<String> permissionLauncher;
+    private ActivityResultLauncher<String[]> multiPermissionLauncher;
+
+    // 记录当前正在请求的权限类型，用于区分回调逻辑
+    private String currentPermissionRequest;
+
+    // MediaStore ContentObserver：监听音乐文件变化（U盘索引完成、增删音乐等）
+    private android.database.ContentObserver mediaStoreObserver;
+    private boolean isScanning = false; // 防止重复扫描
+    private final Handler scanDebounceHandler = new Handler();
+    private static final int SCAN_DEBOUNCE_MS = 500; // 防抖间隔
 
     // Mini 播放条
     private View miniPlayer;
@@ -191,6 +209,30 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
         adapter.setOnFolderClickListener(this);
         rvList.setAdapter(adapter);
 
+        // 监听窗口宽度变化（分屏/多窗口拖动时重新布局）
+        View rootView = findViewById(android.R.id.content);
+        if (rootView != null) {
+            rootView.addOnLayoutChangeListener(
+                    (View v, int left, int top, int right, int bottom,
+                     int oldLeft, int oldTop, int oldRight, int oldBottom) -> {
+                        if (isFinishing() || isDestroyed()) return;
+                        int newWidth = right - left;
+                        int oldWidth = oldRight - oldLeft;
+                        if (oldWidth > 0 && newWidth != oldWidth) {
+                            // 窗口宽度变化，重新设置 LayoutManager 强制所有 Item 重建
+                            if (rvList != null) {
+                                rvList.post(() -> {
+                                    if (isFinishing() || isDestroyed()) return;
+                                    rvList.setLayoutManager(new LinearLayoutManager(MainActivity.this));
+                                    if (adapter != null) {
+                                        adapter.notifyDataSetChanged();
+                                    }
+                                });
+                            }
+                        }
+                    });
+        }
+
         // 主题按钮
         btnTheme.setOnClickListener(v -> {
             isNightMode = !isNightMode;
@@ -232,8 +274,40 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
         permissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
                 isGranted -> {
-                    if (isGranted) {
+                    if (Manifest.permission.POST_NOTIFICATIONS.equals(currentPermissionRequest)) {
+                        // 通知权限回调
+                        if (!isGranted) {
+                            showNotificationPermissionDeniedDialog();
+                        }
+                    } else {
+                        // 存储权限回调
+                        if (isGranted) {
+                            scanMusic();
+                        } else {
+                            tvLoading.setVisibility(View.GONE);
+                            tvSongCount.setText("需要存储权限才能扫描音乐");
+                        }
+                    }
+                    currentPermissionRequest = null;
+                });
+
+        // 多权限请求（Android 12 及以下：READ + WRITE_EXTERNAL_STORAGE）
+        multiPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestMultiplePermissions(),
+                result -> {
+                    boolean readGranted = Boolean.TRUE.equals(result.get(Manifest.permission.READ_EXTERNAL_STORAGE));
+                    boolean writeGranted = Boolean.TRUE.equals(result.get(Manifest.permission.WRITE_EXTERNAL_STORAGE));
+                    if (readGranted) {
                         scanMusic();
+                        if (!writeGranted) {
+                            // 写入权限被拒，判断是否勾了"不再询问"
+                            if (!shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                                // 用户勾了"不再询问"，引导去设置页手动开启
+                                showWriteStoragePermissionDeniedDialog();
+                            }
+                            // 否则仅本次拒绝，下次启动会再次请求
+                        }
+                        requestNotificationPermissionIfNeeded();
                     } else {
                         tvLoading.setVisibility(View.GONE);
                         tvSongCount.setText("需要存储权限才能扫描音乐");
@@ -260,10 +334,38 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
         IntentFilter filter = new IntentFilter();
         filter.addAction(MusicPlayerService.ACTION_SONG_CHANGED);
         filter.addAction(MusicPlayerService.ACTION_PLAY_STATE_CHANGED);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(playStateReceiver, filter, RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(playStateReceiver, filter);
+        CompatUtil.safeRegisterReceiver(this, playStateReceiver, filter);
+
+        // 注册 MediaStore ContentObserver，监听音乐文件变化（车机U盘索引、增删音乐等）
+        mediaStoreObserver = new android.database.ContentObserver(null) {
+            @Override
+            public void onChange(boolean selfChange) {
+                // 防抖：500ms内多次通知只扫描一次
+                scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
+                scanDebounceHandler.postDelayed(scanDebounceRunnable, SCAN_DEBOUNCE_MS);
+            }
+        };
+        getContentResolver().registerContentObserver(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver);
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // 分屏/多窗口模式下，窗口尺寸变化时重新布局
+        View rootView = findViewById(android.R.id.content);
+        if (rootView != null) {
+            rootView.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                // 通知 RecyclerView 重新测量布局
+                if (rvList != null) {
+                    rvList.requestLayout();
+                }
+                // 通知 adapter 数据刷新以适配新宽度
+                if (adapter != null) {
+                    adapter.notifyDataSetChanged();
+                }
+            });
         }
     }
 
@@ -450,20 +552,33 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
     // ========== 权限与扫描 ==========
 
     private void checkPermissionAndScan() {
-        String permission;
         if (android.os.Build.VERSION.SDK_INT >= 33) {
-            permission = Manifest.permission.READ_MEDIA_AUDIO;
+            // Android 13+：只需 READ_MEDIA_AUDIO
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                scanMusic();
+                requestNotificationPermissionIfNeeded();
+            } else {
+                tvLoading.setVisibility(View.VISIBLE);
+                currentPermissionRequest = Manifest.permission.READ_MEDIA_AUDIO;
+                permissionLauncher.launch(Manifest.permission.READ_MEDIA_AUDIO);
+            }
         } else {
-            permission = Manifest.permission.READ_EXTERNAL_STORAGE;
-        }
-
-        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
-            scanMusic();
-            // Android 13+ 需要运行时请求通知权限，否则前台服务通知被静音
-            requestNotificationPermissionIfNeeded();
-        } else {
-            tvLoading.setVisibility(View.VISIBLE);
-            permissionLauncher.launch(permission);
+            // Android 12 及以下：需要 READ + WRITE_EXTERNAL_STORAGE
+            List<String> needed = new java.util.ArrayList<>();
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+            if (android.os.Build.VERSION.SDK_INT <= 28 &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            }
+            if (needed.isEmpty()) {
+                scanMusic();
+                requestNotificationPermissionIfNeeded();
+            } else {
+                tvLoading.setVisibility(View.VISIBLE);
+                multiPermissionLauncher.launch(needed.toArray(new String[0]));
+            }
         }
     }
 
@@ -474,25 +589,78 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                     != PackageManager.PERMISSION_GRANTED) {
+                currentPermissionRequest = Manifest.permission.POST_NOTIFICATIONS;
                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
             }
         }
     }
 
+    /**
+     * 通知权限被拒绝后，引导用户前往设置页手动开启
+     */
+    private void showNotificationPermissionDeniedDialog() {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("通知权限")
+                .setMessage("播放控制通知需要通知权限才能正常显示。是否前往设置开启？")
+                .setPositiveButton("去设置", (dialog, which) -> {
+                    try {
+                        Intent intent = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                        intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName());
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        // 降级：打开应用详情页
+                        Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                        intent.setData(Uri.fromParts("package", getPackageName(), null));
+                        startActivity(intent);
+                    }
+                })
+                .setNegativeButton("暂不", null)
+                .show();
+    }
+
+    /**
+     * 写入权限被拒绝（勾了"不再询问"）后，引导用户前往设置页手动开启
+     */
+    private void showWriteStoragePermissionDeniedDialog() {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("存储写入权限")
+                .setMessage("歌词导出到公共目录需要写入权限。是否前往设置开启？")
+                .setPositiveButton("去设置", (dialog, which) -> {
+                    try {
+                        Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                        intent.setData(Uri.fromParts("package", getPackageName(), null));
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Log.e(TAG, "无法打开应用设置页", e);
+                    }
+                })
+                .setNegativeButton("暂不", null)
+                .show();
+    }
+
     private void scanMusic() {
+        scanMusic(true);
+    }
+
+    private void scanMusic(boolean tryAutoResume) {
+        if (isScanning) {
+            Log.d(TAG, "正在扫描中，跳过重复请求");
+            return;
+        }
+        isScanning = true;
         tvLoading.setVisibility(View.VISIBLE);
         tvSongCount.setText("正在扫描音乐...");
 
         executor.execute(() -> {
             List<Song> songs = MusicScanner.scanMusic(this);
             runOnUiThread(() -> {
+                isScanning = false;
                 adapter.setAllSongs(songs);
-                // 检查是否有上次播放记录，有则直接跳转播放页
                 tvLoading.setVisibility(View.GONE);
-                if (autoResumeLastPlayed(songs)) {
+                if (tryAutoResume && autoResumeLastPlayed(songs)) {
                     return;
                 }
-                // 没有记录，正常显示列表
+                // 没有记录或不需要自动恢复，正常显示列表
                 rootLayout.setVisibility(View.VISIBLE);
                 tvLoading.setVisibility(View.GONE);
                 refreshFavorites();
@@ -502,13 +670,26 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
         });
     }
 
+    // ContentObserver 防抖 Runnable
+    private final Runnable scanDebounceRunnable = () -> {
+        Log.d(TAG, "MediaStore onChange，重新扫描音乐");
+        scanMusic(false); // ContentObserver 触发的扫描不自动跳转播放页
+    };
+
     // ========== 自动恢复上次播放 ==========
 
     /**
      * 检查 SharedPreferences 中是否有上次播放记录，有则自动跳转播放页
+     * 同时恢复播放队列模式（全部/收藏/目录），保证下一首在原队列中播放
      * @return true 已跳转，调用方不应继续显示列表
      */
     private boolean autoResumeLastPlayed(List<Song> songs) {
+        // 已经自动恢复过，不再重复跳转（防止从播放页返回时又跳回去）
+        if (hasAutoResumed) {
+            Log.d(TAG, "autoResumeLastPlayed: already resumed, skip");
+            return false;
+        }
+
         android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
         if (!prefs.getBoolean("has_last", false)) return false;
 
@@ -526,16 +707,33 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
         }
         if (foundPosition < 0) foundPosition = prefs.getInt("position", 0);
 
+        // 恢复播放队列模式
+        String savedPlaylistMode = prefs.getString("playlist_mode", "all");
+
         Intent intent = new Intent(this, PlayerActivity.class);
-        intent.putExtra("song_id", songId);
-        intent.putExtra("song_title", title);
-        intent.putExtra("song_artist", prefs.getString("song_artist", ""));
-        intent.putExtra("song_album", prefs.getString("song_album", ""));
-        intent.putExtra("song_duration", prefs.getLong("song_duration", 0));
-        intent.putExtra("song_path", prefs.getString("song_path", ""));
-        intent.putExtra("song_uri", prefs.getString("song_uri", ""));
-        intent.putExtra("album_art", prefs.getString("album_art", ""));
+        Song resumeSong = new Song();
+        resumeSong.id = songId;
+        resumeSong.title = title;
+        resumeSong.artist = prefs.getString("song_artist", "");
+        resumeSong.album = prefs.getString("song_album", "");
+        resumeSong.duration = prefs.getLong("song_duration", 0);
+        resumeSong.filePath = prefs.getString("song_path", "");
+        resumeSong.contentUri = prefs.getString("song_uri", "");
+        resumeSong.albumArt = prefs.getString("album_art", "");
+        resumeSong.displayName = title;
+        resumeSong.toIntent(intent);
         intent.putExtra("position", foundPosition);
+        intent.putExtra("playlist_mode", savedPlaylistMode);
+
+        // 目录模式：恢复该目录的歌曲路径列表
+        if ("folder".equals(savedPlaylistMode)) {
+            java.util.Set<String> pathSet = prefs.getStringSet("folder_song_paths", null);
+            if (pathSet != null && !pathSet.isEmpty()) {
+                intent.putStringArrayListExtra("folder_song_paths", new java.util.ArrayList<>(pathSet));
+            }
+        }
+
+        hasAutoResumed = true;
         startActivity(intent);
         return true;
     }
@@ -545,14 +743,7 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
     @Override
     public void onSongClick(Song song) {
         Intent intent = new Intent(this, PlayerActivity.class);
-        intent.putExtra("song_id", song.id);
-        intent.putExtra("song_title", song.title);
-        intent.putExtra("song_artist", song.artist);
-        intent.putExtra("song_album", song.album);
-        intent.putExtra("song_duration", song.duration);
-        intent.putExtra("song_path", song.filePath);
-        intent.putExtra("song_uri", song.contentUri);
-        intent.putExtra("album_art", song.albumArt);
+        song.toIntent(intent);
 
         int mode = adapter.getCurrentMode();
         if (mode == 2) {
@@ -631,6 +822,11 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
         try {
             unregisterReceiver(playStateReceiver);
         } catch (Exception ignored) {}
+        // 注销 MediaStore ContentObserver
+        if (mediaStoreObserver != null) {
+            getContentResolver().unregisterContentObserver(mediaStoreObserver);
+        }
+        scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
         if (bound) {
             unbindService(serviceConnection);
             bound = false;
