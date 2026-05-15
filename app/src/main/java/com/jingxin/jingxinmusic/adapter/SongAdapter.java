@@ -20,6 +20,7 @@ import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.FolderInfo;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.util.CoverFetcher;
+import com.jingxin.jingxinmusic.util.ThemeColors;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -358,7 +359,7 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 emptyView.setLayoutParams(new ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                 ((TextView) emptyView).setText("暂无收藏");
-                ((TextView) emptyView).setTextColor(0xFF666666);
+                ((TextView) emptyView).setTextColor(ThemeColors.EMPTY_STATE_TEXT);
                 ((TextView) emptyView).setTextSize(14);
                 ((TextView) emptyView).setGravity(android.view.Gravity.CENTER);
                 int pad = (int) (48 * context.getResources().getDisplayMetrics().density);
@@ -384,15 +385,15 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         holder.ivArrow.setRotation(fi.expanded ? 90 : 0);
         // 主题颜色
         if (isNightMode) {
-            holder.itemView.setBackgroundColor(Color.parseColor("#0a0a0a"));
-            holder.tvName.setTextColor(Color.parseColor("#FFFFFF"));
-            holder.tvCount.setTextColor(Color.parseColor("#888888"));
-            holder.ivArrow.setColorFilter(Color.parseColor("#888888"));
+            holder.itemView.setBackgroundColor(ThemeColors.NIGHT_ITEM_BG);
+            holder.tvName.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+            holder.tvCount.setTextColor(ThemeColors.NIGHT_TEXT_SECONDARY);
+            holder.ivArrow.setColorFilter(ThemeColors.NIGHT_TEXT_SECONDARY);
         } else {
-            holder.itemView.setBackgroundColor(Color.parseColor("#FFFFFF"));
-            holder.tvName.setTextColor(Color.parseColor("#333333"));
-            holder.tvCount.setTextColor(Color.parseColor("#999999"));
-            holder.ivArrow.setColorFilter(Color.parseColor("#999999"));
+            holder.itemView.setBackgroundColor(ThemeColors.DAY_ITEM_BG);
+            holder.tvName.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+            holder.tvCount.setTextColor(ThemeColors.DAY_TEXT_SECONDARY);
+            holder.ivArrow.setColorFilter(ThemeColors.DAY_TEXT_SECONDARY);
         }
         // 封面：内嵌封面 → 本地缓存文件 → 在线获取
         holder.ivCover.setImageResource(R.drawable.bg_folder_cover);
@@ -440,15 +441,15 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         holder.tvDuration.setText(Song.formatDuration(song.duration));
         // 主题颜色
         if (isNightMode) {
-            holder.itemView.setBackgroundColor(Color.parseColor("#0a0a0a"));
-            holder.tvTitle.setTextColor(Color.parseColor("#FFFFFF"));
-            holder.tvArtist.setTextColor(Color.parseColor("#888888"));
-            holder.tvDuration.setTextColor(Color.parseColor("#666666"));
+            holder.itemView.setBackgroundColor(ThemeColors.NIGHT_ITEM_BG);
+            holder.tvTitle.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+            holder.tvArtist.setTextColor(ThemeColors.NIGHT_TEXT_SECONDARY);
+            holder.tvDuration.setTextColor(ThemeColors.NIGHT_TEXT_TERTIARY);
         } else {
-            holder.itemView.setBackgroundColor(Color.parseColor("#FFFFFF"));
-            holder.tvTitle.setTextColor(Color.parseColor("#333333"));
-            holder.tvArtist.setTextColor(Color.parseColor("#999999"));
-            holder.tvDuration.setTextColor(Color.parseColor("#999999"));
+            holder.itemView.setBackgroundColor(ThemeColors.DAY_ITEM_BG);
+            holder.tvTitle.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+            holder.tvArtist.setTextColor(ThemeColors.DAY_TEXT_SECONDARY);
+            holder.tvDuration.setTextColor(ThemeColors.DAY_TEXT_SECONDARY);
         }
         holder.itemView.setOnClickListener(v -> {
             if (songListener != null) songListener.onSongClick(song);

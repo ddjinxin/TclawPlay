@@ -43,6 +43,7 @@ import com.jingxin.jingxinmusic.util.HistoryManager;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.util.LyricFetcher;
 import com.jingxin.jingxinmusic.util.MusicScanner;
+import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.LyricView;
 import com.jingxin.jingxinmusic.view.RotatingCoverView;
 import com.jingxin.jingxinmusic.view.SpectrumView;
@@ -1389,7 +1390,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
         }
         
-        if (count == 0) return Color.parseColor("#CCF5F5F5"); // 回退：淡白
+        if (count == 0) return ThemeColors.DOMINANT_COLOR_FALLBACK;
         
         int r = (int) (rSum / count);
         int g = (int) (gSum / count);
@@ -1620,7 +1621,7 @@ public class PlayerActivity extends AppCompatActivity {
                 blurBackground.setVisibility(View.VISIBLE);
                 whiteOverlay.setVisibility(View.GONE);
                 overlayView.setVisibility(View.VISIBLE);
-                overlayView.setBackgroundColor(Color.parseColor("#55000000"));
+                overlayView.setBackgroundColor(ThemeColors.NIGHT_OVERLAY);
                 applyTextTheme(true);
                 applyButtonTheme(true);
             } else {
@@ -1641,15 +1642,15 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void applyTextTheme(boolean isNight) {
         if (isNight) {
-            tvSongName.setTextColor(Color.parseColor("#FFFFFF"));
-            tvArtist.setTextColor(Color.parseColor("#AAAAAA"));
-            tvCurrentTime.setTextColor(Color.parseColor("#FFFFFF"));
-            tvTotalTime.setTextColor(Color.parseColor("#FFFFFF"));
+            tvSongName.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+            tvArtist.setTextColor(ThemeColors.NIGHT_TEXT_SECONDARY);
+            tvCurrentTime.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+            tvTotalTime.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
         } else {
-            tvSongName.setTextColor(Color.parseColor("#333333"));
-            tvArtist.setTextColor(Color.parseColor("#666666"));
-            tvCurrentTime.setTextColor(Color.parseColor("#333333"));
-            tvTotalTime.setTextColor(Color.parseColor("#333333"));
+            tvSongName.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+            tvArtist.setTextColor(ThemeColors.DAY_TEXT_TERTIARY);
+            tvCurrentTime.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+            tvTotalTime.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
         }
     }
 
@@ -1661,11 +1662,11 @@ public class PlayerActivity extends AppCompatActivity {
                 btnHistory, btnFavorite, btnPlayOrder, btnTheme, btnBack};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
-            applySeekBarThemeColor(Color.parseColor("#FFFFFF"));
+            applySeekBarThemeColor(ThemeColors.NIGHT_TEXT_PRIMARY);
         } else {
-            int buttonColor = Color.parseColor("#333333");
+            int buttonColor = ThemeColors.DAY_TEXT_PRIMARY;
             for (ImageView btn : buttons) btn.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
-            applySeekBarThemeColor(Color.parseColor("#333333"));
+            applySeekBarThemeColor(ThemeColors.DAY_TEXT_PRIMARY);
         }
     }
 

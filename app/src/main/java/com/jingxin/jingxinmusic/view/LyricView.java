@@ -15,6 +15,7 @@ import android.util.Log;
 import android.view.View;
 
 import com.jingxin.jingxinmusic.util.KrcParser;
+import com.jingxin.jingxinmusic.util.ThemeColors;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,15 +55,15 @@ public class LyricView extends View {
     
     private ThemeMode currentTheme = ThemeMode.NIGHT;
     
-    // 夜间模式颜色配置
-    private static final int TEXT_COLOR_NORMAL_NIGHT = Color.parseColor("#FFFFFF");
-    private static final int TEXT_COLOR_PLAYED_NIGHT = Color.parseColor("#FFEB3B");
-    private static final int TEXT_COLOR_CURRENT_NIGHT = Color.parseColor("#FFEB3B");
-    
+    // 夜间模式颜色配置（统一由 ThemeColors 管理）
+    private static final int TEXT_COLOR_NORMAL_NIGHT = ThemeColors.NIGHT_LYRIC_NORMAL;
+    private static final int TEXT_COLOR_PLAYED_NIGHT = ThemeColors.LYRIC_HIGHLIGHT;
+    private static final int TEXT_COLOR_CURRENT_NIGHT = ThemeColors.LYRIC_HIGHLIGHT;
+
     // 白天模式颜色配置
-    private static final int TEXT_COLOR_NORMAL_DAY = Color.parseColor("#333333");
-    private static final int TEXT_COLOR_PLAYED_DAY = Color.parseColor("#FFEB3B");
-    private static final int TEXT_COLOR_CURRENT_DAY = Color.parseColor("#FFEB3B");
+    private static final int TEXT_COLOR_NORMAL_DAY = ThemeColors.DAY_LYRIC_NORMAL;
+    private static final int TEXT_COLOR_PLAYED_DAY = ThemeColors.LYRIC_HIGHLIGHT;
+    private static final int TEXT_COLOR_CURRENT_DAY = ThemeColors.LYRIC_HIGHLIGHT;
     
     // 当前使用的颜色（根据主题切换）
     private int textColorNormal = TEXT_COLOR_NORMAL_NIGHT;
@@ -227,9 +228,9 @@ public class LyricView extends View {
     
     private int getFadedTextColor() {
         if (currentTheme == ThemeMode.NIGHT) {
-            return Color.parseColor("#AAFFFFFF");
+            return ThemeColors.NIGHT_LYRIC_FADED;
         } else {
-            return Color.parseColor("#AA333333");
+            return ThemeColors.DAY_LYRIC_FADED;
         }
     }
     

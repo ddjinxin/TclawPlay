@@ -42,6 +42,7 @@ import com.jingxin.jingxinmusic.service.MusicPlayerService.MusicPlayerBinder;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.FavoriteManager;
 import com.jingxin.jingxinmusic.util.MusicScanner;
+import com.jingxin.jingxinmusic.util.ThemeColors;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -76,10 +77,6 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
     private TextView tabFolder;
     private TextView tabAll;
     private TextView tabFavorite;
-
-    // Tab 选中颜色
-    private static final int COLOR_ACTIVE = 0xFFFFFFFF;
-    private static final int COLOR_INACTIVE = 0xFF888888;
 
     // 主题
     private boolean isNightMode = true;
@@ -390,11 +387,13 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
 
     private void switchTab(int mode) {
         // 更新 Tab 样式
-        tabFolder.setTextColor(mode == 0 ? COLOR_ACTIVE : COLOR_INACTIVE);
+        int activeColor = isNightMode ? ThemeColors.NIGHT_TAB_ACTIVE : ThemeColors.DAY_TAB_ACTIVE;
+        int inactiveColor = isNightMode ? ThemeColors.NIGHT_TAB_INACTIVE : ThemeColors.DAY_TAB_INACTIVE;
+        tabFolder.setTextColor(mode == 0 ? activeColor : inactiveColor);
         tabFolder.setTypeface(null, mode == 0 ? Typeface.BOLD : Typeface.NORMAL);
-        tabAll.setTextColor(mode == 1 ? COLOR_ACTIVE : COLOR_INACTIVE);
+        tabAll.setTextColor(mode == 1 ? activeColor : inactiveColor);
         tabAll.setTypeface(null, mode == 1 ? Typeface.BOLD : Typeface.NORMAL);
-        tabFavorite.setTextColor(mode == 2 ? COLOR_ACTIVE : COLOR_INACTIVE);
+        tabFavorite.setTextColor(mode == 2 ? activeColor : inactiveColor);
         tabFavorite.setTypeface(null, mode == 2 ? Typeface.BOLD : Typeface.NORMAL);
 
         // 切换模式
@@ -430,49 +429,51 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
 
     private void updateThemeUI() {
         if (isNightMode) {
-            rootLayout.setBackgroundColor(Color.parseColor("#000000"));
-            titleBar.setBackgroundColor(Color.parseColor("#1a1a1a"));
-            tabBar.setBackgroundColor(Color.parseColor("#1a1a1a"));
-            tvTitle.setTextColor(Color.parseColor("#FFFFFF"));
-            etSearch.setTextColor(Color.parseColor("#FFFFFF"));
-            etSearch.setHintTextColor(Color.parseColor("#666666"));
-            tvSongCount.setTextColor(Color.parseColor("#666666"));
-            tvLoading.setTextColor(Color.parseColor("#666666"));
-            tvCopyright.setTextColor(Color.parseColor("#444444"));
-            tabDivider1.setBackgroundColor(Color.parseColor("#333333"));
-            tabDivider2.setBackgroundColor(Color.parseColor("#333333"));
+            rootLayout.setBackgroundColor(ThemeColors.NIGHT_BG);
+            titleBar.setBackgroundColor(ThemeColors.NIGHT_BAR_BG);
+            tabBar.setBackgroundColor(ThemeColors.NIGHT_BAR_BG);
+            tvTitle.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+            etSearch.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+            etSearch.setHintTextColor(ThemeColors.NIGHT_TEXT_TERTIARY);
+            tvSongCount.setTextColor(ThemeColors.NIGHT_TEXT_TERTIARY);
+            tvLoading.setTextColor(ThemeColors.NIGHT_TEXT_TERTIARY);
+            tvCopyright.setTextColor(ThemeColors.NIGHT_TEXT_COPYRIGHT);
+            tabDivider1.setBackgroundColor(ThemeColors.NIGHT_DIVIDER);
+            tabDivider2.setBackgroundColor(ThemeColors.NIGHT_DIVIDER);
             btnTheme.clearColorFilter();
             btnClose.clearColorFilter();
             // mini 播放条
-            miniPlayer.setBackgroundColor(Color.parseColor("#1a1a1a"));
-            miniSongTitle.setTextColor(Color.parseColor("#FFFFFF"));
-            miniSongArtist.setTextColor(Color.parseColor("#888888"));
+            miniPlayer.setBackgroundColor(ThemeColors.NIGHT_BAR_BG);
+            miniSongTitle.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+            miniSongArtist.setTextColor(ThemeColors.NIGHT_TEXT_SECONDARY);
             miniPlayPause.clearColorFilter();
         } else {
-            rootLayout.setBackgroundColor(Color.parseColor("#F5F5F5"));
-            titleBar.setBackgroundColor(Color.parseColor("#E0E0E0"));
-            tabBar.setBackgroundColor(Color.parseColor("#E0E0E0"));
-            tvTitle.setTextColor(Color.parseColor("#333333"));
-            etSearch.setTextColor(Color.parseColor("#333333"));
-            etSearch.setHintTextColor(Color.parseColor("#999999"));
-            tvSongCount.setTextColor(Color.parseColor("#999999"));
-            tvLoading.setTextColor(Color.parseColor("#999999"));
-            tvCopyright.setTextColor(Color.parseColor("#AAAAAA"));
-            tabDivider1.setBackgroundColor(Color.parseColor("#CCCCCC"));
-            tabDivider2.setBackgroundColor(Color.parseColor("#CCCCCC"));
-            btnTheme.setColorFilter(Color.parseColor("#333333"), PorterDuff.Mode.SRC_IN);
-            btnClose.setColorFilter(Color.parseColor("#333333"), PorterDuff.Mode.SRC_IN);
+            rootLayout.setBackgroundColor(ThemeColors.DAY_BG);
+            titleBar.setBackgroundColor(ThemeColors.DAY_BAR_BG);
+            tabBar.setBackgroundColor(ThemeColors.DAY_BAR_BG);
+            tvTitle.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+            etSearch.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+            etSearch.setHintTextColor(ThemeColors.DAY_TEXT_SECONDARY);
+            tvSongCount.setTextColor(ThemeColors.DAY_TEXT_SECONDARY);
+            tvLoading.setTextColor(ThemeColors.DAY_TEXT_SECONDARY);
+            tvCopyright.setTextColor(ThemeColors.DAY_TEXT_COPYRIGHT);
+            tabDivider1.setBackgroundColor(ThemeColors.DAY_DIVIDER);
+            tabDivider2.setBackgroundColor(ThemeColors.DAY_DIVIDER);
+            btnTheme.setColorFilter(ThemeColors.DAY_TEXT_PRIMARY, PorterDuff.Mode.SRC_IN);
+            btnClose.setColorFilter(ThemeColors.DAY_TEXT_PRIMARY, PorterDuff.Mode.SRC_IN);
             // mini 播放条
-            miniPlayer.setBackgroundColor(Color.parseColor("#E8E8E8"));
-            miniSongTitle.setTextColor(Color.parseColor("#333333"));
-            miniSongArtist.setTextColor(Color.parseColor("#999999"));
-            miniPlayPause.setColorFilter(Color.parseColor("#333333"), PorterDuff.Mode.SRC_IN);
+            miniPlayer.setBackgroundColor(ThemeColors.DAY_MINI_BG);
+            miniSongTitle.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+            miniSongArtist.setTextColor(ThemeColors.DAY_TEXT_SECONDARY);
+            miniPlayPause.setColorFilter(ThemeColors.DAY_TEXT_PRIMARY, PorterDuff.Mode.SRC_IN);
         }
         // 更新 Tab 文字颜色
         int mode = adapter.getCurrentMode();
-        tabFolder.setTextColor(mode == 0 ? COLOR_ACTIVE : COLOR_INACTIVE);
-        tabAll.setTextColor(mode == 1 ? COLOR_ACTIVE : COLOR_INACTIVE);
-        tabFavorite.setTextColor(mode == 2 ? COLOR_ACTIVE : COLOR_INACTIVE);
+        int activeColor = isNightMode ? ThemeColors.NIGHT_TAB_ACTIVE : ThemeColors.DAY_TAB_ACTIVE;
+        int inactiveColor = isNightMode ? ThemeColors.NIGHT_TAB_INACTIVE : ThemeColors.DAY_TAB_INACTIVE;
+        tabFolder.setTextColor(mode == 0 ? activeColor : inactiveColor);
+        tabAll.setTextColor(mode == 1 ? activeColor : inactiveColor);
+        tabFavorite.setTextColor(mode == 2 ? activeColor : inactiveColor);
         // 同步 adapter 主题字段（新滚出的 item 会用正确颜色）
         adapter.setNightMode(isNightMode);
         // 刷新当前可见 item
@@ -494,15 +495,15 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
                     TextView tvCount = child.findViewById(R.id.tv_folder_count);
                     ImageView ivArrow = child.findViewById(R.id.iv_folder_arrow);
                     if (isNightMode) {
-                        child.setBackgroundColor(Color.parseColor("#0a0a0a"));
-                        tvName.setTextColor(Color.parseColor("#FFFFFF"));
-                        tvCount.setTextColor(Color.parseColor("#888888"));
-                        ivArrow.setColorFilter(Color.parseColor("#888888"));
+                        child.setBackgroundColor(ThemeColors.NIGHT_ITEM_BG);
+                        tvName.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+                        tvCount.setTextColor(ThemeColors.NIGHT_TEXT_SECONDARY);
+                        ivArrow.setColorFilter(ThemeColors.NIGHT_TEXT_SECONDARY);
                     } else {
-                        child.setBackgroundColor(Color.parseColor("#FFFFFF"));
-                        tvName.setTextColor(Color.parseColor("#333333"));
-                        tvCount.setTextColor(Color.parseColor("#999999"));
-                        ivArrow.setColorFilter(Color.parseColor("#999999"));
+                        child.setBackgroundColor(ThemeColors.DAY_ITEM_BG);
+                        tvName.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+                        tvCount.setTextColor(ThemeColors.DAY_TEXT_SECONDARY);
+                        ivArrow.setColorFilter(ThemeColors.DAY_TEXT_SECONDARY);
                     }
                 } else if (child.findViewById(R.id.tv_song_title) != null) {
                     // 歌曲项
@@ -510,15 +511,15 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
                     TextView tvArtist = child.findViewById(R.id.tv_song_artist);
                     TextView tvDuration = child.findViewById(R.id.tv_song_duration);
                     if (isNightMode) {
-                        child.setBackgroundColor(Color.parseColor("#0a0a0a"));
-                        tvTitle.setTextColor(Color.parseColor("#FFFFFF"));
-                        tvArtist.setTextColor(Color.parseColor("#888888"));
-                        tvDuration.setTextColor(Color.parseColor("#666666"));
+                        child.setBackgroundColor(ThemeColors.NIGHT_ITEM_BG);
+                        tvTitle.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+                        tvArtist.setTextColor(ThemeColors.NIGHT_TEXT_SECONDARY);
+                        tvDuration.setTextColor(ThemeColors.NIGHT_TEXT_TERTIARY);
                     } else {
-                        child.setBackgroundColor(Color.parseColor("#FFFFFF"));
-                        tvTitle.setTextColor(Color.parseColor("#333333"));
-                        tvArtist.setTextColor(Color.parseColor("#999999"));
-                        tvDuration.setTextColor(Color.parseColor("#999999"));
+                        child.setBackgroundColor(ThemeColors.DAY_ITEM_BG);
+                        tvTitle.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+                        tvArtist.setTextColor(ThemeColors.DAY_TEXT_SECONDARY);
+                        tvDuration.setTextColor(ThemeColors.DAY_TEXT_SECONDARY);
                     }
                 }
             }
