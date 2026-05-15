@@ -9,7 +9,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.InputStream;
-import java.net.URLEncoder;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -20,12 +20,6 @@ import java.util.concurrent.Executors;
  */
 public class CoverFetcher {
     private static final String TAG = "CoverFetcher";
-    
-    // 酷狗搜索 API
-    private static final String KUGOU_API_BASE = "https://mobileservice.kugou.com/api/v3/search/song";
-    
-    // 网易云搜索 API
-    private static final String NETEASE_SEARCH_API = "https://music.163.com/api/search/get";
     
     private static ExecutorService executor = Executors.newSingleThreadExecutor();
     
@@ -127,151 +121,84 @@ public class CoverFetcher {
      * 酷狗搜索：获取封面 URL
      */
     private static String searchKugouAndGetCoverUrl(String keyword, String songTitle) {
+        JSONArray info = MusicApiUtil.searchKugou(keyword, 20);
+        if (info == null) return null;
+
+        JSONObject match = MusicApiUtil.findKugouMatch(info, songTitle);
+        if (match != null) {
+            String url = extractKugouCoverUrl(match);
+            if (url != null) return url;
+        }
+
+        // 未精确匹配，尝试遍历所有结果
+        for (int i = 0; i < info.length(); i++) {
+            try {
+                String url = extractKugouCoverUrl(info.getJSONObject(i));
+                if (url != null) return url;
+            } catch (Exception ignored) {}
+        }
+
+        Log.e(TAG, "未找到封面 URL");
+        return null;
+    }
+
+    /**
+     * 从酷狗搜索结果中提取封面 URL
+     */
+    private static String extractKugouCoverUrl(JSONObject song) {
         try {
-            String encodedKeyword = URLEncoder.encode(keyword, "UTF-8");
-            String apiUrl = KUGOU_API_BASE + "?format=json&keyword=" + encodedKeyword + "&page=1&pagesize=20";
-            
-            Log.d(TAG, "搜索 API: " + apiUrl);
-            
-            String response = HttpUtil.get(apiUrl);
-            
-            if (response == null) {
-                Log.e(TAG, "搜索 API 请求失败");
-                return null;
-            }
-            
-            JSONObject json = new JSONObject(response);
-            
-            // 检查状态
-            if (!json.has("status") || json.getInt("status") != 1) {
-                Log.e(TAG, "搜索 API 返回错误状态");
-                return null;
-            }
-            
-            // 检查是否有结果
-            if (!json.has("data")) {
-                Log.e(TAG, "搜索结果无 data 字段");
-                return null;
-            }
-            
-            JSONObject data = json.getJSONObject("data");
-            
-            if (!data.has("info")) {
-                Log.e(TAG, "搜索结果无 info 字段");
-                return null;
-            }
-            
-            JSONArray info = data.getJSONArray("info");
-            
-            if (info.length() == 0) {
-                Log.e(TAG, "搜索结果为空");
-                return null;
-            }
-            
-            Log.d(TAG, "搜索结果数量: " + info.length());
-            
-            // 遍历搜索结果，找到匹配的歌曲（精确匹配歌曲名）
-            for (int i = 0; i < info.length(); i++) {
-                JSONObject song = info.getJSONObject(i);
-                String songName = song.getString("songname");
-                String singerName = song.getString("singername");
-                
-                Log.d(TAG, "检查歌曲: " + songName + " - " + singerName);
-                
-                // 如果歌曲名包含关键词，返回封面 URL
-                if (songName.toLowerCase().contains(songTitle.toLowerCase())) {
-                    // 提取封面 URL
-                    if (song.has("trans_param")) {
-                        JSONObject transParam = song.getJSONObject("trans_param");
-                        if (transParam.has("union_cover")) {
-                            String coverUrl = transParam.getString("union_cover");
-                            // 替换 {size} 为 400（大尺寸）
-                            coverUrl = coverUrl.replace("{size}", "400");
-                            Log.d(TAG, "找到匹配歌曲封面: " + songName + " → " + coverUrl);
-                            return coverUrl;
-                        }
-                    }
-                }
-            }
-            
-            // 如果没有找到匹配的歌曲，返回第一个歌曲的封面
-            Log.d(TAG, "未找到精确匹配，使用第一个搜索结果");
-            JSONObject firstSong = info.getJSONObject(0);
-            if (firstSong.has("trans_param")) {
-                JSONObject transParam = firstSong.getJSONObject("trans_param");
+            if (song.has("trans_param")) {
+                JSONObject transParam = song.getJSONObject("trans_param");
                 if (transParam.has("union_cover")) {
                     String coverUrl = transParam.getString("union_cover");
-                    // 替换 {size} 为 400（大尺寸）
                     coverUrl = coverUrl.replace("{size}", "400");
-                    Log.d(TAG, "使用第一个结果封面: " + coverUrl);
                     return coverUrl;
                 }
             }
-            
-            Log.e(TAG, "未找到封面 URL");
-            return null;
-            
         } catch (Exception e) {
-            Log.e(TAG, "搜索歌曲失败: " + e.getMessage(), e);
-            return null;
+            Log.e(TAG, "提取酷狗封面URL失败: " + e.getMessage());
         }
+        return null;
     }
     
     /**
      * 网易云搜索：获取封面 URL（HTTPS，无需白名单）
      */
     private static String searchNeteaseAndGetCoverUrl(String songTitle, String artistName) {
+        JSONArray songs = MusicApiUtil.searchNetease(songTitle);
+        if (songs == null) return null;
+
+        JSONObject match = MusicApiUtil.findNeteaseMatch(songs, songTitle);
+        if (match != null) {
+            String url = extractNeteaseCoverUrl(match);
+            if (url != null) return url;
+        }
+
+        // 未精确匹配，尝试遍历所有结果
+        for (int i = 0; i < songs.length(); i++) {
+            try {
+                String url = extractNeteaseCoverUrl(songs.getJSONObject(i));
+                if (url != null) return url;
+            } catch (Exception ignored) {}
+        }
+
+        return null;
+    }
+
+    /**
+     * 从网易云搜索结果中提取封面 URL
+     */
+    private static String extractNeteaseCoverUrl(JSONObject song) {
         try {
-            String keyword = songTitle;
-            String apiUrl = NETEASE_SEARCH_API + "?s=" +
-                    URLEncoder.encode(keyword, "UTF-8") + "&limit=5&type=1&offset=0";
-            
-            String response = HttpUtil.get(apiUrl);
-            if (response == null) return null;
-            
-            JSONObject json = new JSONObject(response);
-            JSONObject result = json.optJSONObject("result");
-            if (result == null) return null;
-            
-            JSONArray songs = result.optJSONArray("songs");
-            if (songs == null || songs.length() == 0) return null;
-            
-            Log.d(TAG, "网易云搜索结果数量: " + songs.length());
-            
-            // 精确匹配歌曲名
-            for (int i = 0; i < songs.length(); i++) {
-                JSONObject song = songs.getJSONObject(i);
-                String name = song.optString("name", "");
-                
-                if (name.equalsIgnoreCase(songTitle) ||
-                    name.toLowerCase().contains(songTitle.toLowerCase())) {
-                    JSONObject album = song.optJSONObject("album");
-                    if (album != null) {
-                        String coverUrl = album.optString("picUrl", "");
-                        if (!coverUrl.isEmpty()) {
-                            Log.d(TAG, "网易云匹配封面: " + name + " → " + coverUrl);
-                            return coverUrl;
-                        }
-                    }
-                }
-            }
-            
-            // 未精确匹配，用第一个结果的封面
-            JSONObject firstSong = songs.getJSONObject(0);
-            JSONObject album = firstSong.optJSONObject("album");
+            JSONObject album = song.optJSONObject("album");
             if (album != null) {
                 String coverUrl = album.optString("picUrl", "");
-                if (!coverUrl.isEmpty()) {
-                    Log.d(TAG, "网易云使用第一个结果封面: " + coverUrl);
-                    return coverUrl;
-                }
+                if (!coverUrl.isEmpty()) return coverUrl;
             }
-            
-            return null;
         } catch (Exception e) {
-            Log.e(TAG, "网易云搜索封面失败: " + e.getMessage());
-            return null;
+            Log.e(TAG, "提取网易云封面URL失败: " + e.getMessage());
         }
+        return null;
     }
     
     /**

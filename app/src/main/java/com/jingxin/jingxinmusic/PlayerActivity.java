@@ -134,16 +134,7 @@ public class PlayerActivity extends AppCompatActivity {
             String action = intent.getAction();
             if (MusicPlayerService.ACTION_SONG_CHANGED.equals(action)) {
                 // 切歌了，更新所有 UI
-                Song newSong = new Song();
-                newSong.id = intent.getLongExtra(MusicPlayerService.EXTRA_SONG_ID, 0);
-                newSong.title = intent.getStringExtra(MusicPlayerService.EXTRA_SONG_TITLE);
-                newSong.artist = intent.getStringExtra(MusicPlayerService.EXTRA_SONG_ARTIST);
-                newSong.album = intent.getStringExtra(MusicPlayerService.EXTRA_SONG_ALBUM);
-                newSong.duration = intent.getLongExtra(MusicPlayerService.EXTRA_DURATION, 0);
-                newSong.filePath = intent.getStringExtra(MusicPlayerService.EXTRA_SONG_PATH);
-                newSong.contentUri = intent.getStringExtra(MusicPlayerService.EXTRA_SONG_URI);
-                newSong.albumArt = intent.getStringExtra(MusicPlayerService.EXTRA_SONG_ALBUM_ART);
-                newSong.displayName = newSong.title;
+                Song newSong = Song.fromIntent(intent);
                 position = intent.getIntExtra(MusicPlayerService.EXTRA_SONG_INDEX, 0);
 
                 song = newSong;

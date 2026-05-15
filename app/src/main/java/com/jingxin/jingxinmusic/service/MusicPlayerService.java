@@ -67,7 +67,7 @@ public class MusicPlayerService extends Service {
     public static final String EXTRA_SONG_ALBUM = "song_album";
     public static final String EXTRA_SONG_PATH = "song_path";
     public static final String EXTRA_SONG_URI = "song_uri";
-    public static final String EXTRA_SONG_ALBUM_ART = "song_album_art";
+    public static final String EXTRA_SONG_ALBUM_ART = "album_art";
     public static final String EXTRA_SONG_INDEX = "song_index";
     public static final String EXTRA_AUDIO_SESSION_ID = "audio_session_id";
     // 播放顺序模式

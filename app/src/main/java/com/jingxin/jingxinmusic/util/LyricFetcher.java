@@ -9,8 +9,6 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.FileOutputStream;
 
-import java.net.URLEncoder;
-
 /**
  * 歌词获取管理器
  *
@@ -28,13 +26,11 @@ public class LyricFetcher {
 
     private static final String TAG = "LyricFetcher";
 
-    // 酷狗 API
-    private static final String KUGOU_SEARCH_API = "https://mobileservice.kugou.com/api/v3/search/song";
+    // 酷狗歌词 API
     private static final String KUGOU_LYRIC_SEARCH_API = "http://krcs.kugou.com/search";
     private static final String KUGOU_LYRIC_DOWNLOAD_API = "http://lyrics.kugou.com/download";
 
-    // 网易云 API
-    private static final String NETEASE_SEARCH_API = "https://music.163.com/api/search/get";
+    // 网易云歌词 API
     private static final String NETEASE_LYRIC_API = "https://music.163.com/api/song/lyric";
 
     public interface LyricCallback {
@@ -230,35 +226,10 @@ public class LyricFetcher {
     }
 
     private static String searchKugouSong(String songTitle, String artistName) {
-        try {
-            String keyword = songTitle;
-            String apiUrl = KUGOU_SEARCH_API + "?format=json&keyword=" +
-                    URLEncoder.encode(keyword, "UTF-8") + "&page=1&pagesize=10";
-
-            String response = HttpUtil.get(apiUrl);
-            if (response == null) return null;
-
-            JSONObject json = new JSONObject(response);
-            if (json.optInt("status") != 1) return null;
-            JSONObject data = json.optJSONObject("data");
-            if (data == null) return null;
-            JSONArray info = data.optJSONArray("info");
-            if (info == null || info.length() == 0) return null;
-
-            // 精确匹配
-            for (int i = 0; i < info.length(); i++) {
-                JSONObject song = info.getJSONObject(i);
-                String name = song.optString("songname", "");
-                if (name.equalsIgnoreCase(songTitle) ||
-                    name.toLowerCase().contains(songTitle.toLowerCase())) {
-                    return song.optString("hash", "");
-                }
-            }
-            return info.getJSONObject(0).optString("hash", "");
-        } catch (Exception e) {
-            Log.e(TAG, "酷狗歌曲搜索失败: " + e.getMessage());
-            return null;
-        }
+        JSONArray info = MusicApiUtil.searchKugou(songTitle, 10);
+        if (info == null) return null;
+        JSONObject match = MusicApiUtil.findKugouMatch(info, songTitle);
+        return match != null ? match.optString("hash", "") : null;
     }
 
     private static String[] searchKugouLyric(String hash) {
@@ -348,41 +319,10 @@ public class LyricFetcher {
     }
 
     private static long searchNeteaseSong(String songTitle, String artistName) {
-        try {
-            String keyword = songTitle;
-            String apiUrl = NETEASE_SEARCH_API + "?s=" +
-                    URLEncoder.encode(keyword, "UTF-8") + "&limit=5&type=1&offset=0";
-
-            String response = HttpUtil.get(apiUrl);
-            if (response == null) return 0;
-
-            JSONObject json = new JSONObject(response);
-            JSONObject result = json.optJSONObject("result");
-            if (result == null) return 0;
-
-            JSONArray songs = result.optJSONArray("songs");
-            if (songs == null || songs.length() == 0) return 0;
-
-            // 精确匹配
-            for (int i = 0; i < songs.length(); i++) {
-                JSONObject song = songs.getJSONObject(i);
-                String name = song.optString("name", "");
-                JSONArray artists = song.optJSONArray("artists");
-                String artistStr = "";
-                if (artists != null && artists.length() > 0) {
-                    artistStr = artists.getJSONObject(0).optString("name", "");
-                }
-
-                if (name.equalsIgnoreCase(songTitle) ||
-                    name.toLowerCase().contains(songTitle.toLowerCase())) {
-                    return song.optLong("id", 0);
-                }
-            }
-            return songs.getJSONObject(0).optLong("id", 0);
-        } catch (Exception e) {
-            Log.e(TAG, "网易云歌曲搜索失败: " + e.getMessage());
-            return 0;
-        }
+        JSONArray songs = MusicApiUtil.searchNetease(songTitle);
+        if (songs == null) return 0;
+        JSONObject match = MusicApiUtil.findNeteaseMatch(songs, songTitle);
+        return match != null ? match.optLong("id", 0) : 0;
     }
 
 }
