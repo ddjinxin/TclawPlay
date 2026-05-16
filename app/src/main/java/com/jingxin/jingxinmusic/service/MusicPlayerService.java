@@ -78,6 +78,16 @@ public class MusicPlayerService extends Service {
     public static final int PLAY_ORDER_SHUFFLE = 1;      // 随机播放
     public static final int PLAY_ORDER_REPEAT_ONE = 2;   // 单曲循环
 
+    // 主题切换广播（由高德日夜模式触发）
+    public static final String ACTION_THEME_CHANGED = "com.jingxin.jingxinmusic.THEME_CHANGED";
+    public static final String EXTRA_IS_NIGHT = "is_night";
+
+    // 高德导航广播
+    private static final String ACTION_AUTONAVI = "AUTONAVI_STANDARD_BROADCAST_SEND";
+    private static final int KEY_TYPE_DAY_NIGHT = 10019;
+    private static final int EXTRA_STATE_DAY = 37;
+    private static final int EXTRA_STATE_NIGHT = 38;
+
     private ExoPlayer exoPlayer;
     private MediaSessionCompat mediaSession;
     private PlaybackStateCompat.Builder stateBuilder;
@@ -90,6 +100,9 @@ public class MusicPlayerService extends Service {
     private NotificationManager notificationManager;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+
+    // 高德日夜模式防抖
+    private long lastAmapThemeTime = 0;
 
     // ========== PendingIntent 工厂方法 ==========
 
@@ -141,6 +154,40 @@ public class MusicPlayerService extends Service {
                     playNext();
                     break;
             }
+        }
+    };
+
+    // 高德导航日夜模式广播接收器
+    private BroadcastReceiver amapThemeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!ACTION_AUTONAVI.equals(intent.getAction())) return;
+            int keyType = intent.getIntExtra("KEY_TYPE", -1);
+            if (keyType != KEY_TYPE_DAY_NIGHT) return;
+
+            int extraState = intent.getIntExtra("EXTRA_STATE", -1);
+            if (extraState != EXTRA_STATE_DAY && extraState != EXTRA_STATE_NIGHT) return;
+
+            // 防抖：500ms 内不重复处理
+            long now = System.currentTimeMillis();
+            if (now - lastAmapThemeTime < 500) return;
+            lastAmapThemeTime = now;
+
+            boolean isNight = (extraState == EXTRA_STATE_NIGHT);
+            Log.d(TAG, "高德日夜模式: " + (isNight ? "夜间" : "白天"));
+
+            // 写入 SharedPreferences
+            getSharedPreferences("theme", MODE_PRIVATE)
+                    .edit().putBoolean("isNight", isNight).apply();
+            // 标记此次由高德触发，非用户手动
+            getSharedPreferences("theme", MODE_PRIVATE)
+                    .edit().putBoolean("amapTriggered", true).apply();
+
+            // 发送内部广播通知 PlayerActivity
+            Intent themeIntent = new Intent(ACTION_THEME_CHANGED);
+            themeIntent.setPackage(getPackageName());
+            themeIntent.putExtra(EXTRA_IS_NIGHT, isNight);
+            sendBroadcast(themeIntent);
         }
     };
 
@@ -251,6 +298,14 @@ public class MusicPlayerService extends Service {
         filter.addAction("ACTION_NEXT");
         CompatUtil.safeRegisterReceiver(this, notificationActionReceiver, filter);
 
+        // 注册高德导航日夜模式广播（需 RECEIVER_EXPORTED，因为来自外部应用）
+        IntentFilter amapFilter = new IntentFilter(ACTION_AUTONAVI);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(amapThemeReceiver, amapFilter, android.content.Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(amapThemeReceiver, amapFilter);
+        }
+
         // 启动为前台服务
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             // Android 14+ 必须使用三参数形式，指定 foregroundServiceType
@@ -298,6 +353,9 @@ public class MusicPlayerService extends Service {
         stopForeground(true);
         try {
             unregisterReceiver(notificationActionReceiver);
+        } catch (Exception ignored) {}
+        try {
+            unregisterReceiver(amapThemeReceiver);
         } catch (Exception ignored) {}
         Log.d(TAG, "MusicPlayerService 销毁");
     }

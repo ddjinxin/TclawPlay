@@ -233,7 +233,9 @@ public class MainActivity extends AppCompatActivity implements SongAdapter.OnSon
         // 主题按钮
         btnTheme.setOnClickListener(v -> {
             isNightMode = !isNightMode;
-            themePrefs.edit().putBoolean("isNight", isNightMode).apply();
+            themePrefs.edit().putBoolean("isNight", isNightMode)
+                    .putBoolean("amapTriggered", false)  // 手动切换，暂停高德同步
+                    .apply();
             updateThemeUI();
             android.widget.Toast.makeText(this, isNightMode ? "夜间模式" : "白天模式", android.widget.Toast.LENGTH_SHORT).show();
         });

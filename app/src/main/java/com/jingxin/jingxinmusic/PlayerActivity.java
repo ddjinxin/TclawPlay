@@ -154,6 +154,25 @@ public class PlayerActivity extends AppCompatActivity {
             } else if (MusicPlayerService.ACTION_PLAY_ORDER_CHANGED.equals(action)) {
                 int order = intent.getIntExtra(MusicPlayerService.EXTRA_PLAY_ORDER, 0);
                 updatePlayOrderIcon(order);
+            } else if (MusicPlayerService.ACTION_THEME_CHANGED.equals(action)) {
+                // 高德导航日夜模式切换
+                boolean amapNight = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_NIGHT, isNightMode);
+                if (amapNight != isNightMode) {
+                    // 检查是否用户手动切过主题（如果是，忽略高德信号）
+                    boolean amapTriggered = getSharedPreferences("theme", MODE_PRIVATE)
+                            .getBoolean("amapTriggered", false);
+                    if (amapTriggered) {
+                        // 高德触发的，直接同步
+                        isNightMode = amapNight;
+                        if (lyricView != null) {
+                            lyricView.setThemeMode(isNightMode ?
+                                    com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT :
+                                    com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
+                        }
+                        updateThemeUI();
+                        Log.d(TAG, "高德日夜模式同步: " + (isNightMode ? "夜间" : "白天"));
+                    }
+                }
             }
         }
     };
@@ -457,6 +476,7 @@ public class PlayerActivity extends AppCompatActivity {
             filter.addAction(MusicPlayerService.ACTION_SONG_CHANGED);
             filter.addAction(MusicPlayerService.ACTION_PLAY_STATE_CHANGED);
             filter.addAction(MusicPlayerService.ACTION_PLAY_ORDER_CHANGED);
+            filter.addAction(MusicPlayerService.ACTION_THEME_CHANGED);
         CompatUtil.safeRegisterReceiver(this, songChangedReceiver, filter);
 
         // 绑定播放服务
@@ -1579,7 +1599,10 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void toggleTheme() {
         isNightMode = !isNightMode;
-        getSharedPreferences("theme", MODE_PRIVATE).edit().putBoolean("isNight", isNightMode).apply();
+        getSharedPreferences("theme", MODE_PRIVATE).edit()
+                .putBoolean("isNight", isNightMode)
+                .putBoolean("amapTriggered", false)  // 手动切换，暂停高德同步
+                .apply();
         updateThemeUI();
         if (lyricView != null) {
             lyricView.setThemeMode(isNightMode
