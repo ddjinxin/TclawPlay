@@ -492,7 +492,7 @@ public class SpectrumView extends View {
         
         int r = (int) (r1 + (r2 - r1) * t);
         int g = (int) (g1 + (g2 - g1) * t);
-        int b = (int) ((b2 - b1) * t);
+        int b = (int) (b1 + (b2 - b1) * t);
         
         return Color.rgb(r, g, b);
     }

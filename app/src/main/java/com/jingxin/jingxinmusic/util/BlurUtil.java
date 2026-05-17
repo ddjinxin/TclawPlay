@@ -46,7 +46,9 @@ public class BlurUtil {
             
             // 对缩小后的图片进行模糊
             Bitmap blurredSmall;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            // API 17~30 用 RenderScript（最优），API 31+ 用 fastBlur（安全降级，RenderScript 已废弃）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1
+                    && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
                 blurredSmall = renderScriptBlur(context, scaledBitmap, radius);
             } else {
                 blurredSmall = fastBlur(scaledBitmap, radius);

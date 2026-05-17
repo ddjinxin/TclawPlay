@@ -217,6 +217,10 @@ public class MusicPlayerService extends Service {
             public void onPlaybackStateChanged(int playbackState) {
                 updateNotification();
                 sendPlayStateBroadcast();
+                if (playbackState == Player.STATE_ENDED) {
+                    Log.d(TAG, "歌曲播放结束，自动下一首");
+                    playNext();
+                }
             }
 
             @Override
@@ -237,17 +241,6 @@ public class MusicPlayerService extends Service {
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放错误: " + error.getMessage());
                 playNext();
-            }
-        });
-
-        // 监听播放完成自动下一首
-        exoPlayer.addListener(new Player.Listener() {
-            @Override
-            public void onPlaybackStateChanged(int playbackState) {
-                if (playbackState == Player.STATE_ENDED) {
-                    Log.d(TAG, "歌曲播放结束，自动下一首");
-                    playNext();
-                }
             }
         });
 

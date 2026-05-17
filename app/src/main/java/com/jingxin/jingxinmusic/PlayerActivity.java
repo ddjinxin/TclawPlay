@@ -515,6 +515,16 @@ public class PlayerActivity extends AppCompatActivity {
                     ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
                     : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
         }
+        // 恢复频谱
+        if (bound && playerBinder != null && playerBinder.isPlaying()) {
+            startSpectrumWithPermission();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopSpectrum();
     }
 
     @Override
