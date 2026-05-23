@@ -105,15 +105,17 @@ public class ImmersiveOverlayView extends View {
         if (isNight) {
             return 0xFF000000 | (dominantColor & 0x00FFFFFF);
         } else {
-            int r = (int) ((dominantColor >> 16 & 0xFF) * 0.4f + 0xFF * 0.6f);
-            int g = (int) ((dominantColor >> 8 & 0xFF) * 0.4f + 0xFF * 0.6f);
-            int b = (int) ((dominantColor & 0xFF) * 0.4f + 0xFF * 0.6f);
+            // 白天模式：封面主色向浅蓝色(#ADD8E6)偏移50%
+            int blueR = 0xAD, blueG = 0xD8, blueB = 0xE6; // #ADD8E6 浅蓝色
+            int r = (int) ((dominantColor >> 16 & 0xFF) * 0.5f + blueR * 0.5f);
+            int g = (int) ((dominantColor >> 8 & 0xFF) * 0.5f + blueG * 0.5f);
+            int b = (int) ((dominantColor & 0xFF) * 0.5f + blueB * 0.5f);
             return 0xFF000000 | (r << 16) | (g << 8) | b;
         }
     }
 
     private int getTransparentColor() {
-        return isNight ? 0x00000000 : 0x00FFFFFF;
+        return isNight ? 0x00000000 : 0x00ADD8E6; // 白天：透明浅蓝
     }
 
     /**

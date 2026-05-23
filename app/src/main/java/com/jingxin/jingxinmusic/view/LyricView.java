@@ -64,6 +64,8 @@ public class LyricView extends View {
     private static final int TEXT_COLOR_NORMAL_DAY = ThemeColors.DAY_LYRIC_NORMAL;
     private static final int TEXT_COLOR_PLAYED_DAY = ThemeColors.LYRIC_HIGHLIGHT;
     private static final int TEXT_COLOR_CURRENT_DAY = ThemeColors.LYRIC_HIGHLIGHT;
+    // 当前行未播放字颜色：白天模式下用比灰色更深的颜色，避免在深色背景上看不见
+    private static final int TEXT_COLOR_UNPLAYED_CURRENT_DAY = Color.parseColor("#555555");
     
     // 当前使用的颜色（根据主题切换）
     private int textColorNormal = TEXT_COLOR_NORMAL_NIGHT;
@@ -316,7 +318,8 @@ public class LyricView extends View {
     
     /**
      * 构建当前行的 StaticLayout（带逐字颜色渐变）
-     * @param unplayedColor 未播放文字的颜色（通常为 textColorNormal；卡拉OK模式可用淡色）
+     * @param unplayedColor 未播放文字的颜色
+     * 注意：白天模式下当前行未播放字应该比普通行更深，避免在深色背景上不可见
      */
     private StaticLayout buildCurrentLineLayout(KrcParser.LyricLine line, float textSize, int unplayedColor) {
         TextPaint paint = new TextPaint();
@@ -328,6 +331,12 @@ public class LyricView extends View {
         if (text.isEmpty()) text = " ";
         
         float spacingAdd = textSize * WRAP_SPACING_ADD_RATIO;
+        
+        // 白天模式下，当前行未播放字用更深的颜色，确保在任何背景上可见
+        int effectiveUnplayedColor = unplayedColor;
+        if (currentTheme == ThemeMode.DAY && unplayedColor == TEXT_COLOR_NORMAL_DAY) {
+            effectiveUnplayedColor = TEXT_COLOR_UNPLAYED_CURRENT_DAY;
+        }
         
         if (line.words != null && !line.words.isEmpty()) {
             SpannableStringBuilder ssb = new SpannableStringBuilder(text);
@@ -344,9 +353,9 @@ public class LyricView extends View {
                     color = textColorPlayed;
                 } else if (wordPlaying) {
                     float progress = (currentPosition - word.startTime) / (float) word.duration;
-                    color = blendColor(textColorPlayed, unplayedColor, progress);
+                    color = blendColor(textColorPlayed, effectiveUnplayedColor, progress);
                 } else {
-                    color = unplayedColor;
+                    color = effectiveUnplayedColor;
                 }
                 ssb.setSpan(new ForegroundColorSpan(color), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 start = end;
@@ -469,7 +478,28 @@ public class LyricView extends View {
     // ===== 五行模式（上2行 + 当前行 + 下2行）=====
     
     private void drawMultiLineMode(Canvas canvas) {
-        if (currentLineIndex < 0 || currentLineIndex >= lines.size()) return;
+        if (lines.isEmpty()) return;
+        
+        // 当前行未确定时，降级为显示前几行歌词，第一行作为当前行高亮
+        if (currentLineIndex < 0 || currentLineIndex >= lines.size()) {
+            float centerY = viewHeight / 2f;
+            // 第一行用当前行样式（黄色高亮）
+            float firstH = getWrappedHeight(lines.get(0).text, textSizeCurrent);
+            StaticLayout firstLayout = buildCurrentLineLayout(lines.get(0), textSizeCurrent, textColorNormal);
+            float y = centerY - firstH / 2;
+            drawLayoutAt(canvas, firstLayout, y);
+            y += firstH + lineSpacing;
+            // 后续行用普通样式
+            for (int i = 1; i < Math.min(5, lines.size()); i++) {
+                float h = getWrappedHeight(lines.get(i).text, textSizeNormal);
+                float alpha = 1.0f - i * 0.2f;
+                StaticLayout layout = buildSimpleLayout(lines.get(i), textSizeNormal,
+                        applyAlpha(getFadedTextColor(), alpha));
+                drawLayoutAt(canvas, layout, y);
+                y += h + lineSpacing;
+            }
+            return;
+        }
         
         float currentH = getWrappedHeight(lines.get(currentLineIndex).text, textSizeCurrent);
         float centerY = viewHeight / 2f;
@@ -510,7 +540,30 @@ public class LyricView extends View {
     // ===== 多行全屏模式（全部歌词滚动）=====
     
     private void drawFullMode(Canvas canvas) {
-        if (lines.isEmpty() || currentLineIndex < 0) return;
+        if (lines.isEmpty()) return;
+        
+        // 当前行未确定时，降级为从顶部开始显示歌词，第一行作为当前行高亮
+        if (currentLineIndex < 0) {
+            float y = viewHeight * 0.3f;
+            for (int i = 0; i < lines.size(); i++) {
+                float h = getWrappedHeight(lines.get(i).text, i == 0 ? textSizeCurrent : textSizeCurrent);
+                if (y + h > -50 && y < viewHeight + 50) {
+                    if (i == 0) {
+                        // 第一行用当前行样式（黄色高亮）
+                        StaticLayout layout = buildCurrentLineLayout(lines.get(i), textSizeCurrent, textColorNormal);
+                        drawLayoutAt(canvas, layout, y);
+                    } else {
+                        float alpha = Math.max(0.15f, 1.0f - i * 0.1f);
+                        StaticLayout layout = buildSimpleLayout(lines.get(i), textSizeCurrent,
+                                applyAlpha(getFadedTextColor(), alpha));
+                        drawLayoutAt(canvas, layout, y);
+                    }
+                }
+                y += h + lineSpacing;
+                if (y > viewHeight + 200) break;
+            }
+            return;
+        }
         
         float textSize = textSizeCurrent;
         

@@ -29,12 +29,11 @@
         android:background="#80000000"
         android:visibility="gone" />
 
-    <!-- 白色遮罩层（白天模式非沉浸时使用） -->
+    <!-- 白色遮罩层（白天模式非沉浸时使用，渐变由代码设置） -->
     <View
         android:id="@+id/white_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#66FEFEFE"
         android:visibility="gone" />
 
     <!-- 半透明遮罩（夜间模式非沉浸时使用） -->

@@ -98,6 +98,9 @@ public class PlayerActivity extends AppCompatActivity {
     private View whiteOverlay;
     private View immersiveDarkOverlay;
 
+    // 白天模式渐变遮罩（浅绿→白）
+    private android.graphics.drawable.GradientDrawable whiteGradientDrawable;
+
     // 主题
     private boolean isNightMode = true;  // 默认夜间模式
     private boolean isFavorite = false;  // 当前歌曲是否已收藏
@@ -309,6 +312,13 @@ public class PlayerActivity extends AppCompatActivity {
         btnBack = findViewById(R.id.back_button);
         overlayView = findViewById(R.id.overlay_view);
         whiteOverlay = findViewById(R.id.white_overlay);
+        // 初始化白天模式渐变遮罩：浅绿(#A5D6A4)→白(#FFFFFF)，从上到下
+        whiteGradientDrawable = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0xFFA5D6A4, 0xFFFFFFFF}
+        );
+        whiteOverlay.setBackground(whiteGradientDrawable);
+        whiteOverlay.setAlpha(0.4f);
         immersiveDarkOverlay = findViewById(R.id.immersive_dark_overlay);
         immersiveOverlay = findViewById(R.id.immersive_overlay);
         infoPanel = findViewById(R.id.info_panel);
@@ -1315,20 +1325,18 @@ public class PlayerActivity extends AppCompatActivity {
         coverView.setImageBitmap(bitmap);
         blurBackground.setScaleType(ImageView.ScaleType.CENTER_CROP);
         executor.execute(() -> {
-            Bitmap blurred = BlurUtil.blur(PlayerActivity.this, bitmap, 25f);
+            Bitmap blurred = BlurUtil.blur(PlayerActivity.this, bitmap, 10f);
             // 提取封面主色调
             int dominantColor = extractDominantColor(bitmap);
             if (blurred != null && !isDestroyed()) {
                 uiHandler.post(() -> {
                     blurBackground.setImageBitmap(blurred);
-                    blurBackground.setAlpha(0.6f);
+                    blurBackground.setAlpha(0.5f);
                     blurBackground.setVisibility(View.VISIBLE);
                     if (!isNightMode && !isImmersiveMode) {
-                        // 白天模式非沉浸：白色遮罩 + 封面主色调叠加
+                        // 白天模式非沉浸：渐变遮罩覆盖模糊封面
                         whiteOverlay.setVisibility(View.VISIBLE);
-                        overlayView.setBackgroundColor(dominantColor);
-                        overlayView.setAlpha(0.35f);
-                        overlayView.setVisibility(View.VISIBLE);
+                        whiteOverlay.setAlpha(0.4f);
                     }
                 });
             }
@@ -1656,12 +1664,12 @@ public class PlayerActivity extends AppCompatActivity {
                 applyTextTheme(true);
                 applyButtonTheme(true);
             } else {
-                // 白天模式：白色背景，深色文字
+                // 白天模式：渐变遮罩背景，深色文字
                 blurBackground.setAlpha(0.5f);
                 blurBackground.setVisibility(View.VISIBLE);
                 whiteOverlay.setVisibility(View.VISIBLE);
-                overlayView.setVisibility(View.VISIBLE);
-                overlayView.setAlpha(0.35f);
+                whiteOverlay.setAlpha(0.4f);
+                overlayView.setVisibility(View.GONE);
                 applyTextTheme(false);
                 applyButtonTheme(false);
             }
