@@ -1,15 +1,19 @@
-<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- 圆形轮廓 -->
+    <!-- 播放历史：时钟 + 逆时针箭头（酷狗风格） -->
+    <!-- 逆时针弧形箭头 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M12,2C6.5,2 2,6.5 2,12s4.5,10 10,10 10,-4.5 10,-10S17.5,2 12,2zM12,20c-4.4,0 -8,-3.6 -8,-8s3.6,-8 8,-8 8,3.6 8,8 -3.6,8 -8,8z" />
+        android:pathData="M3,12c0,-1.6 0.5,-3.1 1.3,-4.4L2.8,6.1C1.7,7.8 1,9.8 1,12c0,5.5 4,10 9.2,10.6l-1.4,1.4 1.4,1.4 3.5,-3.5 -3.5,-3.5 -1.4,1.4 1.1,1.1C5.7,20.5 3,17.1 3,12z" />
+    <!-- 顺时针弧形箭头 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20.7,7.5l1.5,-1.5C21.3,3.8 17.9,2 14,2 8.5,2 4.2,6.1 3.2,11.3l1.9,0.3C5.9,7.2 9.6,4 14,4c3,0 5.6,1.4 7.3,3.6l-1.8,0 0,2 4,0 0,-4L20.7,7.5z" />
     <!-- 时钟指针 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M12.5,7H11v6l5.2,3.2 0.8,-1.3 -4.5,-2.7V7z" />
+        android:pathData="M14,7h-1.5v6l4.5,2.7 0.8,-1.3 -3.8,-2.2V7z" />
 </vector>

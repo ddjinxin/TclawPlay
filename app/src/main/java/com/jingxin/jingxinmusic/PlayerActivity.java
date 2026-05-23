@@ -515,16 +515,6 @@ public class PlayerActivity extends AppCompatActivity {
                     ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
                     : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
         }
-        // 恢复频谱
-        if (bound && playerBinder != null && playerBinder.isPlaying()) {
-            startSpectrumWithPermission();
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        stopSpectrum();
     }
 
     @Override
@@ -636,11 +626,13 @@ public class PlayerActivity extends AppCompatActivity {
             FavoriteManager.removeFavorite(favDir, song);
             isFavorite = false;
             btnFavorite.setImageResource(R.drawable.ic_favorite);
+            updateFavoriteColor();
             android.widget.Toast.makeText(this, "取消收藏", android.widget.Toast.LENGTH_SHORT).show();
         } else {
             FavoriteManager.addFavorite(favDir, song);
             isFavorite = true;
             btnFavorite.setImageResource(R.drawable.ic_favorite_filled);
+            updateFavoriteColor();
             android.widget.Toast.makeText(this, "已收藏", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
@@ -653,6 +645,7 @@ public class PlayerActivity extends AppCompatActivity {
         File favDir = new File(getExternalFilesDir(null), "favorites");
         isFavorite = FavoriteManager.isFavorite(favDir, song.title, song.artist);
         btnFavorite.setImageResource(isFavorite ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
+        updateFavoriteColor();
     }
 
     /**
@@ -1693,17 +1686,43 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /**
+     * 更新收藏按钮颜色：已收藏红色，未收藏跟随主题
+     */
+    private void updateFavoriteColor() {
+        if (btnFavorite == null) return;
+        if (isFavorite) {
+            btnFavorite.setColorFilter(Color.parseColor("#FF5252"), PorterDuff.Mode.SRC_IN);
+        } else if (isNightMode) {
+            btnFavorite.clearColorFilter();
+        } else {
+            btnFavorite.setColorFilter(ThemeColors.DAY_TEXT_PRIMARY, PorterDuff.Mode.SRC_IN);
+        }
+    }
+
+    /**
      * 统一设置按钮主题颜色
      */
     private void applyButtonTheme(boolean isNight) {
         ImageView[] buttons = {btnPlayPause, btnPrevious, btnNext,
-                btnHistory, btnFavorite, btnPlayOrder, btnTheme, btnBack};
+                btnHistory, btnPlayOrder, btnTheme, btnBack};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
+            // 收藏按钮：已收藏用红色，未收藏清除滤镜
+            if (isFavorite) {
+                btnFavorite.setColorFilter(Color.parseColor("#FF5252"), PorterDuff.Mode.SRC_IN);
+            } else {
+                btnFavorite.clearColorFilter();
+            }
             applySeekBarThemeColor(ThemeColors.NIGHT_TEXT_PRIMARY);
         } else {
             int buttonColor = ThemeColors.DAY_TEXT_PRIMARY;
             for (ImageView btn : buttons) btn.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
+            // 收藏按钮：已收藏用红色，未收藏用通用色
+            if (isFavorite) {
+                btnFavorite.setColorFilter(Color.parseColor("#FF5252"), PorterDuff.Mode.SRC_IN);
+            } else {
+                btnFavorite.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
+            }
             applySeekBarThemeColor(ThemeColors.DAY_TEXT_PRIMARY);
         }
     }

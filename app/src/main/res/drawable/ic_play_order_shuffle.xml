@@ -3,8 +3,17 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- 随机播放：交叉箭头 -->
+    <!-- 随机播放：交叉弯曲线条 + 箭头（酷狗风格） -->
+    <!-- 上方弧线：左下到右上 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M10.59,9.17L5.41,4L4,5.41l5.17,5.17L4,15.82L5.41,17.23l5.17,-5.17zM14.5,4l2.04,2.04L4,18.59L5.41,20l12.7,-12.7L14.5,4z" />
+        android:pathData="M3,8h4l3,4 -3,4H3v2h4.5l4,-5.33L15.5,18H20v-2h-4l-3,-4 3,-4h4V6h-4.5l-4,5.33L7.5,6H3v2z" />
+    <!-- 右上箭头 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17,2v5h5l-2.5,-2.5L17,2z" />
+    <!-- 左下箭头 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17,17v5l2.5,-2.5L22,17h-5z" />
 </vector>

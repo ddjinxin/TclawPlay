@@ -28,7 +28,7 @@ public class SpectrumView extends View {
     private static final int STYLE_WAVE = 2;  // 波浪线模式
     
     // 竖条模式的频谱条数量
-    private static final int BAR_COUNT = 64;
+    private static final int BAR_COUNT = 128;
     
     // 圆点/波浪线模式的分量数量
     private static final int DOT_COUNT = 64;
@@ -48,6 +48,13 @@ public class SpectrumView extends View {
     // 频谱条高度数组
     private float[] barHeights;
     private float[] targetBarHeights;
+    
+    // 峰值指示器
+    private float[] peakHeights;       // 峰值帽当前高度
+    private float[] peakDecayTimers;   // 峰值保持计时器（帧数）
+    private static final float PEAK_HOLD_FRAMES = 12f; // 峰值保持帧数（60fps下约200ms）
+    private static final float PEAK_FALL_SPEED = 1.5f;  // 峰值帽下落速度（像素/帧）
+    private Paint peakPaint;
     
     // 画笔
     private Paint barPaint;
@@ -89,7 +96,7 @@ public class SpectrumView extends View {
     // 动画驱动 Handler
     private Handler animHandler = new Handler(Looper.getMainLooper());
     private Runnable animRunnable;
-    private static final int ANIM_INTERVAL_MS = 33; // ~30fps
+    private static final int ANIM_INTERVAL_MS = 16; // ~60fps
     private boolean animRunning = false;
     
     public SpectrumView(Context context) {
@@ -113,11 +120,18 @@ public class SpectrumView extends View {
     private void init() {
         barHeights = new float[BAR_COUNT];
         targetBarHeights = new float[BAR_COUNT];
+        peakHeights = new float[BAR_COUNT];
+        peakDecayTimers = new float[BAR_COUNT];
         
         // 竖条/圆点画笔
         barPaint = new Paint();
         barPaint.setAntiAlias(true);
         barPaint.setStyle(Paint.Style.FILL);
+        
+        // 峰值帽画笔
+        peakPaint = new Paint();
+        peakPaint.setAntiAlias(true);
+        peakPaint.setStyle(Paint.Style.FILL);
         
         // 波浪线填充画笔
         waveFillPaint = new Paint();
@@ -139,10 +153,28 @@ public class SpectrumView extends View {
             public void run() {
                 if (isPlaying && animRunning) {
                     for (int i = 0; i < currentCount; i++) {
-                        targetBarHeights[i] *= 0.98f;
+                        // 重力衰减：高度越大下落越快，模拟物理重力效果
+                        float fallSpeed = targetBarHeights[i] * 0.12f;
+                        targetBarHeights[i] -= fallSpeed;
                         float minVal = currentStyle == STYLE_BAR ? 4f : 6f;
                         if (targetBarHeights[i] < minVal) {
                             targetBarHeights[i] = minVal;
+                        }
+                        
+                        // 峰值指示器更新
+                        if (barHeights[i] >= peakHeights[i]) {
+                            // 新峰值：更新并重置保持计时器
+                            peakHeights[i] = barHeights[i];
+                            peakDecayTimers[i] = PEAK_HOLD_FRAMES;
+                        } else if (peakDecayTimers[i] > 0) {
+                            // 保持期：峰值帽不动
+                            peakDecayTimers[i]--;
+                        } else {
+                            // 衰减期：峰值帽缓慢下落
+                            peakHeights[i] -= PEAK_FALL_SPEED;
+                            if (peakHeights[i] < minVal) {
+                                peakHeights[i] = minVal;
+                            }
                         }
                     }
                     invalidate();
@@ -176,6 +208,8 @@ public class SpectrumView extends View {
         }
         float[] newHeights = new float[currentCount];
         float[] newTargets = new float[currentCount];
+        peakHeights = new float[currentCount];
+        peakDecayTimers = new float[currentCount];
         barHeights = newHeights;
         targetBarHeights = newTargets;
         requestLayout();
@@ -327,19 +361,28 @@ public class SpectrumView extends View {
      */
     private void drawBars(Canvas canvas) {
         int[] colors = isNightMode ? nightGradientColors : gradientColors;
+        int peakColor = isNightMode ? Color.parseColor("#FFCA28") : Color.parseColor("#FFD54F");
+        peakPaint.setColor(peakColor);
+        float peakHeight = 3f; // 峰值帽高度（dp用像素近似）
+        
         for (int i = 0; i < currentCount; i++) {
-            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.3f;
+            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
             
             float x = i * (barWidth + barSpacing);
             float height = barHeights[i];
             float y = getHeight() - height;
             
             float ratio = height / getHeight();
-            // 金黄色渐变：底部深金 → 顶部亮金
             float t = Math.min(ratio, 1.0f);
             barPaint.setColor(interpolateColor(colors[0], colors[1], t));
             
             canvas.drawRoundRect(x, y, x + barWidth, getHeight(), 2f, 2f, barPaint);
+            
+            // 绘制峰值帽
+            float peakY = getHeight() - peakHeights[i];
+            if (peakHeights[i] > 6f) {
+                canvas.drawRect(x, peakY, x + barWidth, peakY + peakHeight, peakPaint);
+            }
         }
     }
     
@@ -356,8 +399,11 @@ public class SpectrumView extends View {
         float centerIndex = (DOT_COUNT - 1) / 2f;
         int[] colors = isNightMode ? nightGradientColors : gradientColors;
         
+        int peakDotColor = isNightMode ? Color.parseColor("#FFCA28") : Color.parseColor("#FFD54F");
+        peakPaint.setColor(peakDotColor);
+        
         for (int i = 0; i < currentCount; i++) {
-            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.3f;
+            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
             
             float x = i * spacing + spacing / 2;
             float height = Math.max(minH, barHeights[i]);
@@ -379,6 +425,14 @@ public class SpectrumView extends View {
             barPaint.setColor(color);
             
             canvas.drawCircle(x, cy, radius, barPaint);
+            
+            // 峰值亮点：在圆点上方画一个小亮点标记峰值位置
+            if (peakHeights[i] > minH + 4f) {
+                float peakCy = viewHeight - peakHeights[i] * weight;
+                if (peakCy < cy - radius) {
+                    canvas.drawCircle(x, peakCy, 2f, peakPaint);
+                }
+            }
         }
     }
     
@@ -395,7 +449,7 @@ public class SpectrumView extends View {
         
         // 更新平滑高度
         for (int i = 0; i < currentCount; i++) {
-            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.3f;
+            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
         }
         
         // 计算每个数据点的坐标
@@ -450,6 +504,18 @@ public class SpectrumView extends View {
         // 绘制曲线描边（金黄色渐变）
         waveStrokePaint.setShader(new LinearGradient(0, 0, viewWidth, 0, goldColors[0], goldColors[1], Shader.TileMode.CLAMP));
         canvas.drawPath(strokePath, waveStrokePaint);
+        
+        // 波浪线峰值点：在波峰上方画小亮点
+        int peakDotColor = isNightMode ? Color.parseColor("#FFCA28") : Color.parseColor("#FFD54F");
+        peakPaint.setColor(peakDotColor);
+        for (int i = 0; i < currentCount; i++) {
+            if (peakHeights[i] > 10f) {
+                float peakY = viewHeight - peakHeights[i];
+                if (peakY < pointsY[i] - 4f) {
+                    canvas.drawCircle(pointsX[i], peakY, 2f, peakPaint);
+                }
+            }
+        }
     }
     
     /**
@@ -499,32 +565,27 @@ public class SpectrumView extends View {
 
     /**
      * 用 DFT 幅度数据更新频谱
+     * 对数映射：连续映射音频能量，保留节奏细节
      */
     public void updateDTFMagnitudes(float[] magnitudes, float maxMag) {
         if (magnitudes == null || magnitudes.length == 0) return;
         
         float maxHeight = getHeight() * 0.9f;
+        float logMax = (float) Math.log1p(maxMag > 0 ? maxMag : 1);
+        float centerIndex = (currentCount - 1) / 2f;
         
         for (int i = 0; i < currentCount && i < magnitudes.length; i++) {
-            float offset = ((i * 17 + 7) % 11 - 5) * 0.4f;
-            float mag = magnitudes[i] + offset;
-            float height;
-            if (mag < 2) {
-                height = maxHeight * 0.05f;
-            } else if (mag < 5) {
-                height = maxHeight * 0.15f;
-            } else if (mag < 10) {
-                height = maxHeight * 0.30f;
-            } else if (mag < 20) {
-                height = maxHeight * 0.50f;
-            } else if (mag < 40) {
-                height = maxHeight * 0.72f;
-            } else {
-                height = maxHeight;
-            }
-            float jitter = (float) (Math.random() * 0.15f - 0.075f);
-            height *= (1.0f + jitter);
+            // 对数连续映射：log(1 + mag) / log(1 + maxMag)
+            float normalized = (float) Math.log1p(magnitudes[i]) / logMax;
+            // 二次曲线微调：稍微拉伸低段、压低高段，视觉更舒适
+            normalized = normalized * (2f - normalized);
             
+            // 钟形位置权重：中间1.0，两端0.3，形成中间高两边低的视觉效果
+            // 圆点模式自身已有对称权重，不再重复压低
+            float distFromCenter = Math.abs(i - centerIndex) / centerIndex;
+            float positionWeight = (currentStyle == STYLE_DOT) ? 1.0f : (1.0f - distFromCenter * 0.9f);
+            
+            float height = normalized * maxHeight * positionWeight;
             float minVal = currentStyle == STYLE_BAR ? 4f : 6f;
             targetBarHeights[i] = Math.max(minVal, height);
         }
@@ -548,6 +609,8 @@ public class SpectrumView extends View {
             for (int i = 0; i < currentCount; i++) {
                 targetBarHeights[i] = minVal;
                 barHeights[i] = minVal;
+                peakHeights[i] = minVal;
+                peakDecayTimers[i] = 0;
             }
         }
         postInvalidate();
