@@ -129,6 +129,8 @@ public class WebDavSettingsActivity extends AppCompatActivity {
         config.setPassword(etPassword.getText().toString().trim());
         config.setMusicPath(etMusicPath.getText().toString().trim());
         config.setEnabled(true);
+        // 同时备份到Download目录，卸载重装后可自动恢复
+        config.exportToDownload();
     }
 
     private void testConnection() {

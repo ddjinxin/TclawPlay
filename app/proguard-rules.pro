@@ -55,3 +55,23 @@
 
 # R 资源文件
 -keep class **.R$* { *; }
+
+# sardine-android (WebDAV) - XML解析库冲突
+-dontwarn org.xmlpull.v1.**
+-keep class org.xmlpull.v1.** { *; }
+-dontwarn android.content.res.XmlResourceParser
+
+# OkHttp / Okio
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+
+# WebDAV新增模型
+-keep class com.jingxin.jingxinmusic.model.BrowseItem { *; }
+-keep class com.jingxin.jingxinmusic.adapter.BrowseAdapter { *; }
+-keep class com.jingxin.jingxinmusic.util.WebDavConfig { *; }
+-keep class com.jingxin.jingxinmusic.util.WebDavScanner { *; }
+-keep class com.jingxin.jingxinmusic.util.WebDavScanner$DavItem { *; }
+-keep class com.jingxin.jingxinmusic.util.WebDavCacheManager { *; }
+-keep class com.jingxin.jingxinmusic.util.LocalDirectoryScanner { *; }

@@ -2,14 +2,25 @@ package com.jingxin.jingxinmusic.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Environment;
+import android.util.Log;
+
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 
 /**
  * WebDAV 配置管理
  * 持久化存储 WebDAV 服务器地址、账号、音乐根目录、缓存设置等
+ * 同时备份配置到 /sdcard/Download/ 目录，卸载重装后可自动恢复
  */
 public class WebDavConfig {
 
+    private static final String TAG = "WebDavConfig";
     private static final String PREFS_NAME = "webdav_config";
+    private static final String BACKUP_FILENAME = ".jingxin_webdav_config";
 
     // 配置项 key
     private static final String KEY_SERVER_URL = "server_url";
@@ -28,9 +39,27 @@ public class WebDavConfig {
     private static final boolean DEFAULT_ENABLED = false;
 
     private final SharedPreferences prefs;
+    private final Context context;
 
     public WebDavConfig(Context context) {
-        prefs = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        this.context = context.getApplicationContext();
+        prefs = this.context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        // 首次创建时自动尝试从Download目录恢复配置
+        tryAutoRestore();
+    }
+
+    /**
+     * 如果 SharedPreferences 无配置，检测 Download 目录备份文件并自动恢复
+     */
+    private void tryAutoRestore() {
+        // 已有配置则不覆盖
+        if (isConfigured()) return;
+        File backup = getBackupFile();
+        if (backup != null && backup.exists()) {
+            if (importFromDownload()) {
+                Log.i(TAG, "从Download目录自动恢复WebDAV配置成功");
+            }
+        }
     }
 
     // ===== Getters & Setters =====
@@ -150,5 +179,81 @@ public class WebDavConfig {
      */
     public void clearAll() {
         prefs.edit().clear().apply();
+        // 同时删除备份文件
+        File backup = getBackupFile();
+        if (backup != null && backup.exists()) {
+            backup.delete();
+        }
+    }
+
+    // ===== 备份与恢复（Download目录） =====
+
+    /**
+     * 获取Download目录下的备份文件
+     */
+    private File getBackupFile() {
+        File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        if (downloadDir == null) return null;
+        return new File(downloadDir, BACKUP_FILENAME);
+    }
+
+    /**
+     * 将当前配置导出到 /sdcard/Download/.jingxin_webdav_config
+     * @return true 导出成功
+     */
+    public boolean exportToDownload() {
+        File backup = getBackupFile();
+        if (backup == null) return false;
+        try {
+            JSONObject json = new JSONObject();
+            json.put(KEY_SERVER_URL, getServerUrl());
+            json.put(KEY_USERNAME, getUsername());
+            json.put(KEY_PASSWORD, getPassword());
+            json.put(KEY_MUSIC_PATH, getMusicPath());
+            json.put(KEY_CACHE_SIZE_MB, getCacheSizeMb());
+            json.put(KEY_ENABLED, isEnabled());
+
+            FileOutputStream fos = new FileOutputStream(backup);
+            fos.write(json.toString().getBytes("UTF-8"));
+            fos.flush();
+            fos.close();
+            Log.i(TAG, "WebDAV配置已导出到: " + backup.getAbsolutePath());
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "导出WebDAV配置失败: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 从 /sdcard/Download/.jingxin_webdav_config 导入配置
+     * @return true 导入成功
+     */
+    public boolean importFromDownload() {
+        File backup = getBackupFile();
+        if (backup == null || !backup.exists()) return false;
+        try {
+            FileInputStream fis = new FileInputStream(backup);
+            byte[] buffer = new byte[(int) backup.length()];
+            fis.read(buffer);
+            fis.close();
+
+            JSONObject json = new JSONObject(new String(buffer, "UTF-8"));
+
+            SharedPreferences.Editor editor = prefs.edit();
+            if (json.has(KEY_SERVER_URL)) editor.putString(KEY_SERVER_URL, json.getString(KEY_SERVER_URL));
+            if (json.has(KEY_USERNAME)) editor.putString(KEY_USERNAME, json.getString(KEY_USERNAME));
+            if (json.has(KEY_PASSWORD)) editor.putString(KEY_PASSWORD, json.getString(KEY_PASSWORD));
+            if (json.has(KEY_MUSIC_PATH)) editor.putString(KEY_MUSIC_PATH, json.getString(KEY_MUSIC_PATH));
+            if (json.has(KEY_CACHE_SIZE_MB)) editor.putInt(KEY_CACHE_SIZE_MB, json.getInt(KEY_CACHE_SIZE_MB));
+            if (json.has(KEY_ENABLED)) editor.putBoolean(KEY_ENABLED, json.getBoolean(KEY_ENABLED));
+            editor.apply();
+
+            Log.i(TAG, "从备份恢复WebDAV配置成功: " + backup.getAbsolutePath());
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "导入WebDAV配置失败: " + e.getMessage());
+            return false;
+        }
     }
 }

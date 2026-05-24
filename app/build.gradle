@@ -54,8 +54,6 @@ dependencies {
     implementation 'androidx.media:media:1.6.0'
     // WebDAV客户端
     implementation 'com.github.thegrizzlylabs:sardine-android:0.9'
-    // Material Design（设置页用）
-    implementation 'com.google.android.material:material:1.9.0'
     // 强制统一 Kotlin stdlib 版本，避免重复类冲突
     constraints {
         implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.10') {
