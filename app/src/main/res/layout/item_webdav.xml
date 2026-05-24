@@ -5,13 +5,20 @@
     android:orientation="vertical"
     android:padding="4dp">
 
-    <!-- 正方形封面/图标区域 -->
+    <!-- 正方形封面区域（歌曲） -->
     <com.jingxin.jingxinmusic.ui.SquareImageView
         android:id="@+id/iv_cover"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:scaleType="centerCrop"
         android:background="#2A2A2A" />
+
+    <!-- 文件夹封面区域（目录） -->
+    <com.jingxin.jingxinmusic.ui.FolderCoverView
+        android:id="@+id/iv_folder_cover"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
 
     <!-- 名称 -->
     <TextView

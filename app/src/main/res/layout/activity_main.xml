@@ -93,6 +93,32 @@
 
     </LinearLayout>
 
+    <!-- Tab 指示线 -->
+    <LinearLayout
+        android:id="@+id/tab_indicator_bar"
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:orientation="horizontal">
+
+        <View
+            android:id="@+id/indicator_local"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1" />
+
+        <View
+            android:id="@+id/indicator_cloud"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1" />
+
+        <View
+            android:id="@+id/indicator_favorite"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1" />
+    </LinearLayout>
+
     <!-- ========== 本地/云端 公共浏览区 ========== -->
     <LinearLayout
         android:id="@+id/browse_area"
