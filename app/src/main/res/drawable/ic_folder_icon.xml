@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <!-- 纯文件夹图标，无背景 -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M40,30H30C27.2,30 25,32.2 25,35V80C25,82.8 27.2,85 30,85H90C92.8,85 95,82.8 95,80V40C95,37.2 92.8,35 90,35H60L55,30H40Z" />
+</vector>

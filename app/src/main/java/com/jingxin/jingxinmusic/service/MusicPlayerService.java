@@ -29,14 +29,26 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.datasource.DataSource;
+import androidx.media3.datasource.DefaultDataSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 
 import com.jingxin.jingxinmusic.MainActivity;
 import com.jingxin.jingxinmusic.PlayerActivity;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.HistoryManager;
+import com.jingxin.jingxinmusic.util.WebDavCacheManager;
+import com.jingxin.jingxinmusic.util.WebDavConfig;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import okhttp3.OkHttpClient;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -103,6 +115,10 @@ public class MusicPlayerService extends Service {
 
     // 高德日夜模式防抖
     private long lastAmapThemeTime = 0;
+
+    // 播放错误防循环：连续失败计数，超过阈值停止自动切歌
+    private int consecutiveErrors = 0;
+    private static final int MAX_CONSECUTIVE_ERRORS = 3;
 
     // ========== PendingIntent 工厂方法 ==========
 
@@ -204,7 +220,23 @@ public class MusicPlayerService extends Service {
         // 初始化 ExoPlayer（强制软件解码，兼容老车机硬件解码器不支持 FLAC 的问题）
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
+
+        // 构建 DataSource.Factory：WebDAV URL自动注入认证头 + 播放缓存
+        WebDavConfig webDavConfig = new WebDavConfig(this);
+        DataSource.Factory httpDataSourceFactory;
+        if (webDavConfig.isConfigured()) {
+            // 带认证+缓存的 DataSource
+            WebDavCacheManager cacheManager = WebDavCacheManager.getInstance(this);
+            httpDataSourceFactory = cacheManager.createCachedHttpDataSourceFactory(
+                    new OkHttpClient.Builder().build(), webDavConfig);
+        } else {
+            httpDataSourceFactory = new DefaultHttpDataSource.Factory()
+                    .setUserAgent("JingXinMusic");
+        }
+        DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(this, httpDataSourceFactory);
+
         exoPlayer = new ExoPlayer.Builder(this, renderersFactory)
+                .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
                 .setAudioAttributes(new AudioAttributes.Builder()
                         .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                         .setUsage(C.USAGE_MEDIA)
@@ -240,7 +272,19 @@ public class MusicPlayerService extends Service {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放错误: " + error.getMessage());
-                playNext();
+                consecutiveErrors++;
+                if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+                    Log.d(TAG, "播放错误(" + consecutiveErrors + "/" + MAX_CONSECUTIVE_ERRORS + ")，尝试下一首");
+                    playNext();
+                } else {
+                    Log.w(TAG, "连续" + MAX_CONSECUTIVE_ERRORS + "首播放失败，停止自动切歌");
+                    // 发送广播通知UI
+                    Intent errorIntent = new Intent(ACTION_PLAY_STATE_CHANGED);
+                    errorIntent.setPackage(getPackageName());
+                    errorIntent.putExtra("play_error", true);
+                    errorIntent.putExtra("error_message", "连续播放失败，请检查网络或音乐文件");
+                    sendBroadcast(errorIntent);
+                }
             }
         });
 
@@ -432,10 +476,38 @@ public class MusicPlayerService extends Service {
         Log.d(TAG, "playSong: " + song.title + ", position=" + position + ", playlist.size=" + playlist.size());
         // 优先使用 Content URI（不受 Scoped Storage 限制），fallback 到文件路径
         String playUri = song.contentUri != null ? song.contentUri : song.filePath;
+        Log.d(TAG, "playSong: playUri=" + playUri);
+
+        // URL校验：WebDAV URL必须以http开头
+        if (playUri != null && playUri.startsWith("http")) {
+            try {
+                // 确保URL可以被正确解析
+                android.net.Uri parsed = Uri.parse(playUri);
+                if (parsed.getScheme() == null || parsed.getHost() == null) {
+                    Log.e(TAG, "播放URL格式异常: " + playUri);
+                    consecutiveErrors++;
+                    if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+                        playNext();
+                    }
+                    return;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "播放URL解析失败: " + playUri + " - " + e.getMessage());
+                consecutiveErrors++;
+                if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+                    playNext();
+                }
+                return;
+            }
+        }
+
         MediaItem mediaItem = MediaItem.fromUri(Uri.parse(playUri));
         exoPlayer.setMediaItem(mediaItem);
         exoPlayer.prepare();
         exoPlayer.play();
+
+        // 播放成功，重置连续错误计数
+        consecutiveErrors = 0;
 
         // 记录播放历史（后台线程）
         new Thread(() -> {
@@ -690,4 +762,5 @@ public class MusicPlayerService extends Service {
         }
         return null;
     }
+
 }

@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- 允许明文 HTTP 传输到酷狗图片服务器 -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">imge.kugou.com</domain>
-        <domain includeSubdomains="true">img.kugou.com</domain>
-        <domain includeSubdomains="true">singerimg.kugou.com</domain>
-        <domain includeSubdomains="true">mobileservice.kugou.com</domain>
-        <domain includeSubdomains="true">krcs.kugou.com</domain>
-        <domain includeSubdomains="true">lyrics.kugou.com</domain>
-    </domain-config>
+    <!-- 允许明文 HTTP（在线歌词/封面 + WebDAV 服务器需要） -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
 </network-security-config>

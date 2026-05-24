@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- 背景：灰蓝色 -->
+    <path
+        android:pathData="M0,0h120v120h-120z"
+        android:fillColor="#607D8B" />
+
+    <!-- 背景微亮层：上1/3稍亮，增加一点层次 -->
+    <path
+        android:pathData="M0,0h120v40h-120z"
+        android:fillColor="#78909C" />
+
+    <!-- 头带弧线（耳机顶部弧形） -->
+    <path
+        android:strokeColor="#CFD8DC"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M36,62 C36,36 84,36 84,62" />
+
+    <!-- 左耳罩 - 外圈 -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M36,58 C24,58 18,66 18,76 C18,86 24,94 36,94 C48,94 54,86 54,76 C54,66 48,58 36,58Z" />
+
+    <!-- 左耳罩 - 内圈（高光） -->
+    <path
+        android:fillColor="#B0BEC5"
+        android:pathData="M36,64 C28,64 24,69 24,76 C24,83 28,88 36,88 C44,88 48,83 48,76 C48,69 44,64 36,64Z" />
+
+    <!-- 右耳罩 - 外圈 -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M84,58 C72,58 66,66 66,76 C66,86 72,94 84,94 C96,94 102,86 102,76 C102,66 96,58 84,58Z" />
+
+    <!-- 右耳罩 - 内圈（高光） -->
+    <path
+        android:fillColor="#B0BEC5"
+        android:pathData="M84,64 C76,64 72,69 72,76 C72,83 76,88 84,88 C92,88 96,83 96,76 C96,69 92,64 84,64Z" />
+
+</vector>

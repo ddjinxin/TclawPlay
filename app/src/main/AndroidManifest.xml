@@ -50,6 +50,19 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/Theme.JingxinMusic" />
         
+        <!-- WebDAV设置页面 -->
+        <activity
+            android:name=".ui.WebDavSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.JingxinMusic" />
+        
+        <!-- WebDAV浏览页面 -->
+        <activity
+            android:name=".ui.WebDavBrowseActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:theme="@style/Theme.JingxinMusic" />
+        
         <!-- 播放服务 -->
         <service
             android:name=".service.MusicPlayerService"

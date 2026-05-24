@@ -10,6 +10,7 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
@@ -241,6 +242,19 @@ public class PlayerActivity extends AppCompatActivity {
                                 playSong();
                             } else {
                                 playerBinder.setPlaylist(allSongs);
+                                playSong();
+                            }
+                        } else if ("webdav".equals(playlistMode) || getIntent().getBooleanExtra("from_webdav", false)) {
+                            // WebDAV模式：从SharedPreferences恢复播放列表
+                            List<Song> webdavSongs = loadWebDavPlaylist();
+                            if (!webdavSongs.isEmpty()) {
+                                playerBinder.setPlaylist(webdavSongs);
+                                position = getIntent().getIntExtra("song_index", 0);
+                                playSong();
+                            } else {
+                                // 降级：单曲播放
+                                playerBinder.setPlaylist(java.util.Collections.singletonList(song));
+                                position = 0;
                                 playSong();
                             }
                         } else {
@@ -1195,7 +1209,9 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void loadCover() {
         // 设置默认封面
-        coverView.setImageResource(R.drawable.default_cover);
+        coverView.setImageResource(R.drawable.ic_music_icon);
+        // 先用默认封面图标生成模糊背景，后续找到真实封面会覆盖
+        applyDefaultCoverBlur();
         // 横屏沉浸下，切换间隙隐藏 foreground 渐变，避免默认封面+渐变的闪烁
         if (isImmersiveMode && isLandscapeMode) {
             coverView.setForeground(null);
@@ -1259,6 +1275,33 @@ public class PlayerActivity extends AppCompatActivity {
             @Override
             public void onError(String errorMessage) {
                 Log.d(TAG, "在线封面获取失败: " + errorMessage);
+                // 所有封面来源都失败，用默认封面图标生成模糊背景
+                applyDefaultCoverBlur();
+            }
+        });
+    }
+
+    /**
+     * 将默认封面矢量图(ic_music_icon)转为Bitmap并设置模糊背景
+     * 确保无在线封面时播放页面也有模糊背景效果
+     */
+    private void applyDefaultCoverBlur() {
+        if (isDestroyed()) return;
+        executor.execute(() -> {
+            try {
+                Drawable drawable = androidx.core.content.ContextCompat.getDrawable(this, R.drawable.ic_music_icon);
+                if (drawable == null) return;
+                // 矢量图需要指定尺寸转为Bitmap
+                int size = 256;
+                Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+                Canvas canvas = new Canvas(bitmap);
+                drawable.setBounds(0, 0, size, size);
+                drawable.draw(canvas);
+                if (!isDestroyed()) {
+                    uiHandler.post(() -> setCoverBitmap(bitmap));
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "默认封面模糊背景生成失败", e);
             }
         });
     }
@@ -1792,9 +1835,13 @@ public class PlayerActivity extends AppCompatActivity {
             if (folderPaths != null && !folderPaths.isEmpty()) {
                 editor.putStringSet("folder_song_paths", new java.util.HashSet<>(folderPaths));
             }
+        } else if ("webdav".equals(playlistMode)) {
+            // WebDAV模式：保存标记，播放列表已在webdav_playlist SharedPreferences中
+            editor.putBoolean("from_webdav", true);
         } else {
-            // 非目录模式清除旧数据
+            // 其他模式清除旧数据
             editor.remove("folder_song_paths");
+            editor.remove("from_webdav");
         }
         editor.commit();
     }
@@ -2009,5 +2056,26 @@ public class PlayerActivity extends AppCompatActivity {
             bound = false;
         }
         executor.shutdownNow();
+    }
+
+    /**
+     * 从SharedPreferences加载WebDAV播放列表
+     */
+    private List<Song> loadWebDavPlaylist() {
+        List<Song> songs = new ArrayList<>();
+        try {
+            String json = getSharedPreferences("webdav_playlist", MODE_PRIVATE)
+                    .getString("playlist", null);
+            if (json != null) {
+                org.json.JSONArray arr = new org.json.JSONArray(json);
+                for (int i = 0; i < arr.length(); i++) {
+                    Song song = Song.fromJson(arr.getJSONObject(i));
+                    if (song != null) songs.add(song);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "加载WebDAV播放列表失败: " + e.getMessage());
+        }
+        return songs;
     }
 }

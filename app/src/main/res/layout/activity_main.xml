@@ -20,7 +20,6 @@
             android:textSize="18sp"
             android:textStyle="bold" />
 
-        <!-- 关闭按钮（左上角） -->
         <ImageView
             android:id="@+id/close_button"
             android:layout_width="36dp"
@@ -33,7 +32,6 @@
             android:focusable="true"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
-        <!-- 主题切换按钮（右上角） -->
         <ImageView
             android:id="@+id/theme_button"
             android:layout_width="36dp"
@@ -57,12 +55,12 @@
         android:orientation="horizontal">
 
         <TextView
-            android:id="@+id/tab_folder"
+            android:id="@+id/tab_local"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="目录"
+            android:text="本地"
             android:textSize="15sp" />
 
         <View
@@ -71,12 +69,12 @@
             android:layout_height="20dp" />
 
         <TextView
-            android:id="@+id/tab_all"
+            android:id="@+id/tab_cloud"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="全部"
+            android:text="云端"
             android:textSize="15sp" />
 
         <View
@@ -95,37 +93,170 @@
 
     </LinearLayout>
 
-    <!-- 搜索栏 -->
-    <EditText
-        android:id="@+id/et_search"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginTop="4dp"
-        android:background="@android:color/transparent"
-        android:hint="搜索歌曲或歌手..."
-        android:textSize="14sp"
-        android:inputType="text" />
-
-    <!-- 歌曲数量 -->
-    <TextView
-        android:id="@+id/tv_song_count"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="8dp"
-        android:text="0 首歌曲"
-        android:textSize="12sp" />
-
-    <!-- 歌曲列表 -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_song_list"
+    <!-- ========== 本地/云端 公共浏览区 ========== -->
+    <LinearLayout
+        android:id="@+id/browse_area"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="4dp"
-        android:scrollbars="vertical" />
+        android:orientation="vertical"
+        android:visibility="visible">
+
+        <!-- 路径栏（本地子目录/云端共用） -->
+        <LinearLayout
+            android:id="@+id/path_bar"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/btn_navigate_back"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_back"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <TextView
+                android:id="@+id/tv_browse_path"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="middle"
+                android:singleLine="true"
+                android:textSize="13sp"
+                android:layout_marginStart="4dp" />
+
+            <ImageView
+                android:id="@+id/btn_webdav_settings"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_settings"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- 网格卡片 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_browse"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:padding="8dp"
+            android:clipToPadding="false" />
+
+        <!-- 云端未配置引导 -->
+        <LinearLayout
+            android:id="@+id/webdav_setup_area"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@drawable/ic_cloud"
+                android:alpha="0.4" />
+
+            <TextView
+                android:id="@+id/tv_webdav_setup_msg"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="请先配置 WebDAV 服务器"
+                android:textSize="16sp"
+                android:layout_marginTop="16dp" />
+
+            <TextView
+                android:id="@+id/btn_go_webdav_settings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="去配置"
+                android:textSize="16sp"
+                android:paddingHorizontal="24dp"
+                android:paddingVertical="10dp"
+                android:layout_marginTop="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+
+        <!-- 加载中 -->
+        <LinearLayout
+            android:id="@+id/loading_layout"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:layout_width="40dp"
+                android:layout_height="40dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="正在加载..."
+                android:textColor="#AAAAAA"
+                android:textSize="14sp"
+                android:layout_marginTop="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- ========== 收藏区 ========== -->
+    <LinearLayout
+        android:id="@+id/favorite_area"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- 搜索栏 -->
+        <EditText
+            android:id="@+id/et_search"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="4dp"
+            android:background="@android:color/transparent"
+            android:hint="搜索歌曲或歌手..."
+            android:textSize="14sp"
+            android:inputType="text" />
+
+        <!-- 歌曲数量 -->
+        <TextView
+            android:id="@+id/tv_song_count"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:text="0 首收藏"
+            android:textSize="12sp" />
+
+        <!-- 收藏歌曲列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_song_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="4dp"
+            android:scrollbars="vertical" />
+    </LinearLayout>
 
     <!-- 版权信息 -->
     <TextView
@@ -149,7 +280,6 @@
         android:clickable="true"
         android:focusable="true">
 
-        <!-- 左侧：歌名+歌手（点击区域） -->
         <LinearLayout
             android:id="@+id/mini_player_info"
             android:layout_width="0dp"
@@ -178,7 +308,6 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- 播放/暂停按钮 -->
         <ImageView
             android:id="@+id/mini_play_pause"
             android:layout_width="44dp"
