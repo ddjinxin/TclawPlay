@@ -78,9 +78,6 @@ public class MainActivity extends AppCompatActivity {
     private View titleBar;
     private View tabDivider1;
     private View tabDivider2;
-    private View indicatorLocal;
-    private View indicatorCloud;
-    private View indicatorFavorite;
     private RecyclerView rvList;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -211,9 +208,6 @@ public class MainActivity extends AppCompatActivity {
         titleBar = findViewById(R.id.title_bar);
         tabDivider1 = findViewById(R.id.tab_divider_1);
         tabDivider2 = findViewById(R.id.tab_divider_2);
-        indicatorLocal = findViewById(R.id.indicator_local);
-        indicatorCloud = findViewById(R.id.indicator_cloud);
-        indicatorFavorite = findViewById(R.id.indicator_favorite);
         tvCopyright = findViewById(R.id.tv_copyright);
         rvList = findViewById(R.id.rv_song_list);
 
@@ -475,18 +469,12 @@ public class MainActivity extends AppCompatActivity {
 
         int activeColor = isNightMode ? ThemeColors.NIGHT_TAB_ACTIVE : ThemeColors.DAY_TAB_ACTIVE;
         int inactiveColor = isNightMode ? ThemeColors.NIGHT_TAB_INACTIVE : ThemeColors.DAY_TAB_INACTIVE;
-        int indicatorActive = isNightMode ? ThemeColors.NIGHT_TAB_INDICATOR : ThemeColors.DAY_TAB_INDICATOR;
-        int indicatorInactive = 0x00000000; // 透明
         tabLocal.setTextColor(mode == 0 ? activeColor : inactiveColor);
         tabLocal.setTypeface(null, mode == 0 ? Typeface.BOLD : Typeface.NORMAL);
         tabCloud.setTextColor(mode == 1 ? activeColor : inactiveColor);
         tabCloud.setTypeface(null, mode == 1 ? Typeface.BOLD : Typeface.NORMAL);
         tabFavorite.setTextColor(mode == 2 ? activeColor : inactiveColor);
         tabFavorite.setTypeface(null, mode == 2 ? Typeface.BOLD : Typeface.NORMAL);
-        // Tab指示线
-        indicatorLocal.setBackgroundColor(mode == 0 ? indicatorActive : indicatorInactive);
-        indicatorCloud.setBackgroundColor(mode == 1 ? indicatorActive : indicatorInactive);
-        indicatorFavorite.setBackgroundColor(mode == 2 ? indicatorActive : indicatorInactive);
 
         if (mode == 0) {
             // 本地
@@ -858,12 +846,6 @@ public class MainActivity extends AppCompatActivity {
         tabLocal.setTextColor(currentTab == 0 ? activeColor : inactiveColor);
         tabCloud.setTextColor(currentTab == 1 ? activeColor : inactiveColor);
         tabFavorite.setTextColor(currentTab == 2 ? activeColor : inactiveColor);
-        // Tab指示线
-        int indicatorActive = isNightMode ? ThemeColors.NIGHT_TAB_INDICATOR : ThemeColors.DAY_TAB_INDICATOR;
-        int indicatorInactive = 0x00000000;
-        indicatorLocal.setBackgroundColor(currentTab == 0 ? indicatorActive : indicatorInactive);
-        indicatorCloud.setBackgroundColor(currentTab == 1 ? indicatorActive : indicatorInactive);
-        indicatorFavorite.setBackgroundColor(currentTab == 2 ? indicatorActive : indicatorInactive);
         // 同步 adapter 主题
         songAdapter.setNightMode(isNightMode);
         browseAdapter.setNightMode(isNightMode);
@@ -1019,7 +1001,6 @@ public class MainActivity extends AppCompatActivity {
                 isScanning = false;
                 allSongs = songs;
                 songAdapter.setAllSongs(songs);
-                browseAdapter.setAllSongs(songs);
                 tvLoading.setVisibility(View.GONE);
                 browseLoading.setVisibility(View.GONE);
                 if (tryAutoResume && autoResumeLastPlayed(songs)) {
