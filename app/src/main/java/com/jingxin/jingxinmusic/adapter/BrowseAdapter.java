@@ -17,9 +17,13 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.BrowseItem;
 import com.jingxin.jingxinmusic.model.Song;
+import com.jingxin.jingxinmusic.ui.FolderCoverView;
 import com.jingxin.jingxinmusic.ui.SquareImageView;
 import com.jingxin.jingxinmusic.util.CoverFetcher;
+import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.WebDavScanner;
+
+import java.io.File;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -107,11 +111,33 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
 
         // 图片
         if (item.isDirectory) {
-            // 文件夹卡片：代码控制背景色 + 纯图标
-            holder.ivCover.setImageResource(R.drawable.ic_folder_icon);
-            holder.ivCover.setBackgroundColor(isNightMode ? 0xFF333333 : 0xFFD0D0D0);
-            holder.ivCover.setColorFilter(isNightMode ? 0xFFAAAAAA : 0xFF555555);
+            holder.ivCover.setVisibility(View.GONE);
+            holder.ivFolderCover.setVisibility(View.VISIBLE);
+            holder.ivFolderCover.setNightMode(isNightMode);
+            // 计算当前文件夹在列表中是第几个文件夹，用于6色循环
+            int folderCount = 0;
+            for (int i = 0; i < position; i++) {
+                if (items.get(i).isDirectory) folderCount++;
+            }
+            android.graphics.drawable.GradientDrawable folderGradient =
+                    com.jingxin.jingxinmusic.util.ThemeColors.folderGradient(folderCount, isNightMode);
+            holder.ivFolderCover.setGradientColors(
+                    folderGradient.getColors()[0], folderGradient.getColors()[1]);
+            // 穿透文件夹查找第一首歌的封面
+            holder.ivFolderCover.setCoverBitmap(null); // 先清空
+            coverExecutor.execute(() -> {
+                Bitmap cover = findFirstCoverInDirectory(item);
+                if (cover != null) {
+                    uiHandler.post(() -> {
+                        if (holder.getAdapterPosition() == position) {
+                            holder.ivFolderCover.setCoverBitmap(cover);
+                        }
+                    });
+                }
+            });
         } else {
+            holder.ivCover.setVisibility(View.VISIBLE);
+            holder.ivFolderCover.setVisibility(View.GONE);
             loadCover(holder, item);
         }
 
@@ -124,10 +150,10 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
     }
 
     private void loadCover(ViewHolder holder, BrowseItem item) {
-        // 默认封面：应用图标风格
+        // 默认封面：应用图标风格，背景渐变跟随主题
         holder.ivCover.setImageResource(R.drawable.ic_music_icon);
-        holder.ivCover.setBackgroundColor(0);
-        holder.ivCover.setColorFilter(0);
+        holder.ivCover.setBackground(ThemeColors.cardGradient(isNightMode));
+        holder.ivCover.setColorFilter(isNightMode ? ThemeColors.nightCoverTint() : ThemeColors.dayCoverTint(), android.graphics.PorterDuff.Mode.SRC_ATOP);
 
         if (context == null) return;
 
@@ -186,7 +212,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 synchronized (loadingCovers) { loadingCovers.remove(coverKey); }
                 uiHandler.post(() -> {
                     if (holder.getAdapterPosition() == pos) {
-                        holder.ivCover.setBackgroundColor(0);
+                        holder.ivCover.setBackground(null);
                         holder.ivCover.setColorFilter(0);
                         holder.ivCover.setImageBitmap(finalBitmap);
                     }
@@ -216,7 +242,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                     synchronized (loadingCovers) { loadingCovers.remove(coverKey); }
                     uiHandler.post(() -> {
                         if (holder.getAdapterPosition() == pos) {
-                            holder.ivCover.setBackgroundColor(0);
+                            holder.ivCover.setBackground(null);
                             holder.ivCover.setColorFilter(0);
                             holder.ivCover.setImageBitmap(coverBitmap);
                         }
@@ -241,16 +267,222 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         super.onViewRecycled(holder);
         holder.ivCover.setImageDrawable(null);
         holder.ivCover.setColorFilter(0);
-        holder.ivCover.setBackgroundColor(0);
+        holder.ivCover.setBackground(null);
+        holder.ivFolderCover.setCoverBitmap(null);
+    }
+
+    /**
+     * 穿透文件夹查找第一首歌的封面
+     * 本地目录：直接扫描文件系统
+     * WebDAV目录：远程扫描子目录
+     */
+    private Bitmap findFirstCoverInDirectory(BrowseItem dirItem) {
+        if (dirItem.source == BrowseItem.SOURCE_WEBDAV) {
+            return findWebDavCover(dirItem);
+        }
+
+        // 本地目录：直接扫描文件系统
+        String dirPath = dirItem.path != null ? dirItem.path : dirItem.url;
+        if (dirPath == null) return null;
+        return scanDirectoryForCover(new File(dirPath));
+    }
+
+    /** WebDAV目录：远程扫描找第一首歌的缓存封面 */
+    private Bitmap findWebDavCover(BrowseItem dirItem) {
+        try {
+            String dirUrl = dirItem.url;
+            if (dirUrl == null) return null;
+            // 确保以/结尾
+            if (!dirUrl.endsWith("/")) dirUrl = dirUrl + "/";
+
+            com.jingxin.jingxinmusic.util.WebDavConfig config =
+                    new com.jingxin.jingxinmusic.util.WebDavConfig(context);
+            if (config == null || !config.isConfigured()) return null;
+
+            com.jingxin.jingxinmusic.util.WebDavScanner scanner =
+                    new com.jingxin.jingxinmusic.util.WebDavScanner(config);
+
+            // 递归查找第一首音乐文件
+            String songName = findFirstSongName(scanner, dirUrl, 3);
+            if (songName != null) {
+                // 从在线缓存中查找封面
+                return findCachedCoverByName(songName);
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "WebDAV封面查找失败: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** 递归扫描WebDAV目录找第一首音乐文件名 */
+    private String findFirstSongName(com.jingxin.jingxinmusic.util.WebDavScanner scanner,
+                                      String dirUrl, int maxDepth) {
+        if (maxDepth <= 0) return null;
+        try {
+            java.util.List<com.jingxin.jingxinmusic.util.WebDavScanner.DavItem> items =
+                    scanner.listDirectory(dirUrl);
+            if (items == null) return null;
+
+            // 先找当前目录的音乐文件
+            for (com.jingxin.jingxinmusic.util.WebDavScanner.DavItem item : items) {
+                if (!item.isDirectory && isMusicFile(item.name)) {
+                    return com.jingxin.jingxinmusic.util.WebDavScanner.nameWithoutExtension(item.name);
+                }
+            }
+            // 穿透子文件夹
+            for (com.jingxin.jingxinmusic.util.WebDavScanner.DavItem item : items) {
+                if (item.isDirectory) {
+                    String result = findFirstSongName(scanner, item.url, maxDepth - 1);
+                    if (result != null) return result;
+                }
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "WebDAV扫描失败: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** 根据歌曲名从在线封面缓存查找 */
+    private Bitmap findCachedCoverByName(String songName) {
+        if (songName == null) return null;
+        try {
+            File coversDir = context.getExternalFilesDir("covers");
+            if (coversDir != null && coversDir.isDirectory()) {
+                File[] coverFiles = coversDir.listFiles();
+                if (coverFiles != null) {
+                    // 封面缓存文件名格式：歌曲名-歌手名.jpg
+                    String lowerName = songName.toLowerCase();
+                    for (File cf : coverFiles) {
+                        String cfName = cf.getName().replace(".jpg", "").toLowerCase();
+                        if (cfName.startsWith(lowerName) || lowerName.startsWith(cfName)) {
+                            Bitmap bmp = BitmapFactory.decodeFile(cf.getAbsolutePath());
+                            if (bmp != null) return bmp;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 忽略
+        }
+        return null;
+    }
+
+    /**
+     * 递归扫描目录，找第一首音乐文件的封面
+     */
+    private static final String[] MUSIC_EXTENSIONS = {
+        ".mp3", ".flac", ".wav", ".aac", ".ogg", ".m4a", ".wma", ".ape"
+    };
+
+    private Bitmap scanDirectoryForCover(File dir) {
+        if (dir == null || !dir.isDirectory()) return null;
+        File[] files = dir.listFiles();
+        if (files == null) return null;
+
+        // 第一轮：尝试内嵌封面和MediaStore albumArt
+        for (File f : files) {
+            if (f.isFile() && isMusicFile(f.getName())) {
+                // 1. 内嵌封面
+                Bitmap cover = CoverFetcher.extractEmbeddedCover(f.getAbsolutePath());
+                if (cover != null) return cover;
+                // 2. MediaStore albumArt
+                cover = getAlbumArtFromMediaStore(f.getAbsolutePath());
+                if (cover != null) return cover;
+            }
+        }
+        // 第二轮：尝试在线封面缓存
+        for (File f : files) {
+            if (f.isFile() && isMusicFile(f.getName())) {
+                Bitmap cover = getCachedCover(f.getAbsolutePath());
+                if (cover != null) return cover;
+            }
+        }
+        // 第三轮：穿透子文件夹
+        for (File f : files) {
+            if (f.isDirectory()) {
+                Bitmap cover = scanDirectoryForCover(f);
+                if (cover != null) return cover;
+            }
+        }
+        return null;
+    }
+
+    /** 从MediaStore获取albumArt */
+    private Bitmap getAlbumArtFromMediaStore(String filePath) {
+        try {
+            android.database.Cursor cursor = context.getContentResolver().query(
+                    android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    new String[]{android.provider.MediaStore.Audio.Media.ALBUM_ID},
+                    android.provider.MediaStore.Audio.Media.DATA + "=?",
+                    new String[]{filePath},
+                    null);
+            if (cursor != null) {
+                try {
+                    if (cursor.moveToFirst()) {
+                        long albumId = cursor.getLong(0);
+                        android.net.Uri albumArtUri = android.content.ContentUris.withAppendedId(
+                                android.net.Uri.parse("content://media/external/audio/albumart"),
+                                albumId);
+                        return android.provider.MediaStore.Images.Media.getBitmap(
+                                context.getContentResolver(), albumArtUri);
+                    }
+                } finally {
+                    cursor.close();
+                }
+            }
+        } catch (Exception e) {
+            // albumArt不可用，静默处理
+        }
+        return null;
+    }
+
+    /** 尝试从在线封面缓存中查找 */
+    private Bitmap getCachedCover(String filePath) {
+        try {
+            // 从文件路径推导歌曲名
+            String fileName = filePath.substring(filePath.lastIndexOf('/') + 1);
+            String songName = fileName;
+            int dotIdx = fileName.lastIndexOf('.');
+            if (dotIdx > 0) songName = fileName.substring(0, dotIdx);
+            // 查找covers目录中以歌曲名开头的缓存文件
+            File coversDir = context.getExternalFilesDir("covers");
+            if (coversDir != null && coversDir.isDirectory()) {
+                File[] coverFiles = coversDir.listFiles();
+                if (coverFiles != null) {
+                    String lowerSongName = songName.toLowerCase();
+                    for (File cf : coverFiles) {
+                        String cfName = cf.getName().toLowerCase();
+                        if (cfName.startsWith(lowerSongName) || lowerSongName.startsWith(cfName.replace(".jpg", ""))) {
+                            Bitmap bmp = BitmapFactory.decodeFile(cf.getAbsolutePath());
+                            if (bmp != null) return bmp;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 缓存查找失败，静默
+        }
+        return null;
+    }
+
+    private static boolean isMusicFile(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase();
+        for (String ext : MUSIC_EXTENSIONS) {
+            if (lower.endsWith(ext)) return true;
+        }
+        return false;
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         SquareImageView ivCover;
+        FolderCoverView ivFolderCover;
         TextView tvName;
 
         ViewHolder(View view) {
             super(view);
             ivCover = view.findViewById(R.id.iv_cover);
+            ivFolderCover = view.findViewById(R.id.iv_folder_cover);
             tvName = view.findViewById(R.id.tv_name);
         }
     }

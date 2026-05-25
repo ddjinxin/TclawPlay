@@ -55,22 +55,13 @@ public class LyricView extends View {
     
     private ThemeMode currentTheme = ThemeMode.NIGHT;
     
-    // 夜间模式颜色配置（统一由 ThemeColors 管理）
-    private static final int TEXT_COLOR_NORMAL_NIGHT = ThemeColors.NIGHT_LYRIC_NORMAL;
-    private static final int TEXT_COLOR_PLAYED_NIGHT = ThemeColors.LYRIC_HIGHLIGHT;
-    private static final int TEXT_COLOR_CURRENT_NIGHT = ThemeColors.LYRIC_HIGHLIGHT;
-
-    // 白天模式颜色配置
-    private static final int TEXT_COLOR_NORMAL_DAY = ThemeColors.DAY_LYRIC_NORMAL;
-    private static final int TEXT_COLOR_PLAYED_DAY = ThemeColors.LYRIC_HIGHLIGHT;
-    private static final int TEXT_COLOR_CURRENT_DAY = ThemeColors.LYRIC_HIGHLIGHT;
     // 当前行未播放字颜色：白天模式下用比灰色更深的颜色，避免在深色背景上看不见
     private static final int TEXT_COLOR_UNPLAYED_CURRENT_DAY = Color.parseColor("#555555");
     
     // 当前使用的颜色（根据主题切换）
-    private int textColorNormal = TEXT_COLOR_NORMAL_NIGHT;
-    private int textColorPlayed = TEXT_COLOR_PLAYED_NIGHT;
-    private int textColorCurrent = TEXT_COLOR_CURRENT_NIGHT;
+    private int textColorNormal = ThemeColors.nightLyricNormal();
+    private int textColorPlayed = ThemeColors.lyricHighlight();
+    private int textColorCurrent = ThemeColors.lyricHighlight();
     
     // 字体大小配置（动态计算）
     private float textSizeNormal = 36f;
@@ -207,13 +198,13 @@ public class LyricView extends View {
         Log.d(TAG, "切换主题模式: " + theme);
         
         if (theme == ThemeMode.NIGHT) {
-            textColorNormal = TEXT_COLOR_NORMAL_NIGHT;
-            textColorPlayed = TEXT_COLOR_PLAYED_NIGHT;
-            textColorCurrent = TEXT_COLOR_CURRENT_NIGHT;
+            textColorNormal = ThemeColors.nightLyricNormal();
+            textColorPlayed = ThemeColors.lyricHighlight();
+            textColorCurrent = ThemeColors.lyricHighlight();
         } else {
-            textColorNormal = TEXT_COLOR_NORMAL_DAY;
-            textColorPlayed = TEXT_COLOR_PLAYED_DAY;
-            textColorCurrent = TEXT_COLOR_CURRENT_DAY;
+            textColorNormal = ThemeColors.dayLyricNormal();
+            textColorPlayed = ThemeColors.lyricHighlight();
+            textColorCurrent = ThemeColors.lyricHighlight();
         }
         
         paintHint.setColor(textColorNormal);
@@ -230,9 +221,9 @@ public class LyricView extends View {
     
     private int getFadedTextColor() {
         if (currentTheme == ThemeMode.NIGHT) {
-            return ThemeColors.NIGHT_LYRIC_FADED;
+            return ThemeColors.nightLyricFaded();
         } else {
-            return ThemeColors.DAY_LYRIC_FADED;
+            return ThemeColors.dayLyricFaded();
         }
     }
     
@@ -334,7 +325,7 @@ public class LyricView extends View {
         
         // 白天模式下，当前行未播放字用更深的颜色，确保在任何背景上可见
         int effectiveUnplayedColor = unplayedColor;
-        if (currentTheme == ThemeMode.DAY && unplayedColor == TEXT_COLOR_NORMAL_DAY) {
+        if (currentTheme == ThemeMode.DAY && unplayedColor == ThemeColors.dayLyricNormal()) {
             effectiveUnplayedColor = TEXT_COLOR_UNPLAYED_CURRENT_DAY;
         }
         

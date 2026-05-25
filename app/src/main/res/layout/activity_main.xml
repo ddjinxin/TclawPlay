@@ -11,14 +11,13 @@
         android:layout_width="match_parent"
         android:layout_height="56dp">
 
-        <TextView
-            android:id="@+id/tv_title"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="静心音乐"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+        <ImageView
+            android:id="@+id/iv_app_icon"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="center"
+            android:src="@mipmap/ic_launcher"
+            android:scaleType="fitCenter" />
 
         <ImageView
             android:id="@+id/close_button"
@@ -27,6 +26,18 @@
             android:layout_gravity="start|center_vertical"
             android:layout_marginStart="12dp"
             android:src="@drawable/ic_close"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <ImageView
+            android:id="@+id/style_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="52dp"
+            android:src="@drawable/ic_palette"
             android:padding="6dp"
             android:clickable="true"
             android:focusable="true"
@@ -45,6 +56,12 @@
             android:background="?attr/selectableItemBackgroundBorderless" />
 
     </FrameLayout>
+
+    <!-- 标题栏底部霓虹绿渐变线 -->
+    <View
+        android:id="@+id/title_accent_line"
+        android:layout_width="match_parent"
+        android:layout_height="2dp" />
 
     <!-- Tab 栏 -->
     <LinearLayout
@@ -91,6 +108,33 @@
             android:text="收藏"
             android:textSize="15sp" />
 
+    </LinearLayout>
+
+    <!-- Tab 指示线占位（隐藏） -->
+    <LinearLayout
+        android:id="@+id/tab_indicator_bar"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <View
+            android:id="@+id/indicator_local"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <View
+            android:id="@+id/indicator_cloud"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <View
+            android:id="@+id/indicator_favorite"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
     </LinearLayout>
 
     <!-- ========== 本地/云端 公共浏览区 ========== -->
@@ -270,15 +314,28 @@
         android:textSize="11sp" />
 
     <!-- Mini 播放条 -->
-    <LinearLayout
-        android:id="@+id/mini_player"
+    <FrameLayout
+        android:id="@+id/mini_player_wrap"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:visibility="gone"
-        android:clickable="true"
-        android:focusable="true">
+        android:layout_height="58dp"
+        android:visibility="gone">
+
+        <!-- 顶部流光线 -->
+        <View
+            android:id="@+id/mini_shimmer_line"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:layout_gravity="top" />
+
+        <LinearLayout
+            android:id="@+id/mini_player"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_gravity="bottom"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:clickable="true"
+            android:focusable="true">
 
         <LinearLayout
             android:id="@+id/mini_player_info"
@@ -319,6 +376,8 @@
             android:focusable="true"
             android:background="?attr/selectableItemBackgroundBorderless" />
     </LinearLayout>
+
+    </FrameLayout>
 
     <!-- 加载中提示 -->
     <TextView

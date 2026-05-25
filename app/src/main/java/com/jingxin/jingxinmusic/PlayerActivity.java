@@ -394,6 +394,7 @@ public class PlayerActivity extends AppCompatActivity {
         // 读取主题状态并同步所有 UI
         isNightMode = getSharedPreferences("theme", MODE_PRIVATE).getBoolean("isNight", true);
         isImmersiveMode = getSharedPreferences("theme", MODE_PRIVATE).getBoolean("immersive", false);
+        ThemeColors.init(this);
         updateThemeUI();
         lyricView.setThemeMode(isNightMode
                 ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
@@ -1466,7 +1467,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
         }
         
-        if (count == 0) return ThemeColors.DOMINANT_COLOR_FALLBACK;
+        if (count == 0) return ThemeColors.dominantColorFallback();
         
         int r = (int) (rSum / count);
         int g = (int) (gSum / count);
@@ -1703,7 +1704,7 @@ public class PlayerActivity extends AppCompatActivity {
                 blurBackground.setVisibility(View.VISIBLE);
                 whiteOverlay.setVisibility(View.GONE);
                 overlayView.setVisibility(View.VISIBLE);
-                overlayView.setBackgroundColor(ThemeColors.NIGHT_OVERLAY);
+                overlayView.setBackgroundColor(ThemeColors.nightOverlay());
                 applyTextTheme(true);
                 applyButtonTheme(true);
             } else {
@@ -1724,15 +1725,15 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void applyTextTheme(boolean isNight) {
         if (isNight) {
-            tvSongName.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
-            tvArtist.setTextColor(ThemeColors.NIGHT_TEXT_SECONDARY);
-            tvCurrentTime.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
-            tvTotalTime.setTextColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+            tvSongName.setTextColor(ThemeColors.nightTextPrimary());
+            tvArtist.setTextColor(ThemeColors.nightTextSecondary());
+            tvCurrentTime.setTextColor(ThemeColors.nightTextPrimary());
+            tvTotalTime.setTextColor(ThemeColors.nightTextPrimary());
         } else {
-            tvSongName.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
-            tvArtist.setTextColor(ThemeColors.DAY_TEXT_TERTIARY);
-            tvCurrentTime.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
-            tvTotalTime.setTextColor(ThemeColors.DAY_TEXT_PRIMARY);
+            tvSongName.setTextColor(ThemeColors.dayTextPrimary());
+            tvArtist.setTextColor(ThemeColors.dayTextTertiary());
+            tvCurrentTime.setTextColor(ThemeColors.dayTextPrimary());
+            tvTotalTime.setTextColor(ThemeColors.dayTextPrimary());
         }
     }
 
@@ -1746,7 +1747,7 @@ public class PlayerActivity extends AppCompatActivity {
         } else if (isNightMode) {
             btnFavorite.clearColorFilter();
         } else {
-            btnFavorite.setColorFilter(ThemeColors.DAY_TEXT_PRIMARY, PorterDuff.Mode.SRC_IN);
+            btnFavorite.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
         }
     }
 
@@ -1764,9 +1765,9 @@ public class PlayerActivity extends AppCompatActivity {
             } else {
                 btnFavorite.clearColorFilter();
             }
-            applySeekBarThemeColor(ThemeColors.NIGHT_TEXT_PRIMARY);
+            applySeekBarThemeColor(ThemeColors.nightTextPrimary());
         } else {
-            int buttonColor = ThemeColors.DAY_TEXT_PRIMARY;
+            int buttonColor = ThemeColors.dayTextPrimary();
             for (ImageView btn : buttons) btn.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
             // 收藏按钮：已收藏用红色，未收藏用通用色
             if (isFavorite) {
@@ -1774,7 +1775,7 @@ public class PlayerActivity extends AppCompatActivity {
             } else {
                 btnFavorite.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
             }
-            applySeekBarThemeColor(ThemeColors.DAY_TEXT_PRIMARY);
+            applySeekBarThemeColor(ThemeColors.dayTextPrimary());
         }
     }
 
