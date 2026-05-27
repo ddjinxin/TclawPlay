@@ -149,6 +149,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView miniSongTitle;
     private TextView miniSongArtist;
     private ImageView miniPlayPause;
+    private ImageView miniCover;
+    private android.animation.ObjectAnimator coverRotateAnimator;
 
     // 播放服务绑定
     private MusicPlayerBinder playerBinder;
@@ -166,9 +168,19 @@ public class MainActivity extends AppCompatActivity {
                 miniSongArtist.setText(artist);
                 miniPlayerWrap.setVisibility(View.VISIBLE);
                 if (shimmerAnimator != null && !shimmerAnimator.isRunning()) shimmerAnimator.start();
+                // 更新迷你封面
+                loadMiniCover(title, artist);
+                // 新歌开始，启动旋转
+                startCoverRotation();
             } else if (MusicPlayerService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
                 miniPlayPause.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play);
+                // 播放/暂停控制旋转
+                if (playing) {
+                    startCoverRotation();
+                } else {
+                    pauseCoverRotation();
+                }
                 String title = intent.getStringExtra(MusicPlayerService.EXTRA_SONG_TITLE);
                 String artist = intent.getStringExtra(MusicPlayerService.EXTRA_SONG_ARTIST);
                 if (title != null) {
@@ -246,6 +258,22 @@ public class MainActivity extends AppCompatActivity {
         miniSongTitle = findViewById(R.id.mini_song_title);
         miniSongArtist = findViewById(R.id.mini_song_artist);
         miniPlayPause = findViewById(R.id.mini_play_pause);
+        miniCover = findViewById(R.id.mini_cover);
+
+        // 封面圆形裁剪 + 旋转动画
+        miniCover.setClipToOutline(true);
+        miniCover.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, android.graphics.Outline outline) {
+                int size = Math.min(view.getWidth(), view.getHeight());
+                if (size <= 0) size = 42; // 默认大小
+                outline.setRoundRect(0, 0, size, size, size / 2f);
+            }
+        });
+        coverRotateAnimator = android.animation.ObjectAnimator.ofFloat(miniCover, View.ROTATION, 0f, 360f);
+        coverRotateAnimator.setDuration(12000); // 12秒转一圈
+        coverRotateAnimator.setInterpolator(new android.view.animation.LinearInterpolator());
+        coverRotateAnimator.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
 
         // 关闭按钮
         btnClose = findViewById(R.id.close_button);
@@ -896,6 +924,8 @@ public class MainActivity extends AppCompatActivity {
         // 同步 adapter 主题
         songAdapter.setNightMode(isNightMode);
         browseAdapter.setNightMode(isNightMode);
+        // 刷新浏览列表（文件夹卡片渐变需要重新绑定）
+        browseAdapter.notifyDataSetChanged();
         // 刷新当前可见 item
         applyThemeToRecyclerViewItems();
     }
@@ -1140,6 +1170,14 @@ public class MainActivity extends AppCompatActivity {
                 miniPlayerWrap.setVisibility(View.VISIBLE);
                 if (shimmerAnimator != null && !shimmerAnimator.isRunning()) shimmerAnimator.start();
                 miniPlayPause.setImageResource(playerBinder.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
+                // 更新迷你封面
+                loadMiniCover(currentSong.title, currentSong.artist);
+                // 根据播放状态控制旋转
+                if (playerBinder.isPlaying()) {
+                    startCoverRotation();
+                } else {
+                    pauseCoverRotation();
+                }
             }
         }
     }
@@ -1217,9 +1255,89 @@ public class MainActivity extends AppCompatActivity {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
+    /**
+     * 启动封面旋转（首次start，暂停后resume）
+     */
+    private void startCoverRotation() {
+        if (coverRotateAnimator == null) return;
+        if (coverRotateAnimator.isPaused()) {
+            coverRotateAnimator.resume();
+        } else if (!coverRotateAnimator.isRunning()) {
+            coverRotateAnimator.start();
+        }
+    }
+
+    /**
+     * 暂停封面旋转
+     */
+    private void pauseCoverRotation() {
+        if (coverRotateAnimator != null && coverRotateAnimator.isRunning()) {
+            coverRotateAnimator.pause();
+        }
+    }
+
+    /**
+     * 加载迷你播放条圆形封面
+     * 先查本地缓存目录，没有则用默认图标
+     */
+    private void loadMiniCover(String title, String artist) {
+        if (title == null) return;
+        executor.execute(() -> {
+            android.graphics.Bitmap coverBitmap = null;
+            try {
+                File coverDir = getExternalFilesDir("covers");
+                if (coverDir != null) {
+                    String coverName = Song.toFileName(title, artist != null ? artist : "") + ".jpg";
+                    File coverFile = new File(coverDir, coverName);
+                    if (coverFile.exists() && coverFile.length() > 0) {
+                        coverBitmap = android.graphics.BitmapFactory.decodeFile(coverFile.getAbsolutePath());
+                    }
+                    if (coverBitmap == null) {
+                        File[] coverFiles = coverDir.listFiles((dir, name) ->
+                                name.startsWith(title) && name.endsWith(".jpg"));
+                        if (coverFiles != null && coverFiles.length > 0) {
+                            coverBitmap = android.graphics.BitmapFactory.decodeFile(coverFiles[0].getAbsolutePath());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.d(TAG, "迷你封面查找失败: " + e.getMessage());
+            }
+            if (coverBitmap != null) {
+                // 圆形裁剪
+                int size = Math.min(coverBitmap.getWidth(), coverBitmap.getHeight());
+                android.graphics.Bitmap squared = android.graphics.Bitmap.createBitmap(
+                        coverBitmap,
+                        (coverBitmap.getWidth() - size) / 2,
+                        (coverBitmap.getHeight() - size) / 2,
+                        size, size);
+                android.graphics.Bitmap rounded = getScaledRoundedBitmap(squared, 42);
+                runOnUiThread(() -> miniCover.setImageBitmap(rounded));
+            } else {
+                // 无封面，保持默认图标（不再额外设置，布局里已有默认src）
+            }
+        });
+    }
+
+    /** 将Bitmap缩放并裁剪为圆形 */
+    private android.graphics.Bitmap getScaledRoundedBitmap(android.graphics.Bitmap bitmap, int dpSize) {
+        float density = getResources().getDisplayMetrics().density;
+        int px = (int) (dpSize * density);
+        android.graphics.Bitmap scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, px, px, true);
+        android.graphics.Bitmap output = android.graphics.Bitmap.createBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(output);
+        android.graphics.Paint paint = new android.graphics.Paint();
+        paint.setAntiAlias(true);
+        canvas.drawCircle(px / 2f, px / 2f, px / 2f, paint);
+        paint.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN));
+        canvas.drawBitmap(scaled, 0, 0, paint);
+        return output;
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (coverRotateAnimator != null) { coverRotateAnimator.cancel(); coverRotateAnimator = null; }
         if (tabBreathAnimator != null) { tabBreathAnimator.cancel(); tabBreathAnimator = null; }
         if (shimmerAnimator != null) { shimmerAnimator.cancel(); shimmerAnimator = null; }
         try {

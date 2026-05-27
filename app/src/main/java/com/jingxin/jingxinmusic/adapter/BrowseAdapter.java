@@ -26,6 +26,7 @@ import com.jingxin.jingxinmusic.util.WebDavScanner;
 import java.io.File;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -287,13 +288,27 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         return scanDirectoryForCover(new File(dirPath));
     }
 
-    /** WebDAV目录：远程扫描找第一首歌的缓存封面 */
+    /** WebDAV目录：先查本地缓存，未命中则远程扫描 */
     private Bitmap findWebDavCover(BrowseItem dirItem) {
         try {
             String dirUrl = dirItem.url;
             if (dirUrl == null) return null;
             // 确保以/结尾
             if (!dirUrl.endsWith("/")) dirUrl = dirUrl + "/";
+
+            // 第0步：检查本地WebDAV封面缓存
+            File webdavCacheDir = getWebDavCacheDir();
+            if (webdavCacheDir != null) {
+                String cacheFileName = webdavUrlToCacheName(dirUrl);
+                File cacheFile = new File(webdavCacheDir, cacheFileName);
+                if (cacheFile.exists() && cacheFile.length() > 0) {
+                    Bitmap cached = BitmapFactory.decodeFile(cacheFile.getAbsolutePath());
+                    if (cached != null) {
+                        Log.d(TAG, "命中WebDAV封面缓存: " + dirUrl);
+                        return cached;
+                    }
+                }
+            }
 
             com.jingxin.jingxinmusic.util.WebDavConfig config =
                     new com.jingxin.jingxinmusic.util.WebDavConfig(context);
@@ -306,12 +321,68 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             String songName = findFirstSongName(scanner, dirUrl, 3);
             if (songName != null) {
                 // 从在线缓存中查找封面
-                return findCachedCoverByName(songName);
+                Bitmap cover = findCachedCoverByName(songName);
+                if (cover != null) {
+                    // 保存到WebDAV本地缓存
+                    saveWebDavCoverCache(dirUrl, cover);
+                    return cover;
+                }
             }
         } catch (Exception e) {
             Log.d(TAG, "WebDAV封面查找失败: " + e.getMessage());
         }
         return null;
+    }
+
+    /** 获取WebDAV封面本地缓存目录 */
+    private File getWebDavCacheDir() {
+        try {
+            File dir = new File(context.getExternalFilesDir(null), "webdav_covers");
+            if (!dir.exists()) dir.mkdirs();
+            return dir;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 将WebDAV URL转换为缓存文件名（MD5摘要避免特殊字符） */
+    private static String webdavUrlToCacheName(String url) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(url.getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString() + ".jpg";
+        } catch (Exception e) {
+            // 回退：用URL哈希值
+            return Integer.toHexString(url.hashCode()) + ".jpg";
+        }
+    }
+
+    /** 保存WebDAV封面到本地缓存 */
+    private void saveWebDavCoverCache(String dirUrl, Bitmap cover) {
+        try {
+            File webdavCacheDir = getWebDavCacheDir();
+            if (webdavCacheDir == null) return;
+            Bitmap scaled = cover;
+            if (cover.getWidth() > 200 || cover.getHeight() > 200) {
+                int size = Math.min(cover.getWidth(), cover.getHeight());
+                float scale = 200f / size;
+                scaled = Bitmap.createScaledBitmap(cover,
+                    (int)(cover.getWidth() * scale),
+                    (int)(cover.getHeight() * scale), true);
+            }
+            String cacheFileName = webdavUrlToCacheName(dirUrl);
+            File cacheFile = new File(webdavCacheDir, cacheFileName);
+            FileOutputStream fos = new FileOutputStream(cacheFile);
+            scaled.compress(Bitmap.CompressFormat.JPEG, 85, fos);
+            fos.close();
+            Log.d(TAG, "保存WebDAV封面缓存: " + dirUrl);
+        } catch (Exception e) {
+            Log.d(TAG, "保存WebDAV封面缓存失败: " + e.getMessage());
+        }
     }
 
     /** 递归扫描WebDAV目录找第一首音乐文件名 */
@@ -369,13 +440,27 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
 
     /**
      * 递归扫描目录，找第一首音乐文件的封面
+     * 第0步：检查目录下是否有缓存封面 .cover_cache.jpg，有则直接返回
+     * 找到封面后保存为 .cover_cache.jpg 加速后续访问
      */
     private static final String[] MUSIC_EXTENSIONS = {
         ".mp3", ".flac", ".wav", ".aac", ".ogg", ".m4a", ".wma", ".ape"
     };
+    private static final String COVER_CACHE_NAME = ".cover_cache.jpg";
 
     private Bitmap scanDirectoryForCover(File dir) {
         if (dir == null || !dir.isDirectory()) return null;
+        
+        // 第0步：检查缓存封面文件
+        File cacheFile = new File(dir, COVER_CACHE_NAME);
+        if (cacheFile.exists() && cacheFile.length() > 0) {
+            Bitmap cached = BitmapFactory.decodeFile(cacheFile.getAbsolutePath());
+            if (cached != null) {
+                Log.d(TAG, "命中封面缓存: " + dir.getName());
+                return cached;
+            }
+        }
+        
         File[] files = dir.listFiles();
         if (files == null) return null;
 
@@ -384,27 +469,64 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             if (f.isFile() && isMusicFile(f.getName())) {
                 // 1. 内嵌封面
                 Bitmap cover = CoverFetcher.extractEmbeddedCover(f.getAbsolutePath());
-                if (cover != null) return cover;
+                if (cover != null) {
+                    saveCoverCache(dir, cover);
+                    return cover;
+                }
                 // 2. MediaStore albumArt
                 cover = getAlbumArtFromMediaStore(f.getAbsolutePath());
-                if (cover != null) return cover;
+                if (cover != null) {
+                    saveCoverCache(dir, cover);
+                    return cover;
+                }
             }
         }
         // 第二轮：尝试在线封面缓存
         for (File f : files) {
             if (f.isFile() && isMusicFile(f.getName())) {
                 Bitmap cover = getCachedCover(f.getAbsolutePath());
-                if (cover != null) return cover;
+                if (cover != null) {
+                    saveCoverCache(dir, cover);
+                    return cover;
+                }
             }
         }
         // 第三轮：穿透子文件夹
         for (File f : files) {
             if (f.isDirectory()) {
                 Bitmap cover = scanDirectoryForCover(f);
-                if (cover != null) return cover;
+                if (cover != null) {
+                    saveCoverCache(dir, cover);
+                    return cover;
+                }
             }
         }
         return null;
+    }
+    
+    /**
+     * 保存封面缓存到目录下
+     * 保存为一个较小的图片（200x200），避免占用过多存储
+     */
+    private void saveCoverCache(File dir, Bitmap cover) {
+        try {
+            // 缩放至合理大小，节省存储空间
+            Bitmap scaled = cover;
+            if (cover.getWidth() > 200 || cover.getHeight() > 200) {
+                int size = Math.min(cover.getWidth(), cover.getHeight());
+                float scale = 200f / size;
+                scaled = Bitmap.createScaledBitmap(cover, 
+                    (int)(cover.getWidth() * scale), 
+                    (int)(cover.getHeight() * scale), true);
+            }
+            File cacheFile = new File(dir, COVER_CACHE_NAME);
+            FileOutputStream fos = new FileOutputStream(cacheFile);
+            scaled.compress(Bitmap.CompressFormat.JPEG, 85, fos);
+            fos.close();
+            Log.d(TAG, "保存封面缓存: " + dir.getName());
+        } catch (Exception e) {
+            Log.d(TAG, "保存封面缓存失败: " + e.getMessage());
+        }
     }
 
     /** 从MediaStore获取albumArt */

@@ -76,6 +76,8 @@ public class LyricFetcher {
                                 Log.d(TAG, "找到歌曲同目录 LRC: " + localLrc.getAbsolutePath());
                                 String lrcText = FileUtil.readFileWithNewlines(localLrc);
                                 if (lrcText != null) {
+                                    // 统一CRLF→LF
+                                    lrcText = lrcText.replace("\r\n", "\n");
                                     KrcParser.LyricData data = LrcParser.parse(lrcText);
                                     if (data != null && data.lines != null && !data.lines.isEmpty()) {
                                         // 复制一份到歌词目录，方便统一管理
@@ -132,18 +134,38 @@ public class LyricFetcher {
 
                 // 4. 在线获取 KRC（酷狗）
                 Log.d(TAG, "开始在线获取 KRC: " + songTitle + " - " + artistName);
-                String base64Content = fetchKugouKrc(songTitle, artistName);
-                if (base64Content != null) {
-                    // 保存 KRC 到本地
-                    KrcParser.saveKrcFromBase64(base64Content, krcFile);
-                    Log.d(TAG, "KRC 保存到本地: " + krcFile.getName());
-                    // 额外复制到公共下载目录
-                    if (context != null) LyricPublicUtil.copyToPublicDir(context, krcFile);
+                String[] kugouResult = fetchKugouLyricInfo(songTitle);
+                if (kugouResult != null) {
+                    String id = kugouResult[0];
+                    String accesskey = kugouResult[1];
 
-                    KrcParser.LyricData data = KrcParser.parseKrcFromBase64(base64Content);
-                    if (data != null && data.lines != null && !data.lines.isEmpty()) {
-                        callback.onLyricFetched(data);
-                        return;
+                    // 4a. 下载KRC歌词
+                    String base64Content = downloadKugouLyric(id, accesskey);
+                    if (base64Content != null) {
+                        // 保存 KRC 到本地
+                        KrcParser.saveKrcFromBase64(base64Content, krcFile);
+                        Log.d(TAG, "KRC 保存到本地: " + krcFile.getName());
+                        // 额外复制KRC到公共下载目录
+                        if (context != null) LyricPublicUtil.copyToPublicDir(context, krcFile);
+
+                        // 4b. 同时下载LRC歌词（同一个id+accesskey，fmt=lrc）
+                        String lrcTextFromKugou = downloadKugouLrc(id, accesskey);
+                        if (lrcTextFromKugou != null && !lrcTextFromKugou.isEmpty()) {
+                            // LRC只复制到公共下载目录，不保存到应用私有目录（避免和第3步缓存冲突）
+                            if (context != null) {
+                                File tempLrc = new File(lyricsDir, safeName + ".lrc");
+                                FileUtil.writeFile(tempLrc, lrcTextFromKugou);
+                                LyricPublicUtil.copyToPublicDir(context, tempLrc);
+                                tempLrc.delete();
+                                Log.d(TAG, "酷狗LRC已复制到公共下载目录: " + safeName + ".lrc");
+                            }
+                        }
+
+                        KrcParser.LyricData data = KrcParser.parseKrcFromBase64(base64Content);
+                        if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                            callback.onLyricFetched(data);
+                            return;
+                        }
                     }
                 }
 
@@ -151,6 +173,8 @@ public class LyricFetcher {
                 Log.d(TAG, "酷狗 KRC 获取失败，尝试网易云 LRC: " + songTitle + " - " + artistName);
                 String lrcText = fetchNeteaseLrc(songTitle, artistName);
                 if (lrcText != null && !lrcText.isEmpty()) {
+                    // 统一CRLF→LF，保证其他应用兼容
+                    lrcText = lrcText.replace("\r\n", "\n");
                     // 保存 LRC 到本地
                     FileUtil.writeFile(lrcFile, lrcText);
                     Log.d(TAG, "LRC 保存到本地: " + lrcFile.getName());
@@ -191,12 +215,16 @@ public class LyricFetcher {
 
     // ========== 文件读写（已迁移到 FileUtil） ==========
 
-    // ========== 酷狗 KRC 获取 ==========
+    // ========== 酷狗歌词获取 ==========
 
-    private static String fetchKugouKrc(String songTitle, String artistName) {
+    /**
+     * 搜索酷狗歌词信息（id + accesskey），最多3次重试
+     * @return [id, accesskey] 或 null
+     */
+    private static String[] fetchKugouLyricInfo(String songTitle) {
         for (int retry = 0; retry < 3; retry++) {
             try {
-                String hash = searchKugouSong(songTitle, artistName);
+                String hash = searchKugouSong(songTitle, "");
                 if (hash == null || hash.isEmpty()) {
                     Log.e(TAG, "酷狗搜索未找到歌曲（第" + (retry + 1) + "次）");
                     if (retry < 2) Thread.sleep(3000);
@@ -210,15 +238,9 @@ public class LyricFetcher {
                     continue;
                 }
 
-                String content = downloadKugouLyric(idAndKey[0], idAndKey[1]);
-                if (content != null && !content.isEmpty()) {
-                    return content;
-                }
-
-                Log.e(TAG, "酷狗下载歌词失败（第" + (retry + 1) + "次）");
-                if (retry < 2) Thread.sleep(3000);
+                return idAndKey;
             } catch (Exception e) {
-                Log.e(TAG, "酷狗 KRC 获取异常（第" + (retry + 1) + "次）: " + e.getMessage());
+                Log.e(TAG, "酷狗搜索异常（第" + (retry + 1) + "次）: " + e.getMessage());
                 try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
             }
         }
@@ -265,7 +287,36 @@ public class LyricFetcher {
             String content = json.optString("content", "");
             return content.isEmpty() ? null : content;
         } catch (Exception e) {
-            Log.e(TAG, "酷狗歌词下载失败: " + e.getMessage());
+            Log.e(TAG, "酷狗KRC下载失败: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 下载酷狗LRC格式歌词（用同一个id+accesskey，fmt=lrc）
+     * @return LRC纯文本，或null
+     */
+    private static String downloadKugouLrc(String id, String accesskey) {
+        try {
+            String apiUrl = KUGOU_LYRIC_DOWNLOAD_API + "?ver=1&client=pc&id=" + id
+                    + "&accesskey=" + accesskey + "&fmt=lrc&charset=utf8";
+            String response = HttpUtil.get(apiUrl);
+            if (response == null) return null;
+
+            JSONObject json = new JSONObject(response);
+            if (json.optInt("status") != 200) return null;
+
+            String content = json.optString("content", "");
+            if (content.isEmpty()) return null;
+
+            // LRC歌词是base64编码的，需要解码
+            byte[] decoded = android.util.Base64.decode(content, android.util.Base64.DEFAULT);
+            String lrcText = new String(decoded, "UTF-8");
+            // 酷狗LRC使用CRLF换行，替换为LF以保证其他应用兼容
+            lrcText = lrcText.replace("\r\n", "\n");
+            return lrcText;
+        } catch (Exception e) {
+            Log.d(TAG, "酷狗LRC下载失败: " + e.getMessage());
             return null;
         }
     }

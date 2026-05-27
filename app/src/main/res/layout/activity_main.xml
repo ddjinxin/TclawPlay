@@ -25,7 +25,7 @@
             android:layout_height="36dp"
             android:layout_gravity="start|center_vertical"
             android:layout_marginStart="12dp"
-            android:src="@drawable/ic_close"
+            android:src="@drawable/ic_power"
             android:padding="6dp"
             android:clickable="true"
             android:focusable="true"
@@ -297,9 +297,8 @@
             android:id="@+id/rv_song_list"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginTop="4dp"
-            android:scrollbars="vertical" />
+            android:layout_weight="1" />
+
     </LinearLayout>
 
     <!-- 版权信息 -->
@@ -337,12 +336,21 @@
             android:clickable="true"
             android:focusable="true">
 
+        <!-- 迷你播放条圆形封面 -->
+        <ImageView
+            android:id="@+id/mini_cover"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_music_icon"/>
+
         <LinearLayout
             android:id="@+id/mini_player_info"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginStart="16dp"
             android:gravity="center_vertical"
             android:orientation="vertical">
 

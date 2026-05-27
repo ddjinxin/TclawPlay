@@ -9,7 +9,7 @@ import android.graphics.drawable.GradientDrawable;
  * 委托给当前 ThemeStyle 实例，支持多风格动态切换
  * 支持色彩渐变，提供 GradientDrawable 获取方法
  * 
- * 风格列表：翡翠夜光(0)、碧玉温润(1)、清新薄荷(2)
+     * 风格列表：春意盎然(0)、蔚蓝天地(1)、万紫千红(2)、高级灰(3)
  */
 public class ThemeColors {
 
@@ -22,7 +22,8 @@ public class ThemeColors {
     public static final ThemeStyle[] STYLES = {
         ThemeStyle.JADE_GLOW,
         ThemeStyle.JADE_WARM,
-        ThemeStyle.MINT_FRESH
+        ThemeStyle.MINT_FRESH,
+        ThemeStyle.GRAY_PREMIUM
     };
 
     /** 从 SharedPreferences 恢复风格 */
@@ -180,47 +181,65 @@ public class ThemeColors {
         {0xFF162E20, 0xFF1E3828},  // 暗青绿
     };
 
-    // 碧玉温润 — 暖调6色
+    // 蔚蓝天地 — 蓝调6色
     private static final int[][] DAY_FOLDER_GRADIENTS_WARM = {
-        {0xFFC8C0A8, 0xFFB0A890},  // 暖米
-        {0xFFB8BCA0, 0xFFA0A488},  // 豆灰
-        {0xFFA8B8A0, 0xFF90A088},  // 温绿
-        {0xFFB8B0A0, 0xFFA09888},  // 岩灰
-        {0xFFB0BCA8, 0xFF98A490},  // 灰绿
-        {0xFFA8B4A0, 0xFF909C88},  // 青灰
+        {0xFFB0C4E8, 0xFF90AACC},  // 天蓝
+        {0xFFA0B8DC, 0xFF809CC8},  // 矢车菊蓝
+        {0xFFB8C8E4, 0xFF98A8D0},  // 雾蓝
+        {0xFFC0CCE0, 0xFFA0ACCC},  // 蓝灰
+        {0xFF98B4D8, 0xFF7898BC},  // 深天蓝
+        {0xFFA8C0E0, 0xFF88A4C8},  // 矢车菊浅
     };
     private static final int[][] NIGHT_FOLDER_GRADIENTS_WARM = {
-        {0xFF22201A, 0xFF2A2822},  // 暗暖米
-        {0xFF1E221C, 0xFF262A24},  // 暗豆灰
-        {0xFF1A221C, 0xFF222A24},  // 暗温绿
-        {0xFF221E1A, 0xFF2A2622},  // 暗岩灰
-        {0xFF1C221C, 0xFF242A24},  // 暗灰绿
-        {0xFF1A201A, 0xFF222822},  // 暗青灰
+        {0xFF0C1830, 0xFF142240},  // 暗天蓝
+        {0xFF0E1A2C, 0xFF162238},  // 暗矢车菊
+        {0xFF101C28, 0xFF182430},  // 暗雾蓝
+        {0xFF121C24, 0xFF1A242C},  // 暗蓝灰
+        {0xFF0A1628, 0xFF121E38},  // 暗深天蓝
+        {0xFF0E1826, 0xFF162030},  // 暗浅矢车菊
     };
 
-    // 清新薄荷 — 清新6色
+    // 万紫千红 — 紫红6色
     private static final int[][] DAY_FOLDER_GRADIENTS_MINT = {
-        {0xFF90D4A0, 0xFF78C088},  // 嫩绿
-        {0xFF88CCA0, 0xFF70B888},  // 翠绿
-        {0xFF98D8A8, 0xFF80C490},  // 水绿
-        {0xFF88C8B0, 0xFF70B498},  // 青绿
-        {0xFFA0DCA0, 0xFF88C888},  // 草绿
-        {0xFF80CC98, 0xFF68B880},  // 翡翠
+        {0xFFC8B8E8, 0xFFB09CD0},  // 薰衣草
+        {0xFFC0A8E0, 0xFFA888C8},  // 紫藤
+        {0xFFA080CC, 0xFF8864B4},  // 深紫罗兰
+        {0xFFCC88B8, 0xFFB46C9C},  // 紫红
+        {0xFFD880A8, 0xFFC0648C},  // 洋红
+        {0xFFD0A0D0, 0xFFB884BC},  // 淡梅紫
     };
     private static final int[][] NIGHT_FOLDER_GRADIENTS_MINT = {
-        {0xFF142C18, 0xFF1C3620},  // 暗嫩绿
-        {0xFF142C1C, 0xFF1C3624},  // 暗翠绿
-        {0xFF182E1A, 0xFF203822},  // 暗水绿
-        {0xFF142A1C, 0xFF1C3424},  // 暗青绿
-        {0xFF1A3018, 0xFF223A20},  // 暗草绿
-        {0xFF142C1A, 0xFF1C3622},  // 暗翡翠
+        {0xFF140C28, 0xFF1C1238},  // 暗薰衣草
+        {0xFF160E2A, 0xFF1E1438},  // 暗紫藤
+        {0xFF120824, 0xFF1A0E34},  // 暗深紫罗兰
+        {0xFF180A20, 0xFF22102C},  // 暗紫红
+        {0xFF1A0818, 0xFF240E22},  // 暗洋红
+        {0xFF180C1E, 0xFF201228},  // 暗淡梅紫
+    };
+
+    // 高级灰 — 灰质6色
+    private static final int[][] DAY_FOLDER_GRADIENTS_GRAY = {
+        {0xFFD0D0D8, 0xFFB8B8C2},  // 银灰
+        {0xFFC8C4C0, 0xFFB0ACA6},  // 暖灰
+        {0xFFC4C8CC, 0xFFACB0B6},  // 冷灰
+        {0xFFDCD8D4, 0xFFC4C0BA},  // 珍珠灰
+        {0xFFA8A8B2, 0xFF9090A0},  // 石板灰
+        {0xFF8C8C98, 0xFF747480},  // 炭灰
+    };
+    private static final int[][] NIGHT_FOLDER_GRADIENTS_GRAY = {
+        {0xFF1C1C22, 0xFF24242C},  // 暗银灰
+        {0xFF1A1A1E, 0xFF222226},  // 暗暖灰
+        {0xFF1A1C1E, 0xFF222428},  // 暗冷灰
+        {0xFF1E1C1C, 0xFF262424},  // 暗珍珠灰
+        {0xFF16161C, 0xFF1E1E24},  // 暗石板灰
+        {0xFF121216, 0xFF1A1A1E},  // 暗炭灰
     };
 
     private static final int[][][] DAY_FOLDER_GRADIENTS = {
-        DAY_FOLDER_GRADIENTS_JADE, DAY_FOLDER_GRADIENTS_WARM, DAY_FOLDER_GRADIENTS_MINT
+        DAY_FOLDER_GRADIENTS_JADE, DAY_FOLDER_GRADIENTS_WARM, DAY_FOLDER_GRADIENTS_MINT, DAY_FOLDER_GRADIENTS_GRAY
     };
     private static final int[][][] NIGHT_FOLDER_GRADIENTS = {
-        NIGHT_FOLDER_GRADIENTS_JADE, NIGHT_FOLDER_GRADIENTS_WARM, NIGHT_FOLDER_GRADIENTS_MINT
+        NIGHT_FOLDER_GRADIENTS_JADE, NIGHT_FOLDER_GRADIENTS_WARM, NIGHT_FOLDER_GRADIENTS_MINT, NIGHT_FOLDER_GRADIENTS_GRAY
     };
 
     /**

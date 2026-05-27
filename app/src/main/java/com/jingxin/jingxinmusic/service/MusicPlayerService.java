@@ -82,6 +82,8 @@ public class MusicPlayerService extends Service {
     public static final String EXTRA_SONG_ALBUM_ART = "album_art";
     public static final String EXTRA_SONG_INDEX = "song_index";
     public static final String EXTRA_AUDIO_SESSION_ID = "audio_session_id";
+    public static final String EXTRA_LRC_FILE_PATH = "lrc_file_path";  // LRC歌词文件路径（供外部应用）
+    public static final String EXTRA_KRC_FILE_PATH = "krc_file_path";  // KRC歌词文件路径（供外部应用）
     // 播放顺序模式
     public static final String ACTION_PLAY_ORDER_CHANGED = "com.jingxin.jingxinmusic.PLAY_ORDER_CHANGED";
     public static final String ACTION_UPDATE_METADATA = "com.jingxin.jingxinmusic.UPDATE_METADATA";
@@ -119,6 +121,10 @@ public class MusicPlayerService extends Service {
     // 播放错误防循环：连续失败计数，超过阈值停止自动切歌
     private int consecutiveErrors = 0;
     private static final int MAX_CONSECUTIVE_ERRORS = 3;
+
+    // MediaSession PlaybackState 定时更新（其他应用依赖此获取实时播放进度）
+    private Runnable playbackStateUpdater;
+    private static final long PLAYBACK_STATE_UPDATE_INTERVAL = 1000; // 1秒更新一次
 
     // ========== PendingIntent 工厂方法 ==========
 
@@ -247,6 +253,20 @@ public class MusicPlayerService extends Service {
         exoPlayer.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
+                // 当播放器准备好时，ExoPlayer已获取到真实duration
+                // WebDAV歌曲初始duration=0，需要在这里用ExoPlayer的真实值更新
+                if (playbackState == Player.STATE_READY) {
+                    Song currentSong = getCurrentSong();
+                    if (currentSong != null && exoPlayer != null) {
+                        long realDuration = exoPlayer.getDuration();
+                        if (realDuration != C.TIME_UNSET && realDuration > 0 && currentSong.duration != realDuration) {
+                            Log.d(TAG, "更新歌曲duration: " + currentSong.duration + " -> " + realDuration + " (" + currentSong.title + ")");
+                            currentSong.duration = realDuration;
+                            // duration变了，必须刷新MediaSession metadata，其他应用才能拿到正确的时长
+                            updateMediaSessionMetadata();
+                        }
+                    }
+                }
                 updateNotification();
                 sendPlayStateBroadcast();
                 if (playbackState == Player.STATE_ENDED) {
@@ -260,6 +280,11 @@ public class MusicPlayerService extends Service {
                 updateNotification();
                 sendPlayStateBroadcast();
                 updateMediaSessionPlaybackState();
+                if (isPlaying) {
+                    startPlaybackStateUpdater();
+                } else {
+                    stopPlaybackStateUpdater();
+                }
             }
 
             @Override
@@ -378,6 +403,7 @@ public class MusicPlayerService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        stopPlaybackStateUpdater();
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;
@@ -673,6 +699,31 @@ public class MusicPlayerService extends Service {
         mediaSession.setPlaybackState(stateBuilder.build());
     }
 
+    /**
+     * 启动定时器，每秒更新 MediaSession PlaybackState
+     * 其他应用通过 MediaController.getPlaybackState() 获取实时播放进度
+     */
+    private void startPlaybackStateUpdater() {
+        stopPlaybackStateUpdater();
+        playbackStateUpdater = new Runnable() {
+            @Override
+            public void run() {
+                if (isPlaying()) {
+                    updateMediaSessionPlaybackState();
+                    handler.postDelayed(this, PLAYBACK_STATE_UPDATE_INTERVAL);
+                }
+            }
+        };
+        handler.post(playbackStateUpdater);
+    }
+
+    private void stopPlaybackStateUpdater() {
+        if (playbackStateUpdater != null) {
+            handler.removeCallbacks(playbackStateUpdater);
+            playbackStateUpdater = null;
+        }
+    }
+
     // ========== 通知 ==========
 
     private void createNotificationChannel() {
@@ -723,36 +774,79 @@ public class MusicPlayerService extends Service {
 
     private void sendPlayStateBroadcast() {
         Song currentSong = getCurrentSong();
-        Intent intent = new Intent(ACTION_PLAY_STATE_CHANGED);
-        intent.setPackage(getPackageName());
-        intent.putExtra(EXTRA_IS_PLAYING, isPlaying());
+        // 应用内广播（带包名限制，确保稳定送达）
+        Intent internalIntent = new Intent(ACTION_PLAY_STATE_CHANGED);
+        internalIntent.setPackage(getPackageName());
+        internalIntent.putExtra(EXTRA_IS_PLAYING, isPlaying());
         if (currentSong != null) {
-            intent.putExtra(EXTRA_SONG_TITLE, currentSong.title);
-            intent.putExtra(EXTRA_SONG_ARTIST, currentSong.artist);
-            intent.putExtra(EXTRA_CURRENT_POSITION, getCurrentPosition());
-            intent.putExtra(EXTRA_DURATION, getDuration());
+            internalIntent.putExtra(EXTRA_SONG_TITLE, currentSong.title);
+            internalIntent.putExtra(EXTRA_SONG_ARTIST, currentSong.artist);
+            internalIntent.putExtra(EXTRA_CURRENT_POSITION, getCurrentPosition());
+            internalIntent.putExtra(EXTRA_DURATION, getDuration());
         }
-        sendBroadcast(intent);
+        sendBroadcast(internalIntent);
+
+        // 外部广播（无包名限制，供其他应用读取播放状态）
+        Intent externalIntent = new Intent(ACTION_PLAY_STATE_CHANGED);
+        externalIntent.putExtra(EXTRA_IS_PLAYING, isPlaying());
+        if (currentSong != null) {
+            externalIntent.putExtra(EXTRA_SONG_TITLE, currentSong.title);
+            externalIntent.putExtra(EXTRA_SONG_ARTIST, currentSong.artist);
+            externalIntent.putExtra(EXTRA_CURRENT_POSITION, getCurrentPosition());
+            externalIntent.putExtra(EXTRA_DURATION, getDuration());
+        }
+        sendBroadcast(externalIntent);
+
         Log.d(TAG, "播放状态: " + (isPlaying() ? "播放中" : "暂停") + " - " +
                 (currentSong != null ? currentSong.title : "无歌曲"));
     }
 
     private void sendSongChangedBroadcast(Song song, int index) {
-        Intent intent = new Intent(ACTION_SONG_CHANGED);
-        intent.setPackage(getPackageName());
-        intent.putExtra(EXTRA_SONG_ID, song.id);
-        intent.putExtra(EXTRA_SONG_TITLE, song.title);
-        intent.putExtra(EXTRA_SONG_ARTIST, song.artist);
-        intent.putExtra(EXTRA_SONG_ALBUM, song.album);
-        intent.putExtra(EXTRA_SONG_PATH, song.filePath);
-        intent.putExtra(EXTRA_SONG_URI, song.contentUri);
-        intent.putExtra(EXTRA_SONG_ALBUM_ART, song.albumArt);
-        intent.putExtra(EXTRA_SONG_INDEX, index);
-        intent.putExtra(EXTRA_DURATION, song.duration);
+        // 应用内广播（带包名限制）
+        Intent internalIntent = new Intent(ACTION_SONG_CHANGED);
+        internalIntent.setPackage(getPackageName());
+        internalIntent.putExtra(EXTRA_SONG_ID, song.id);
+        internalIntent.putExtra(EXTRA_SONG_TITLE, song.title);
+        internalIntent.putExtra(EXTRA_SONG_ARTIST, song.artist);
+        internalIntent.putExtra(EXTRA_SONG_ALBUM, song.album);
+        internalIntent.putExtra(EXTRA_SONG_PATH, song.filePath);
+        internalIntent.putExtra(EXTRA_SONG_URI, song.contentUri);
+        internalIntent.putExtra(EXTRA_SONG_ALBUM_ART, song.albumArt);
+        internalIntent.putExtra(EXTRA_SONG_INDEX, index);
+        internalIntent.putExtra(EXTRA_DURATION, song.duration);
         if (exoPlayer != null) {
-            intent.putExtra(EXTRA_AUDIO_SESSION_ID, exoPlayer.getAudioSessionId());
+            internalIntent.putExtra(EXTRA_AUDIO_SESSION_ID, exoPlayer.getAudioSessionId());
         }
-        sendBroadcast(intent);
+        sendBroadcast(internalIntent);
+
+        // 外部广播（无包名限制，供其他应用读取歌曲信息）
+        Intent externalIntent = new Intent(ACTION_SONG_CHANGED);
+        externalIntent.putExtra(EXTRA_SONG_ID, song.id);
+        externalIntent.putExtra(EXTRA_SONG_TITLE, song.title);
+        externalIntent.putExtra(EXTRA_SONG_ARTIST, song.artist);
+        externalIntent.putExtra(EXTRA_SONG_ALBUM, song.album);
+        externalIntent.putExtra(EXTRA_SONG_PATH, song.filePath);
+        externalIntent.putExtra(EXTRA_SONG_URI, song.contentUri);
+        externalIntent.putExtra(EXTRA_SONG_ALBUM_ART, song.albumArt);
+        externalIntent.putExtra(EXTRA_SONG_INDEX, index);
+        externalIntent.putExtra(EXTRA_DURATION, song.duration);
+        if (exoPlayer != null) {
+            externalIntent.putExtra(EXTRA_AUDIO_SESSION_ID, exoPlayer.getAudioSessionId());
+        }
+        // 附带公共目录下的LRC/KRC歌词文件路径，供外部应用直接读取
+        String safeName = song.title.replaceAll("[\\\\/:*?\"<>|]", "_").replaceAll("\\s+", " ").trim();
+        File lrcPublicFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + safeName + ".lrc");
+        if (lrcPublicFile.exists()) {
+            externalIntent.putExtra(EXTRA_LRC_FILE_PATH, lrcPublicFile.getAbsolutePath());
+        }
+        File krcPublicFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + safeName + ".krc");
+        if (krcPublicFile.exists()) {
+            externalIntent.putExtra(EXTRA_KRC_FILE_PATH, krcPublicFile.getAbsolutePath());
+        }
+        sendBroadcast(externalIntent);
+
         Log.d(TAG, "歌曲切换: " + song.title + " - " + song.artist);
     }
 
