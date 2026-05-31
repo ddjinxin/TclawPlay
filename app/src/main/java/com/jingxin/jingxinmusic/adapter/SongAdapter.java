@@ -38,10 +38,6 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         void onSongClick(Song song);
     }
 
-    public interface OnFolderClickListener {
-        void onFolderClick(FolderInfo folder, boolean expanded);
-    }
-
     private static final int TYPE_FOLDER = 0;
     private static final int TYPE_SONG = 1;
     private static final int TYPE_EMPTY = 2;
@@ -55,7 +51,6 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private List<Object> displayItems = new ArrayList<>();
 
     private OnSongClickListener songListener;
-    private OnFolderClickListener folderListener;
 
     // 当前模式：0=目录, 1=全部, 2=收藏
     private int currentMode = 0;
@@ -106,23 +101,8 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (currentMode == 2) refreshDisplay();
     }
 
-    public List<Song> getAllSongs() {
-        return allSongs;
-    }
-
     public List<Song> getFavoriteSongs() {
         return favoriteSongs;
-    }
-
-    // ========== 模式切换 ==========
-
-    public void switchMode(int mode) {
-        this.currentMode = mode;
-        refreshDisplay();
-    }
-
-    public int getCurrentMode() {
-        return currentMode;
     }
 
     // ========== 目录构建 ==========
@@ -228,35 +208,7 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         notifyDataSetChanged();
     }
 
-    // ========== 目录展开/收起 ==========
-
-    public void toggleFolder(int adapterPosition) {
-        Object item = (adapterPosition >= 0 && adapterPosition < displayItems.size())
-                ? displayItems.get(adapterPosition) : null;
-        if (item instanceof FolderInfo) {
-            FolderInfo fi = (FolderInfo) item;
-            fi.expanded = !fi.expanded;
-            refreshDisplay();
-        }
-    }
-
-    public void expandAllFolders() {
-        for (FolderInfo fi : folders) fi.expanded = true;
-        refreshDisplay();
-    }
-
-    public void collapseAllFolders() {
-        for (FolderInfo fi : folders) fi.expanded = false;
-        refreshDisplay();
-    }
-
     // ========== 数据获取 ==========
-
-    public Song getSong(int position) {
-        Object item = (position >= 0 && position < displayItems.size())
-                ? displayItems.get(position) : null;
-        return item instanceof Song ? (Song) item : null;
-    }
 
     public int getSongCount() {
         int count = 0;
@@ -264,27 +216,6 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if (item instanceof Song) count++;
         }
         return count;
-    }
-
-    public int getFolderCount() {
-        return folders.size();
-    }
-
-    public int getDisplayItemCount() {
-        return displayItems.size();
-    }
-
-    // ========== 位置计算（传给播放页的 position） ==========
-
-    public int getSongPositionInAll(Song song) {
-        if (song == null) return 0;
-        for (int i = 0; i < allSongs.size(); i++) {
-            Song s = allSongs.get(i);
-            if (s != null && s.filePath != null && s.filePath.equals(song.filePath)) {
-                return i;
-            }
-        }
-        return 0;
     }
 
     public int getSongPositionInFavorites(Song song) {
@@ -296,37 +227,6 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             }
         }
         return 0;
-    }
-
-    /**
-     * 获取歌曲在所属目录歌曲列表中的位置
-     * @param song 目标歌曲
-     * @param outFolderSongs 输出参数，返回该目录的歌曲列表
-     */
-    public int getSongPositionInFolder(Song song, List<Song> outFolderSongs) {
-        if (song == null || outFolderSongs == null) return 0;
-        String songFolder = getFolderPath(song);
-        if (songFolder == null) return 0;
-        outFolderSongs.clear();
-        for (FolderInfo fi : folders) {
-            if (songFolder.equals(fi.folderPath)) {
-                outFolderSongs.addAll(fi.songs);
-                break;
-            }
-        }
-        for (int i = 0; i < outFolderSongs.size(); i++) {
-            Song s = outFolderSongs.get(i);
-            if (s != null && s.filePath != null && s.filePath.equals(song.filePath)) {
-                return i;
-            }
-        }
-        return 0;
-    }
-
-    private static String getFolderPath(Song song) {
-        if (song == null || song.filePath == null) return null;
-        int idx = song.filePath.lastIndexOf('/');
-        return idx > 0 ? song.filePath.substring(0, idx) : null;
     }
 
     // ========== Adapter 标准方法 ==========
@@ -431,7 +331,6 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         holder.itemView.setOnClickListener(v -> {
             fi.expanded = !fi.expanded;
             refreshDisplay();
-            if (folderListener != null) folderListener.onFolderClick(fi, fi.expanded);
         });
     }
 
@@ -490,9 +389,5 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     public void setOnSongClickListener(OnSongClickListener listener) {
         this.songListener = listener;
-    }
-
-    public void setOnFolderClickListener(OnFolderClickListener listener) {
-        this.folderListener = listener;
     }
 }

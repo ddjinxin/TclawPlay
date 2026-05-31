@@ -78,13 +78,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         return new ArrayList<>(items);
     }
 
-    public BrowseItem getItem(int position) {
-        if (position >= 0 && position < items.size()) {
-            return items.get(position);
-        }
-        return null;
-    }
-
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -396,7 +389,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
 
             // 先找当前目录的音乐文件
             for (com.jingxin.jingxinmusic.util.WebDavScanner.DavItem item : items) {
-                if (!item.isDirectory && isMusicFile(item.name)) {
+                if (!item.isDirectory && WebDavScanner.isMusicFile(item.name)) {
                     return com.jingxin.jingxinmusic.util.WebDavScanner.nameWithoutExtension(item.name);
                 }
             }
@@ -443,9 +436,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
      * 第0步：检查目录下是否有缓存封面 .cover_cache.jpg，有则直接返回
      * 找到封面后保存为 .cover_cache.jpg 加速后续访问
      */
-    private static final String[] MUSIC_EXTENSIONS = {
-        ".mp3", ".flac", ".wav", ".aac", ".ogg", ".m4a", ".wma", ".ape"
-    };
     private static final String COVER_CACHE_NAME = ".cover_cache.jpg";
 
     private Bitmap scanDirectoryForCover(File dir) {
@@ -466,7 +456,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
 
         // 第一轮：尝试内嵌封面和MediaStore albumArt
         for (File f : files) {
-            if (f.isFile() && isMusicFile(f.getName())) {
+            if (f.isFile() && WebDavScanner.isMusicFile(f.getName())) {
                 // 1. 内嵌封面
                 Bitmap cover = CoverFetcher.extractEmbeddedCover(f.getAbsolutePath());
                 if (cover != null) {
@@ -483,7 +473,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         }
         // 第二轮：尝试在线封面缓存
         for (File f : files) {
-            if (f.isFile() && isMusicFile(f.getName())) {
+            if (f.isFile() && WebDavScanner.isMusicFile(f.getName())) {
                 Bitmap cover = getCachedCover(f.getAbsolutePath());
                 if (cover != null) {
                     saveCoverCache(dir, cover);
@@ -585,15 +575,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             // 缓存查找失败，静默
         }
         return null;
-    }
-
-    private static boolean isMusicFile(String name) {
-        if (name == null) return false;
-        String lower = name.toLowerCase();
-        for (String ext : MUSIC_EXTENSIONS) {
-            if (lower.endsWith(ext)) return true;
-        }
-        return false;
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

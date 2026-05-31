@@ -25,10 +25,6 @@ public class LocalDirectoryScanner {
      * @param allSongs 全部本地歌曲
      * @return 顶层浏览项列表（目录卡片 + 顶层歌曲卡片）
      */
-    public static List<BrowseItem> buildTopLevel(List<Song> allSongs) {
-        return buildLevel(allSongs, null);
-    }
-
     /**
      * 列出指定目录路径下的直接子项
      * @param allSongs 全部本地歌曲
@@ -102,18 +98,5 @@ public class LocalDirectoryScanner {
             return path.substring(lastSlash + 1);
         }
         return path;
-    }
-
-    /**
-     * 从浏览项列表中收集所有歌曲（用于构建播放列表）
-     */
-    public static List<Song> collectSongs(List<BrowseItem> items) {
-        List<Song> songs = new ArrayList<>();
-        for (BrowseItem item : items) {
-            if (!item.isDirectory && item.song != null) {
-                songs.add(item.song);
-            }
-        }
-        return songs;
     }
 }

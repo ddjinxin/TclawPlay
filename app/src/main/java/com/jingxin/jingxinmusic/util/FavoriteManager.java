@@ -101,17 +101,6 @@ public class FavoriteManager {
         }
     }
 
-    /**
-     * 清空收藏
-     */
-    public static void clearFavorites(File favDir) {
-        File file = new File(favDir, "favorites.json");
-        if (file.exists()) {
-            file.delete();
-            Log.d(TAG, "收藏已清空");
-        }
-    }
-
     private static void saveFavorites(File favDir, List<Song> list) {
         try {
             favDir.mkdirs();

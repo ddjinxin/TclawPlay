@@ -183,25 +183,6 @@ public class Song {
     }
 
     /**
-     * 清理歌手名：去掉 <unknown>、空字符串等无效值
-     * @return 清理后的歌手名，无效则返回空字符串
-     */
-    public String getCleanArtist() {
-        if (artist == null || artist.isEmpty() || "<unknown>".equals(artist)) {
-            return "";
-        }
-        return artist;
-    }
-
-    /**
-     * 生成封面缓存文件名（歌名 - 歌手名.jpg）
-     * 与 SaveCoverTask 中的命名规则一致
-     */
-    public String getCoverFileName() {
-        return toFileName(title, artist) + ".jpg";
-    }
-
-    /**
      * 查询公共目录中已有的封面 URI（如果存在）
      * @return 公共 content URI，不存在返回 null
      */

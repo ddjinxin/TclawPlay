@@ -193,11 +193,11 @@ public class PlayerActivity extends AppCompatActivity {
                 allSongs = MusicScanner.scanMusic(PlayerActivity.this);
                 uiHandler.post(() -> {
                     if (bound && playerBinder != null && allSongs != null) {
-                        if (resumePlay) {
+                        if (resumePlay && playerBinder.isPlaying()) {
                             // 从 mini 播放条跳转，音乐已在后台播放，只更新 UI
-                            btnPlayPause.setImageResource(playerBinder.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
+                            btnPlayPause.setImageResource(R.drawable.ic_pause);
                             coverView.startRotation();
-                            spectrumView.setPlaying(playerBinder.isPlaying());
+                            spectrumView.setPlaying(true);
                             startSpectrumWithPermission();
                         } else if ("folder".equals(playlistMode)) {
                             // 目录模式：播放队列 = 该目录歌曲
@@ -1517,7 +1517,6 @@ public class PlayerActivity extends AppCompatActivity {
                             s.displayName = s.title;
 
                             song = s;
-                            position = -1; // 历史播放，不在列表中
                             tvSongName.setText(s.title);
                             tvArtist.setText(s.artist);
                             tvCurrentTime.setText("00:00");
@@ -1526,8 +1525,22 @@ public class PlayerActivity extends AppCompatActivity {
                             fetchLyrics();
 
                             if (bound && playerBinder != null) {
-                                playerBinder.setPlaylist(allSongs);
-                                playerBinder.playSong(s, position);
+                                // 将历史列表转为播放列表，下一首即为历史中的下一首
+                                List<Song> historySongs = new ArrayList<>();
+                                for (HistoryManager.HistoryItem h : history) {
+                                    Song hs = new Song();
+                                    hs.title = h.title;
+                                    hs.artist = h.artist;
+                                    hs.album = h.album;
+                                    hs.duration = h.duration;
+                                    hs.filePath = h.filePath;
+                                    hs.contentUri = h.contentUri;
+                                    hs.albumArt = h.albumArt;
+                                    hs.displayName = hs.title;
+                                    historySongs.add(hs);
+                                }
+                                playerBinder.setPlaylist(historySongs);
+                                playerBinder.playSong(s, which);
                                 btnPlayPause.setImageResource(R.drawable.ic_pause);
                                 coverView.startRotation();
                                 startSpectrumWithPermission();

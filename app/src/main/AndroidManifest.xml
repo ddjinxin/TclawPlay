@@ -8,6 +8,8 @@
     <!-- Android 9及以下写公共目录（歌词复制到Download/lyrics/） -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
+    <!-- Android 11+读取Download目录下其他app创建的备份文件（WebDAV配置恢复） -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     
     <!-- 前台服务权限（后台播放） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -22,6 +24,9 @@
     <!-- 网络访问权限（获取在线歌词和封面） -->
     <uses-permission android:name="android.permission.INTERNET" />
     
+    <!-- 悬浮窗权限（车机桌面悬浮应用） -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -35,6 +40,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/Theme.JingxinMusic">
             <intent-filter>
@@ -54,13 +60,6 @@
         <activity
             android:name=".ui.WebDavSettingsActivity"
             android:exported="false"
-            android:theme="@style/Theme.JingxinMusic" />
-        
-        <!-- WebDAV浏览页面 -->
-        <activity
-            android:name=".ui.WebDavBrowseActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/Theme.JingxinMusic" />
         
         <!-- 播放服务 -->

@@ -87,6 +87,7 @@ public class MusicPlayerService extends Service {
     // 播放顺序模式
     public static final String ACTION_PLAY_ORDER_CHANGED = "com.jingxin.jingxinmusic.PLAY_ORDER_CHANGED";
     public static final String ACTION_UPDATE_METADATA = "com.jingxin.jingxinmusic.UPDATE_METADATA";
+    public static final String ACTION_WEBDAV_CONFIG_CHANGED = "com.jingxin.jingxinmusic.WEBDAV_CONFIG_CHANGED";
     public static final String EXTRA_PLAY_ORDER = "play_order";
     public static final int PLAY_ORDER_SEQUENTIAL = 0;  // 顺序播放
     public static final int PLAY_ORDER_SHUFFLE = 1;      // 随机播放
@@ -125,6 +126,8 @@ public class MusicPlayerService extends Service {
     // MediaSession PlaybackState 定时更新（其他应用依赖此获取实时播放进度）
     private Runnable playbackStateUpdater;
     private static final long PLAYBACK_STATE_UPDATE_INTERVAL = 1000; // 1秒更新一次
+
+    private Player.Listener playerListener;
 
     // ========== PendingIntent 工厂方法 ==========
 
@@ -227,22 +230,8 @@ public class MusicPlayerService extends Service {
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
 
-        // 构建 DataSource.Factory：WebDAV URL自动注入认证头 + 播放缓存
-        WebDavConfig webDavConfig = new WebDavConfig(this);
-        DataSource.Factory httpDataSourceFactory;
-        if (webDavConfig.isConfigured()) {
-            // 带认证+缓存的 DataSource
-            WebDavCacheManager cacheManager = WebDavCacheManager.getInstance(this);
-            httpDataSourceFactory = cacheManager.createCachedHttpDataSourceFactory(
-                    new OkHttpClient.Builder().build(), webDavConfig);
-        } else {
-            httpDataSourceFactory = new DefaultHttpDataSource.Factory()
-                    .setUserAgent("JingXinMusic");
-        }
-        DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(this, httpDataSourceFactory);
-
         exoPlayer = new ExoPlayer.Builder(this, renderersFactory)
-                .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
+                .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
                 .setAudioAttributes(new AudioAttributes.Builder()
                         .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                         .setUsage(C.USAGE_MEDIA)
@@ -250,7 +239,7 @@ public class MusicPlayerService extends Service {
                 .setHandleAudioBecomingNoisy(true)
                 .build();
 
-        exoPlayer.addListener(new Player.Listener() {
+        playerListener = new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
                 // 当播放器准备好时，ExoPlayer已获取到真实duration
@@ -311,7 +300,8 @@ public class MusicPlayerService extends Service {
                     sendBroadcast(errorIntent);
                 }
             }
-        });
+        };
+        exoPlayer.addListener(playerListener);
 
         // 初始化 MediaSessionCompat（支持锁屏控制）
         mediaSession = new MediaSessionCompat(this, "JingxinMusicSession");
@@ -390,6 +380,8 @@ public class MusicPlayerService extends Service {
                 playNext();
             } else if (ACTION_UPDATE_METADATA.equals(action)) {
                 updateMediaSessionMetadata();
+            } else if (ACTION_WEBDAV_CONFIG_CHANGED.equals(action)) {
+                rebuildDataSourceFactory();
             }
         }
         return START_STICKY;
@@ -492,6 +484,9 @@ public class MusicPlayerService extends Service {
 
     // ========== 播放控制 ==========
 
+    // 标记当前DataSource是否带WebDAV认证
+    private boolean dataSourceHasAuth = false;
+
     private void playSong(Song song, int position) {
         if (song == null || song.filePath == null) {
             Log.e(TAG, "歌曲信息无效");
@@ -506,6 +501,14 @@ public class MusicPlayerService extends Service {
 
         // URL校验：WebDAV URL必须以http开头
         if (playUri != null && playUri.startsWith("http")) {
+            // WebDAV歌曲：如果DataSource还没带认证头，立即重建
+            if (!dataSourceHasAuth) {
+                WebDavConfig cfg = new WebDavConfig(this);
+                if (cfg.isConfigured()) {
+                    Log.d(TAG, "检测到WebDAV配置，重建DataSource注入认证头");
+                    rebuildDataSourceFactory();
+                }
+            }
             try {
                 // 确保URL可以被正确解析
                 android.net.Uri parsed = Uri.parse(playUri);
@@ -721,6 +724,72 @@ public class MusicPlayerService extends Service {
         if (playbackStateUpdater != null) {
             handler.removeCallbacks(playbackStateUpdater);
             playbackStateUpdater = null;
+        }
+    }
+
+    /**
+     * 构建 DataSource.Factory：WebDAV URL 自动注入认证头 + 播放缓存
+     */
+    private DataSource.Factory buildDataSourceFactory() {
+        WebDavConfig webDavConfig = new WebDavConfig(this);
+        DataSource.Factory httpDataSourceFactory;
+        if (webDavConfig.isConfigured()) {
+            dataSourceHasAuth = true;
+            WebDavCacheManager cacheManager = WebDavCacheManager.getInstance(this);
+            httpDataSourceFactory = cacheManager.createCachedHttpDataSourceFactory(
+                    new OkHttpClient.Builder().build(), webDavConfig);
+        } else {
+            dataSourceHasAuth = false;
+            httpDataSourceFactory = new DefaultHttpDataSource.Factory()
+                    .setUserAgent("JingXinMusic");
+        }
+        return new DefaultDataSource.Factory(this, httpDataSourceFactory);
+    }
+
+    /**
+     * WebDAV配置变更后重建ExoPlayer，使认证头生效
+     */
+    private void rebuildDataSourceFactory() {
+        if (exoPlayer == null) return;
+        Log.d(TAG, "重建ExoPlayer（WebDAV配置已变更）");
+        // 保存当前状态
+        boolean wasPlaying = exoPlayer.isPlaying();
+        Song currentSong = getCurrentSong();
+        int currentPosition = (int) exoPlayer.getCurrentPosition();
+        List<Song> currentPlaylist = new ArrayList<>(playlist);
+        int currentIdx = currentIndex;
+
+        // 释放旧播放器
+        stopPlaybackStateUpdater();
+        exoPlayer.release();
+
+        // 重建播放器
+        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
+                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
+        exoPlayer = new ExoPlayer.Builder(this, renderersFactory)
+                .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
+                .setAudioAttributes(new AudioAttributes.Builder()
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                        .setUsage(C.USAGE_MEDIA)
+                        .build(), true)
+                .setHandleAudioBecomingNoisy(true)
+                .build();
+
+        // 重新挂载监听器
+        exoPlayer.addListener(playerListener);
+
+        // 恢复播放列表和当前歌曲
+        playlist = currentPlaylist;
+        currentIndex = currentIdx;
+        if (currentSong != null) {
+            playSong(currentSong, currentIdx);
+            // 恢复到之前的播放位置
+            if (currentPosition > 0) {
+                exoPlayer.seekTo(currentPosition);
+            }
+            if (!wasPlaying) {
+                exoPlayer.pause();
+            }
         }
     }
 

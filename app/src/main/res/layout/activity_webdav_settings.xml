@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_scroll"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#1A1A1A"
     android:padding="16dp">
 
     <LinearLayout
+        android:id="@+id/content_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
@@ -28,28 +29,28 @@
                 android:background="?attr/selectableItemBackgroundBorderless" />
 
             <TextView
+                android:id="@+id/tv_title"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="WebDAV 设置"
-                android:textColor="#FFFFFF"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 android:layout_marginStart="8dp" />
         </LinearLayout>
 
         <View
+            android:id="@+id/divider_top"
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="#333333"
             android:layout_marginVertical="8dp" />
 
         <!-- 服务器地址 -->
         <TextView
+            android:id="@+id/tv_label_server"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="服务器地址"
-            android:textColor="#AAAAAA"
             android:textSize="14sp"
             android:layout_marginTop="16dp" />
 
@@ -58,8 +59,6 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:hint="https://dav.example.com/"
-            android:textColorHint="#555555"
-            android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:background="@android:color/transparent"
             android:inputType="textUri"
@@ -67,16 +66,16 @@
             android:paddingVertical="12dp" />
 
         <View
+            android:id="@+id/divider_server"
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333" />
+            android:layout_height="1dp" />
 
         <!-- 用户名 -->
         <TextView
+            android:id="@+id/tv_label_username"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="用户名"
-            android:textColor="#AAAAAA"
             android:textSize="14sp"
             android:layout_marginTop="16dp" />
 
@@ -85,8 +84,6 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:hint="输入用户名"
-            android:textColorHint="#555555"
-            android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:background="@android:color/transparent"
             android:inputType="text"
@@ -94,16 +91,16 @@
             android:paddingVertical="12dp" />
 
         <View
+            android:id="@+id/divider_username"
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333" />
+            android:layout_height="1dp" />
 
         <!-- 密码 -->
         <TextView
+            android:id="@+id/tv_label_password"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="密码"
-            android:textColor="#AAAAAA"
             android:textSize="14sp"
             android:layout_marginTop="16dp" />
 
@@ -112,8 +109,6 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:hint="输入密码"
-            android:textColorHint="#555555"
-            android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:background="@android:color/transparent"
             android:inputType="textPassword"
@@ -121,16 +116,16 @@
             android:paddingVertical="12dp" />
 
         <View
+            android:id="@+id/divider_password"
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333" />
+            android:layout_height="1dp" />
 
         <!-- 音乐目录 -->
         <TextView
+            android:id="@+id/tv_label_path"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="音乐目录"
-            android:textColor="#AAAAAA"
             android:textSize="14sp"
             android:layout_marginTop="16dp" />
 
@@ -139,8 +134,6 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:hint="/music/"
-            android:textColorHint="#555555"
-            android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:background="@android:color/transparent"
             android:inputType="text"
@@ -148,16 +141,16 @@
             android:paddingVertical="12dp" />
 
         <View
+            android:id="@+id/divider_path"
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#333333" />
+            android:layout_height="1dp" />
 
         <!-- 缓存设置 -->
         <TextView
+            android:id="@+id/tv_label_cache"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="缓存设置"
-            android:textColor="#AAAAAA"
             android:textSize="14sp"
             android:layout_marginTop="24dp" />
 
@@ -169,11 +162,11 @@
             android:layout_marginTop="8dp">
 
             <TextView
+                android:id="@+id/tv_cache_label"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="缓存大小上限"
-                android:textColor="#FFFFFF"
                 android:textSize="16sp" />
 
             <Spinner
@@ -188,7 +181,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="当前已用: 0MB"
-            android:textColor="#888888"
             android:textSize="14sp"
             android:layout_marginTop="4dp" />
 
@@ -197,38 +189,59 @@
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:text="清除缓存"
-            android:textColor="#FF5252"
             android:textSize="16sp"
             android:background="@android:color/transparent"
             android:layout_marginTop="4dp" />
 
         <View
+            android:id="@+id/divider_cache"
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="#333333"
             android:layout_marginTop="8dp" />
 
-        <!-- 操作按钮 -->
-        <Button
-            android:id="@+id/btn_test_connection"
+        <!-- 操作按钮：横排 -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="测试连接"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:backgroundTint="#4CAF50"
-            android:layout_marginTop="24dp" />
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="24dp">
 
-        <Button
-            android:id="@+id/btn_save"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="保存并浏览"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:backgroundTint="#2196F3"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="24dp" />
+            <Button
+                android:id="@+id/btn_test_connection"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="测试"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:backgroundTint="#4CAF50"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/btn_save"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="保存"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:backgroundTint="#2196F3"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp" />
+
+            <Button
+                android:id="@+id/btn_import"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="提取"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:backgroundTint="#FF9800"
+                android:layout_marginStart="6dp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

@@ -441,11 +441,12 @@ public class MainActivity extends AppCompatActivity {
 
         checkPermissionAndScan();
 
-        // 初始化首页Tab为本地
-        switchTab(0);
+        // 初始化首页Tab（检查是否从WebDAV设置页跳来）
+        int selectTab = getIntent().getIntExtra("select_tab", 0);
+        switchTab(selectTab);
 
-        // 点击 mini 播放条主体 → 跳转播放页
-        findViewById(R.id.mini_player_info).setOnClickListener(v -> openPlayerFromMini());
+        // 点击 mini 播放条整体 → 跳转播放页
+        miniPlayer.setOnClickListener(v -> openPlayerFromMini());
 
         // 点击播放/暂停
         miniPlayPause.setOnClickListener(v -> {
@@ -490,6 +491,16 @@ public class MainActivity extends AppCompatActivity {
                     browseAdapter.notifyDataSetChanged();
                 }
             });
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        int selectTab = intent.getIntExtra("select_tab", -1);
+        if (selectTab >= 0) {
+            switchTab(selectTab);
         }
     }
 
@@ -1142,6 +1153,7 @@ public class MainActivity extends AppCompatActivity {
         resumeSong.toIntent(intent);
         intent.putExtra("position", foundPosition);
         intent.putExtra("playlist_mode", savedPlaylistMode);
+        intent.putExtra("resume_play", true);
 
         if ("folder".equals(savedPlaylistMode)) {
             java.util.Set<String> pathSet = prefs.getStringSet("folder_song_paths", null);
@@ -1185,21 +1197,43 @@ public class MainActivity extends AppCompatActivity {
     private void openPlayerFromMini() {
         if (bound && playerBinder != null) {
             Song currentSong = playerBinder.getCurrentSong();
-            if (currentSong == null || currentSong.title == null) return;
-
-            Intent intent = new Intent(this, PlayerActivity.class);
-            intent.putExtra("song_id", currentSong.id);
-            intent.putExtra("song_title", currentSong.title);
-            intent.putExtra("song_artist", currentSong.artist);
-            intent.putExtra("song_album", currentSong.album);
-            intent.putExtra("song_duration", currentSong.duration);
-            intent.putExtra("song_path", currentSong.filePath);
-            intent.putExtra("song_uri", currentSong.contentUri);
-            intent.putExtra("album_art", currentSong.albumArt);
-            intent.putExtra("position", playerBinder.getCurrentIndex());
-            intent.putExtra("playlist_mode", "all");
-            intent.putExtra("resume_play", true);
-            startActivity(intent);
+            if (currentSong != null && currentSong.title != null && !currentSong.title.isEmpty()) {
+                // 正常路径：有当前歌曲，传给 PlayerActivity 恢复
+                Intent intent = new Intent(this, PlayerActivity.class);
+                intent.putExtra("song_id", currentSong.id);
+                intent.putExtra("song_title", currentSong.title);
+                intent.putExtra("song_artist", currentSong.artist);
+                intent.putExtra("song_album", currentSong.album);
+                intent.putExtra("song_duration", currentSong.duration);
+                intent.putExtra("song_path", currentSong.filePath);
+                intent.putExtra("song_uri", currentSong.contentUri);
+                intent.putExtra("album_art", currentSong.albumArt);
+                intent.putExtra("position", playerBinder.getCurrentIndex());
+                intent.putExtra("resume_play", true);
+                startActivity(intent);
+            } else if (playerBinder.isPlaying() || playerBinder.getCurrentIndex() >= 0) {
+                // Service 在播放但 getCurrentSong 返回 null（playlist/index 状态异常）
+                // 用 last_played 恢复
+                android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
+                if (prefs.getBoolean("has_last", false)) {
+                    Intent intent = new Intent(this, PlayerActivity.class);
+                    Song resumeSong = new Song();
+                    resumeSong.id = prefs.getLong("song_id", 0);
+                    resumeSong.title = prefs.getString("song_title", "");
+                    resumeSong.artist = prefs.getString("song_artist", "");
+                    resumeSong.album = prefs.getString("song_album", "");
+                    resumeSong.duration = prefs.getLong("song_duration", 0);
+                    resumeSong.filePath = prefs.getString("song_path", "");
+                    resumeSong.contentUri = prefs.getString("song_uri", "");
+                    resumeSong.albumArt = prefs.getString("album_art", "");
+                    resumeSong.displayName = resumeSong.title;
+                    resumeSong.toIntent(intent);
+                    intent.putExtra("position", prefs.getInt("position", 0));
+                    intent.putExtra("playlist_mode", prefs.getString("playlist_mode", "all"));
+                    intent.putExtra("resume_play", true);
+                    startActivity(intent);
+                }
+            }
         }
     }
 

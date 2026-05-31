@@ -2,7 +2,6 @@ package com.jingxin.jingxinmusic.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.Environment;
 import android.util.Log;
 
 import org.json.JSONObject;
@@ -20,7 +19,8 @@ public class WebDavConfig {
 
     private static final String TAG = "WebDavConfig";
     private static final String PREFS_NAME = "webdav_config";
-    private static final String BACKUP_FILENAME = ".jingxin_webdav_config";
+    private static final String BACKUP_FILENAME = "jingxin_webdav_config.json";
+    private static final String BACKUP_FILENAME_OLD = ".jingxin_webdav_config";
 
     // 配置项 key
     private static final String KEY_SERVER_URL = "server_url";
@@ -44,22 +44,7 @@ public class WebDavConfig {
     public WebDavConfig(Context context) {
         this.context = context.getApplicationContext();
         prefs = this.context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        // 首次创建时自动尝试从Download目录恢复配置
-        tryAutoRestore();
-    }
-
-    /**
-     * 如果 SharedPreferences 无配置，检测 Download 目录备份文件并自动恢复
-     */
-    private void tryAutoRestore() {
-        // 已有配置则不覆盖
-        if (isConfigured()) return;
-        File backup = getBackupFile();
-        if (backup != null && backup.exists()) {
-            if (importFromDownload()) {
-                Log.i(TAG, "从Download目录自动恢复WebDAV配置成功");
-            }
-        }
+        // 不再自动恢复，由用户在设置页手动点"提取"
     }
 
     // ===== Getters & Setters =====
@@ -181,9 +166,9 @@ public class WebDavConfig {
         prefs.edit().clear().apply();
         // 同时删除备份文件
         File backup = getBackupFile();
-        if (backup != null && backup.exists()) {
-            backup.delete();
-        }
+        if (backup != null && backup.exists()) backup.delete();
+        File backupOld = getOldBackupFile();
+        if (backupOld != null && backupOld.exists()) backupOld.delete();
     }
 
     // ===== 备份与恢复（Download目录） =====
@@ -192,18 +177,35 @@ public class WebDavConfig {
      * 获取Download目录下的备份文件
      */
     private File getBackupFile() {
-        File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        if (downloadDir == null) return null;
-        return new File(downloadDir, BACKUP_FILENAME);
+        return new File("/sdcard/Download/" + BACKUP_FILENAME);
     }
 
     /**
-     * 将当前配置导出到 /sdcard/Download/.jingxin_webdav_config
+     * 获取旧版备份文件（兼容迁移）
+     */
+    private File getOldBackupFile() {
+        return new File("/sdcard/Download/" + BACKUP_FILENAME_OLD);
+    }
+
+    /**
+     * 检查Download目录下是否有备份文件
+     */
+    public boolean hasBackup() {
+        File backup = getBackupFile();
+        File oldBackup = getOldBackupFile();
+        boolean newReadable = backup.exists() && backup.canRead();
+        boolean oldReadable = oldBackup.exists() && oldBackup.canRead();
+        Log.d(TAG, "hasBackup: new=" + backup.getAbsolutePath() + " readable=" + newReadable
+                + ", old=" + oldBackup.getAbsolutePath() + " readable=" + oldReadable);
+        return newReadable || oldReadable;
+    }
+
+    /**
+     * 将当前配置导出到 /sdcard/Download/jingxin_webdav_config.json
      * @return true 导出成功
      */
     public boolean exportToDownload() {
         File backup = getBackupFile();
-        if (backup == null) return false;
         try {
             JSONObject json = new JSONObject();
             json.put(KEY_SERVER_URL, getServerUrl());
@@ -217,6 +219,8 @@ public class WebDavConfig {
             fos.write(json.toString().getBytes("UTF-8"));
             fos.flush();
             fos.close();
+            // 设置全局可读权限，确保卸载重装后新app也能读取
+            backup.setReadable(true, false);
             Log.i(TAG, "WebDAV配置已导出到: " + backup.getAbsolutePath());
             return true;
         } catch (Exception e) {
@@ -226,12 +230,22 @@ public class WebDavConfig {
     }
 
     /**
-     * 从 /sdcard/Download/.jingxin_webdav_config 导入配置
+     * 从 /sdcard/Download/ 导入配置
+     * 优先读取新文件名，不存在则尝试旧文件名（兼容迁移）
      * @return true 导入成功
      */
     public boolean importFromDownload() {
         File backup = getBackupFile();
-        if (backup == null || !backup.exists()) return false;
+        // 如果新文件不存在，尝试旧文件名
+        if (!backup.exists()) {
+            File oldBackup = getOldBackupFile();
+            if (oldBackup.exists()) {
+                backup = oldBackup;
+                Log.d(TAG, "使用旧版备份文件: " + oldBackup.getAbsolutePath());
+            } else {
+                return false;
+            }
+        }
         try {
             FileInputStream fis = new FileInputStream(backup);
             byte[] buffer = new byte[(int) backup.length()];

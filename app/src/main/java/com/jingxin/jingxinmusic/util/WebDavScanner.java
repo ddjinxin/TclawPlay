@@ -275,45 +275,6 @@ public class WebDavScanner {
     }
 
     /**
-     * 递归扫描指定目录下所有音乐文件，返回Song列表
-     * 用于直接播放全部歌曲场景
-     * @param dirUrl 目录URL，null则使用根目录
-     * @return 歌曲列表
-     */
-    public List<Song> scanAllMusic(String dirUrl) {
-        List<Song> songs = new ArrayList<>();
-        try {
-            String url = dirUrl != null ? dirUrl : config.getMusicUrl();
-            // depth=无限递归
-            List<DavResource> resources = sardine.list(url);
-            if (resources == null) return songs;
-
-            long idCounter = 1000000; // WebDAV歌曲ID从1000000开始，避免和本地冲突
-            for (DavResource res : resources) {
-                if (res.isDirectory()) continue;
-                String name = res.getName();
-                if (!isMusicFile(name)) continue;
-
-                Song song = new Song();
-                song.id = idCounter++;
-                song.title = nameWithoutExtension(name);
-                song.artist = "";
-                song.album = "";
-                song.duration = 0; // WebDAV无法直接获取时长
-                song.filePath = res.getPath();
-                song.contentUri = res.getHref().toString();
-                song.displayName = song.title;
-                songs.add(song);
-            }
-
-            Log.d(TAG, "递归扫描 " + url + " 共 " + songs.size() + " 首歌曲");
-        } catch (Exception e) {
-            Log.e(TAG, "递归扫描失败: " + e.getMessage());
-        }
-        return songs;
-    }
-
-    /**
      * 将DavItem（音乐文件）转换为Song对象
      */
     public static Song davItemToSong(DavItem item, long id) {
