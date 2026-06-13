@@ -36,6 +36,14 @@ public class HistoryManager {
         public String albumArt;
         public long playedAt; // 播放时间戳
 
+        // B站音源字段
+        public int sourceType = Song.SOURCE_LOCAL;
+        public String bvid;
+        public long cid;
+        public String audioUrl;
+        public long audioUrlExpire;
+        public String coverUrl;
+
         public HistoryItem() {
             playedAt = System.currentTimeMillis();
         }
@@ -74,6 +82,12 @@ public class HistoryManager {
         item.filePath = song.filePath;
         item.contentUri = song.contentUri;
         item.albumArt = song.albumArt;
+        item.sourceType = song.sourceType;
+        item.bvid = song.bvid;
+        item.cid = song.cid;
+        item.audioUrl = song.audioUrl;
+        item.audioUrlExpire = song.audioUrlExpire;
+        item.coverUrl = song.coverUrl;
         item.playedAt = System.currentTimeMillis();
         list.add(0, item);
 
@@ -109,6 +123,12 @@ public class HistoryManager {
                 item.filePath = obj.optString("filePath", "");
                 item.contentUri = obj.optString("contentUri", "");
                 item.albumArt = obj.optString("albumArt", "");
+                item.sourceType = obj.optInt("sourceType", Song.SOURCE_LOCAL);
+                item.bvid = obj.optString("bvid", "");
+                item.cid = obj.optLong("cid", 0);
+                item.audioUrl = obj.optString("audioUrl", "");
+                item.audioUrlExpire = obj.optLong("audioUrlExpire", 0);
+                item.coverUrl = obj.optString("coverUrl", "");
                 item.playedAt = obj.optLong("playedAt", 0);
                 if (!item.title.isEmpty()) {
                     list.add(item);
@@ -151,6 +171,12 @@ public class HistoryManager {
                 obj.put("filePath", item.filePath);
                 obj.put("contentUri", item.contentUri);
                 obj.put("albumArt", item.albumArt);
+                obj.put("sourceType", item.sourceType);
+                obj.put("bvid", item.bvid);
+                obj.put("cid", item.cid);
+                obj.put("audioUrl", item.audioUrl);
+                obj.put("audioUrlExpire", item.audioUrlExpire);
+                obj.put("coverUrl", item.coverUrl);
                 obj.put("playedAt", item.playedAt);
                 array.put(obj);
             }

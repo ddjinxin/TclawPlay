@@ -36,10 +36,8 @@ public class LyricPublicUtil {
 
         try {
             if (Build.VERSION.SDK_INT >= 29) {
-                // Android 10+：通过 MediaStore.Downloads 写入
                 copyViaMediaStore(context, srcFile);
             } else {
-                // Android 9 以下：直接 File API 写入
                 copyViaFileApi(srcFile);
             }
         } catch (Exception e) {
@@ -49,56 +47,85 @@ public class LyricPublicUtil {
 
     /**
      * Android 10+：通过 MediaStore.Downloads 写入
-     * 检查是否已存在同名文件，存在则跳过
+     * 用 DISPLAY_NAME 查询同名文件，Java 侧匹配 RELATIVE_PATH：
+     * - 已存在 → 直接覆盖内容（openOutputStream，原子操作）
+     * - 不存在 → insert 新条目
      */
     private static void copyViaMediaStore(Context context, File srcFile) {
         ContentResolver resolver = context.getContentResolver();
         String fileName = srcFile.getName();
-
-        // 检查是否已存在
+        String targetRelativePath = Environment.DIRECTORY_DOWNLOADS + "/" + PUBLIC_DIR_NAME;
         Uri downloadsUri = MediaStore.Downloads.EXTERNAL_CONTENT_URI;
-        String[] projection = {MediaStore.Downloads._ID};
-        String selection = MediaStore.Downloads.DISPLAY_NAME + " = ? AND " +
-                MediaStore.Downloads.RELATIVE_PATH + " = ?";
-        String[] selectionArgs = {fileName, Environment.DIRECTORY_DOWNLOADS + "/" + PUBLIC_DIR_NAME};
+
+        // 查询是否已存在
+        Uri existingUri = null;
+        String[] projection = {MediaStore.Downloads._ID, MediaStore.Downloads.RELATIVE_PATH};
+        String selection = MediaStore.Downloads.DISPLAY_NAME + " = ?";
+        String[] selectionArgs = {fileName};
 
         try (android.database.Cursor cursor = resolver.query(downloadsUri, projection, selection, selectionArgs, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                Log.d(TAG, "公共目录已存在，跳过: " + fileName);
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    String relativePath = cursor.getString(1);
+                    if (pathMatch(relativePath, targetRelativePath)) {
+                        long id = cursor.getLong(0);
+                        existingUri = android.content.ContentUris.withAppendedId(downloadsUri, id);
+                        break;
+                    }
+                }
+            }
+        }
+
+        Uri targetUri;
+        if (existingUri != null) {
+            // 已存在，直接覆盖
+            targetUri = existingUri;
+        } else {
+            // 不存在，insert 新条目
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
+            values.put(MediaStore.Downloads.MIME_TYPE, getMimeType(fileName));
+            values.put(MediaStore.Downloads.RELATIVE_PATH, targetRelativePath);
+
+            targetUri = resolver.insert(downloadsUri, values);
+            if (targetUri == null) {
+                Log.e(TAG, "MediaStore insert 失败: " + fileName);
                 return;
             }
         }
 
-        // 写入新文件
-        ContentValues values = new ContentValues();
-        values.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
-        values.put(MediaStore.Downloads.MIME_TYPE, getMimeType(fileName));
-        values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + PUBLIC_DIR_NAME);
-
-        Uri uri = resolver.insert(downloadsUri, values);
-        if (uri == null) {
-            Log.e(TAG, "MediaStore insert 失败: " + fileName);
-            return;
-        }
-
         try (InputStream is = new FileInputStream(srcFile);
-             OutputStream os = resolver.openOutputStream(uri)) {
+             OutputStream os = resolver.openOutputStream(targetUri, "w")) {
             if (os == null) return;
             byte[] buffer = new byte[4096];
             int len;
             while ((len = is.read(buffer)) > 0) {
                 os.write(buffer, 0, len);
             }
-            Log.d(TAG, "歌词已复制到公共目录: " + fileName);
+            Log.d(TAG, existingUri != null ? "歌词已覆盖: " + fileName : "歌词已复制到公共目录: " + fileName);
         } catch (Exception e) {
             Log.e(TAG, "写入公共目录失败: " + e.getMessage());
-            // 写入失败，删除残留条目
-            resolver.delete(uri, null, null);
+            // 新插入的条目写入失败则清理
+            if (existingUri == null) {
+                resolver.delete(targetUri, null, null);
+            }
         }
     }
 
     /**
+     * 路径匹配：忽略大小写和尾部斜杠差异
+     * 例如 "Download/lyrics" 匹配 "Download/lyrics/" 和 "download/Lyrics"
+     */
+    private static boolean pathMatch(String actual, String expected) {
+        if (actual == null || expected == null) return false;
+        String a = actual.endsWith("/") ? actual.substring(0, actual.length() - 1) : actual;
+        String e = expected.endsWith("/") ? expected.substring(0, expected.length() - 1) : expected;
+        return a.equalsIgnoreCase(e);
+    }
+
+    /**
      * Android 9 以下：直接 File API 写入
+     * 已存在则覆盖，不存在则新建
      * 需要 WRITE_EXTERNAL_STORAGE 权限，无权限则跳过
      */
     private static void copyViaFileApi(File srcFile) {
@@ -114,10 +141,6 @@ public class LyricPublicUtil {
         }
 
         File destFile = new File(lyricDir, srcFile.getName());
-        if (destFile.exists()) {
-            Log.d(TAG, "公共目录已存在，跳过: " + srcFile.getName());
-            return;
-        }
 
         try (FileInputStream is = new FileInputStream(srcFile);
              FileOutputStream os = new FileOutputStream(destFile)) {

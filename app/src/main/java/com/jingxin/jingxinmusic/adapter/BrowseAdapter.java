@@ -271,8 +271,12 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
      * WebDAV目录：远程扫描子目录
      */
     private Bitmap findFirstCoverInDirectory(BrowseItem dirItem) {
-        if (dirItem.source == BrowseItem.SOURCE_WEBDAV) {
+        if (dirItem.source == Song.SOURCE_WEBDAV) {
             return findWebDavCover(dirItem);
+        }
+
+        if (dirItem.source == Song.SOURCE_BILI) {
+            return findBiliCover(dirItem);
         }
 
         // 本地目录：直接扫描文件系统
@@ -281,8 +285,54 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         return scanDirectoryForCover(new File(dirPath));
     }
 
+    /** B站多P视频目录：获取第一首分P标题，查本地封面缓存，降级下载视频封面 */
+    private Bitmap findBiliCover(BrowseItem dirItem) {
+        try {
+            String bvid = dirItem.biliBvid;
+            if (bvid == null || bvid.isEmpty()) return null;
+
+            com.jingxin.jingxinmusic.util.BiliConfig config =
+                    new com.jingxin.jingxinmusic.util.BiliConfig(context);
+
+            // 获取分P列表，取第一首的标题
+            java.util.List<com.jingxin.jingxinmusic.util.BiliApi.VideoPage> pages =
+                    com.jingxin.jingxinmusic.util.BiliApi.getVideoPages(bvid, config);
+            if (pages == null || pages.isEmpty()) return null;
+
+            // 用第一首分P标题查找本地封面缓存
+            String firstTitle = pages.get(0).part;
+            if (firstTitle != null && !firstTitle.isEmpty()) {
+                // 去除编号前缀（如001.）
+                firstTitle = firstTitle.replaceAll("^\\d{1,3}[.\\s\\-]+", "").trim();
+                // 去除HTML标签
+                firstTitle = firstTitle.replaceAll("<[^>]+>", "").trim();
+            }
+            if (firstTitle != null && !firstTitle.isEmpty()) {
+                Bitmap cached = findCachedCoverByName(firstTitle);
+                if (cached != null) {
+                    Log.d(TAG, "B站目录命中封面缓存: " + bvid + " title=" + firstTitle);
+                    return cached;
+                }
+            }
+
+            // 降级：从视频封面URL下载
+            String coverUrl = dirItem.biliCover;
+            if (coverUrl != null && !coverUrl.isEmpty()) {
+                Bitmap cover = com.jingxin.jingxinmusic.util.HttpUtil.getBitmap(coverUrl);
+                if (cover != null) {
+                    Log.d(TAG, "B站目录用视频封面: " + bvid);
+                    return cover;
+                }
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "B站目录封面查找失败: " + e.getMessage());
+        }
+        return null;
+    }
+
     /** WebDAV目录：先查本地缓存，未命中则远程扫描 */
     private Bitmap findWebDavCover(BrowseItem dirItem) {
+
         try {
             String dirUrl = dirItem.url;
             if (dirUrl == null) return null;

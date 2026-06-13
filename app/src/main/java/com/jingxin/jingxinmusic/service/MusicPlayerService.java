@@ -40,8 +40,13 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import com.jingxin.jingxinmusic.MainActivity;
 import com.jingxin.jingxinmusic.PlayerActivity;
 import com.jingxin.jingxinmusic.model.Song;
+import com.jingxin.jingxinmusic.util.BiliApi;
+import com.jingxin.jingxinmusic.util.BiliConfig;
 import com.jingxin.jingxinmusic.util.CompatUtil;
+import com.jingxin.jingxinmusic.util.FileUtil;
 import com.jingxin.jingxinmusic.util.HistoryManager;
+import com.jingxin.jingxinmusic.util.KrcParser;
+import com.jingxin.jingxinmusic.util.LyricPublicUtil;
 import com.jingxin.jingxinmusic.util.WebDavCacheManager;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
 
@@ -70,6 +75,8 @@ public class MusicPlayerService extends Service {
     public static final String ACTION_PLAY_STATE_CHANGED = "com.jingxin.jingxinmusic.PLAY_STATE_CHANGED";
     // 歌曲切换广播（切歌时单独发）
     public static final String ACTION_SONG_CHANGED = "com.jingxin.jingxinmusic.SONG_CHANGED";
+    // 歌词就绪广播（歌词写入公共目录后发，补上LRC/KRC路径）
+    public static final String ACTION_LYRIC_AVAILABLE = "com.jingxin.jingxinmusic.LYRIC_AVAILABLE";
     public static final String EXTRA_IS_PLAYING = "is_playing";
     public static final String EXTRA_SONG_TITLE = "song_title";
     public static final String EXTRA_SONG_ARTIST = "song_artist";
@@ -111,6 +118,7 @@ public class MusicPlayerService extends Service {
     private int currentIndex = -1;
     private int playOrder = PLAY_ORDER_SEQUENTIAL;  // 默认顺序播放
     private final Random random = new Random();
+    private boolean deferMediaSessionUpdate = false;  // 延迟MediaSession更新标志（等歌词下载完成后更新）
 
     private NotificationManager notificationManager;
 
@@ -280,7 +288,7 @@ public class MusicPlayerService extends Service {
             public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
                 updateNotification();
                 sendPlayStateBroadcast();
-                updateMediaSessionMetadata();
+                // MediaSession metadata 延迟到歌词就绪后更新（由 sendSongChangedBroadcast 触发）
             }
 
             @Override
@@ -495,6 +503,16 @@ public class MusicPlayerService extends Service {
 
         this.currentIndex = position;
         Log.d(TAG, "playSong: " + song.title + ", position=" + position + ", playlist.size=" + playlist.size());
+
+        // B站歌曲：异步获取音频流URL后再播放
+        // 备用判断：filePath以"bili://"开头也视为B站歌曲（兼容旧版保存的播放列表）
+        if (song.sourceType == Song.SOURCE_BILI ||
+            (song.filePath != null && song.filePath.startsWith("bili://"))) {
+            song.sourceType = Song.SOURCE_BILI; // 确保类型正确
+            playBiliSong(song, position);
+            return;
+        }
+
         // 优先使用 Content URI（不受 Scoped Storage 限制），fallback 到文件路径
         String playUri = song.contentUri != null ? song.contentUri : song.filePath;
         Log.d(TAG, "playSong: playUri=" + playUri);
@@ -530,6 +548,13 @@ public class MusicPlayerService extends Service {
             }
         }
 
+        startPlayback(song, playUri, position);
+    }
+
+    /**
+     * 本地/WebDAV歌曲：开始播放
+     */
+    private void startPlayback(Song song, String playUri, int position) {
         MediaItem mediaItem = MediaItem.fromUri(Uri.parse(playUri));
         exoPlayer.setMediaItem(mediaItem);
         exoPlayer.prepare();
@@ -544,14 +569,105 @@ public class MusicPlayerService extends Service {
             HistoryManager.addHistory(historyDir, song);
         }, "HistoryLogger").start();
 
-        // 更新 MediaSession 元数据
-        updateMediaSessionMetadata();
+        // MediaSession metadata 在 sendSongChangedBroadcast 中根据歌词就绪时机更新
 
         Log.d(TAG, "开始播放: " + song.title + " - " + song.artist);
         updateNotification();
 
         // 通知 Activity 歌曲切换了
         sendSongChangedBroadcast(song, position);
+    }
+
+    /**
+     * B站歌曲播放：异步获取音频流URL，然后用exoPlayer + requestHeaders播放
+     */
+    private void playBiliSong(Song song, int position) {
+        // 兼容旧数据：如果bvid为空，从filePath中提取（filePath格式: "bili://BVxxxx"）
+        if ((song.bvid == null || song.bvid.isEmpty()) && song.filePath != null && song.filePath.startsWith("bili://")) {
+            song.bvid = song.filePath.substring(7);
+        }
+        Log.d(TAG, "playBiliSong: " + song.title);
+
+        // 检查缓存的URL是否有效
+        if (song.audioUrl != null && !song.audioUrl.isEmpty()
+                && song.audioUrlExpire > System.currentTimeMillis()) {
+            startBiliPlayback(song, position);
+            return;
+        }
+
+        // 异步获取音频流URL
+        new Thread(() -> {
+            BiliConfig config = new BiliConfig(this);
+            // 优先使用已知的cid（分P场景），否则自动获取第一P
+            BiliApi.AudioPlayInfo playInfo;
+            if (song.cid > 0) {
+                playInfo = BiliApi.getAudioPlayInfo(song.bvid, song.cid, config);
+            } else {
+                playInfo = BiliApi.getAudioPlayInfo(song.bvid, config);
+            }
+            if (playInfo == null || playInfo.audioUrl == null || playInfo.audioUrl.isEmpty()) {
+                Log.e(TAG, "获取B站音频流失败: " + song.bvid);
+                handler.post(() -> {
+                    consecutiveErrors++;
+                    if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+                        playNext();
+                    }
+                });
+                return;
+            }
+
+            // 更新song中的缓存信息
+            song.audioUrl = playInfo.audioUrl;
+            song.audioUrlExpire = playInfo.expireTime;
+            song.cid = playInfo.cid;
+
+            Log.d(TAG, "B站音频流就绪");
+            handler.post(() -> startBiliPlayback(song, position));
+        }, "BiliAudioFetcher").start();
+    }
+
+    /**
+     * B站歌曲：用exoPlayer + 带认证头的MediaSource播放音频流
+     */
+    private void startBiliPlayback(Song song, int position) {
+        try {
+            BiliConfig config = new BiliConfig(this);
+
+            // 构建带B站认证头的OkHttpDataSource，创建MediaSource
+            OkHttpClient biliClient = new OkHttpClient.Builder().build();
+            OkHttpDataSource.Factory biliDataSourceFactory = new OkHttpDataSource.Factory(biliClient)
+                    .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .setDefaultRequestProperties(new HashMap<String, String>() {{
+                        put("Referer", "https://www.bilibili.com");
+                        put("Cookie", config.getAuthCookie());
+                    }});
+
+            DataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(this, biliDataSourceFactory);
+            DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(dataSourceFactory);
+
+            MediaItem mediaItem = MediaItem.fromUri(Uri.parse(song.audioUrl));
+            exoPlayer.setMediaSource(mediaSourceFactory.createMediaSource(mediaItem));
+            exoPlayer.prepare();
+            exoPlayer.play();
+
+            consecutiveErrors = 0;
+
+            new Thread(() -> {
+                File historyDir = new File(getExternalFilesDir(null), "history");
+                HistoryManager.addHistory(historyDir, song);
+            }, "HistoryLogger").start();
+
+            updateMediaSessionMetadata();
+            updateNotification();
+            sendSongChangedBroadcast(song, position);
+
+        } catch (Exception e) {
+            Log.e(TAG, "B站播放启动失败: " + e.getMessage());
+            consecutiveErrors++;
+            if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+                playNext();
+            }
+        }
     }
 
     private void playSongAtPosition(int position) {
@@ -660,6 +776,11 @@ public class MusicPlayerService extends Service {
     // ========== MediaSession 更新 ==========
 
     private void updateMediaSessionMetadata() {
+        if (deferMediaSessionUpdate) return;  // 延迟更新的歌曲，等歌词就绪后再更新
+        doUpdateMediaSessionMetadata();
+    }
+
+    private void doUpdateMediaSessionMetadata() {
         Song currentSong = getCurrentSong();
         if (currentSong == null || mediaSession == null) return;
 
@@ -871,52 +992,127 @@ public class MusicPlayerService extends Service {
     }
 
     private void sendSongChangedBroadcast(Song song, int index) {
-        // 应用内广播（带包名限制）
-        Intent internalIntent = new Intent(ACTION_SONG_CHANGED);
-        internalIntent.setPackage(getPackageName());
-        internalIntent.putExtra(EXTRA_SONG_ID, song.id);
-        internalIntent.putExtra(EXTRA_SONG_TITLE, song.title);
-        internalIntent.putExtra(EXTRA_SONG_ARTIST, song.artist);
-        internalIntent.putExtra(EXTRA_SONG_ALBUM, song.album);
-        internalIntent.putExtra(EXTRA_SONG_PATH, song.filePath);
-        internalIntent.putExtra(EXTRA_SONG_URI, song.contentUri);
-        internalIntent.putExtra(EXTRA_SONG_ALBUM_ART, song.albumArt);
-        internalIntent.putExtra(EXTRA_SONG_INDEX, index);
-        internalIntent.putExtra(EXTRA_DURATION, song.duration);
-        if (exoPlayer != null) {
-            internalIntent.putExtra(EXTRA_AUDIO_SESSION_ID, exoPlayer.getAudioSessionId());
-        }
-        sendBroadcast(internalIntent);
+        // 先同步本地缓存歌词到公共目录
+        String[] lyricPaths = syncLyricToPublicDir(song);
 
-        // 外部广播（无包名限制，供其他应用读取歌曲信息）
-        Intent externalIntent = new Intent(ACTION_SONG_CHANGED);
-        externalIntent.putExtra(EXTRA_SONG_ID, song.id);
-        externalIntent.putExtra(EXTRA_SONG_TITLE, song.title);
-        externalIntent.putExtra(EXTRA_SONG_ARTIST, song.artist);
-        externalIntent.putExtra(EXTRA_SONG_ALBUM, song.album);
-        externalIntent.putExtra(EXTRA_SONG_PATH, song.filePath);
-        externalIntent.putExtra(EXTRA_SONG_URI, song.contentUri);
-        externalIntent.putExtra(EXTRA_SONG_ALBUM_ART, song.albumArt);
-        externalIntent.putExtra(EXTRA_SONG_INDEX, index);
-        externalIntent.putExtra(EXTRA_DURATION, song.duration);
+        Intent intent = new Intent(ACTION_SONG_CHANGED);
+        intent.putExtra(EXTRA_SONG_ID, song.id);
+        intent.putExtra(EXTRA_SONG_TITLE, song.title);
+        intent.putExtra(EXTRA_SONG_ARTIST, song.artist);
+        intent.putExtra(EXTRA_SONG_ALBUM, song.album);
+        intent.putExtra(EXTRA_SONG_PATH, song.filePath);
+        intent.putExtra(EXTRA_SONG_URI, song.contentUri);
+        intent.putExtra(EXTRA_SONG_ALBUM_ART, song.albumArt);
+        intent.putExtra(EXTRA_SONG_INDEX, index);
+        intent.putExtra(EXTRA_DURATION, song.duration);
+        // B站专属字段
+        intent.putExtra("song_source_type", song.sourceType);
+        intent.putExtra("song_bvid", song.bvid != null ? song.bvid : "");
+        intent.putExtra("song_cid", song.cid);
+        intent.putExtra("song_audio_url", song.audioUrl != null ? song.audioUrl : "");
+        intent.putExtra("song_audio_url_expire", song.audioUrlExpire);
+        intent.putExtra("song_cover_url", song.coverUrl != null ? song.coverUrl : "");
         if (exoPlayer != null) {
-            externalIntent.putExtra(EXTRA_AUDIO_SESSION_ID, exoPlayer.getAudioSessionId());
+            intent.putExtra(EXTRA_AUDIO_SESSION_ID, exoPlayer.getAudioSessionId());
         }
-        // 附带公共目录下的LRC/KRC歌词文件路径，供外部应用直接读取
-        String safeName = song.title.replaceAll("[\\\\/:*?\"<>|]", "_").replaceAll("\\s+", " ").trim();
-        File lrcPublicFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + safeName + ".lrc");
-        if (lrcPublicFile.exists()) {
-            externalIntent.putExtra(EXTRA_LRC_FILE_PATH, lrcPublicFile.getAbsolutePath());
+        // 歌词文件路径
+        if (lyricPaths[0] != null) intent.putExtra(EXTRA_LRC_FILE_PATH, lyricPaths[0]);
+        if (lyricPaths[1] != null) intent.putExtra(EXTRA_KRC_FILE_PATH, lyricPaths[1]);
+
+        // 始终立即发广播（PlayerActivity UI更新不延迟）
+        sendBroadcast(intent);
+
+        if (lyricPaths[0] != null || lyricPaths[1] != null) {
+            // 本地有缓存，歌词已在公共目录，立即更新 MediaSession
+            deferMediaSessionUpdate = false;
+            doUpdateMediaSessionMetadata();
+        } else {
+            // 本地无缓存，设置延迟标志，等歌词下载后再更新 MediaSession
+            // 歌词下载由 PlayerActivity.fetchLyrics() 触发，无需在此重复调用
+            deferMediaSessionUpdate = true;
+            Song delayedSong = song;
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                syncLyricToPublicDir(delayedSong);
+                deferMediaSessionUpdate = false;
+                doUpdateMediaSessionMetadata();
+            }, 1000);
         }
-        File krcPublicFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + safeName + ".krc");
-        if (krcPublicFile.exists()) {
-            externalIntent.putExtra(EXTRA_KRC_FILE_PATH, krcPublicFile.getAbsolutePath());
-        }
-        sendBroadcast(externalIntent);
 
         Log.d(TAG, "歌曲切换: " + song.title + " - " + song.artist);
+    }
+
+    /**
+     * 同步检查本地歌词缓存，有则复制到公共目录
+     * @return [lrcPublicPath, krcPublicPath]，没有则为null
+     */
+    private String[] syncLyricToPublicDir(Song song) {
+        String[] result = new String[]{null, null};
+        String cleanTitle = Song.cleanSongTitle(song.title, song.artist);
+        String safeName = cleanTitle.replaceAll("[\\\\/:*?\"<>|]", "_").replaceAll("\\s+", " ").trim();
+        File lyricsDir = new File(getExternalFilesDir(null), "lyrics");
+
+        File lrcPublicFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + safeName + ".lrc");
+        File krcPublicFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + safeName + ".krc");
+
+        // 如果公共目录已经有，直接返回路径
+        if (lrcPublicFile.exists()) result[0] = lrcPublicFile.getAbsolutePath();
+        if (krcPublicFile.exists()) result[1] = krcPublicFile.getAbsolutePath();
+        if (result[0] != null && result[1] != null) return result;
+
+        // 检查本地缓存（兼容新旧文件名格式），有则同步复制
+        File krcCache = findLyricFile(lyricsDir, safeName, song.artist, ".krc");
+        File lrcCache = findLyricFile(lyricsDir, safeName, song.artist, ".lrc");
+
+        if (krcCache.exists() && !krcPublicFile.exists()) {
+            LyricPublicUtil.copyToPublicDir(this, krcCache);
+            if (krcPublicFile.exists()) result[1] = krcPublicFile.getAbsolutePath();
+        }
+        if (lrcCache.exists() && !lrcPublicFile.exists()) {
+            LyricPublicUtil.copyToPublicDir(this, lrcCache);
+            if (lrcPublicFile.exists()) result[0] = lrcPublicFile.getAbsolutePath();
+        }
+
+        // 本地有KRC但没有LRC，从KRC生成LRC（用新格式文件名）
+        if (krcCache.exists() && !lrcCache.exists() && !lrcPublicFile.exists()) {
+            KrcParser.LyricData data = KrcParser.parseKrcFile(krcCache);
+            if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                String lrcText = data.toLrcText();
+                if (lrcText != null && !lrcText.isEmpty()) {
+                    File newLrcCache = new File(lyricsDir, safeName + ".lrc");
+                    FileUtil.writeFile(newLrcCache, lrcText);
+                    LyricPublicUtil.copyToPublicDir(this, newLrcCache);
+                    if (lrcPublicFile.exists()) result[0] = lrcPublicFile.getAbsolutePath();
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 查找本地歌词文件，兼容新旧文件名格式
+     * 优先匹配新格式（不含歌手），回退旧格式（含歌手）
+     */
+    private File findLyricFile(File lyricsDir, String safeName, String artist, String ext) {
+        // 1. 精确匹配新格式
+        File file = new File(lyricsDir, safeName + ext);
+        if (file.exists()) return file;
+
+        // 2. 尝试旧格式
+        if (artist != null && !artist.isEmpty() && !"<unknown>".equals(artist)) {
+            String safeArtist = artist.replaceAll("[\\\\/:*?\"<>|]", "_").replaceAll("\\s+", " ").trim();
+            File legacy1 = new File(lyricsDir, safeName + " - " + safeArtist + ext);
+            if (legacy1.exists()) return legacy1;
+            File legacy2 = new File(lyricsDir, safeArtist + " - " + safeName + ext);
+            if (legacy2.exists()) return legacy2;
+            File legacy3 = new File(lyricsDir, safeArtist + "-" + safeName + ext);
+            if (legacy3.exists()) return legacy3;
+        }
+
+        // 3. 都没找到，返回新格式路径
+        return file;
     }
 
     private Song getCurrentSong() {

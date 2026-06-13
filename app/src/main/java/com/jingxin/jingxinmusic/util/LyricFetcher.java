@@ -44,6 +44,7 @@ public class LyricFetcher {
 
     /**
      * 加载歌词（主入口）：本地 → 酷狗KRC → 网易云LRC
+     * @param callback 歌词回调
      * @param context 上下文，用于复制歌词到公共目录（可为null）
      */
     public static void loadLyric(String songTitle, String artistName, String filePath, File lyricsDir, LyricCallback callback, Context context) {
@@ -52,11 +53,29 @@ public class LyricFetcher {
                 String safeName = buildFileName(songTitle, artistName);
 
                 // 1. 查本地 KRC
-                File krcFile = new File(lyricsDir, safeName + ".krc");
+                File krcFile = findLyricFile(lyricsDir, safeName, artistName, ".krc");
                 if (krcFile.exists()) {
                     Log.d(TAG, "找到本地 KRC: " + krcFile.getName());
                     KrcParser.LyricData data = KrcParser.parseKrcFile(krcFile);
                     if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                        if (context != null) {
+                            LyricPublicUtil.copyToPublicDir(context, krcFile);
+                            // 确保 LRC 也复制到公共目录
+                            File lrcFile = findLyricFile(lyricsDir, safeName, artistName, ".lrc");
+                            if (lrcFile.exists()) {
+                                LyricPublicUtil.copyToPublicDir(context, lrcFile);
+                            } else {
+                                // 本地没有 LRC，从 KRC 解析后生成（用新格式文件名）
+                                File newLrcFile = new File(lyricsDir, safeName + ".lrc");
+                                String lrcText = data.toLrcText();
+                                if (lrcText != null && !lrcText.isEmpty()) {
+                                    FileUtil.writeFile(newLrcFile, lrcText);
+                                    LyricPublicUtil.copyToPublicDir(context, newLrcFile);
+                                    Log.d(TAG, "从 KRC 生成 LRC: " + newLrcFile.getName());
+                                }
+                            }
+                        }
+                        notifyLyricAvailable(context, safeName, songTitle, artistName);
                         callback.onLyricFetched(data);
                         return;
                     }
@@ -88,6 +107,7 @@ public class LyricFetcher {
                                             // 额外复制到公共下载目录
                                             if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcCopy);
                                         }
+                                        notifyLyricAvailable(context, safeName, songTitle, artistName);
                                         callback.onLyricFetched(data);
                                         return;
                                     }
@@ -98,13 +118,15 @@ public class LyricFetcher {
                 }
 
                 // 2. 查本地 LRC
-                File lrcFile = new File(lyricsDir, safeName + ".lrc");
+                File lrcFile = findLyricFile(lyricsDir, safeName, artistName, ".lrc");
                 if (lrcFile.exists()) {
                     Log.d(TAG, "找到本地 LRC: " + lrcFile.getName());
                     String lrcText = FileUtil.readFileWithNewlines(lrcFile);
                     if (lrcText != null) {
                         KrcParser.LyricData data = LrcParser.parse(lrcText);
                         if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                            if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcFile);
+                            notifyLyricAvailable(context, safeName, songTitle, artistName);
                             callback.onLyricFetched(data);
                             return;
                         }
@@ -151,18 +173,21 @@ public class LyricFetcher {
                         // 4b. 同时下载LRC歌词（同一个id+accesskey，fmt=lrc）
                         String lrcTextFromKugou = downloadKugouLrc(id, accesskey);
                         if (lrcTextFromKugou != null && !lrcTextFromKugou.isEmpty()) {
-                            // LRC只复制到公共下载目录，不保存到应用私有目录（避免和第3步缓存冲突）
-                            if (context != null) {
-                                File tempLrc = new File(lyricsDir, safeName + ".lrc");
-                                FileUtil.writeFile(tempLrc, lrcTextFromKugou);
-                                LyricPublicUtil.copyToPublicDir(context, tempLrc);
-                                tempLrc.delete();
-                                Log.d(TAG, "酷狗LRC已复制到公共下载目录: " + safeName + ".lrc");
+                            // 保存 LRC 到本地，方便步骤2缓存命中
+                            File lrcLocalFile = new File(lyricsDir, safeName + ".lrc");
+                            if (!lrcLocalFile.exists()) {
+                                FileUtil.writeFile(lrcLocalFile, lrcTextFromKugou);
                             }
+                            // 额外复制到公共下载目录
+                            if (context != null) {
+                                LyricPublicUtil.copyToPublicDir(context, lrcLocalFile);
+                            }
+                            Log.d(TAG, "酷狗LRC已保存: " + safeName + ".lrc");
                         }
 
                         KrcParser.LyricData data = KrcParser.parseKrcFromBase64(base64Content);
                         if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                            notifyLyricAvailable(context, safeName, songTitle, artistName);
                             callback.onLyricFetched(data);
                             return;
                         }
@@ -183,6 +208,7 @@ public class LyricFetcher {
 
                     KrcParser.LyricData data = LrcParser.parse(lrcText);
                     if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                        notifyLyricAvailable(context, safeName, songTitle, artistName);
                         callback.onLyricFetched(data);
                         return;
                     }
@@ -211,6 +237,38 @@ public class LyricFetcher {
         return name.replaceAll("[\\\\/:*?\"<>|]", "_")
                   .replaceAll("\\s+", " ")
                   .trim();
+    }
+
+    /**
+     * 查找本地歌词文件，兼容新旧文件名格式
+     * 优先匹配新格式（cleanSongTitle 后不含歌手），回退旧格式（含歌手）
+     * @param lyricsDir 歌词目录
+     * @param safeName 新格式文件名（不含扩展名）
+     * @param artist 歌手名（可能为空）
+     * @param ext 扩展名（.krc / .lrc）
+     * @return 找到的文件，或新格式路径（即使不存在）
+     */
+    private static File findLyricFile(File lyricsDir, String safeName, String artist, String ext) {
+        // 1. 精确匹配新格式
+        File file = new File(lyricsDir, safeName + ext);
+        if (file.exists()) return file;
+
+        // 2. 尝试旧格式：歌名 - 歌手 / 歌手 - 歌名
+        if (artist != null && !artist.isEmpty() && !"<unknown>".equals(artist)) {
+            String safeArtist = sanitize(artist);
+            // "歌名 - 歌手" 格式
+            File legacy1 = new File(lyricsDir, safeName + " - " + safeArtist + ext);
+            if (legacy1.exists()) return legacy1;
+            // "歌手 - 歌名" 格式
+            File legacy2 = new File(lyricsDir, safeArtist + " - " + safeName + ext);
+            if (legacy2.exists()) return legacy2;
+            // "歌手-歌名" 无空格格式
+            File legacy3 = new File(lyricsDir, safeArtist + "-" + safeName + ext);
+            if (legacy3.exists()) return legacy3;
+        }
+
+        // 3. 都没找到，返回新格式路径（用于后续创建）
+        return file;
     }
 
     // ========== 文件读写（已迁移到 FileUtil） ==========
@@ -374,6 +432,38 @@ public class LyricFetcher {
         if (songs == null) return 0;
         JSONObject match = MusicApiUtil.findNeteaseMatch(songs, songTitle);
         return match != null ? match.optLong("id", 0) : 0;
+    }
+
+    /**
+     * 歌词写入公共目录后，发送歌词就绪广播
+     * 补充切歌广播中无法附带的 LRC/KRC 文件路径
+     */
+    private static void notifyLyricAvailable(Context context, String safeName, String songTitle, String songArtist) {
+        if (context == null) return;
+
+        File lyricsPublicDir = new File(
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+                "lyrics");
+
+        String lrcPath = null;
+        String krcPath = null;
+
+        File lrcFile = new File(lyricsPublicDir, safeName + ".lrc");
+        if (lrcFile.exists()) lrcPath = lrcFile.getAbsolutePath();
+        File krcFile = new File(lyricsPublicDir, safeName + ".krc");
+        if (krcFile.exists()) krcPath = krcFile.getAbsolutePath();
+
+        if (lrcPath == null && krcPath == null) return;
+
+        android.content.Intent intent = new android.content.Intent(
+                com.jingxin.jingxinmusic.service.MusicPlayerService.ACTION_LYRIC_AVAILABLE);
+        intent.putExtra(com.jingxin.jingxinmusic.service.MusicPlayerService.EXTRA_SONG_TITLE, songTitle != null ? songTitle : "");
+        intent.putExtra(com.jingxin.jingxinmusic.service.MusicPlayerService.EXTRA_SONG_ARTIST, songArtist != null ? songArtist : "");
+        if (lrcPath != null) intent.putExtra(com.jingxin.jingxinmusic.service.MusicPlayerService.EXTRA_LRC_FILE_PATH, lrcPath);
+        if (krcPath != null) intent.putExtra(com.jingxin.jingxinmusic.service.MusicPlayerService.EXTRA_KRC_FILE_PATH, krcPath);
+        context.sendBroadcast(intent);
+
+        Log.d(TAG, "歌词就绪广播: " + safeName + " lrc=" + (lrcPath != null) + " krc=" + (krcPath != null));
     }
 
 }

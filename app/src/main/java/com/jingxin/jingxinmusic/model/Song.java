@@ -31,6 +31,19 @@ public class Song {
     public String albumArt;   // 专辑封面 URI
     public String displayName;// 显示名（歌手 - 歌曲名 或歌曲名）
 
+    // 音源类型
+    public static final int SOURCE_LOCAL = 0;
+    public static final int SOURCE_WEBDAV = 1;
+    public static final int SOURCE_BILI = 2;
+    public int sourceType = SOURCE_LOCAL;
+
+    // B站音源字段
+    public String bvid;          // BV号
+    public long cid;             // 视频cid
+    public String audioUrl;      // 音频流URL（从playurl API获取）
+    public long audioUrlExpire;  // 音频流URL过期时间（时间戳，秒）
+    public String coverUrl;      // B站封面URL
+
     @Override
     public String toString() {
         return displayName + " (" + formatDuration(duration) + ")";
@@ -54,6 +67,51 @@ public class Song {
         }
         // 去掉文件名不允许的字符: / \ : * ? " < > |
         return name.replaceAll("[/\\\\:*?\"<>|]", "_");
+    }
+
+    /**
+     * 从B站收藏夹项创建Song对象
+     * @param bvid BV号
+     * @param title 标题（可能含HTML标签，会自动清理）
+     * @param upperName UP主名称
+     * @param duration 时长（秒）
+     * @param coverUrl 封面URL
+     */
+    public static Song fromBili(String bvid, String title, String upperName,
+                                long duration, String coverUrl) {
+        return fromBili(bvid, title, upperName, duration, coverUrl, 0, 0, null);
+    }
+
+    /**
+     * 从B站视频分P创建Song对象
+     * @param bvid BV号
+     * @param title 分P标题（可能含HTML标签，会自动清理）
+     * @param upperName UP主名称
+     * @param duration 时长（秒）
+     * @param coverUrl 封面URL
+     * @param cid 分P的cid（0表示播放时自动获取）
+     * @param page 分P序号（0表示不指定）
+     * @param videoTitle 视频总标题（用于单P时显示，多P时可为null）
+     */
+    public static Song fromBili(String bvid, String title, String upperName,
+                                long duration, String coverUrl,
+                                long cid, int page, String videoTitle) {
+        Song song = new Song();
+        song.sourceType = SOURCE_BILI;
+        song.bvid = bvid;
+        song.cid = cid;
+        // 去除标题中的HTML标签
+        String cleanTitle = title.replaceAll("<[^>]+>", "").trim();
+        song.artist = upperName;
+        song.album = "B站";
+        song.duration = duration * 1000; // 秒→毫秒
+        song.coverUrl = coverUrl;
+        song.albumArt = coverUrl;
+        song.filePath = "bili://" + bvid; // 占位路径，播放时获取真实URL
+
+        song.title = cleanTitle;
+        song.displayName = song.title;
+        return song;
     }
 
     /**
@@ -125,6 +183,12 @@ public class Song {
         song.contentUri = intent.getStringExtra("song_uri");
         song.albumArt = intent.getStringExtra("album_art");
         song.displayName = song.title;
+        song.sourceType = intent.getIntExtra("song_source_type", SOURCE_LOCAL);
+        song.bvid = intent.getStringExtra("song_bvid");
+        song.cid = intent.getLongExtra("song_cid", 0);
+        song.audioUrl = intent.getStringExtra("song_audio_url");
+        song.audioUrlExpire = intent.getLongExtra("song_audio_url_expire", 0);
+        song.coverUrl = intent.getStringExtra("song_cover_url");
         return song;
     }
 
@@ -141,6 +205,12 @@ public class Song {
         intent.putExtra("song_path", filePath != null ? filePath : "");
         intent.putExtra("song_uri", contentUri != null ? contentUri : "");
         intent.putExtra("album_art", albumArt != null ? albumArt : "");
+        intent.putExtra("song_source_type", sourceType);
+        intent.putExtra("song_bvid", bvid != null ? bvid : "");
+        intent.putExtra("song_cid", cid);
+        intent.putExtra("song_audio_url", audioUrl != null ? audioUrl : "");
+        intent.putExtra("song_audio_url_expire", audioUrlExpire);
+        intent.putExtra("song_cover_url", coverUrl != null ? coverUrl : "");
     }
 
     /**
@@ -159,6 +229,12 @@ public class Song {
         song.contentUri = obj.optString("contentUri", "");
         song.albumArt = obj.optString("albumArt", "");
         song.displayName = song.title;
+        song.sourceType = obj.optInt("sourceType", SOURCE_LOCAL);
+        song.bvid = obj.optString("bvid", "");
+        song.cid = obj.optLong("cid", 0);
+        song.audioUrl = obj.optString("audioUrl", "");
+        song.audioUrlExpire = obj.optLong("audioUrlExpire", 0);
+        song.coverUrl = obj.optString("coverUrl", "");
         return song;
     }
 
@@ -176,6 +252,12 @@ public class Song {
             obj.put("filePath", filePath);
             obj.put("contentUri", contentUri);
             obj.put("albumArt", albumArt);
+            obj.put("sourceType", sourceType);
+            obj.put("bvid", bvid);
+            obj.put("cid", cid);
+            obj.put("audioUrl", audioUrl);
+            obj.put("audioUrlExpire", audioUrlExpire);
+            obj.put("coverUrl", coverUrl);
         } catch (Exception e) {
             Log.e(TAG, "Song toJson 失败: " + e.getMessage());
         }
@@ -208,5 +290,59 @@ public class Song {
             Log.e(TAG, "查询公共封面失败: " + e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * 清洗歌曲标题（去掉序号前缀、音质标记、歌手名前缀等），用于歌词/封面搜索
+     */
+    public static String cleanSongTitle(String title, String artist) {
+        if (title == null) return "";
+        String s = title.trim();
+        // 1. 去掉音质标记：[mqms]、[mqms2]、[320k]、[FLAC]、[HQ]、[SQ] 等
+        s = s.replaceAll("\\s*\\[(?:mqm[s]?[s2-9]?|[0-9]+k|FLAC|HQ|SQ|CD|Hi-?Res)\\]\\s*", " ");
+        // 2. 去掉所有中文/英文括号及内容：(xxx)、（xxx）
+        s = s.replaceAll("[（(][^)）]*[)）]", "");
+        // 3. 去掉书名号：《xxx》、「xxx」
+        s = s.replaceAll("[《「」》]", "");
+        // 4. 去掉开头的数字序号：01 歌名、01.歌名、01-歌名、001.歌名（B站分P编号可达3位）
+        s = s.replaceAll("^\\d{1,3}[.\\s\\-]+", "");
+        // 5. 去掉多余空格并 trim
+        s = s.replaceAll("\\s+", " ").trim();
+        // 6. 去掉标题中的歌手名前缀：歌手 - 歌名、歌手-歌名、歌手·歌名、歌手_歌名
+        s = removeArtistPrefix(s, artist);
+        return s;
+    }
+
+    /**
+     * 清洗歌曲标题（无歌手信息版本，不会去掉歌手名前缀）
+     */
+    public static String cleanSongTitle(String title) {
+        return cleanSongTitle(title, null);
+    }
+
+    /**
+     * 去掉标题中的歌手名（开头或末尾均可）
+     * 开头匹配格式：歌手 - 歌名、歌手-歌名、歌手·歌名、歌手_歌名
+     * 末尾匹配格式：歌名 - 歌手、歌名-歌手、歌名·歌手、歌名_歌手
+     */
+    private static String removeArtistPrefix(String title, String artist) {
+        if (artist == null || artist.isEmpty() || "<unknown>".equals(artist)) {
+            return title;
+        }
+        String escaped = java.util.regex.Pattern.quote(artist);
+
+        // 1. 去掉开头的歌手名
+        String result = title.replaceFirst("^" + escaped + "\\s*[-·_]\\s*", "");
+        if (!result.equals(title)) return result;
+        result = title.replaceFirst("^" + escaped + "\\s+", "");
+        if (!result.equals(title)) return result;
+
+        // 2. 去掉末尾的歌手名
+        result = title.replaceFirst("\\s*[-·_]\\s*" + escaped + "$", "");
+        if (!result.equals(title)) return result;
+        result = title.replaceFirst("\\s+" + escaped + "$", "");
+        if (!result.equals(title)) return result;
+
+        return title;
     }
 }

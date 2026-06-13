@@ -244,12 +244,23 @@ public class PlayerActivity extends AppCompatActivity {
                                 playerBinder.setPlaylist(allSongs);
                                 playSong();
                             }
-                        } else if ("webdav".equals(playlistMode) || getIntent().getBooleanExtra("from_webdav", false)) {
-                            // WebDAV模式：从SharedPreferences恢复播放列表
-                            List<Song> webdavSongs = loadWebDavPlaylist();
-                            if (!webdavSongs.isEmpty()) {
-                                playerBinder.setPlaylist(webdavSongs);
-                                position = getIntent().getIntExtra("song_index", 0);
+                        } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode) || getIntent().getBooleanExtra("from_webdav", false)) {
+                            // WebDAV/B站模式：从SharedPreferences恢复播放列表
+                            List<Song> savedSongs = loadWebDavPlaylist();
+                            if (!savedSongs.isEmpty()) {
+                                playerBinder.setPlaylist(savedSongs);
+                                // position优先从"position"取（正常浏览点击），"song_index"是自动恢复时的备选
+                                int savedIndex = getIntent().getIntExtra("song_index", -1);
+                                if (position >= 0 && position < savedSongs.size()) {
+                                    // 从"position"已取到有效值，直接用
+                                } else if (savedIndex >= 0 && savedIndex < savedSongs.size()) {
+                                    // 自动恢复场景
+                                    position = savedIndex;
+                                } else {
+                                    position = 0;
+                                }
+                                // 用播放列表中完整字段的歌曲替代Intent中可能缺失字段的song
+                                song = savedSongs.get(position);
                                 playSong();
                             } else {
                                 // 降级：单曲播放
@@ -1173,7 +1184,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (song == null || lyricView == null) return;
         lyricView.clearLyric();
 
-        String title = cleanSongTitle(song.title);
+        String title = Song.cleanSongTitle(song.title, song.artist);
         String artist = song.artist;
         if ("<unknown>".equals(artist)) artist = "";
 
@@ -1260,7 +1271,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void fetchOnlineCover() {
-        String title = cleanSongTitle(song.title);
+        String title = Song.cleanSongTitle(song.title, song.artist);
         String artist = "<unknown>".equals(song.artist) ? "" : song.artist;
         CoverFetcher.fetchCover(title, artist, new CoverFetcher.CoverCallback() {
             @Override
@@ -1537,6 +1548,12 @@ public class PlayerActivity extends AppCompatActivity {
                                     hs.contentUri = h.contentUri;
                                     hs.albumArt = h.albumArt;
                                     hs.displayName = hs.title;
+                                    hs.sourceType = h.sourceType;
+                                    hs.bvid = h.bvid;
+                                    hs.cid = h.cid;
+                                    hs.audioUrl = h.audioUrl;
+                                    hs.audioUrlExpire = h.audioUrlExpire;
+                                    hs.coverUrl = h.coverUrl;
                                     historySongs.add(hs);
                                 }
                                 playerBinder.setPlaylist(historySongs);
@@ -1809,22 +1826,6 @@ public class PlayerActivity extends AppCompatActivity {
      * 清理歌曲标题中的品质后缀（如 [mqms]、[mqms2]、[mqms3] 等）
      * 提高在线搜索封面和歌词的匹配率
      */
-    private String cleanSongTitle(String title) {
-        if (title == null) return "";
-        String s = title.trim();
-        // 1. 去掉音质标记：[mqms]、[mqms2]、[320k]、[FLAC]、[HQ]、[SQ] 等
-        s = s.replaceAll("\\s*\\[(?:mqm[s]?[s2-9]?|[0-9]+k|FLAC|HQ|SQ|CD|Hi-?Res)\\]\\s*", " ");
-        // 2. 去掉所有中文/英文括号及内容：(xxx)、（xxx）
-        s = s.replaceAll("[（(][^)）]*[)）]", "");
-        // 3. 去掉书名号：《xxx》、「xxx」
-        s = s.replaceAll("[《「」》]", "");
-        // 4. 去掉开头的数字序号：01 歌名、01.歌名、01-歌名
-        s = s.replaceAll("^\\d{1,2}[.\\s\\-]+", "");
-        // 5. 去掉多余空格并 trim
-        s = s.replaceAll("\\s+", " ").trim();
-        return s;
-    }
-
     /**
      * 保存当前播放歌曲信息到 SharedPreferences，下次启动时自动恢复
      * 同时保存播放队列模式，恢复时能继续在原队列（全部/收藏/目录）中播放
@@ -1842,15 +1843,24 @@ public class PlayerActivity extends AppCompatActivity {
                 .putString("album_art", song.albumArt != null ? song.albumArt : "")
                 .putInt("position", position)
                 .putBoolean("has_last", true)
-                .putString("playlist_mode", playlistMode != null ? playlistMode : "all");
+                .putString("playlist_mode", playlistMode != null ? playlistMode : "all")
+                // B站专属字段
+                .putInt("song_source_type", song.sourceType)
+                .putString("song_bvid", song.bvid != null ? song.bvid : "")
+                .putLong("song_cid", song.cid)
+                .putString("song_audio_url", song.audioUrl != null ? song.audioUrl : "")
+                .putLong("song_audio_url_expire", song.audioUrlExpire)
+                .putString("song_cover_url", song.coverUrl != null ? song.coverUrl : "")
+                // B站导航上下文：返回时恢复到歌曲所在的列表页面
+                .putString("bili_nav_url", getIntent().getStringExtra("bili_nav_url") != null ? getIntent().getStringExtra("bili_nav_url") : "");
         // 目录模式：保存该目录下所有歌曲路径
         if ("folder".equals(playlistMode)) {
             List<String> folderPaths = getIntent().getStringArrayListExtra("folder_song_paths");
             if (folderPaths != null && !folderPaths.isEmpty()) {
                 editor.putStringSet("folder_song_paths", new java.util.HashSet<>(folderPaths));
             }
-        } else if ("webdav".equals(playlistMode)) {
-            // WebDAV模式：保存标记，播放列表已在webdav_playlist SharedPreferences中
+        } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
+            // WebDAV/B站模式：保存标记，播放列表已在webdav_playlist SharedPreferences中
             editor.putBoolean("from_webdav", true);
         } else {
             // 其他模式清除旧数据

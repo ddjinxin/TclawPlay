@@ -19,10 +19,20 @@ public class BrowseItem {
     // 歌曲相关（仅非目录项有效）
     public Song song;             // 关联的Song对象（本地歌曲直接引用，WebDAV歌曲由DavItem转换）
 
-    // 来源标记
-    public static final int SOURCE_LOCAL = 0;
-    public static final int SOURCE_WEBDAV = 1;
-    public int source = SOURCE_LOCAL;
+    // 来源标记（与 Song.SOURCE_* 值一致）
+    public int source = Song.SOURCE_LOCAL;
+
+    // B站收藏夹字段
+    public long biliFolderId;      // 收藏夹ID
+    public int biliMediaCount;     // 收藏夹视频数量
+
+    // B站视频目录项字段（用于多P展开）
+    public String biliBvid;        // BV号
+    public String biliVideoTitle;  // 视频原始标题
+    public String biliUpperName;   // UP主名称
+    public String biliCover;       // 封面URL
+    public int biliPageCount;      // 分P数量
+    public long biliDuration;      // 视频总时长（秒）
 
     public BrowseItem() {}
 
@@ -48,7 +58,7 @@ public class BrowseItem {
         item.path = song.filePath;
         item.url = song.contentUri != null ? song.contentUri : song.filePath;
         item.isDirectory = false;
-        item.source = SOURCE_LOCAL;
+        item.source = Song.SOURCE_LOCAL;
         item.song = song;
         item.size = 0;
         return item;
@@ -64,10 +74,59 @@ public class BrowseItem {
         item.path = path;
         item.url = url;
         item.isDirectory = false;
-        item.source = SOURCE_WEBDAV;
+        item.source = Song.SOURCE_WEBDAV;
         item.size = size;
         item.modified = modified;
         item.contentType = contentType;
+        return item;
+    }
+
+    /**
+     * 创建B站收藏夹目录项
+     */
+    public static BrowseItem biliFolder(String name, long folderId, int mediaCount) {
+        BrowseItem item = new BrowseItem();
+        item.name = name;
+        item.path = "bili://folder/" + folderId;
+        item.url = "bili://folder/" + folderId;
+        item.isDirectory = true;
+        item.source = Song.SOURCE_BILI;
+        item.biliFolderId = folderId;
+        item.biliMediaCount = mediaCount;
+        return item;
+    }
+
+    /**
+     * 创建B站视频目录项（点击后展开分P列表）
+     */
+    public static BrowseItem biliVideo(String bvid, String title, String upperName,
+                                       String cover, int pageCount, long duration) {
+        BrowseItem item = new BrowseItem();
+        item.name = title.replaceAll("<[^>]+>", "").trim();
+        item.path = "bili://video/" + bvid;
+        item.url = "bili://video/" + bvid;
+        item.isDirectory = true;
+        item.source = Song.SOURCE_BILI;
+        item.biliBvid = bvid;
+        item.biliVideoTitle = title.replaceAll("<[^>]+>", "").trim();
+        item.biliUpperName = upperName;
+        item.biliCover = cover;
+        item.biliPageCount = pageCount;
+        item.biliDuration = duration;
+        return item;
+    }
+
+    /**
+     * 创建B站歌曲项
+     */
+    public static BrowseItem biliSong(Song song) {
+        BrowseItem item = new BrowseItem();
+        item.name = song.title;
+        item.path = song.filePath;
+        item.url = song.filePath;
+        item.isDirectory = false;
+        item.source = Song.SOURCE_BILI;
+        item.song = song;
         return item;
     }
 }

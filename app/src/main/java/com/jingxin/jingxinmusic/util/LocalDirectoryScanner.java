@@ -50,7 +50,7 @@ public class LocalDirectoryScanner {
                 // 顶层：看歌曲的直接父目录作为子目录
                 String dirName = getLastName(songDir);
                 if (!subDirs.containsKey(songDir)) {
-                    subDirs.put(songDir, BrowseItem.directory(dirName, songDir, songDir, BrowseItem.SOURCE_LOCAL));
+                    subDirs.put(songDir, BrowseItem.directory(dirName, songDir, songDir, Song.SOURCE_LOCAL));
                 }
             } else if (songDir.equals(dirPath)) {
                 // 歌曲直接属于当前目录
@@ -63,7 +63,7 @@ public class LocalDirectoryScanner {
                 String subDirPath = dirPath + "/" + firstSegment;
 
                 if (!subDirs.containsKey(subDirPath)) {
-                    subDirs.put(subDirPath, BrowseItem.directory(firstSegment, subDirPath, subDirPath, BrowseItem.SOURCE_LOCAL));
+                    subDirs.put(subDirPath, BrowseItem.directory(firstSegment, subDirPath, subDirPath, Song.SOURCE_LOCAL));
                 }
             }
         }

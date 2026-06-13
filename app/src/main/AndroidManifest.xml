@@ -28,6 +28,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     
     <application
+        android:name=".App"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -62,11 +63,23 @@
             android:exported="false"
             android:theme="@style/Theme.JingxinMusic" />
         
+        <!-- B站音源设置页面 -->
+        <activity
+            android:name=".ui.BiliSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.JingxinMusic" />
+        
         <!-- 播放服务 -->
         <service
             android:name=".service.MusicPlayerService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+        
+        <!-- 悬浮迷你播放窗服务 -->
+        <service
+            android:name=".service.MiniFloatService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         
         <!-- FileProvider：允许其他应用通过 MediaSession 访问封面 -->
         <provider

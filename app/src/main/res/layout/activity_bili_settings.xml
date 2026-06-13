@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_scroll"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:id="@+id/content_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 顶部栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/btn_back"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_back"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="B站音源设置"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <View
+            android:id="@+id/divider_top"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="8dp" />
+
+        <!-- ============ 未登录区域：扫码登录 ============ -->
+        <LinearLayout
+            android:id="@+id/layout_login"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:visibility="visible">
+
+            <TextView
+                android:id="@+id/tv_label_qrcode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="扫码登录B站"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:id="@+id/tv_scan_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="请使用B站APP扫描下方二维码"
+                android:textSize="13sp"
+                android:gravity="center"
+                android:layout_marginTop="6dp" />
+
+            <!-- 二维码WebView容器 -->
+            <FrameLayout
+                android:id="@+id/layout_qrcode_container"
+                android:layout_width="240dp"
+                android:layout_height="240dp"
+                android:layout_marginTop="16dp"
+                android:background="#FFFFFF"
+                android:padding="8dp">
+
+                <WebView
+                    android:id="@+id/webview_qrcode"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <!-- 加载中遮罩 -->
+                <LinearLayout
+                    android:id="@+id/layout_qrcode_loading"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:background="#FFFFFF"
+                    android:orientation="vertical">
+
+                    <ProgressBar
+                        android:layout_width="32dp"
+                        android:layout_height="32dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="生成二维码..."
+                        android:textSize="13sp"
+                        android:textColor="#666666"
+                        android:layout_marginTop="8dp" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- 扫码状态提示 -->
+            <TextView
+                android:id="@+id/tv_scan_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="14sp"
+                android:gravity="center"
+                android:layout_marginTop="12dp" />
+
+            <!-- 刷新二维码按钮 -->
+            <Button
+                android:id="@+id/btn_refresh_qrcode"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="刷新二维码"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:backgroundTint="#00A1D6"
+                android:layout_marginTop="8dp"
+                android:visibility="gone"
+                android:minWidth="120dp" />
+
+        </LinearLayout>
+
+        <!-- ============ 已登录区域：用户信息 ============ -->
+        <LinearLayout
+            android:id="@+id/layout_logged_in"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- 用户信息卡片 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingVertical="12dp">
+
+                <ImageView
+                    android:id="@+id/iv_avatar"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_default_cover_card" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginStart="12dp">
+
+                    <TextView
+                        android:id="@+id/tv_nickname"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="B站用户"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_uid"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="UID: -"
+                        android:textSize="13sp"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btn_logout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="退出登录"
+                    android:textSize="13sp"
+                    android:backgroundTint="#F44336"
+                    android:textColor="#FFFFFF"
+                    android:minWidth="80dp" />
+            </LinearLayout>
+
+            <!-- 去播放按钮 -->
+            <Button
+                android:id="@+id/btn_go_play"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="去播放"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:backgroundTint="#00A1D6"
+                android:layout_marginTop="16dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

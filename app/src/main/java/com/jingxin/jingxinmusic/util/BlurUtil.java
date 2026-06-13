@@ -17,7 +17,6 @@ import android.util.Log;
 public class BlurUtil {
     
     private static final String TAG = "BlurUtil";
-    private static final float DEFAULT_BLUR_RADIUS = 25f; // 模糊半径（最大 25）
     private static final int BLUR_SCALE_SIZE = 100; // 缩小到 100px 再模糊，大幅提升性能
     
     /**

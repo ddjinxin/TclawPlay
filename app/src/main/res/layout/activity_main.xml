@@ -78,7 +78,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="本地"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
 
         <View
             android:id="@+id/tab_divider_1"
@@ -91,11 +91,25 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="云端"
-            android:textSize="15sp" />
+            android:text="WebDAV"
+            android:textSize="14sp" />
 
         <View
             android:id="@+id/tab_divider_2"
+            android:layout_width="1dp"
+            android:layout_height="20dp" />
+
+        <TextView
+            android:id="@+id/tab_bili"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="B站"
+            android:textSize="14sp" />
+
+        <View
+            android:id="@+id/tab_divider_3"
             android:layout_width="1dp"
             android:layout_height="20dp" />
 
@@ -106,7 +120,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="收藏"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
 
     </LinearLayout>
 
@@ -126,6 +140,12 @@
 
         <View
             android:id="@+id/indicator_cloud"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <View
+            android:id="@+id/indicator_bili"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_weight="1" />
@@ -187,6 +207,17 @@
                 android:focusable="true"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:visibility="gone" />
+
+            <ImageView
+                android:id="@+id/btn_bili_settings"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_settings"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- 网格卡片 -->
@@ -198,7 +229,7 @@
             android:padding="8dp"
             android:clipToPadding="false" />
 
-        <!-- 云端未配置引导 -->
+        <!-- WebDAV未配置引导 -->
         <LinearLayout
             android:id="@+id/webdav_setup_area"
             android:layout_width="match_parent"
@@ -218,7 +249,7 @@
                 android:id="@+id/tv_webdav_setup_msg"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="请先配置 WebDAV 服务器"
+                android:text="配置WebDAV以浏览云端音乐"
                 android:textSize="16sp"
                 android:layout_marginTop="16dp" />
 
@@ -234,6 +265,7 @@
                 android:clickable="true"
                 android:focusable="true"
                 android:background="?attr/selectableItemBackgroundBorderless" />
+
         </LinearLayout>
 
         <!-- 加载中 -->

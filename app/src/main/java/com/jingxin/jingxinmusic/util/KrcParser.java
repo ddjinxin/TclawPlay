@@ -271,6 +271,45 @@ public class KrcParser {
         public String album;        // 专辑
         public long duration;       // 总时长（毫秒）
         public List<LyricLine> lines; // 歌词行列表
+
+        /**
+         * 将歌词数据导出为标准 LRC 格式文本
+         * @return LRC 格式文本，如 "[ti:歌曲名]\n[ar:歌手]\n[00:01.23]歌词文本\n..."
+         */
+        public String toLrcText() {
+            StringBuilder sb = new StringBuilder();
+            if (title != null && !title.isEmpty()) sb.append("[ti:").append(title).append("]\n");
+            if (artist != null && !artist.isEmpty()) sb.append("[ar:").append(artist).append("]\n");
+            if (album != null && !album.isEmpty()) sb.append("[al:").append(album).append("]\n");
+            if (duration > 0) sb.append("[length:").append(duration / 1000).append("]\n");
+            if (lines != null) {
+                for (LyricLine line : lines) {
+                    if (line.text == null || line.text.isEmpty()) continue;
+                    sb.append("[").append(formatTime(line.startTime)).append("]")
+                      .append(line.text).append("\n");
+                }
+            }
+            return sb.toString();
+        }
+
+        private static String formatTime(long ms) {
+            long totalSeconds = ms / 1000;
+            long minutes = totalSeconds / 60;
+            long seconds = totalSeconds % 60;
+            long centiseconds = (ms % 1000) / 10;
+            return String.format("%02d:%02d.%02d", minutes, seconds, centiseconds);
+        }
+        public String findCurrentLineText(long positionMs) {
+            if (lines == null || lines.isEmpty()) return "";
+            for (int i = 0; i < lines.size(); i++) {
+                LyricLine line = lines.get(i);
+                LyricLine nextLine = (i + 1 < lines.size()) ? lines.get(i + 1) : null;
+                if (positionMs >= line.startTime && (nextLine == null || positionMs < nextLine.startTime)) {
+                    return line.text;
+                }
+            }
+            return "";
+        }
     }
     
     /**

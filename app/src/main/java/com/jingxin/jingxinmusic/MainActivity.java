@@ -42,6 +42,8 @@ import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService.MusicPlayerBinder;
 import com.jingxin.jingxinmusic.util.CompatUtil;
+import com.jingxin.jingxinmusic.util.BiliApi;
+import com.jingxin.jingxinmusic.util.BiliConfig;
 import com.jingxin.jingxinmusic.util.FavoriteManager;
 import com.jingxin.jingxinmusic.util.LocalDirectoryScanner;
 import com.jingxin.jingxinmusic.util.MusicScanner;
@@ -81,6 +83,7 @@ public class MainActivity extends AppCompatActivity {
     private View tabDivider2;
     private View indicatorLocal;
     private View indicatorCloud;
+    private View indicatorBili;
     private View indicatorFavorite;
     private View titleAccentLine;       // 标题栏霓虹绿渐变线
     private View miniShimmerLine;       // 迷你播放条流光线
@@ -92,6 +95,7 @@ public class MainActivity extends AppCompatActivity {
     // Tab views
     private TextView tabLocal;
     private TextView tabCloud;
+    private TextView tabBili;
     private TextView tabFavorite;
 
     // Browse area
@@ -101,10 +105,13 @@ public class MainActivity extends AppCompatActivity {
     private ImageView btnNavigateBack;
     private TextView tvBrowsePath;
     private ImageView btnWebDavSettings;
+    private ImageView btnBiliSettings;
     private RecyclerView rvBrowse;
     private View webdavSetupArea;
     private View browseLoading;
     private TextView btnGoWebDavSettings;
+    private TextView tvSetupMsg;
+
 
     // Browse adapter (shared for local & cloud)
     private BrowseAdapter browseAdapter;
@@ -118,10 +125,15 @@ public class MainActivity extends AppCompatActivity {
     private WebDavConfig webDavConfig;
     private WebDavScanner webDavScanner;
     private Stack<String> cloudNavStack = new Stack<>();
+    private Stack<String> biliNavStack = new Stack<>();
+    private String biliCurrentUrl = null;  // B站当前路径，如 "bili://folder/12345"
     private String cloudCurrentUrl = null;
 
     // Current tab: 0=local, 1=cloud, 2=favorite
     private int currentTab = 0;
+
+    // 从mini播放条进入PlayerActivity后返回时，需要恢复到歌曲对应的来源页面
+    private boolean returningFromPlayer = false;
 
     // 主题
     private boolean isNightMode = true;
@@ -234,6 +246,7 @@ public class MainActivity extends AppCompatActivity {
         tabDivider2 = findViewById(R.id.tab_divider_2);
         indicatorLocal = findViewById(R.id.indicator_local);
         indicatorCloud = findViewById(R.id.indicator_cloud);
+        indicatorBili = findViewById(R.id.indicator_bili);
         indicatorFavorite = findViewById(R.id.indicator_favorite);
         titleAccentLine = findViewById(R.id.title_accent_line);
         miniShimmerLine = findViewById(R.id.mini_shimmer_line);
@@ -248,10 +261,13 @@ public class MainActivity extends AppCompatActivity {
         btnNavigateBack = findViewById(R.id.btn_navigate_back);
         tvBrowsePath = findViewById(R.id.tv_browse_path);
         btnWebDavSettings = findViewById(R.id.btn_webdav_settings);
+        btnBiliSettings = findViewById(R.id.btn_bili_settings);
         rvBrowse = findViewById(R.id.rv_browse);
         webdavSetupArea = findViewById(R.id.webdav_setup_area);
         browseLoading = findViewById(R.id.loading_layout);
         btnGoWebDavSettings = findViewById(R.id.btn_go_webdav_settings);
+        tvSetupMsg = findViewById(R.id.tv_webdav_setup_msg);
+
 
         // Mini 播放条
         miniPlayer = findViewById(R.id.mini_player);
@@ -286,6 +302,7 @@ public class MainActivity extends AppCompatActivity {
         // Tab
         tabLocal = findViewById(R.id.tab_local);
         tabCloud = findViewById(R.id.tab_cloud);
+        tabBili = findViewById(R.id.tab_bili);
         tabFavorite = findViewById(R.id.tab_favorite);
 
         // WebDAV config
@@ -309,6 +326,9 @@ public class MainActivity extends AppCompatActivity {
                     navigateLocalTo(item.path);
                 } else if (currentTab == 1) {
                     navigateCloudTo(item.url);
+                } else if (currentTab == 2) {
+                    // B站目录项：收藏夹文件夹 或 视频目录（统一用item.url导航）
+                    navigateBiliTo(item.url);
                 }
             } else {
                 playFromBrowse(item);
@@ -365,7 +385,8 @@ public class MainActivity extends AppCompatActivity {
         // Tab 切换
         tabLocal.setOnClickListener(v -> switchTab(0));
         tabCloud.setOnClickListener(v -> switchTab(1));
-        tabFavorite.setOnClickListener(v -> switchTab(2));
+        tabBili.setOnClickListener(v -> switchTab(2));
+        tabFavorite.setOnClickListener(v -> switchTab(3));
 
         // 返回按钮（路径栏）
         btnNavigateBack.setOnClickListener(v -> {
@@ -373,6 +394,8 @@ public class MainActivity extends AppCompatActivity {
                 navigateLocalBack();
             } else if (currentTab == 1) {
                 navigateCloudBack();
+            } else if (currentTab == 2) {
+                navigateBiliBack();
             }
         });
 
@@ -381,9 +404,18 @@ public class MainActivity extends AppCompatActivity {
             startActivity(new Intent(MainActivity.this, com.jingxin.jingxinmusic.ui.WebDavSettingsActivity.class));
         });
 
-        // 去配置按钮
+        // B站设置按钮
+        btnBiliSettings.setOnClickListener(v -> {
+            startActivity(new Intent(MainActivity.this, com.jingxin.jingxinmusic.ui.BiliSettingsActivity.class));
+        });
+
+        // 去配置按钮（根据当前tab动态切换目标Activity）
         btnGoWebDavSettings.setOnClickListener(v -> {
-            startActivity(new Intent(MainActivity.this, com.jingxin.jingxinmusic.ui.WebDavSettingsActivity.class));
+            if (currentTab == 2) {
+                startActivity(new Intent(MainActivity.this, com.jingxin.jingxinmusic.ui.BiliSettingsActivity.class));
+            } else {
+                startActivity(new Intent(MainActivity.this, com.jingxin.jingxinmusic.ui.WebDavSettingsActivity.class));
+            }
         });
 
         // 搜索功能
@@ -513,64 +545,99 @@ public class MainActivity extends AppCompatActivity {
             isNightMode = savedNight;
             updateThemeUI();
         }
+
+        // 从mini播放条进入PlayerActivity后返回：恢复到歌曲来源对应的tab和导航层级
+        if (returningFromPlayer) {
+            returningFromPlayer = false;
+            android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
+            String savedPlaylistMode = prefs.getString("playlist_mode", "all");
+            if ("bili".equals(savedPlaylistMode) && currentTab != 2) {
+                currentTab = 2;
+                // 恢复B站导航到歌曲所在的列表页
+                String biliNavUrl = prefs.getString("bili_nav_url", "");
+                if (!biliNavUrl.isEmpty()) {
+                    biliCurrentUrl = biliNavUrl;
+                }
+            } else if ("webdav".equals(savedPlaylistMode) && currentTab != 1) {
+                currentTab = 1;
+            }
+        }
+
+        // 确保 tab UI 与 currentTab 一致（autoResume 可能改了 currentTab 但没走 switchTab）
+        updateTabUI();
         // 刷新收藏
         refreshFavorites();
         // 刷新当前Tab的浏览内容
         webDavConfig = new WebDavConfig(this);
-        if (currentTab == 0) {
-            loadLocalItems();
-        } else if (currentTab == 1) {
-            loadCloudItems();
-        }
+        loadCurrentTabContent();
         // 更新 mini 播放条
         updateMiniPlayerFromService();
     }
 
     // ========== Tab 切换 ==========
 
-    private void switchTab(int mode) {
-        currentTab = mode;
-
+    /** 轻量级刷新 tab 样式（不触发内容加载），用于 onResume 同步 UI */
+    private void updateTabUI() {
+        int mode = currentTab;
         int activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
         int inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
         tabLocal.setTextColor(mode == 0 ? activeColor : inactiveColor);
         tabLocal.setTypeface(null, mode == 0 ? Typeface.BOLD : Typeface.NORMAL);
         tabCloud.setTextColor(mode == 1 ? activeColor : inactiveColor);
         tabCloud.setTypeface(null, mode == 1 ? Typeface.BOLD : Typeface.NORMAL);
-        tabFavorite.setTextColor(mode == 2 ? activeColor : inactiveColor);
-        tabFavorite.setTypeface(null, mode == 2 ? Typeface.BOLD : Typeface.NORMAL);
+        tabBili.setTextColor(mode == 2 ? activeColor : inactiveColor);
+        tabBili.setTypeface(null, mode == 2 ? Typeface.BOLD : Typeface.NORMAL);
+        tabFavorite.setTextColor(mode == 3 ? activeColor : inactiveColor);
+        tabFavorite.setTypeface(null, mode == 3 ? Typeface.BOLD : Typeface.NORMAL);
 
-        // Tab指示线
         int indicatorActive = isNightMode ? ThemeColors.nightTabIndicator() : ThemeColors.dayTabIndicator();
-        int indicatorInactive = 0x00000000; // 透明
+        int indicatorInactive = 0x00000000;
         indicatorLocal.setBackgroundColor(mode == 0 ? indicatorActive : indicatorInactive);
         indicatorCloud.setBackgroundColor(mode == 1 ? indicatorActive : indicatorInactive);
-        indicatorFavorite.setBackgroundColor(mode == 2 ? indicatorActive : indicatorInactive);
+        indicatorBili.setBackgroundColor(mode == 2 ? indicatorActive : indicatorInactive);
+        indicatorFavorite.setBackgroundColor(mode == 3 ? indicatorActive : indicatorInactive);
 
-        if (mode == 0) {
-            // 本地
-            browseArea.setVisibility(View.VISIBLE);
-            favoriteArea.setVisibility(View.GONE);
-            loadLocalItems();
-        } else if (mode == 1) {
-            // 云端
-            browseArea.setVisibility(View.VISIBLE);
-            favoriteArea.setVisibility(View.GONE);
-            loadCloudItems();
-        } else {
-            // 收藏
+        // 确保正确的区域可见
+        if (mode == 3) {
             browseArea.setVisibility(View.GONE);
             favoriteArea.setVisibility(View.VISIBLE);
-            // 收藏歌曲用封面卡片网格显示
+        } else {
+            browseArea.setVisibility(View.VISIBLE);
+            favoriteArea.setVisibility(View.GONE);
+        }
+    }
+
+    private void switchTab(int mode) {
+        currentTab = mode;
+
+        updateTabUI();
+
+        loadCurrentTabContent();
+
+        etSearch.setText("");
+        updateCountText();
+    }
+
+    /**
+     * 加载当前tab的内容。本地tab在allSongs为空时跳过（等scanMusic回调统一处理）。
+     */
+    private void loadCurrentTabContent() {
+        if (currentTab == 0) {
+            if (!allSongs.isEmpty()) {
+                loadLocalItems();
+            }
+            // allSongs为空时scanMusic回调会负责加载，避免用空数据显示空白页面
+        } else if (currentTab == 1) {
+            loadWebDavItems();
+        } else if (currentTab == 2) {
+            loadBiliItems();
+        } else {
             int spanCount = Math.max(3, getResources().getDisplayMetrics().widthPixels / 360);
             rvList.setLayoutManager(new GridLayoutManager(this, spanCount));
             rvList.setAdapter(browseAdapter);
             refreshFavorites();
             loadFavoriteBrowseItems();
         }
-
-        etSearch.setText("");
-        updateCountText();
     }
 
     // ========== 本地浏览 ==========
@@ -604,9 +671,11 @@ public class MainActivity extends AppCompatActivity {
         if (dirPath == null) {
             pathBar.setVisibility(View.GONE);
             btnWebDavSettings.setVisibility(View.GONE);
+            btnBiliSettings.setVisibility(View.GONE);
         } else {
             pathBar.setVisibility(View.VISIBLE);
             btnWebDavSettings.setVisibility(View.GONE);
+            btnBiliSettings.setVisibility(View.GONE);
             String dirName = new File(dirPath).getName();
             tvBrowsePath.setText(dirName);
         }
@@ -630,37 +699,37 @@ public class MainActivity extends AppCompatActivity {
 
     // ========== 云端浏览 ==========
 
-    private void loadCloudItems() {
+    // ========== WebDAV 浏览 ==========
+
+    private void loadWebDavItems() {
         webDavConfig = new WebDavConfig(this);
+
         if (!webDavConfig.isConfigured()) {
-            // 未配置：显示引导
             rvBrowse.setVisibility(View.GONE);
             browseLoading.setVisibility(View.GONE);
             pathBar.setVisibility(View.GONE);
+            btnGoWebDavSettings.setVisibility(View.VISIBLE);
+            tvSetupMsg.setText("配置WebDAV以浏览云端音乐");
             webdavSetupArea.setVisibility(View.VISIBLE);
             return;
         }
 
         webdavSetupArea.setVisibility(View.GONE);
-
-        // 重新初始化scanner（配置可能已更新）
         webDavScanner = new WebDavScanner(webDavConfig);
 
-        // 如果有上次的位置则恢复，否则从根目录开始
         String url = cloudCurrentUrl != null ? cloudCurrentUrl : webDavConfig.getMusicUrl();
         navigateCloudTo(url);
     }
 
     private void navigateCloudTo(String url) {
-        // 入子目录时压栈
         if (url != null && cloudCurrentUrl != null && !url.equals(cloudCurrentUrl)) {
             cloudNavStack.push(cloudCurrentUrl);
         }
         cloudCurrentUrl = url;
 
-        // 显示路径栏
         pathBar.setVisibility(View.VISIBLE);
         btnWebDavSettings.setVisibility(View.VISIBLE);
+        btnBiliSettings.setVisibility(View.GONE);
         String displayPath = extractCloudDisplayPath(url);
         tvBrowsePath.setText("/ " + displayPath);
 
@@ -674,7 +743,7 @@ public class MainActivity extends AppCompatActivity {
             for (WebDavScanner.DavItem di : davItems) {
                 BrowseItem bi;
                 if (di.isDirectory) {
-                    bi = BrowseItem.directory(di.name, di.path, di.url, BrowseItem.SOURCE_WEBDAV);
+                    bi = BrowseItem.directory(di.name, di.path, di.url, Song.SOURCE_WEBDAV);
                 } else {
                     bi = BrowseItem.webdavSong(di.name, di.path, di.url, di.size, di.modified, di.contentType);
                 }
@@ -692,12 +761,188 @@ public class MainActivity extends AppCompatActivity {
     private void navigateCloudBack() {
         if (cloudNavStack.isEmpty()) {
             cloudCurrentUrl = null;
-            loadCloudItems();
+            loadWebDavItems();
             return;
         }
         String parentUrl = cloudNavStack.pop();
-        cloudCurrentUrl = null; // 防止压栈
+        cloudCurrentUrl = null;
         navigateCloudTo(parentUrl);
+    }
+
+    // ========== B站 浏览 ==========
+
+    private void loadBiliItems() {
+        BiliConfig biliConfig = new BiliConfig(this);
+        if (!biliConfig.isConfigured()) {
+            // 未登录，显示引导
+            rvBrowse.setVisibility(View.GONE);
+            browseLoading.setVisibility(View.GONE);
+            pathBar.setVisibility(View.GONE);
+            webdavSetupArea.setVisibility(View.VISIBLE);
+            btnGoWebDavSettings.setVisibility(View.VISIBLE);
+            tvSetupMsg.setText("配置B站以浏览收藏音乐");
+            return;
+        }
+
+        webdavSetupArea.setVisibility(View.GONE);
+        // 首次加载时恢复持久化的导航状态
+        restoreBiliNavState();
+        // 不再每次清空导航栈，保留当前浏览层级（从播放页返回时不会跳回根目录）
+        navigateBiliTo(biliCurrentUrl);
+    }
+
+    private void navigateBiliTo(String url) {
+        // 压栈
+        if (url != null && biliCurrentUrl != null && !url.equals(biliCurrentUrl)) {
+            biliNavStack.push(biliCurrentUrl);
+        }
+        biliCurrentUrl = url;
+        saveBiliNavState();
+
+        pathBar.setVisibility(View.VISIBLE);
+        btnWebDavSettings.setVisibility(View.GONE);
+        btnBiliSettings.setVisibility(View.VISIBLE);
+        if (url == null) {
+            tvBrowsePath.setText("/ B站收藏夹");
+        } else {
+            tvBrowsePath.setText("/ " + extractBiliDisplayPath(url));
+        }
+
+        webdavSetupArea.setVisibility(View.GONE);
+        rvBrowse.setVisibility(View.GONE);
+        browseLoading.setVisibility(View.VISIBLE);
+
+        BiliConfig biliConfig = new BiliConfig(this);
+
+        executor.execute(() -> {
+            List<BrowseItem> browseItems = new ArrayList<>();
+
+            if (url == null) {
+                // 根目录：显示收藏夹列表
+                List<BiliApi.FavoriteFolder> folders = BiliApi.getFavoriteFolders(biliConfig);
+                for (BiliApi.FavoriteFolder ff : folders) {
+                    browseItems.add(BrowseItem.biliFolder(ff.title, ff.id, ff.mediaCount));
+                }
+            } else if (url.startsWith("bili://folder/")) {
+                // 收藏夹内的视频列表
+                long folderId = 0;
+                try {
+                    folderId = Long.parseLong(url.substring("bili://folder/".length()));
+                } catch (NumberFormatException ignored) {}
+
+                if (folderId > 0) {
+                    List<BiliApi.FavoriteItem> items = BiliApi.getFavoriteItems(folderId, biliConfig);
+                    for (BiliApi.FavoriteItem fi : items) {
+                        if (fi.pageCount > 1) {
+                            // 多P视频：作为目录项，点击后展开分P列表
+                            browseItems.add(BrowseItem.biliVideo(
+                                    fi.bvid, fi.title, fi.upperName,
+                                    fi.cover, fi.pageCount, fi.duration));
+                        } else {
+                            // 单P视频：直接作为歌曲，点击即播放
+                            Song song = Song.fromBili(fi.bvid, fi.title, fi.upperName,
+                                    fi.duration, fi.cover);
+                            browseItems.add(BrowseItem.biliSong(song));
+                        }
+                    }
+                }
+            } else if (url.startsWith("bili://video/")) {
+                // 视频分P列表：展开每个分P为独立歌曲
+                String bvid = url.substring("bili://video/".length());
+                List<BiliApi.VideoPage> pages = BiliApi.getVideoPages(bvid, biliConfig);
+
+                // 找到对应的视频目录项获取封面和UP主信息
+                String coverUrl = null;
+                String upperName = "";
+                String videoTitle = "";
+                for (BrowseItem bi : browseAdapter.getItems()) {
+                    if (bi.biliBvid != null && bi.biliBvid.equals(bvid)) {
+                        coverUrl = bi.biliCover;
+                        upperName = bi.biliUpperName;
+                        videoTitle = bi.biliVideoTitle;
+                        break;
+                    }
+                }
+
+                for (BiliApi.VideoPage vp : pages) {
+                    // 多P标题：如果分P标题不同于视频标题，直接用分P标题
+                    // 如果分P标题为空或与视频标题相同，加序号区分
+                    String partTitle;
+                    if (vp.part != null && !vp.part.isEmpty()
+                            && !vp.part.equals(videoTitle)) {
+                        partTitle = vp.part;
+                    } else if (pages.size() > 1) {
+                        partTitle = videoTitle + " P" + vp.page;
+                    } else {
+                        partTitle = videoTitle;
+                    }
+                    Song song = Song.fromBili(bvid, partTitle, upperName,
+                            vp.duration, coverUrl, vp.cid, vp.page, videoTitle);
+                    browseItems.add(BrowseItem.biliSong(song));
+                }
+            }
+
+            List<BrowseItem> finalItems = browseItems;
+            runOnUiThread(() -> {
+                browseLoading.setVisibility(View.GONE);
+                rvBrowse.setVisibility(View.VISIBLE);
+                browseAdapter.setItems(finalItems);
+                updateCountText();
+            });
+        });
+    }
+
+    private void navigateBiliBack() {
+        if (biliNavStack.isEmpty()) {
+            biliCurrentUrl = null;
+            navigateBiliTo(null);
+            return;
+        }
+        String parentUrl = biliNavStack.pop();
+        biliCurrentUrl = null;
+        navigateBiliTo(parentUrl);
+    }
+
+    /** 持久化B站导航状态，重启后恢复 */
+    private void saveBiliNavState() {
+        try {
+            org.json.JSONArray stackArr = new org.json.JSONArray();
+            for (String s : biliNavStack) {
+                stackArr.put(s);
+            }
+            getSharedPreferences("bili_nav", MODE_PRIVATE)
+                    .edit()
+                    .putString("current_url", biliCurrentUrl)
+                    .putString("nav_stack", stackArr.toString())
+                    .apply();
+        } catch (Exception e) {
+            Log.e(TAG, "保存B站导航状态失败: " + e.getMessage());
+        }
+    }
+
+    /** 恢复B站导航状态（仅首次加载且内存状态为空时调用） */
+    private void restoreBiliNavState() {
+        if (biliCurrentUrl != null || !biliNavStack.isEmpty()) return; // 已有内存状态，不覆盖
+        try {
+            android.content.SharedPreferences prefs = getSharedPreferences("bili_nav", MODE_PRIVATE);
+            biliCurrentUrl = prefs.getString("current_url", null);
+            String stackJson = prefs.getString("nav_stack", null);
+            if (stackJson != null) {
+                org.json.JSONArray arr = new org.json.JSONArray(stackJson);
+                for (int i = 0; i < arr.length(); i++) {
+                    biliNavStack.push(arr.getString(i));
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "恢复B站导航状态失败: " + e.getMessage());
+        }
+    }
+
+    private String extractBiliDisplayPath(String url) {
+        if (url == null) return "B站收藏夹";
+        if (url.startsWith("bili://folder/")) return "收藏夹";
+        if (url.startsWith("bili://video/")) return "分P列表";
+        return url;
     }
 
     private String extractCloudDisplayPath(String url) {
@@ -723,7 +968,7 @@ public class MainActivity extends AppCompatActivity {
         List<Song> playlist = new ArrayList<>();
         int playIndex = 0;
 
-        if (clickedItem.source == BrowseItem.SOURCE_LOCAL) {
+        if (clickedItem.source == Song.SOURCE_LOCAL) {
             // 本地歌曲
             for (int i = 0; i < items.size(); i++) {
                 BrowseItem item = items.get(i);
@@ -742,7 +987,7 @@ public class MainActivity extends AppCompatActivity {
             clickedSong.toIntent(intent);
             intent.putExtra("position", playIndex);
 
-            if (currentTab == 2) {
+            if (currentTab == 3) {
                 // 收藏模式
                 intent.putExtra("playlist_mode", "favorites");
             } else {
@@ -756,7 +1001,7 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
 
         } else {
-            // WebDAV歌曲
+            // WebDAV / B站歌曲
             long idBase = 1000000;
             for (int i = 0; i < items.size(); i++) {
                 BrowseItem item = items.get(i);
@@ -764,6 +1009,9 @@ public class MainActivity extends AppCompatActivity {
                     Song song;
                     if (item.song != null) {
                         song = item.song;
+                    } else if (item.source == Song.SOURCE_BILI) {
+                        // 理论上不应该到这里，biliSong总是有song
+                        continue;
                     } else {
                         WebDavScanner.DavItem davItem = new WebDavScanner.DavItem(
                                 item.name, item.path, item.url, false,
@@ -783,13 +1031,23 @@ public class MainActivity extends AppCompatActivity {
             // 保存播放列表
             saveWebDavPlaylist(playlist, playIndex);
 
+            // 判断播放模式
+            String playlistMode = "webdav";
+            if (clickedItem.source == Song.SOURCE_BILI) {
+                playlistMode = "bili";
+            }
+
             Intent intent = new Intent(this, PlayerActivity.class);
             Song clickedSong = playlist.get(playIndex);
             clickedSong.toIntent(intent);
             intent.putExtra("position", playIndex);
-            intent.putExtra("playlist_mode", "webdav");
+            intent.putExtra("playlist_mode", playlistMode);
             intent.putExtra("from_webdav", true);
             intent.putExtra("webdav_playlist_size", playlist.size());
+            // 保存B站导航上下文，用于从播放页返回时恢复
+            if (clickedItem.source == Song.SOURCE_BILI) {
+                intent.putExtra("bili_nav_url", biliCurrentUrl != null ? biliCurrentUrl : "");
+            }
             startActivity(intent);
         }
     }
@@ -835,7 +1093,7 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 tvSongCount.setText(songCount + " 首歌曲");
             }
-        } else if (currentTab == 1) {
+        } else if (currentTab == 1 || currentTab == 2) {
             List<BrowseItem> items = browseAdapter.getItems();
             int songCount = 0;
             for (BrowseItem item : items) {
@@ -870,11 +1128,9 @@ public class MainActivity extends AppCompatActivity {
             tvBrowsePath.setTextColor(ThemeColors.nightTextSecondary());
             btnNavigateBack.setColorFilter(ThemeColors.nightTextSecondary());
             btnWebDavSettings.setColorFilter(ThemeColors.nightTextSecondary());
-            btnGoWebDavSettings.setTextColor(ThemeColors.nightTabActive());
-            try {
-                TextView setupMsg = webdavSetupArea.findViewById(R.id.tv_webdav_setup_msg);
-                if (setupMsg != null) setupMsg.setTextColor(ThemeColors.nightTextSecondary());
-            } catch (Exception ignored) {}
+            btnBiliSettings.setColorFilter(ThemeColors.nightTextSecondary());
+             btnGoWebDavSettings.setTextColor(ThemeColors.nightTabActive());
+            tvSetupMsg.setTextColor(ThemeColors.nightTextSecondary());
             // mini 播放条
             miniPlayer.setBackground(ThemeColors.miniGradient(true));
             miniSongTitle.setTextColor(ThemeColors.nightTextPrimary());
@@ -900,11 +1156,9 @@ public class MainActivity extends AppCompatActivity {
             tvBrowsePath.setTextColor(ThemeColors.dayTextSecondary());
             btnNavigateBack.setColorFilter(ThemeColors.dayTextSecondary());
             btnWebDavSettings.setColorFilter(ThemeColors.dayTextSecondary());
+            btnBiliSettings.setColorFilter(ThemeColors.dayTextSecondary());
             btnGoWebDavSettings.setTextColor(ThemeColors.dayTabActive());
-            try {
-                TextView setupMsg = webdavSetupArea.findViewById(R.id.tv_webdav_setup_msg);
-                if (setupMsg != null) setupMsg.setTextColor(ThemeColors.dayTextSecondary());
-            } catch (Exception ignored) {}
+            tvSetupMsg.setTextColor(ThemeColors.dayTextSecondary());
             // mini 播放条
             miniPlayer.setBackground(ThemeColors.miniGradient(false));
             miniSongTitle.setTextColor(ThemeColors.dayTextPrimary());
@@ -916,7 +1170,8 @@ public class MainActivity extends AppCompatActivity {
         int inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
         tabLocal.setTextColor(currentTab == 0 ? activeColor : inactiveColor);
         tabCloud.setTextColor(currentTab == 1 ? activeColor : inactiveColor);
-        tabFavorite.setTextColor(currentTab == 2 ? activeColor : inactiveColor);
+        tabBili.setTextColor(currentTab == 2 ? activeColor : inactiveColor);
+        tabFavorite.setTextColor(currentTab == 3 ? activeColor : inactiveColor);
         // Tab指示线已隐藏
         // 标题栏底部霓虹绿渐变线
         int brandGreen = isNightMode ? ThemeColors.nightTabIndicator() : ThemeColors.dayTabIndicator();
@@ -977,7 +1232,7 @@ public class MainActivity extends AppCompatActivity {
         }
         songAdapter.setFavoriteSongs(merged);
         songAdapter.setAllSongs(allSongs);
-        if (currentTab == 2) {
+        if (currentTab == 3) {
             updateCountText();
         }
     }
@@ -1027,6 +1282,32 @@ public class MainActivity extends AppCompatActivity {
                     != PackageManager.PERMISSION_GRANTED) {
                 currentPermissionRequest = Manifest.permission.POST_NOTIFICATIONS;
                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+            }
+        }
+        // 申请悬浮窗权限（Android 6+需要用户手动在设置中开启）
+        requestOverlayPermissionIfNeeded();
+    }
+
+    private void requestOverlayPermissionIfNeeded() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("悬浮窗权限")
+                        .setMessage("后台播放时需要悬浮窗权限来显示迷你播放窗口。是否前往设置开启？")
+                        .setPositiveButton("去设置", (dialog, which) -> {
+                            try {
+                                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:" + getPackageName()));
+                                startActivity(intent);
+                            } catch (Exception e) {
+                                // 降级：打开应用详情页
+                                Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                intent.setData(Uri.fromParts("package", getPackageName(), null));
+                                startActivity(intent);
+                            }
+                        })
+                        .setNegativeButton("暂不", null)
+                        .show();
             }
         }
     }
@@ -1091,19 +1372,16 @@ public class MainActivity extends AppCompatActivity {
                 songAdapter.setAllSongs(songs);
                 tvLoading.setVisibility(View.GONE);
                 browseLoading.setVisibility(View.GONE);
-                if (tryAutoResume && autoResumeLastPlayed(songs)) {
-                    return;
-                }
                 rootLayout.setVisibility(View.VISIBLE);
                 refreshFavorites();
                 // 加载当前tab内容
-                if (currentTab == 0) {
-                    loadLocalItems();
-                } else if (currentTab == 1) {
-                    loadCloudItems();
-                }
+                loadCurrentTabContent();
                 updateCountText();
                 applyThemeToRecyclerViewItems();
+                // autoResume 不再阻止内容加载，放最后执行
+                if (tryAutoResume) {
+                    autoResumeLastPlayed(songs);
+                }
             });
         });
     }
@@ -1139,6 +1417,13 @@ public class MainActivity extends AppCompatActivity {
 
         String savedPlaylistMode = prefs.getString("playlist_mode", "all");
 
+        // 根据播放模式切到对应tab，这样返回时不会落到错误的页面
+        if ("bili".equals(savedPlaylistMode)) {
+            currentTab = 2;
+        } else if ("webdav".equals(savedPlaylistMode)) {
+            currentTab = 1;
+        }
+
         Intent intent = new Intent(this, PlayerActivity.class);
         Song resumeSong = new Song();
         resumeSong.id = songId;
@@ -1150,6 +1435,13 @@ public class MainActivity extends AppCompatActivity {
         resumeSong.contentUri = prefs.getString("song_uri", "");
         resumeSong.albumArt = prefs.getString("album_art", "");
         resumeSong.displayName = title;
+        // B站专属字段
+        resumeSong.sourceType = prefs.getInt("song_source_type", Song.SOURCE_LOCAL);
+        resumeSong.bvid = prefs.getString("song_bvid", "");
+        resumeSong.cid = prefs.getLong("song_cid", 0);
+        resumeSong.audioUrl = prefs.getString("song_audio_url", "");
+        resumeSong.audioUrlExpire = prefs.getLong("song_audio_url_expire", 0);
+        resumeSong.coverUrl = prefs.getString("song_cover_url", "");
         resumeSong.toIntent(intent);
         intent.putExtra("position", foundPosition);
         intent.putExtra("playlist_mode", savedPlaylistMode);
@@ -1162,6 +1454,10 @@ public class MainActivity extends AppCompatActivity {
             }
         } else if ("webdav".equals(savedPlaylistMode)) {
             // WebDAV模式：恢复from_webdav标记和播放索引
+            intent.putExtra("from_webdav", true);
+            intent.putExtra("song_index", foundPosition);
+        } else if ("bili".equals(savedPlaylistMode)) {
+            // B站模式：恢复from_webdav标记（B站播放列表也存webdav_playlist SP中）和播放索引
             intent.putExtra("from_webdav", true);
             intent.putExtra("song_index", foundPosition);
         }
@@ -1198,18 +1494,24 @@ public class MainActivity extends AppCompatActivity {
         if (bound && playerBinder != null) {
             Song currentSong = playerBinder.getCurrentSong();
             if (currentSong != null && currentSong.title != null && !currentSong.title.isEmpty()) {
-                // 正常路径：有当前歌曲，传给 PlayerActivity 恢复
+                // 从 last_played 读取完整的来源信息（playlist_mode、B站字段、导航上下文）
+                android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
+                String savedPlaylistMode = prefs.getString("playlist_mode", "all");
+                String biliNavUrl = prefs.getString("bili_nav_url", "");
+
                 Intent intent = new Intent(this, PlayerActivity.class);
-                intent.putExtra("song_id", currentSong.id);
-                intent.putExtra("song_title", currentSong.title);
-                intent.putExtra("song_artist", currentSong.artist);
-                intent.putExtra("song_album", currentSong.album);
-                intent.putExtra("song_duration", currentSong.duration);
-                intent.putExtra("song_path", currentSong.filePath);
-                intent.putExtra("song_uri", currentSong.contentUri);
-                intent.putExtra("album_art", currentSong.albumArt);
+                currentSong.toIntent(intent);
                 intent.putExtra("position", playerBinder.getCurrentIndex());
+                intent.putExtra("playlist_mode", savedPlaylistMode);
                 intent.putExtra("resume_play", true);
+                intent.putExtra("bili_nav_url", biliNavUrl);
+
+                if ("webdav".equals(savedPlaylistMode) || "bili".equals(savedPlaylistMode)) {
+                    intent.putExtra("from_webdav", true);
+                    intent.putExtra("song_index", playerBinder.getCurrentIndex());
+                }
+
+                returningFromPlayer = true;
                 startActivity(intent);
             } else if (playerBinder.isPlaying() || playerBinder.getCurrentIndex() >= 0) {
                 // Service 在播放但 getCurrentSong 返回 null（playlist/index 状态异常）
@@ -1227,10 +1529,25 @@ public class MainActivity extends AppCompatActivity {
                     resumeSong.contentUri = prefs.getString("song_uri", "");
                     resumeSong.albumArt = prefs.getString("album_art", "");
                     resumeSong.displayName = resumeSong.title;
+                    resumeSong.sourceType = prefs.getInt("song_source_type", Song.SOURCE_LOCAL);
+                    resumeSong.bvid = prefs.getString("song_bvid", "");
+                    resumeSong.cid = prefs.getLong("song_cid", 0);
+                    resumeSong.audioUrl = prefs.getString("song_audio_url", "");
+                    resumeSong.audioUrlExpire = prefs.getLong("song_audio_url_expire", 0);
+                    resumeSong.coverUrl = prefs.getString("song_cover_url", "");
                     resumeSong.toIntent(intent);
                     intent.putExtra("position", prefs.getInt("position", 0));
                     intent.putExtra("playlist_mode", prefs.getString("playlist_mode", "all"));
                     intent.putExtra("resume_play", true);
+                    intent.putExtra("bili_nav_url", prefs.getString("bili_nav_url", ""));
+
+                    String savedPlaylistMode = prefs.getString("playlist_mode", "all");
+                    if ("webdav".equals(savedPlaylistMode) || "bili".equals(savedPlaylistMode)) {
+                        intent.putExtra("from_webdav", true);
+                        intent.putExtra("song_index", prefs.getInt("position", 0));
+                    }
+
+                    returningFromPlayer = true;
                     startActivity(intent);
                 }
             }
@@ -1246,6 +1563,7 @@ public class MainActivity extends AppCompatActivity {
         View activeIndicator = null;
         if (currentTab == 0) activeIndicator = indicatorLocal;
         else if (currentTab == 1) activeIndicator = indicatorCloud;
+        else if (currentTab == 2) activeIndicator = indicatorBili;
         else activeIndicator = indicatorFavorite;
         if (activeIndicator == null) return;
 
