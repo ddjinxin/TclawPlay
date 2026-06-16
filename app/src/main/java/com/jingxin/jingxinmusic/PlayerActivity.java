@@ -34,6 +34,12 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.jingxin.jingxinmusic.model.Song;
+import com.jingxin.jingxinmusic.scene.CoverScene;
+import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
+import com.jingxin.jingxinmusic.scene.PortraitClassicScene;
+import com.jingxin.jingxinmusic.scene.PortraitImmersiveScene;
+import com.jingxin.jingxinmusic.scene.LandscapeClassicScene;
+import com.jingxin.jingxinmusic.scene.LandscapeImmersiveScene;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService.MusicPlayerBinder;
@@ -117,6 +123,14 @@ public class PlayerActivity extends AppCompatActivity {
     private com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable coverBorderGradient; // 横屏沉浸封面边缘渐变
     private com.jingxin.jingxinmusic.view.LandscapeGradientOverlay landscapeGradientOverlay; // 横屏沉浸渐变过渡层
 
+    // CoverScene 模式策略
+    private CoverSceneHelper sceneHelper;
+    private PortraitClassicScene portraitClassic;
+    private PortraitImmersiveScene portraitImmersive;
+    private LandscapeClassicScene landscapeClassic;
+    private LandscapeImmersiveScene landscapeImmersive;
+    private CoverScene currentScene;
+
     // 播放服务
     private MusicPlayerBinder playerBinder;
     private boolean bound = false;
@@ -127,7 +141,7 @@ public class PlayerActivity extends AppCompatActivity {
     // 频谱：Visualizer（主方案）或 AudioRecord（降级方案）
     private android.media.audiofx.Visualizer visualizer;
     private AudioRecord audioRecord;
-    private boolean spectrumRunning = false;
+    private volatile boolean spectrumRunning = false;
     private boolean useVisualizer = false; // 当前是否用 Visualizer
     private static final int SAMPLE_RATE = 8000;
     private static final int FFT_SIZE = 256;
@@ -349,6 +363,9 @@ public class PlayerActivity extends AppCompatActivity {
         infoPanel = findViewById(R.id.info_panel);
         coverPlaceholder = findViewById(R.id.cover_placeholder);
 
+        // 初始化 CoverScene 策略
+        initCoverScene();
+
         // 延迟检测横屏模式（等视图布局完成）
         // 用 ViewTreeObserver 监听布局变化，自动切换横竖屏布局
         isLandscapeMode = false;
@@ -393,8 +410,9 @@ public class PlayerActivity extends AppCompatActivity {
                         }
                     });
         }
-        // 首次必须应用竖屏布局（设置封面占位等）
-        applyPortraitLayout();
+        // 首次必须应用竖屏布局（设置封面占位等）——通过 scene layout
+        syncSceneState();
+        currentScene.layout(getLayoutWidth(), getAvailableScreenHeight());
 
         // 竖屏模式下封面和频谱高度：相对屏幕高度
         int availableHeight = getAvailableScreenHeight();
@@ -412,14 +430,13 @@ public class PlayerActivity extends AppCompatActivity {
                 : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
         immersiveOverlay.setNightMode(isNightMode);
 
-        // 沉浸模式初始化：隐藏旋转封面，隐藏封面占位，同步歌词模式，调整歌词 margin
+        // 沉浸模式初始化：切换到正确的 scene
         if (isImmersiveMode) {
-            coverView.setVisibility(View.GONE);
-            coverPlaceholder.setVisibility(View.GONE);
+            syncSceneState();
+            currentScene = isLandscapeMode ? landscapeImmersive : portraitImmersive;
+            currentScene.enter();
             if (lyricView != null) {
                 immersiveOverlay.setFullScreenMode(
-                        lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
-                updateImmersiveLyricMargin(
                         lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
             }
         }
@@ -685,59 +702,12 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /**
-     * 根据歌词模式更新布局
+     * 根据歌词模式更新布局——使用 CoverScene 策略
      */
     private void updateLayoutForMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode mode) {
+        syncSceneState();
         boolean isFull = mode == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL;
-
-        if (isImmersiveMode) {
-            immersiveOverlay.setVisibility(View.VISIBLE);
-            overlayView.setVisibility(View.GONE);
-            whiteOverlay.setVisibility(View.GONE);
-            tvSongName.setVisibility(View.VISIBLE);
-            tvArtist.setVisibility(View.VISIBLE);
-            coverPlaceholder.setVisibility(View.GONE);
-
-            if (isLandscapeMode) {
-                // 横屏沉浸：歌名位置和非沉浸横屏一致（52dp）
-                resetLyricMargin();
-                coverView.setVisibility(View.VISIBLE);
-                coverView.setClipToOutline(false);
-                coverView.setBackground(null);
-            } else {
-                // 竖屏沉浸：歌名推到遮罩区，封面隐藏
-                immersiveOverlay.setFullScreenMode(false);
-                blurBackground.setAlpha(1.0f);
-                coverView.setVisibility(View.GONE);
-                updateImmersiveLyricMargin(false);
-            }
-        } else {
-            // 非沉浸模式
-            immersiveOverlay.setVisibility(View.GONE);
-            resetLyricMargin();
-            if (!isLandscapeMode) {
-                // 竖屏：全屏歌词时不需要封面占位，非全屏时恢复占位
-                if (isFull) {
-                    coverPlaceholder.setVisibility(View.GONE);
-                } else {
-                    updateCoverPlaceholder();
-                }
-            }
-            if (isFull) {
-                // 横屏全屏歌词：封面保持显示；竖屏：隐藏封面
-                if (isLandscapeMode) {
-                    coverView.setVisibility(View.VISIBLE);
-                } else {
-                    coverView.setVisibility(View.GONE);
-                }
-                tvSongName.setVisibility(View.GONE);
-                tvArtist.setVisibility(View.GONE);
-            } else {
-                coverView.setVisibility(View.VISIBLE);
-                tvSongName.setVisibility(View.VISIBLE);
-                tvArtist.setVisibility(View.VISIBLE);
-            }
-        }
+        currentScene.onLyricModeChanged(isFull);
     }
 
     /**
@@ -825,8 +795,87 @@ public class PlayerActivity extends AppCompatActivity {
         coverPlaceholder.setLayoutParams(placeholderParams);
     }
 
+    /**
+     * 初始化 CoverScene 策略框架
+     */
+    private void initCoverScene() {
+        android.widget.FrameLayout rootLayout = findViewById(R.id.root_layout);
+        sceneHelper = new CoverSceneHelper(
+                rootLayout, blurBackground, coverView, tvSongName, tvArtist,
+                lyricView, spectrumView, seekBar, tvCurrentTime, tvTotalTime,
+                btnPlayPause, btnPrevious, btnNext, btnFavorite,
+                infoPanel, coverPlaceholder, overlayView, whiteOverlay,
+                immersiveDarkOverlay, immersiveOverlay,
+                getResources().getDisplayMetrics().density);
+        sceneHelper.callback = new CoverSceneHelper.Callback() {
+            @Override public void loadCover() { PlayerActivity.this.loadCover(); }
+            @Override public void updateCoverPlaceholder() { PlayerActivity.this.updateCoverPlaceholder(); }
+            @Override public void resetLyricMargin() { PlayerActivity.this.resetLyricMargin(); }
+            @Override public void updateImmersiveLyricMargin(boolean isFullScreen) { PlayerActivity.this.updateImmersiveLyricMargin(isFullScreen); }
+            @Override public void updateThemeUI() { PlayerActivity.this.updateThemeUI(); }
+            @Override public void extractAndApplyDominantColor(Bitmap bitmap) {
+                executor.execute(() -> {
+                    int dominantColor = extractDominantColor(bitmap);
+                    if (!isDestroyed()) {
+                        uiHandler.post(() -> {
+                            if (immersiveOverlay != null) {
+                                immersiveOverlay.setDominantColor(dominantColor);
+                            }
+                            if (isLandscapeMode && coverBorderGradient != null) {
+                                coverBorderGradient.setOverlayColor(immersiveOverlay.getOverlayColor());
+                            }
+                            if (isLandscapeMode && landscapeGradientOverlay != null) {
+                                landscapeGradientOverlay.setOverlayColor(immersiveOverlay.getOverlayColor());
+                            }
+                        });
+                    }
+                });
+            }
+        };
+
+        portraitClassic = new PortraitClassicScene(sceneHelper);
+        portraitImmersive = new PortraitImmersiveScene(sceneHelper);
+        landscapeClassic = new LandscapeClassicScene(sceneHelper);
+        landscapeImmersive = new LandscapeImmersiveScene(sceneHelper);
+
+        // 默认竖屏经典
+        currentScene = portraitClassic;
+    }
+
+    /**
+     * 根据当前 isLandscapeMode 和 isImmersiveMode 切换到正确的 Scene
+     * @return 是否发生了 Scene 切换
+     */
+    private boolean switchScene() {
+        CoverScene target;
+        if (isLandscapeMode) {
+            target = isImmersiveMode ? landscapeImmersive : landscapeClassic;
+        } else {
+            target = isImmersiveMode ? portraitImmersive : portraitClassic;
+        }
+        if (target != currentScene) {
+            currentScene.exit();
+            currentScene = target;
+            currentScene.enter();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 同步 sceneHelper 状态（在调用 scene 方法前调用）
+     */
+    private void syncSceneState() {
+        sceneHelper.isNightMode = isNightMode;
+        sceneHelper.isPlaying = bound && playerBinder != null && playerBinder.isPlaying();
+        sceneHelper.playerBinder = playerBinder;
+        sceneHelper.coverBorderGradient = coverBorderGradient;
+        sceneHelper.landscapeGradientOverlay = landscapeGradientOverlay;
+        sceneHelper.executor = executor;
+    }
+
      /**
-      * 检测并应用横屏布局模式
+       * 检测并应用横屏布局模式
        * 触发条件：实际宽度 > 高度 * 1.1
       * 横屏布局：左65%信息区 + 右35%封面区
       */
@@ -839,60 +888,17 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /**
-     * 应用当前布局模式（横屏/竖屏）
+     * 应用当前布局模式（横屏/竖屏）——使用 CoverScene 策略
      */
     private void applyLayoutMode() {
-        if (isLandscapeMode) {
-            applyLandscapeLayout();
-        } else {
-            applyPortraitLayout();
-        }
-        // 非沉浸模式下也同步 landscapeMode，防止横屏→竖屏后残留 true，导致下次进入沉浸时渐变丢失
+        syncSceneState();
+        switchScene();
+        int width = getLayoutWidth();
+        int height = getAvailableScreenHeight();
+        currentScene.layout(width, height);
         immersiveOverlay.setLandscapeMode(isLandscapeMode);
-
-        // 沉浸模式下，横竖屏切换需要同步遮罩和封面
+        // 沉浸模式下切换后需要重新加载封面
         if (isImmersiveMode) {
-            immersiveOverlay.setLandscapeMode(isLandscapeMode);
-            if (isLandscapeMode) {
-                applyLandscapeImmersiveCover();
-                coverView.setVisibility(View.VISIBLE);
-                coverView.setClipToOutline(false);
-                coverView.setBackground(null);
-                coverView.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-                coverView.stopAndResetRotation();
-                // 恢复横向渐变 foreground
-                int overlayColor = immersiveOverlay.getOverlayColor();
-                float borderWidthPx = getResources().getDisplayMetrics().density * 40f;
-                if (coverBorderGradient == null) {
-                    coverBorderGradient = new com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable(
-                            overlayColor, borderWidthPx);
-                } else {
-                    coverBorderGradient.setOverlayColor(overlayColor);
-                }
-                coverView.setForeground(coverBorderGradient);
-                // 夜间模式显示半透明黑色遮罩
-                immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
-                blurBackground.setVisibility(View.GONE);
-                // 恢复横屏沉浸层级
-                moveCoverBelowOverlay();
-                resetLyricMargin();
-            } else {
-                coverView.setVisibility(View.GONE);
-                coverView.setClipToOutline(true);
-                coverView.setBackgroundResource(R.drawable.circle_cover_background);
-                coverView.setForeground(null);
-                blurBackground.setVisibility(View.VISIBLE);
-                blurBackground.setAlpha(1.0f);
-                // 夜间模式显示半透明黑色遮罩
-                immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
-                // 恢复 immersiveOverlay 到 blurBackground 之上，防止被盖住
-                restoreOverlayHierarchy();
-                boolean isFull = lyricView != null &&
-                        lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL;
-                if (!isFull) {
-                    updateImmersiveLyricMargin(false);
-                }
-            }
             loadCover();
         }
     }
@@ -901,265 +907,7 @@ public class PlayerActivity extends AppCompatActivity {
      * 获取根 FrameLayout 的实际宽度，首次布局时可能为0则回退到 screenWidth
      */
     private int getLayoutWidth() {
-        android.view.ViewParent parent = coverView.getParent();
-        if (parent instanceof android.widget.FrameLayout) {
-            int pw = ((android.widget.FrameLayout) parent).getWidth();
-            if (pw > 0) return pw;
-        }
-        return getResources().getDisplayMetrics().widthPixels;
-    }
-
-    /**
-     * 应用横屏布局：左65%信息 + 右35%封面
-     * 所有尺寸基于 FrameLayout 实际宽度计算，响应车机窗口宽度变化
-     */
-    private void applyLandscapeLayout() {
-        float density = getResources().getDisplayMetrics().density;
-        int layoutWidth = getLayoutWidth();
-        int layoutHeight = getAvailableScreenHeight();
-        Log.d(TAG, "applyLandscapeLayout: layoutWidth=" + layoutWidth + " immersive=" + isImmersiveMode);
-
-        // info_panel 占左 65%
-        int infoWidth = (int) (layoutWidth * 0.65f);
-        android.widget.FrameLayout.LayoutParams infoParams =
-                (android.widget.FrameLayout.LayoutParams) infoPanel.getLayoutParams();
-        Log.d(TAG, "applyLandscapeLayout: old infoWidth=" + infoParams.width + " new infoWidth=" + infoWidth);
-        infoParams.width = infoWidth;
-        infoParams.height = android.widget.FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.gravity = android.view.Gravity.START;
-        infoPanel.setLayoutParams(infoParams);
-        // 左侧内容水平居中，从顶部向下排列（歌名紧跟返回/主题按钮下方）
-        if (infoPanel instanceof android.widget.LinearLayout) {
-            ((android.widget.LinearLayout) infoPanel).setGravity(
-                    android.view.Gravity.CENTER_HORIZONTAL);
-        }
-
-        // 歌名 topMargin = 返回按钮底部位置（marginTop=16dp + height=36dp = 52dp）
-        android.widget.LinearLayout.LayoutParams nameParams =
-                (android.widget.LinearLayout.LayoutParams) tvSongName.getLayoutParams();
-        nameParams.topMargin = (int) (density * 52);
-        tvSongName.setLayoutParams(nameParams);
-        tvSongName.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
-        tvArtist.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
-
-        // 横屏下歌名和歌手字号随歌词动态调整：歌名比当前行歌词略大，歌手为歌名70%，均设上限
-        float lyricCurrentSize = lyricView != null ? lyricView.getTextSizeCurrent() : 48f;
-        float songNameSize = Math.min(lyricCurrentSize * 1.1f, 36f);
-        float artistSize = Math.min(songNameSize * 0.7f, 28f);
-        tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
-        tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, artistSize);
-
-        // 封面布局：沉浸模式下由 applyLandscapeImmersiveCover() 处理，这里只设非沉浸
-        if (!isImmersiveMode) {
-            int rightPanelWidth = (int) (layoutWidth * 0.35f);
-            int coverSize = (int) (rightPanelWidth * 0.70f);
-            android.widget.FrameLayout.LayoutParams coverParams =
-                    new android.widget.FrameLayout.LayoutParams(coverSize, coverSize);
-            coverParams.gravity = android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL;
-            int horizontalPadding = (rightPanelWidth - coverSize) / 2;
-            coverParams.rightMargin = horizontalPadding;
-            coverParams.leftMargin = 0;
-            coverView.setLayoutParams(coverParams);
-            Log.d(TAG, "Landscape cover: layoutWidth=" + layoutWidth + " rightPanel=" + rightPanelWidth
-                    + " coverSize=" + coverSize + " rightMargin=" + horizontalPadding);
-        }
-
-        // 频谱高度
-        spectrumView.getLayoutParams().height = (int) (layoutHeight * 0.08f);
-
-        // 横屏下不需要封面占位
-        coverPlaceholder.setVisibility(View.GONE);
-
-        // 根据播放状态恢复旋转（非沉浸模式下）
-        if (!isImmersiveMode) {
-            if (playerBinder != null && playerBinder.isPlaying()) {
-                coverView.startRotation();
-            } else {
-                coverView.stopRotation();
-            }
-        }
-    }
-
-    /**
-     * 应用竖屏布局：封面顶部居中，下方歌名、歌手、歌词等
-     */
-     /**
-      * 横屏沉浸模式下设置封面：矩形铺满右侧，不旋转，边缘渐变
-      * 用 Gravity.END + rightMargin=0 贴右边缘，避免车机 FrameLayout 实际宽度与 screenWidth 不一致露出黑条
-      * 所有尺寸基于 FrameLayout 实际宽度计算，响应车机窗口宽度变化
-      */
-    private void applyLandscapeImmersiveCover() {
-        int layoutWidth = getLayoutWidth();
-        int parentHeight = getAvailableScreenHeight();
-
-        // 用 FrameLayout 的实际高度
-        android.view.ViewParent parent = coverView.getParent();
-        if (parent instanceof android.widget.FrameLayout) {
-            int ph = ((android.widget.FrameLayout) parent).getHeight();
-            if (ph > 0) parentHeight = ph;
-        }
-
-        // 封面宽度=右侧面板宽度，基于实际布局宽度计算
-        int coverWidth = (int) (layoutWidth * 0.35f);
-        int coverHeight = parentHeight;
-
-        android.widget.FrameLayout.LayoutParams coverParams =
-                new android.widget.FrameLayout.LayoutParams(coverWidth, coverHeight);
-        coverParams.gravity = android.view.Gravity.END | android.view.Gravity.TOP;
-        coverParams.rightMargin = 0;
-        coverParams.topMargin = 0;
-        coverView.setLayoutParams(coverParams);
-
-        // 取消圆形裁剪，不旋转
-        coverView.setClipToOutline(false);
-        coverView.setBackground(null);
-        coverView.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-        coverView.stopAndResetRotation();
-
-        // 设置封面边缘渐变 foreground（遮罩色到透明）
-        float borderWidthPx = getResources().getDisplayMetrics().density * 40f;
-        int overlayColor = immersiveOverlay.getOverlayColor();
-        if (coverBorderGradient == null) {
-            coverBorderGradient = new com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable(
-                    overlayColor, borderWidthPx);
-        } else {
-            coverBorderGradient.setOverlayColor(overlayColor);
-        }
-        coverView.setForeground(coverBorderGradient);
-    }
-
-    /**
-     * 横屏沉浸：排列三层层级
-     * immersiveOverlay(0) → coverView(1) → landscapeGradientOverlay(2)
-     */
-    private void moveCoverBelowOverlay() {
-        android.view.ViewParent p = coverView.getParent();
-        if (!(p instanceof android.widget.FrameLayout)) return;
-        android.widget.FrameLayout parent = (android.widget.FrameLayout) p;
-
-        // immersiveOverlay 放到最底层（全屏实色基底）
-        parent.removeView(immersiveOverlay);
-        parent.addView(immersiveOverlay, 0);
-
-        // coverView 放在 immersiveOverlay 上面
-        parent.removeView(coverView);
-        parent.addView(coverView, 1);
-
-        // landscapeGradientOverlay 放在 coverView 上面（渐变过渡）
-        if (landscapeGradientOverlay != null) {
-            parent.removeView(landscapeGradientOverlay);
-            parent.addView(landscapeGradientOverlay, 2);
-        }
-    }
-
-    /**
-     * 退出沉浸：将 coverView 恢复到 info_panel 上层
-     * 恢复层级：blur_background → immersiveOverlay → info_panel → coverView → 按钮
-     */
-    private void moveCoverAboveInfoPanel() {
-        android.view.ViewParent p = coverView.getParent();
-        if (!(p instanceof android.widget.FrameLayout)) return;
-        android.widget.FrameLayout parent = (android.widget.FrameLayout) p;
-        int coverIndex = parent.indexOfChild(coverView);
-        int infoIndex = parent.indexOfChild(infoPanel);
-        // 目标：coverView 在 infoPanel 后面
-        int targetIndex = infoIndex + 1;
-        if (coverIndex != targetIndex) {
-            parent.removeView(coverView);
-            parent.addView(coverView, targetIndex);
-        }
-    }
-
-    /**
-     * 竖屏沉浸：恢复 immersiveOverlay 到 blurBackground 之上
-     * 横屏沉浸时 moveCoverBelowOverlay 把 immersiveOverlay 移到了最底层，
-     * 切竖屏时需要恢复，否则 blurBackground 会盖住遮罩层
-     */
-    private void restoreOverlayHierarchy() {
-        android.view.ViewParent p = coverView.getParent();
-        if (!(p instanceof android.widget.FrameLayout)) return;
-        android.widget.FrameLayout parent = (android.widget.FrameLayout) p;
-
-        // immersiveOverlay 移到 blurBackground 后面（紧挨着，在它上面）
-        int blurIndex = parent.indexOfChild(blurBackground);
-        int overlayIndex = parent.indexOfChild(immersiveOverlay);
-        if (overlayIndex < blurIndex) {
-            parent.removeView(immersiveOverlay);
-            parent.addView(immersiveOverlay, blurIndex + 1);
-        }
-
-        // immersiveDarkOverlay 移到 immersiveOverlay 后面
-        int newOverlayIndex = parent.indexOfChild(immersiveOverlay);
-        int darkIndex = parent.indexOfChild(immersiveDarkOverlay);
-        if (darkIndex >= 0 && darkIndex < newOverlayIndex) {
-            parent.removeView(immersiveDarkOverlay);
-            parent.addView(immersiveDarkOverlay, newOverlayIndex + 1);
-        }
-
-        // 隐藏横屏专属的渐变过渡层
-        if (landscapeGradientOverlay != null) {
-            landscapeGradientOverlay.setVisibility(View.GONE);
-        }
-    }
-
-    private void applyPortraitLayout() {
-        int screenWidth = getResources().getDisplayMetrics().widthPixels;
-        int screenHeight = getAvailableScreenHeight();
-        float density = getResources().getDisplayMetrics().density;
-
-        // info_panel 恢复全宽
-        android.widget.FrameLayout.LayoutParams infoParams =
-                (android.widget.FrameLayout.LayoutParams) infoPanel.getLayoutParams();
-        infoParams.width = android.widget.FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.height = android.widget.FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.gravity = android.view.Gravity.START;
-        infoPanel.setLayoutParams(infoParams);
-        // 竖屏：内容水平居中，不强制垂直居中（从顶部向下排列）
-        if (infoPanel instanceof android.widget.LinearLayout) {
-            ((android.widget.LinearLayout) infoPanel).setGravity(
-                    android.view.Gravity.CENTER_HORIZONTAL);
-        }
-
-        // 歌名歌手竖屏居中；非沉浸模式恢复原始 topMargin，沉浸模式保持不变
-        if (!isImmersiveMode) {
-            android.widget.LinearLayout.LayoutParams nameParams =
-                    (android.widget.LinearLayout.LayoutParams) tvSongName.getLayoutParams();
-            nameParams.topMargin = (int) (density * 16);
-            tvSongName.setLayoutParams(nameParams);
-            Log.d(TAG, "applyPortraitLayout: non-immersive, set name topMargin=16dp");
-        } else {
-            // 沉浸模式下重新应用歌名位置，防止被其他调用覆盖
-            updateImmersiveLyricMargin(false);
-            Log.d(TAG, "applyPortraitLayout: immersive, re-apply name margin");
-        }
-        tvSongName.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
-        tvArtist.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
-
-        // 竖屏恢复原始字号（歌名24sp，歌手18sp）
-        tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 24);
-        tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18);
-
-        // 封面回顶部居中
-        int coverSize = (int) (screenHeight * 0.25f);
-        int coverMarginTop = (int) (density * 32);
-        int coverNameGap = (int) (density * 16); // 封面和歌名间距
-        android.widget.FrameLayout.LayoutParams coverParams =
-                new android.widget.FrameLayout.LayoutParams(coverSize, coverSize);
-        coverParams.gravity = android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.TOP;
-        coverParams.topMargin = coverMarginTop;
-        coverView.setLayoutParams(coverParams);
-
-        // 竖屏封面占位：非沉浸+非全屏歌词时推歌名到封面下方
-        boolean isFullLyric = lyricView != null &&
-                lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL;
-        if (!isImmersiveMode && !isFullLyric) {
-            updateCoverPlaceholder();
-        } else {
-            coverPlaceholder.setVisibility(View.GONE);
-        }
-
-        // 频谱高度
-        spectrumView.getLayoutParams().height = (int) (screenHeight * 0.10f);
+        return sceneHelper != null ? sceneHelper.getLayoutWidth() : getResources().getDisplayMetrics().widthPixels;
     }
 
     private void updatePlayPauseButton(boolean isPlaying) {
@@ -1229,64 +977,17 @@ public class PlayerActivity extends AppCompatActivity {
             coverView.setForeground(null);
         }
 
-        executor.execute(() -> {
-            // 1. 提取音频文件内嵌封面
-            Bitmap embedded = CoverFetcher.extractEmbeddedCover(song.filePath);
-            if (embedded != null) {
-                // 保存到缓存 + 公共目录（MediaStore）
-                String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(song.title, song.artist) + ".jpg";
-                File cacheDir = getExternalFilesDir("covers");
-                if (cacheDir != null) {
-                    File f = new File(cacheDir, coverName);
-                    if (!f.exists()) {
-                        com.jingxin.jingxinmusic.model.Song.saveCoverToPublic(PlayerActivity.this, coverName, embedded);
-                    }
-                }
-                uiHandler.post(() -> setCoverBitmap(embedded));
-                // 通知 Service 更新 MediaSession metadata（含封面）
-                notifyMetadataUpdate();
-                return;
-            }
-
-            // 2. 本地封面缓存
-            File coverDir = getExternalFilesDir("covers");
-            if (coverDir != null) {
-                String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(song.title, song.artist) + ".jpg";
-                File coverFile = new File(coverDir, coverName);
-                if (coverFile.exists() && coverFile.length() > 0) {
-                    Bitmap bmp = BitmapFactory.decodeFile(coverFile.getAbsolutePath());
-                    if (bmp != null) {
-                        Bitmap finalBitmap = bmp;
-                        uiHandler.post(() -> setCoverBitmap(finalBitmap));
-                        // 通知 Service 更新 MediaSession metadata（含封面）
-                        notifyMetadataUpdate();
-                        return;
-                    }
-                }
-            }
-
-            // 3. 在线获取
-            fetchOnlineCover();
-        });
-    }
-
-    private void fetchOnlineCover() {
-        String title = Song.cleanSongTitle(song.title, song.artist);
-        String artist = "<unknown>".equals(song.artist) ? "" : song.artist;
-        CoverFetcher.fetchCover(title, artist, new CoverFetcher.CoverCallback() {
+        com.jingxin.jingxinmusic.util.CoverLoader.load(this, song, 600, 600,
+                true, executor, new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
             @Override
-            public void onCoverFetched(Bitmap coverBitmap) {
-                // 保存到缓存 + 公共目录（MediaStore）
-                String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(song.title, song.artist) + ".jpg";
-                com.jingxin.jingxinmusic.model.Song.saveCoverToPublic(PlayerActivity.this, coverName, coverBitmap);
-                uiHandler.post(() -> setCoverBitmap(coverBitmap));
-                // 通知 Service 更新 MediaSession metadata（含封面）
-                notifyMetadataUpdate();
+            public void onCoverLoaded(Bitmap bitmap) {
+                if (isDestroyed()) return;
+                setCoverBitmap(bitmap);
             }
 
             @Override
-            public void onError(String errorMessage) {
-                Log.d(TAG, "在线封面获取失败: " + errorMessage);
+            public void onCoverFailed() {
+                if (isDestroyed()) return;
                 // 所有封面来源都失败，用默认封面图标生成模糊背景
                 applyDefaultCoverBlur();
             }
@@ -1320,82 +1021,10 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void setCoverBitmap(Bitmap bitmap) {
         if (bitmap == null || isDestroyed()) return;
-
-        // 沉浸模式：显示封面，提取主色调传给 immersiveOverlay
-        if (isImmersiveMode) {
-            if (isLandscapeMode) {
-                // 横屏沉浸：封面直接用 coverView 显示，不旋转
-                coverView.setVisibility(View.VISIBLE);
-                coverView.setImageBitmap(bitmap);
-                coverView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                coverView.stopAndResetRotation();
-                // 确保封面尺寸正确（从竖屏切过来时 LayoutParams 可能没更新）
-                applyLandscapeImmersiveCover();
-                // 恢复横向渐变 foreground
-                int overlayColor = immersiveOverlay.getOverlayColor();
-                float borderWidthPx = getResources().getDisplayMetrics().density * 40f;
-                if (coverBorderGradient == null) {
-                    coverBorderGradient = new com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable(
-                            overlayColor, borderWidthPx);
-                } else {
-                    coverBorderGradient.setOverlayColor(overlayColor);
-                }
-                coverView.setForeground(coverBorderGradient);
-            } else {
-                // 竖屏沉浸：原图铺背景
-                blurBackground.setScaleType(ImageView.ScaleType.MATRIX);
-                blurBackground.setVisibility(View.VISIBLE);
-                blurBackground.setAlpha(1.0f);
-                coverView.setVisibility(View.GONE);
-                applyImmersiveCoverMatrix(bitmap);
-            }
-            // 提取主色调（异步）
-            executor.execute(() -> {
-                int dominantColor = extractDominantColor(bitmap);
-                if (!isDestroyed()) {
-                    uiHandler.post(() -> {
-                        if (immersiveOverlay != null) {
-                            immersiveOverlay.setDominantColor(dominantColor);
-                        }
-                        // 横屏沉浸：同步更新封面边缘渐变颜色和渐变过渡层颜色
-                        if (isLandscapeMode && coverBorderGradient != null) {
-                            coverBorderGradient.setOverlayColor(immersiveOverlay.getOverlayColor());
-                        }
-                        if (isLandscapeMode && landscapeGradientOverlay != null) {
-                            landscapeGradientOverlay.setOverlayColor(immersiveOverlay.getOverlayColor());
-                        }
-                    });
-                }
-            });
-            return;
-        }
-
-        // 非沉浸模式：设置旋转封面 + 模糊背景
-        // 全屏歌词竖屏模式下封面保持隐藏
-        boolean isFullLyric = lyricView != null &&
-                lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL;
-        if (!(isFullLyric && !isLandscapeMode)) {
-            coverView.setVisibility(View.VISIBLE);
-        }
-        coverView.setImageBitmap(bitmap);
-        blurBackground.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        executor.execute(() -> {
-            Bitmap blurred = BlurUtil.blur(PlayerActivity.this, bitmap, 10f);
-            // 提取封面主色调
-            int dominantColor = extractDominantColor(bitmap);
-            if (blurred != null && !isDestroyed()) {
-                uiHandler.post(() -> {
-                    blurBackground.setImageBitmap(blurred);
-                    blurBackground.setAlpha(0.5f);
-                    blurBackground.setVisibility(View.VISIBLE);
-                    if (!isNightMode && !isImmersiveMode) {
-                        // 白天模式非沉浸：渐变遮罩覆盖模糊封面
-                        whiteOverlay.setVisibility(View.VISIBLE);
-                        whiteOverlay.setAlpha(0.4f);
-                    }
-                });
-            }
-        });
+        syncSceneState();
+        currentScene.setCover(bitmap);
+        // 通知 Service 更新 MediaSession metadata（含封面）
+        notifyMetadataUpdate();
     }
 
     /**
@@ -1404,44 +1033,6 @@ public class PlayerActivity extends AppCompatActivity {
      * @param bitmap 封面图片
      * @return 主色调（ARGB）
      */
-    /**
-     * 沉浸模式下按35%屏幕高度缩放封面图
-     * 使封面在可见区域内显示更多内容，不被过度裁切
-     */
-    private void applyImmersiveCoverMatrix(Bitmap bitmap) {
-        if (bitmap == null || blurBackground == null) return;
-
-        int viewWidth = blurBackground.getWidth();
-        int viewHeight = blurBackground.getHeight();
-        if (viewWidth == 0 || viewHeight == 0) {
-            // View 还没布局完成，用实际布局尺寸
-            viewWidth = getLayoutWidth();
-            viewHeight = getAvailableScreenHeight();
-        }
-
-        int bmpWidth = bitmap.getWidth();
-        int bmpHeight = bitmap.getHeight();
-        if (bmpWidth == 0 || bmpHeight == 0) return;
-
-        // 封面区域高度 = 屏幕可用高度 * 35%
-        int coverAreaHeight = (int) (getAvailableScreenHeight() * 0.35f);
-
-        // 缩放：宽度覆盖屏幕，高度覆盖封面区域（取较大值）
-        float scaleW = (float) viewWidth / bmpWidth;
-        float scaleH = (float) coverAreaHeight / bmpHeight;
-        float scale = Math.max(scaleW, scaleH);
-
-        // 构建 Matrix：缩放 + 居中到顶部
-        android.graphics.Matrix matrix = new android.graphics.Matrix();
-        matrix.setScale(scale, scale);
-        // 水平居中
-        float dx = (viewWidth - bmpWidth * scale) / 2f;
-        matrix.postTranslate(dx, 0);
-
-        blurBackground.setImageMatrix(matrix);
-        blurBackground.setImageBitmap(bitmap);
-    }
-
     private int extractDominantColor(Bitmap bitmap) {
         // 缩小到 50x50 采样
         int sampleSize = Math.max(1, Math.min(bitmap.getWidth(), bitmap.getHeight()) / 50);
@@ -1572,105 +1163,21 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /**
-     * 切换沉浸封面模式
+     * 切换沉浸封面模式——使用 CoverScene 策略
      * 长按歌词区域触发
      */
     private void toggleImmersiveMode() {
         isImmersiveMode = !isImmersiveMode;
         getSharedPreferences("theme", MODE_PRIVATE).edit().putBoolean("immersive", isImmersiveMode).apply();
 
-        if (isImmersiveMode) {
-            // 进入沉浸模式
-            // 先设状态再VISIBLE，防止系统在状态未就绪时触发绘制
-            immersiveOverlay.setNightMode(isNightMode);
-            immersiveOverlay.setLandscapeMode(isLandscapeMode);
-            immersiveOverlay.setVisibility(View.VISIBLE);
-            // 隐藏非沉浸遮罩
-            overlayView.setVisibility(View.GONE);
-            whiteOverlay.setVisibility(View.GONE);
-            // 隐藏封面占位
-            coverPlaceholder.setVisibility(View.GONE);
-            // 隐藏模糊背景（横屏沉浸不用 blurBackground，封面用 coverView 直接显示）
-            blurBackground.setVisibility(View.GONE);
+        syncSceneState();
+        switchScene();
+        int width = getLayoutWidth();
+        int height = getAvailableScreenHeight();
+        currentScene.layout(width, height);
 
-            if (isLandscapeMode) {
-                // 横屏沉浸：immersiveOverlay(底层实色) → coverView(封面) → 渐变过渡层
-                // 夜间模式显示半透明黑色遮罩
-                immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
-                // 先定位封面
-                applyLandscapeImmersiveCover();
-                coverView.setVisibility(View.VISIBLE);
-                // 创建并显示渐变过渡层
-                if (landscapeGradientOverlay == null) {
-                    landscapeGradientOverlay = new com.jingxin.jingxinmusic.view.LandscapeGradientOverlay(this);
-                    landscapeGradientOverlay.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
-                            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                            android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
-                    ((android.widget.FrameLayout) findViewById(R.id.root_layout)).addView(landscapeGradientOverlay);
-                }
-                landscapeGradientOverlay.setOverlayColor(immersiveOverlay.getOverlayColor());
-                landscapeGradientOverlay.setVisibility(View.VISIBLE);
-                // 排列层级
-                moveCoverBelowOverlay();
-                // 歌词 margin 保持横屏非沉浸的值
-                resetLyricMargin();
-            } else {
-                // 竖屏沉浸：原图铺背景，旋转封面隐藏
-                blurBackground.setVisibility(View.VISIBLE);
-                blurBackground.setAlpha(1.0f);
-                // 确保 immersiveOverlay 在 blurBackground 上面，防止被盖住导致渐变丢失
-                restoreOverlayHierarchy();
-                // 夜间模式显示半透明黑色遮罩，压暗封面保留色调
-                immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
-                coverView.setVisibility(View.GONE);
-                // 调整歌词 margin
-                boolean isFull = lyricView != null &&
-                        lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL;
-                if (isFull) {
-                    resetLyricMargin();
-                } else {
-                    updateImmersiveLyricMargin(false);
-                }
-            }
-            // 重新加载封面
-            loadCover();
-        } else {
-            // 退出沉浸模式
-            immersiveOverlay.setVisibility(View.GONE);
-            immersiveOverlay.setLandscapeMode(false);
-            blurBackground.setVisibility(View.GONE);
-            coverView.setVisibility(View.VISIBLE);
-            // 隐藏渐变过渡层
-            if (landscapeGradientOverlay != null) {
-                landscapeGradientOverlay.setVisibility(View.GONE);
-            }
-            // 隐藏夜间暗层
-            immersiveDarkOverlay.setVisibility(View.GONE);
-            // 恢复封面为圆形裁剪，清除边缘渐变
-            coverView.setClipToOutline(true);
-            coverView.setBackgroundResource(R.drawable.circle_cover_background);
-            coverView.setForeground(null);
-            // 恢复封面层级到 info_panel 上方
-            moveCoverAboveInfoPanel();
-            // 恢复封面布局（横屏：圆形右侧居中；竖屏：顶部居中）
-            if (isLandscapeMode) {
-                applyLandscapeLayout();
-                // 恢复旋转
-                if (playerBinder != null && playerBinder.isPlaying()) {
-                    coverView.startRotation();
-                }
-            }
-            // 恢复歌词原始 margin
-            resetLyricMargin();
-            // 恢复封面占位（竖屏非沉浸下，把歌名推到封面下方）
-            if (!isLandscapeMode) {
-                updateCoverPlaceholder();
-            }
-            // 恢复非沉浸遮罩
-            updateThemeUI();
-            // 恢复旋转封面图片
-            loadCover();
-        }
+        // 重新加载封面
+        loadCover();
 
         // 同步歌词模式到沉浸遮罩
         if (lyricView != null) {
@@ -1832,25 +1339,11 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void saveLastPlayed() {
         if (song == null) return;
-        android.content.SharedPreferences.Editor editor = getSharedPreferences("last_played", MODE_PRIVATE).edit()
-                .putLong("song_id", song.id)
-                .putString("song_title", song.title)
-                .putString("song_artist", song.artist)
-                .putString("song_album", song.album)
-                .putLong("song_duration", song.duration)
-                .putString("song_path", song.filePath != null ? song.filePath : "")
-                .putString("song_uri", song.contentUri != null ? song.contentUri : "")
-                .putString("album_art", song.albumArt != null ? song.albumArt : "")
-                .putInt("position", position)
+        android.content.SharedPreferences.Editor editor = getSharedPreferences("last_played", MODE_PRIVATE).edit();
+        song.saveToPrefs(editor);
+        editor.putInt("position", position)
                 .putBoolean("has_last", true)
                 .putString("playlist_mode", playlistMode != null ? playlistMode : "all")
-                // B站专属字段
-                .putInt("song_source_type", song.sourceType)
-                .putString("song_bvid", song.bvid != null ? song.bvid : "")
-                .putLong("song_cid", song.cid)
-                .putString("song_audio_url", song.audioUrl != null ? song.audioUrl : "")
-                .putLong("song_audio_url_expire", song.audioUrlExpire)
-                .putString("song_cover_url", song.coverUrl != null ? song.coverUrl : "")
                 // B站导航上下文：返回时恢复到歌曲所在的列表页面
                 .putString("bili_nav_url", getIntent().getStringExtra("bili_nav_url") != null ? getIntent().getStringExtra("bili_nav_url") : "");
         // 目录模式：保存该目录下所有歌曲路径
@@ -1867,7 +1360,7 @@ public class PlayerActivity extends AppCompatActivity {
             editor.remove("folder_song_paths");
             editor.remove("from_webdav");
         }
-        editor.commit();
+        editor.apply();
     }
 
     /**

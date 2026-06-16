@@ -193,6 +193,55 @@ public class Song {
     }
 
     /**
+     * 将 Song 对象写入 SharedPreferences（用于保存上次播放状态）
+     * 只写 Song 自身字段，不包含播放列表上下文（position/playlist_mode等由调用方处理）
+     */
+    public void saveToPrefs(SharedPreferences.Editor editor) {
+        if (editor == null) return;
+        editor.putLong("song_id", id)
+                .putString("song_title", title != null ? title : "")
+                .putString("song_artist", artist != null ? artist : "")
+                .putString("song_album", album != null ? album : "")
+                .putLong("song_duration", duration)
+                .putString("song_path", filePath != null ? filePath : "")
+                .putString("song_uri", contentUri != null ? contentUri : "")
+                .putString("album_art", albumArt != null ? albumArt : "")
+                .putInt("song_source_type", sourceType)
+                .putString("song_bvid", bvid != null ? bvid : "")
+                .putLong("song_cid", cid)
+                .putString("song_audio_url", audioUrl != null ? audioUrl : "")
+                .putLong("song_audio_url_expire", audioUrlExpire)
+                .putString("song_cover_url", coverUrl != null ? coverUrl : "");
+    }
+
+    /**
+     * 从 SharedPreferences 读取 Song 对象
+     * @return Song 对象，如果没有数据则返回 null
+     */
+    public static Song fromPrefs(SharedPreferences prefs) {
+        if (prefs == null || !prefs.getBoolean("has_last", false)) return null;
+        String title = prefs.getString("song_title", "");
+        if (title == null || title.isEmpty()) return null;
+        Song song = new Song();
+        song.id = prefs.getLong("song_id", 0);
+        song.title = title;
+        song.artist = prefs.getString("song_artist", "");
+        song.album = prefs.getString("song_album", "");
+        song.duration = prefs.getLong("song_duration", 0);
+        song.filePath = prefs.getString("song_path", "");
+        song.contentUri = prefs.getString("song_uri", "");
+        song.albumArt = prefs.getString("album_art", "");
+        song.displayName = title;
+        song.sourceType = prefs.getInt("song_source_type", SOURCE_LOCAL);
+        song.bvid = prefs.getString("song_bvid", "");
+        song.cid = prefs.getLong("song_cid", 0);
+        song.audioUrl = prefs.getString("song_audio_url", "");
+        song.audioUrlExpire = prefs.getLong("song_audio_url_expire", 0);
+        song.coverUrl = prefs.getString("song_cover_url", "");
+        return song;
+    }
+
+    /**
      * 将 Song 对象写入 Intent（用于 MainActivity 发起播放、恢复上次播放等）
      */
     public void toIntent(Intent intent) {

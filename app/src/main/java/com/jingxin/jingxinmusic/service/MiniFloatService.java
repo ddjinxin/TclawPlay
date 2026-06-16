@@ -58,6 +58,10 @@ public class MiniFloatService extends Service {
     private View floatView;
     private WindowManager.LayoutParams floatParams;
 
+    // 封面加载线程池
+    private java.util.concurrent.ExecutorService coverExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+
     // 视图引用
     private ImageView coverImage;
     private TextView tvTitle;
@@ -73,7 +77,7 @@ public class MiniFloatService extends Service {
     private boolean bound = false;
 
     // 歌词
-    private KrcParser.LyricData lyricData;
+    private volatile KrcParser.LyricData lyricData;
     private String currentLyricTitle = "";
     private String currentLyricArtist = "";
 
@@ -575,47 +579,18 @@ public class MiniFloatService extends Service {
         if (song.title == null) return;
         // 不重置封面，保留上一首歌的圆形封面直到新封面加载完成，避免切歌时方形闪烁
 
-        // 异步加载封面
-        new Thread(() -> {
-            // 1. 提取音频文件内嵌封面
-            Bitmap embedded = CoverFetcher.extractEmbeddedCover(song.filePath);
-            if (embedded != null) {
-                uiHandler.post(() -> setCircularCover(embedded));
-                return;
+        com.jingxin.jingxinmusic.util.CoverLoader.load(this, song, 200, 200,
+                true, coverExecutor, new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
+            @Override
+            public void onCoverLoaded(Bitmap bitmap) {
+                setCircularCover(bitmap);
             }
 
-            // 2. 本地封面缓存
-            File coverDir = getExternalFilesDir("covers");
-            if (coverDir != null) {
-                String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
-                File coverFile = new File(coverDir, coverName);
-                if (coverFile.exists() && coverFile.length() > 0) {
-                    Bitmap bmp = BitmapFactory.decodeFile(coverFile.getAbsolutePath());
-                    if (bmp != null) {
-                        uiHandler.post(() -> setCircularCover(bmp));
-                        return;
-                    }
-                }
+            @Override
+            public void onCoverFailed() {
+                // 保持默认图标
             }
-
-            // 3. 在线获取
-            String title = Song.cleanSongTitle(song.title, song.artist);
-            String artist = "<unknown>".equals(song.artist) ? "" : song.artist;
-            CoverFetcher.fetchCover(title, artist, new CoverFetcher.CoverCallback() {
-                @Override
-                public void onCoverFetched(Bitmap coverBitmap) {
-                    String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
-                    Song.saveCoverToPublic(MiniFloatService.this, coverName, coverBitmap);
-                    uiHandler.post(() -> {
-                        if (coverBitmap != null) setCircularCover(coverBitmap);
-                    });
-                }
-                @Override
-                public void onError(String errorMessage) {
-                    // 保持默认图标
-                }
-            });
-        }, "FloatCoverLoader").start();
+        });
     }
 
     private void updatePlayPauseButton(boolean playing) {
@@ -765,16 +740,10 @@ public class MiniFloatService extends Service {
     private void setCircularCover(Bitmap bitmap) {
         if (bitmap == null) return;
         int size = Math.min(bitmap.getWidth(), bitmap.getHeight());
-        Bitmap squared = Bitmap.createBitmap(bitmap,
-                (bitmap.getWidth() - size) / 2, (bitmap.getHeight() - size) / 2, size, size);
-        Bitmap circular = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-        android.graphics.Canvas canvas = new android.graphics.Canvas(circular);
-        android.graphics.Paint paint = new android.graphics.Paint();
-        paint.setAntiAlias(true);
-        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint);
-        paint.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN));
-        canvas.drawBitmap(squared, 0, 0, paint);
-        coverImage.setImageBitmap(circular);
+        Bitmap circular = com.jingxin.jingxinmusic.util.BitmapUtil.createScaledCircularBitmap(bitmap, size);
+        if (circular != null) {
+            coverImage.setImageBitmap(circular);
+        }
     }
 
     /**

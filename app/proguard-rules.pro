@@ -5,6 +5,28 @@
 -keep class com.jingxin.jingxinmusic.PlayerActivity { *; }
 -keep class com.jingxin.jingxinmusic.ui.WebDavSettingsActivity { *; }
 
+# CoverScene 策略 - 接口和实现类被 PlayerActivity 动态调用
+-keep class com.jingxin.jingxinmusic.scene.CoverScene { *; }
+-keep class com.jingxin.jingxinmusic.scene.CoverSceneHelper { *; }
+-keep class com.jingxin.jingxinmusic.scene.CoverSceneHelper$Callback { *; }
+-keep class com.jingxin.jingxinmusic.scene.PortraitClassicScene { *; }
+-keep class com.jingxin.jingxinmusic.scene.PortraitImmersiveScene { *; }
+-keep class com.jingxin.jingxinmusic.scene.LandscapeClassicScene { *; }
+-keep class com.jingxin.jingxinmusic.scene.LandscapeImmersiveScene { *; }
+
+# CoverLoader - 回调接口被 Activity/Service 实现
+-keep class com.jingxin.jingxinmusic.util.CoverLoader { *; }
+-keep interface com.jingxin.jingxinmusic.util.CoverLoader$CoverCallback { *; }
+
+# BitmapUtil - 公共方法被多处调用
+-keep class com.jingxin.jingxinmusic.util.BitmapUtil { *; }
+
+# ThemeColors - 静态方法被多处调用
+-keep class com.jingxin.jingxinmusic.util.ThemeColors { *; }
+
+# MiniFloatService - 动态构建视图，公共字段/方法不能混淆
+-keep class com.jingxin.jingxinmusic.service.MiniFloatService { *; }
+
 # Song 模型 - 公共字段被多个类直接读写，BrowseItem 同理
 -keep class com.jingxin.jingxinmusic.model.Song { *; }
 -keep class com.jingxin.jingxinmusic.model.BrowseItem { *; }

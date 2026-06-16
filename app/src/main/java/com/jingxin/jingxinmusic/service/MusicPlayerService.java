@@ -801,7 +801,7 @@ public class MusicPlayerService extends Service {
                 builder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON_URI, publicUri.toString());
             }
             // 同时提供 Bitmap（兼容 getBitmap 读取方式）
-            Bitmap coverBitmap = android.graphics.BitmapFactory.decodeFile(cacheCoverFile.getAbsolutePath());
+            Bitmap coverBitmap = com.jingxin.jingxinmusic.util.BitmapUtil.decodeSampledFromFile(cacheCoverFile.getAbsolutePath(), 200, 200);
             if (coverBitmap != null) {
                 builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, coverBitmap);
                 builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, coverBitmap);

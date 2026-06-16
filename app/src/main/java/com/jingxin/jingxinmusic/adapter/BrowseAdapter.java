@@ -3,6 +3,8 @@ package com.jingxin.jingxinmusic.adapter;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+
+import com.jingxin.jingxinmusic.util.BitmapUtil;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -174,14 +176,14 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                     String coverName = Song.toFileName(songTitle, artist) + ".jpg";
                     File coverFile = new File(coverDir, coverName);
                     if (coverFile.exists() && coverFile.length() > 0) {
-                        coverBitmap = BitmapFactory.decodeFile(coverFile.getAbsolutePath());
+                        coverBitmap = BitmapUtil.decodeSampledFromFile(coverFile.getAbsolutePath(), 200, 200);
                     }
                     // 回退：用歌名前缀匹配
                     if (coverBitmap == null) {
                         File[] coverFiles = coverDir.listFiles((dir, name) ->
                                 name.startsWith(songTitle) && name.endsWith(".jpg"));
                         if (coverFiles != null && coverFiles.length > 0) {
-                            coverBitmap = BitmapFactory.decodeFile(coverFiles[0].getAbsolutePath());
+                            coverBitmap = BitmapUtil.decodeSampledFromFile(coverFiles[0].getAbsolutePath(), 200, 200);
                         }
                     }
                 }
@@ -345,7 +347,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 String cacheFileName = webdavUrlToCacheName(dirUrl);
                 File cacheFile = new File(webdavCacheDir, cacheFileName);
                 if (cacheFile.exists() && cacheFile.length() > 0) {
-                    Bitmap cached = BitmapFactory.decodeFile(cacheFile.getAbsolutePath());
+                    Bitmap cached = BitmapUtil.decodeSampledFromFile(cacheFile.getAbsolutePath(), 200, 200);
                     if (cached != null) {
                         Log.d(TAG, "命中WebDAV封面缓存: " + dirUrl);
                         return cached;
@@ -469,7 +471,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                     for (File cf : coverFiles) {
                         String cfName = cf.getName().replace(".jpg", "").toLowerCase();
                         if (cfName.startsWith(lowerName) || lowerName.startsWith(cfName)) {
-                            Bitmap bmp = BitmapFactory.decodeFile(cf.getAbsolutePath());
+                            Bitmap bmp = BitmapUtil.decodeSampledFromFile(cf.getAbsolutePath(), 200, 200);
                             if (bmp != null) return bmp;
                         }
                     }
@@ -494,7 +496,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         // 第0步：检查缓存封面文件
         File cacheFile = new File(dir, COVER_CACHE_NAME);
         if (cacheFile.exists() && cacheFile.length() > 0) {
-            Bitmap cached = BitmapFactory.decodeFile(cacheFile.getAbsolutePath());
+            Bitmap cached = BitmapUtil.decodeSampledFromFile(cacheFile.getAbsolutePath(), 200, 200);
             if (cached != null) {
                 Log.d(TAG, "命中封面缓存: " + dir.getName());
                 return cached;
@@ -615,7 +617,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                     for (File cf : coverFiles) {
                         String cfName = cf.getName().toLowerCase();
                         if (cfName.startsWith(lowerSongName) || lowerSongName.startsWith(cfName.replace(".jpg", ""))) {
-                            Bitmap bmp = BitmapFactory.decodeFile(cf.getAbsolutePath());
+                            Bitmap bmp = BitmapUtil.decodeSampledFromFile(cf.getAbsolutePath(), 200, 200);
                             if (bmp != null) return bmp;
                         }
                     }

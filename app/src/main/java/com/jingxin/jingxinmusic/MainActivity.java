@@ -42,6 +42,7 @@ import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService.MusicPlayerBinder;
 import com.jingxin.jingxinmusic.util.CompatUtil;
+import com.jingxin.jingxinmusic.util.BitmapUtil;
 import com.jingxin.jingxinmusic.util.BiliApi;
 import com.jingxin.jingxinmusic.util.BiliConfig;
 import com.jingxin.jingxinmusic.util.FavoriteManager;
@@ -1400,12 +1401,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
-        if (!prefs.getBoolean("has_last", false)) return false;
+        Song resumeSong = Song.fromPrefs(prefs);
+        if (resumeSong == null) return false;
 
-        long songId = prefs.getLong("song_id", 0);
-        String title = prefs.getString("song_title", "");
-        if (title == null || title.isEmpty()) return false;
-
+        long songId = resumeSong.id;
         int foundPosition = -1;
         for (int i = 0; i < songs.size(); i++) {
             if (songs.get(i).id == songId) {
@@ -1425,23 +1424,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         Intent intent = new Intent(this, PlayerActivity.class);
-        Song resumeSong = new Song();
-        resumeSong.id = songId;
-        resumeSong.title = title;
-        resumeSong.artist = prefs.getString("song_artist", "");
-        resumeSong.album = prefs.getString("song_album", "");
-        resumeSong.duration = prefs.getLong("song_duration", 0);
-        resumeSong.filePath = prefs.getString("song_path", "");
-        resumeSong.contentUri = prefs.getString("song_uri", "");
-        resumeSong.albumArt = prefs.getString("album_art", "");
-        resumeSong.displayName = title;
-        // B站专属字段
-        resumeSong.sourceType = prefs.getInt("song_source_type", Song.SOURCE_LOCAL);
-        resumeSong.bvid = prefs.getString("song_bvid", "");
-        resumeSong.cid = prefs.getLong("song_cid", 0);
-        resumeSong.audioUrl = prefs.getString("song_audio_url", "");
-        resumeSong.audioUrlExpire = prefs.getLong("song_audio_url_expire", 0);
-        resumeSong.coverUrl = prefs.getString("song_cover_url", "");
         resumeSong.toIntent(intent);
         intent.putExtra("position", foundPosition);
         intent.putExtra("playlist_mode", savedPlaylistMode);
@@ -1517,24 +1499,9 @@ public class MainActivity extends AppCompatActivity {
                 // Service 在播放但 getCurrentSong 返回 null（playlist/index 状态异常）
                 // 用 last_played 恢复
                 android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
-                if (prefs.getBoolean("has_last", false)) {
+                Song resumeSong = Song.fromPrefs(prefs);
+                if (resumeSong != null) {
                     Intent intent = new Intent(this, PlayerActivity.class);
-                    Song resumeSong = new Song();
-                    resumeSong.id = prefs.getLong("song_id", 0);
-                    resumeSong.title = prefs.getString("song_title", "");
-                    resumeSong.artist = prefs.getString("song_artist", "");
-                    resumeSong.album = prefs.getString("song_album", "");
-                    resumeSong.duration = prefs.getLong("song_duration", 0);
-                    resumeSong.filePath = prefs.getString("song_path", "");
-                    resumeSong.contentUri = prefs.getString("song_uri", "");
-                    resumeSong.albumArt = prefs.getString("album_art", "");
-                    resumeSong.displayName = resumeSong.title;
-                    resumeSong.sourceType = prefs.getInt("song_source_type", Song.SOURCE_LOCAL);
-                    resumeSong.bvid = prefs.getString("song_bvid", "");
-                    resumeSong.cid = prefs.getLong("song_cid", 0);
-                    resumeSong.audioUrl = prefs.getString("song_audio_url", "");
-                    resumeSong.audioUrlExpire = prefs.getLong("song_audio_url_expire", 0);
-                    resumeSong.coverUrl = prefs.getString("song_cover_url", "");
                     resumeSong.toIntent(intent);
                     intent.putExtra("position", prefs.getInt("position", 0));
                     intent.putExtra("playlist_mode", prefs.getString("playlist_mode", "all"));
@@ -1642,13 +1609,13 @@ public class MainActivity extends AppCompatActivity {
                     String coverName = Song.toFileName(title, artist != null ? artist : "") + ".jpg";
                     File coverFile = new File(coverDir, coverName);
                     if (coverFile.exists() && coverFile.length() > 0) {
-                        coverBitmap = android.graphics.BitmapFactory.decodeFile(coverFile.getAbsolutePath());
+                        coverBitmap = BitmapUtil.decodeSampledFromFile(coverFile.getAbsolutePath(), 200, 200);
                     }
                     if (coverBitmap == null) {
                         File[] coverFiles = coverDir.listFiles((dir, name) ->
                                 name.startsWith(title) && name.endsWith(".jpg"));
                         if (coverFiles != null && coverFiles.length > 0) {
-                            coverBitmap = android.graphics.BitmapFactory.decodeFile(coverFiles[0].getAbsolutePath());
+                            coverBitmap = BitmapUtil.decodeSampledFromFile(coverFiles[0].getAbsolutePath(), 200, 200);
                         }
                     }
                 }
@@ -1675,15 +1642,7 @@ public class MainActivity extends AppCompatActivity {
     private android.graphics.Bitmap getScaledRoundedBitmap(android.graphics.Bitmap bitmap, int dpSize) {
         float density = getResources().getDisplayMetrics().density;
         int px = (int) (dpSize * density);
-        android.graphics.Bitmap scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, px, px, true);
-        android.graphics.Bitmap output = android.graphics.Bitmap.createBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888);
-        android.graphics.Canvas canvas = new android.graphics.Canvas(output);
-        android.graphics.Paint paint = new android.graphics.Paint();
-        paint.setAntiAlias(true);
-        canvas.drawCircle(px / 2f, px / 2f, px / 2f, paint);
-        paint.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN));
-        canvas.drawBitmap(scaled, 0, 0, paint);
-        return output;
+        return BitmapUtil.createScaledCircularBitmap(bitmap, px);
     }
 
     @Override

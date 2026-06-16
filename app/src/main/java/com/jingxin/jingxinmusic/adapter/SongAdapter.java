@@ -307,7 +307,7 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if (localCover == null) {
                 File f = getCoverFile(context, s);
                 if (f != null && f.exists() && f.length() > 0) {
-                    localCover = BitmapFactory.decodeFile(f.getAbsolutePath());
+                    localCover = com.jingxin.jingxinmusic.util.BitmapUtil.decodeSampledFromFile(f.getAbsolutePath(), 200, 200);
                 }
             }
             if (localCover != null) break;
