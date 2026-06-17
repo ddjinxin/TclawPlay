@@ -1,5 +1,7 @@
 package com.jingxin.jingxinmusic.util;
 
+import android.content.Context;
+
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -18,6 +20,15 @@ import java.util.List;
 public class FavoriteManager {
 
     private static final String TAG = "FavoriteManager";
+
+    /**
+     * 获取收藏目录
+     */
+    public static File getFavoriteDir(Context context) {
+        File dir = context.getExternalFilesDir("favorites");
+        if (dir != null && !dir.exists()) dir.mkdirs();
+        return dir;
+    }
 
     /**
      * 收藏歌曲（去重）

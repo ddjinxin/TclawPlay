@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 
 import com.jingxin.jingxinmusic.util.BitmapUtil;
+import com.jingxin.jingxinmusic.util.CoverLoader;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -24,8 +25,6 @@ import com.jingxin.jingxinmusic.ui.SquareImageView;
 import com.jingxin.jingxinmusic.util.CoverFetcher;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.WebDavScanner;
-
-import java.io.File;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -169,7 +168,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
 
             // 1. 本地封面缓存
             try {
-                File coverDir = context.getExternalFilesDir("covers");
+                File coverDir = CoverLoader.getCoverDir(context);
                 if (coverDir != null) {
                     // 优先用 歌名 - 歌手.jpg 匹配
                     String artist = item.song != null ? item.song.artist : "";
@@ -221,7 +220,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 @Override
                 public void onCoverFetched(Bitmap coverBitmap) {
                     try {
-                        File coverDir = context.getExternalFilesDir("covers");
+                        File coverDir = CoverLoader.getCoverDir(context);
                         if (coverDir != null) {
                             coverDir.mkdirs();
                             String coverName = Song.toFileName(songTitle, "") + ".jpg";
@@ -310,7 +309,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 firstTitle = firstTitle.replaceAll("<[^>]+>", "").trim();
             }
             if (firstTitle != null && !firstTitle.isEmpty()) {
-                Bitmap cached = findCachedCoverByName(firstTitle);
+                Bitmap cached = CoverLoader.findCachedCoverByName(context, firstTitle);
                 if (cached != null) {
                     Log.d(TAG, "B站目录命中封面缓存: " + bvid + " title=" + firstTitle);
                     return cached;
@@ -366,7 +365,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             String songName = findFirstSongName(scanner, dirUrl, 3);
             if (songName != null) {
                 // 从在线缓存中查找封面
-                Bitmap cover = findCachedCoverByName(songName);
+                Bitmap cover = CoverLoader.findCachedCoverByName(context, songName);
                 if (cover != null) {
                     // 保存到WebDAV本地缓存
                     saveWebDavCoverCache(dirUrl, cover);
@@ -458,31 +457,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         return null;
     }
 
-    /** 根据歌曲名从在线封面缓存查找 */
-    private Bitmap findCachedCoverByName(String songName) {
-        if (songName == null) return null;
-        try {
-            File coversDir = context.getExternalFilesDir("covers");
-            if (coversDir != null && coversDir.isDirectory()) {
-                File[] coverFiles = coversDir.listFiles();
-                if (coverFiles != null) {
-                    // 封面缓存文件名格式：歌曲名-歌手名.jpg
-                    String lowerName = songName.toLowerCase();
-                    for (File cf : coverFiles) {
-                        String cfName = cf.getName().replace(".jpg", "").toLowerCase();
-                        if (cfName.startsWith(lowerName) || lowerName.startsWith(cfName)) {
-                            Bitmap bmp = BitmapUtil.decodeSampledFromFile(cf.getAbsolutePath(), 200, 200);
-                            if (bmp != null) return bmp;
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // 忽略
-        }
-        return null;
-    }
-
     /**
      * 递归扫描目录，找第一首音乐文件的封面
      * 第0步：检查目录下是否有缓存封面 .cover_cache.jpg，有则直接返回
@@ -526,7 +500,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         // 第二轮：尝试在线封面缓存
         for (File f : files) {
             if (f.isFile() && WebDavScanner.isMusicFile(f.getName())) {
-                Bitmap cover = getCachedCover(f.getAbsolutePath());
+                Bitmap cover = CoverLoader.findCachedCoverByFilePath(context, f.getAbsolutePath());
                 if (cover != null) {
                     saveCoverCache(dir, cover);
                     return cover;
@@ -596,35 +570,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             }
         } catch (Exception e) {
             // albumArt不可用，静默处理
-        }
-        return null;
-    }
-
-    /** 尝试从在线封面缓存中查找 */
-    private Bitmap getCachedCover(String filePath) {
-        try {
-            // 从文件路径推导歌曲名
-            String fileName = filePath.substring(filePath.lastIndexOf('/') + 1);
-            String songName = fileName;
-            int dotIdx = fileName.lastIndexOf('.');
-            if (dotIdx > 0) songName = fileName.substring(0, dotIdx);
-            // 查找covers目录中以歌曲名开头的缓存文件
-            File coversDir = context.getExternalFilesDir("covers");
-            if (coversDir != null && coversDir.isDirectory()) {
-                File[] coverFiles = coversDir.listFiles();
-                if (coverFiles != null) {
-                    String lowerSongName = songName.toLowerCase();
-                    for (File cf : coverFiles) {
-                        String cfName = cf.getName().toLowerCase();
-                        if (cfName.startsWith(lowerSongName) || lowerSongName.startsWith(cfName.replace(".jpg", ""))) {
-                            Bitmap bmp = BitmapUtil.decodeSampledFromFile(cf.getAbsolutePath(), 200, 200);
-                            if (bmp != null) return bmp;
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // 缓存查找失败，静默
         }
         return null;
     }

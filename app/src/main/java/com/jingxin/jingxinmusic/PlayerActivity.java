@@ -101,6 +101,7 @@ public class PlayerActivity extends AppCompatActivity {
     private ImageView btnPlayOrder;
     private ImageView btnTheme;
     private ImageView btnBack;
+    private ImageView btnOutfit;
     private View overlayView;
     private View whiteOverlay;
     private View immersiveDarkOverlay;
@@ -239,7 +240,7 @@ public class PlayerActivity extends AppCompatActivity {
                             }
                         } else if ("favorites".equals(playlistMode)) {
                             // 收藏模式：播放队列 = 收藏歌曲
-                            File favDir = new File(getExternalFilesDir(null), "favorites");
+                            File favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(PlayerActivity.this);
                             List<Song> favSongs = FavoriteManager.loadFavorites(favDir);
                             if (!favSongs.isEmpty()) {
                                 playerBinder.setPlaylist(favSongs);
@@ -349,6 +350,7 @@ public class PlayerActivity extends AppCompatActivity {
         btnPlayOrder = findViewById(R.id.play_order_button);
         btnTheme = findViewById(R.id.theme_button);
         btnBack = findViewById(R.id.back_button);
+        btnOutfit = findViewById(R.id.outfit_button);
         overlayView = findViewById(R.id.overlay_view);
         whiteOverlay = findViewById(R.id.white_overlay);
         // 初始化白天模式渐变遮罩：浅绿(#A5D6A4)→白(#FFFFFF)，从上到下
@@ -508,16 +510,8 @@ public class PlayerActivity extends AppCompatActivity {
             }
         });
         lyricView.setOnModeChangeListener(newMode -> updateLayoutForMode(newMode));
-        // 长按歌词区域切换沉浸模式
-        lyricView.setOnLongClickListener(v -> {
-            // 非沉浸模式下的全屏歌词，长按不切换
-            if (!isImmersiveMode && lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL) {
-                return true;
-            }
-            toggleImmersiveMode();
-            return true;
-        });
         btnTheme.setOnClickListener(v -> toggleTheme());
+        btnOutfit.setOnClickListener(v -> toggleImmersiveMode());
         btnBack.setOnClickListener(v -> {
             Log.d(TAG, "Back button clicked, isFinishing=" + isFinishing());
             stopSpectrum();
@@ -673,19 +667,19 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void toggleFavorite() {
         if (song == null) return;
-        File favDir = new File(getExternalFilesDir(null), "favorites");
+        File favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(this);
 
         if (isFavorite) {
             FavoriteManager.removeFavorite(favDir, song);
             isFavorite = false;
             btnFavorite.setImageResource(R.drawable.ic_favorite);
-            updateFavoriteColor();
+            applyButtonTheme(isNightMode);
             android.widget.Toast.makeText(this, "取消收藏", android.widget.Toast.LENGTH_SHORT).show();
         } else {
             FavoriteManager.addFavorite(favDir, song);
             isFavorite = true;
             btnFavorite.setImageResource(R.drawable.ic_favorite_filled);
-            updateFavoriteColor();
+            applyButtonTheme(isNightMode);
             android.widget.Toast.makeText(this, "已收藏", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
@@ -695,10 +689,10 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void checkFavoriteStatus() {
         if (song == null) return;
-        File favDir = new File(getExternalFilesDir(null), "favorites");
+        File favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(this);
         isFavorite = FavoriteManager.isFavorite(favDir, song.title, song.artist);
         btnFavorite.setImageResource(isFavorite ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
-        updateFavoriteColor();
+        applyButtonTheme(isNightMode);
     }
 
     /**
@@ -761,21 +755,7 @@ public class PlayerActivity extends AppCompatActivity {
      * 首次布局时 View 可能为0，回退到 getDisplayMetrics()
      */
     private int getAvailableScreenHeight() {
-        android.view.ViewParent parent = coverView.getParent();
-        if (parent instanceof android.widget.FrameLayout) {
-            int ph = ((android.widget.FrameLayout) parent).getHeight();
-            if (ph > 0) return ph;
-        }
-        // 回退：用屏幕高度减去系统栏
-        int statusBarHeight = 0;
-        int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
-        if (resourceId > 0) statusBarHeight = getResources().getDimensionPixelSize(resourceId);
-        int navBarResourceId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
-        int navBarHeight = 0;
-        if (navBarResourceId > 0) navBarHeight = getResources().getDimensionPixelSize(navBarResourceId);
-        int height = getResources().getDisplayMetrics().heightPixels - statusBarHeight - navBarHeight;
-        if (height <= 0) height = getResources().getDisplayMetrics().heightPixels;
-        return height;
+        return sceneHelper != null ? sceneHelper.getAvailableScreenHeight() : getResources().getDisplayMetrics().heightPixels;
     }
 
     /**
@@ -785,7 +765,7 @@ public class PlayerActivity extends AppCompatActivity {
         int screenHeight = getAvailableScreenHeight();
         float density = getResources().getDisplayMetrics().density;
         int coverSize = (int) (screenHeight * 0.25f);
-        int coverMarginTop = (int) (density * 32);
+        int coverMarginTop = (int) (density * 56);
         int coverNameGap = (int) (density * 16);
         coverPlaceholder.setVisibility(View.VISIBLE);
         android.widget.LinearLayout.LayoutParams placeholderParams =
@@ -1275,25 +1255,11 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /**
-     * 更新收藏按钮颜色：已收藏红色，未收藏跟随主题
-     */
-    private void updateFavoriteColor() {
-        if (btnFavorite == null) return;
-        if (isFavorite) {
-            btnFavorite.setColorFilter(Color.parseColor("#FF5252"), PorterDuff.Mode.SRC_IN);
-        } else if (isNightMode) {
-            btnFavorite.clearColorFilter();
-        } else {
-            btnFavorite.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
-        }
-    }
-
-    /**
      * 统一设置按钮主题颜色
      */
     private void applyButtonTheme(boolean isNight) {
         ImageView[] buttons = {btnPlayPause, btnPrevious, btnNext,
-                btnHistory, btnPlayOrder, btnTheme, btnBack};
+                btnHistory, btnPlayOrder, btnTheme, btnBack, btnOutfit};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
             // 收藏按钮：已收藏用红色，未收藏清除滤镜
@@ -1342,7 +1308,7 @@ public class PlayerActivity extends AppCompatActivity {
         android.content.SharedPreferences.Editor editor = getSharedPreferences("last_played", MODE_PRIVATE).edit();
         song.saveToPrefs(editor);
         editor.putInt("position", position)
-                .putBoolean("has_last", true)
+                .putBoolean(com.jingxin.jingxinmusic.model.Song.KEY_HAS_LAST, true)
                 .putString("playlist_mode", playlistMode != null ? playlistMode : "all")
                 // B站导航上下文：返回时恢复到歌曲所在的列表页面
                 .putString("bili_nav_url", getIntent().getStringExtra("bili_nav_url") != null ? getIntent().getStringExtra("bili_nav_url") : "");
@@ -1392,11 +1358,11 @@ public class PlayerActivity extends AppCompatActivity {
                         public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
                             if (!spectrumRunning || spectrumView == null) return;
 
-                            // Visualizer FFT 数据：fft[0]=实部, fft[1]=虚部, fft[2]=实部, fft[3]=虚部...
-                            // 跳过 DC 和 Nyquist（前2个），取前128个频段
-                            float[] magnitudes = new float[128];
+                            // BD 方式：FFT 1:1 取幅度，竖条模式只取半数频段（会镜像展开）
+                            int count = spectrumView.getBarInputCount();
+                            float[] magnitudes = new float[count];
                             float maxMag = 0;
-                            for (int i = 0; i < 128; i++) {
+                            for (int i = 0; i < count; i++) {
                                 int idx = (i + 1) * 2; // 跳过 DC 分量
                                 if (idx + 1 < fft.length) {
                                     byte real = fft[idx];
@@ -1503,10 +1469,12 @@ public class PlayerActivity extends AppCompatActivity {
                         Log.d(TAG, "AudioRecord totalRead=" + totalRead);
                     }
 
-                    float[] magnitudes = new float[128];
+                    int count = spectrumView != null ? spectrumView.getBarInputCount() : 65;
+                    float[] magnitudes = new float[count];
                     float maxMag = 0;
-                    for (int bar = 0; bar < 128; bar++) {
-                        int k = bar * 3 + 1;
+                    // BD 方式：DFT 1:1 直传，不预合并
+                    for (int bar = 0; bar < count; bar++) {
+                        int k = bar + 1;
                         if (k > totalRead - 1) k = totalRead - 1;
                         float re = 0, im = 0;
                         double freq = 2.0 * Math.PI * k / totalRead;

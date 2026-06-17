@@ -3,7 +3,8 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+    <!-- T恤/服装图标：简洁轮廓 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M10,9V5l-7,7 7,7v-4.1c5,0 8.5,1.6 11,5.1 -1,-5 -4,-10 -11,-11z" />
+        android:pathData="M8,2 L5,5 L2,5 L2,9 L5,9 L5,22 L19,22 L19,9 L22,9 L22,5 L19,5 L16,2 L14,4 C13.5,4.5 10.5,4.5 10,4 L8,2Z"/>
 </vector>

@@ -203,6 +203,39 @@ public class CoverSceneHelper {
     }
 
     /**
+     * 横屏公共布局：info_panel 左65% + 歌名/歌手定位 + 字号动态调整
+     * 横屏经典和横屏沉浸共用
+     */
+    public void layoutLandscapeBase(int width) {
+        // info_panel 占左 65%
+        int infoWidth = (int) (width * 0.65f);
+        FrameLayout.LayoutParams infoParams =
+                (FrameLayout.LayoutParams) infoPanel.getLayoutParams();
+        infoParams.width = infoWidth;
+        infoParams.height = FrameLayout.LayoutParams.MATCH_PARENT;
+        infoParams.gravity = Gravity.START;
+        infoPanel.setLayoutParams(infoParams);
+        if (infoPanel instanceof LinearLayout) {
+            ((LinearLayout) infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
+        }
+
+        // 歌名 topMargin = 52dp
+        LinearLayout.LayoutParams nameParams =
+                (LinearLayout.LayoutParams) tvSongName.getLayoutParams();
+        nameParams.topMargin = (int) (density * 52);
+        tvSongName.setLayoutParams(nameParams);
+        tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
+        tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        // 歌名与当前歌词同字号，歌手为歌名的0.7倍
+        float lyricCurrentSize = lyricView != null ? lyricView.getTextSizeCurrent() : 48f;
+        float songNameSize = lyricCurrentSize;
+        float artistSize = songNameSize * 0.7f;
+        tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
+        tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, artistSize);
+    }
+
+    /**
      * 非沉浸模式下设置封面：旋转封面 + 模糊背景
      */
     public void applyClassicCover(Bitmap bitmap, boolean isLandscape) {

@@ -77,9 +77,10 @@ public class PortraitImmersiveScene implements CoverScene {
         // 歌名歌手位置
         h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
-        // 竖屏原始字号
-        h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 24);
-        h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18);
+        // 歌名与当前歌词同字号
+        float lyricCurrentSize = h.lyricView != null ? h.lyricView.getTextSizeCurrent() : 48f;
+        h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, lyricCurrentSize);
+        h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, lyricCurrentSize * 0.7f);
         // 歌名推到遮罩区（43% 高度）
         boolean isFull = h.lyricView != null &&
                 h.lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL;

@@ -82,12 +82,13 @@ public class PortraitClassicScene implements CoverScene {
         h.tvSongName.setLayoutParams(nameParams);
         h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
-        // 歌名歌手原始字号
-        h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 24);
-        h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18);
+        // 歌名与当前歌词同字号
+        float lyricCurrentSize = h.lyricView != null ? h.lyricView.getTextSizeCurrent() : 48f;
+        h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, lyricCurrentSize);
+        h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, lyricCurrentSize * 0.7f);
         // 封面：顶部居中，25%屏幕高度
         int coverSize = (int) (height * 0.25f);
-        int coverMarginTop = (int) (h.density * 32);
+        int coverMarginTop = (int) (h.density * 56);
         FrameLayout.LayoutParams coverParams =
                 new FrameLayout.LayoutParams(coverSize, coverSize);
         coverParams.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;

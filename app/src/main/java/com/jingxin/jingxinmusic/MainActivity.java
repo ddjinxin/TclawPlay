@@ -163,7 +163,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView miniSongArtist;
     private ImageView miniPlayPause;
     private ImageView miniCover;
-    private android.animation.ObjectAnimator coverRotateAnimator;
+    private com.jingxin.jingxinmusic.util.CoverRotationHelper coverRotationHelper = new com.jingxin.jingxinmusic.util.CoverRotationHelper();
 
     // 播放服务绑定
     private MusicPlayerBinder playerBinder;
@@ -226,7 +226,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        favDir = getExternalFilesDir("favorites");
+        favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(this);
 
         // 读取主题
         themePrefs = getSharedPreferences("theme", MODE_PRIVATE);
@@ -287,10 +287,7 @@ public class MainActivity extends AppCompatActivity {
                 outline.setRoundRect(0, 0, size, size, size / 2f);
             }
         });
-        coverRotateAnimator = android.animation.ObjectAnimator.ofFloat(miniCover, View.ROTATION, 0f, 360f);
-        coverRotateAnimator.setDuration(12000); // 12秒转一圈
-        coverRotateAnimator.setInterpolator(new android.view.animation.LinearInterpolator());
-        coverRotateAnimator.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
+        coverRotationHelper.attach(miniCover);
 
         // 关闭按钮
         btnClose = findViewById(R.id.close_button);
@@ -1537,7 +1534,7 @@ public class MainActivity extends AppCompatActivity {
         // 设置激活色
         activeIndicator.setBackgroundColor(activeColor);
         tabBreathAnimator = android.animation.ObjectAnimator.ofInt(activeIndicator, "backgroundColor",
-                activeColor, adjustAlpha(activeColor, 0.4f), activeColor);
+                activeColor, com.jingxin.jingxinmusic.util.ColorUtil.adjustAlpha(activeColor, 0.4f), activeColor);
         tabBreathAnimator.setDuration(2500);
         tabBreathAnimator.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
         tabBreathAnimator.setEvaluator(new android.animation.ArgbEvaluator());
@@ -1565,34 +1562,18 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /** 调整颜色透明度 */
-    private static int adjustAlpha(int color, float factor) {
-        int a = Math.round(((color >> 24) & 0xFF) * factor);
-        int r = (color >> 16) & 0xFF;
-        int g = (color >> 8) & 0xFF;
-        int b = color & 0xFF;
-        return (a << 24) | (r << 16) | (g << 8) | b;
-    }
-
     /**
      * 启动封面旋转（首次start，暂停后resume）
      */
     private void startCoverRotation() {
-        if (coverRotateAnimator == null) return;
-        if (coverRotateAnimator.isPaused()) {
-            coverRotateAnimator.resume();
-        } else if (!coverRotateAnimator.isRunning()) {
-            coverRotateAnimator.start();
-        }
+        coverRotationHelper.start();
     }
 
     /**
      * 暂停封面旋转
      */
     private void pauseCoverRotation() {
-        if (coverRotateAnimator != null && coverRotateAnimator.isRunning()) {
-            coverRotateAnimator.pause();
-        }
+        coverRotationHelper.pause();
     }
 
     /**
@@ -1604,7 +1585,7 @@ public class MainActivity extends AppCompatActivity {
         executor.execute(() -> {
             android.graphics.Bitmap coverBitmap = null;
             try {
-                File coverDir = getExternalFilesDir("covers");
+                File coverDir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this);
                 if (coverDir != null) {
                     String coverName = Song.toFileName(title, artist != null ? artist : "") + ".jpg";
                     File coverFile = new File(coverDir, coverName);
@@ -1648,7 +1629,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (coverRotateAnimator != null) { coverRotateAnimator.cancel(); coverRotateAnimator = null; }
+        if (coverRotationHelper != null) { coverRotationHelper.release(); }
         if (tabBreathAnimator != null) { tabBreathAnimator.cancel(); tabBreathAnimator = null; }
         if (shimmerAnimator != null) { shimmerAnimator.cancel(); shimmerAnimator = null; }
         try {

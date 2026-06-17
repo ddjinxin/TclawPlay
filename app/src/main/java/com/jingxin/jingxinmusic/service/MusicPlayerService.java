@@ -139,34 +139,26 @@ public class MusicPlayerService extends Service {
 
     // ========== PendingIntent 工厂方法 ==========
 
-    private PendingIntent createPreviousAction() {
+    private PendingIntent createActionIntent(String action, int requestCode) {
         Intent intent = new Intent(this, MusicPlayerService.class);
-        intent.setAction("ACTION_PREVIOUS");
+        intent.setAction(action);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             flags |= PendingIntent.FLAG_IMMUTABLE;
         }
-        return PendingIntent.getService(this, 0, intent, flags);
+        return PendingIntent.getService(this, requestCode, intent, flags);
+    }
+
+    private PendingIntent createPreviousAction() {
+        return createActionIntent("ACTION_PREVIOUS", 0);
     }
 
     private PendingIntent createNextAction() {
-        Intent intent = new Intent(this, MusicPlayerService.class);
-        intent.setAction("ACTION_NEXT");
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-        return PendingIntent.getService(this, 1, intent, flags);
+        return createActionIntent("ACTION_NEXT", 1);
     }
 
     private PendingIntent createPlayPauseAction() {
-        Intent intent = new Intent(this, MusicPlayerService.class);
-        intent.setAction("ACTION_PLAY_PAUSE");
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-        return PendingIntent.getService(this, 2, intent, flags);
+        return createActionIntent("ACTION_PLAY_PAUSE", 2);
     }
 
     // ========== 广播接收器（通知按钮） ==========
@@ -791,7 +783,7 @@ public class MusicPlayerService extends Service {
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, currentSong.duration);
 
         String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(currentSong.title, currentSong.artist) + ".jpg";
-        File cacheCoverFile = new File(new File(getExternalFilesDir(null), "covers"), coverName);
+        File cacheCoverFile = new File(com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this), coverName);
         if (cacheCoverFile.exists() && cacheCoverFile.length() > 0) {
             // 优先用 MediaStore 公共 URI（其他应用可读）
             Uri publicUri = com.jingxin.jingxinmusic.model.Song.getCoverPublicUri(this, coverName);
@@ -917,14 +909,8 @@ public class MusicPlayerService extends Service {
     // ========== 通知 ==========
 
     private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "音乐播放",
-                    NotificationManager.IMPORTANCE_LOW);
-            channel.setDescription("显示当前播放歌曲信息");
-            notificationManager.createNotificationChannel(channel);
-        }
+        com.jingxin.jingxinmusic.util.NotificationHelper.createChannel(
+                this, CHANNEL_ID, "音乐播放", "显示当前播放歌曲信息");
     }
 
     private Notification buildNotification(String title, String text) {
@@ -1006,12 +992,12 @@ public class MusicPlayerService extends Service {
         intent.putExtra(EXTRA_SONG_INDEX, index);
         intent.putExtra(EXTRA_DURATION, song.duration);
         // B站专属字段
-        intent.putExtra("song_source_type", song.sourceType);
-        intent.putExtra("song_bvid", song.bvid != null ? song.bvid : "");
-        intent.putExtra("song_cid", song.cid);
-        intent.putExtra("song_audio_url", song.audioUrl != null ? song.audioUrl : "");
-        intent.putExtra("song_audio_url_expire", song.audioUrlExpire);
-        intent.putExtra("song_cover_url", song.coverUrl != null ? song.coverUrl : "");
+        intent.putExtra(Song.KEY_SOURCE_TYPE, song.sourceType);
+        intent.putExtra(Song.KEY_BVID, song.bvid != null ? song.bvid : "");
+        intent.putExtra(Song.KEY_CID, song.cid);
+        intent.putExtra(Song.KEY_AUDIO_URL, song.audioUrl != null ? song.audioUrl : "");
+        intent.putExtra(Song.KEY_AUDIO_URL_EXP, song.audioUrlExpire);
+        intent.putExtra(Song.KEY_COVER_URL, song.coverUrl != null ? song.coverUrl : "");
         if (exoPlayer != null) {
             intent.putExtra(EXTRA_AUDIO_SESSION_ID, exoPlayer.getAudioSessionId());
         }

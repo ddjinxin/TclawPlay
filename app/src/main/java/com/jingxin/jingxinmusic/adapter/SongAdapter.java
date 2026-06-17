@@ -66,8 +66,7 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     // ========== 封面文件工具 ==========
 
     private static File getCoverFile(Context ctx, Song song) {
-        File dir = ctx.getExternalFilesDir("covers");
-        if (dir != null) dir.mkdirs();
+        File dir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(ctx);
         String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(song.title, song.artist) + ".jpg";
         return new File(dir, coverName);
     }

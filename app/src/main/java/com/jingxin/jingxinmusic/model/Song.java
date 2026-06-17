@@ -21,6 +21,23 @@ import java.io.OutputStream;
 public class Song {
     private static final String TAG = "Song";
     private static final String COVER_FOLDER = "静心音乐";
+
+    // Intent / SharedPreferences 序列化 key（公开供跨类引用）
+    public static final String KEY_ID             = "song_id";
+    public static final String KEY_TITLE          = "song_title";
+    public static final String KEY_ARTIST         = "song_artist";
+    public static final String KEY_ALBUM          = "song_album";
+    public static final String KEY_DURATION       = "song_duration";
+    public static final String KEY_PATH           = "song_path";
+    public static final String KEY_URI            = "song_uri";
+    public static final String KEY_ALBUM_ART      = "album_art";
+    public static final String KEY_SOURCE_TYPE    = "song_source_type";
+    public static final String KEY_BVID           = "song_bvid";
+    public static final String KEY_CID            = "song_cid";
+    public static final String KEY_AUDIO_URL      = "song_audio_url";
+    public static final String KEY_AUDIO_URL_EXP  = "song_audio_url_expire";
+    public static final String KEY_COVER_URL      = "song_cover_url";
+    public static final String KEY_HAS_LAST       = "has_last";
     public long id;           // MediaStore 中的 ID
     public String title;      // 歌曲名
     public String artist;     // 歌手
@@ -121,8 +138,7 @@ public class Song {
      */
     public static Uri saveCoverToPublic(android.content.Context ctx, String fileName, Bitmap bitmap) {
         // 先保存到应用缓存目录
-        File cacheDir = new File(ctx.getExternalFilesDir(null), "covers");
-        if (!cacheDir.exists()) cacheDir.mkdirs();
+        File cacheDir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(ctx);
         File cacheFile = new File(cacheDir, fileName);
         try {
             java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile);
@@ -174,21 +190,21 @@ public class Song {
     public static Song fromIntent(Intent intent) {
         if (intent == null) return null;
         Song song = new Song();
-        song.id = intent.getLongExtra("song_id", 0);
-        song.title = intent.getStringExtra("song_title");
-        song.artist = intent.getStringExtra("song_artist");
-        song.album = intent.getStringExtra("song_album");
-        song.duration = intent.getLongExtra("song_duration", 0);
-        song.filePath = intent.getStringExtra("song_path");
-        song.contentUri = intent.getStringExtra("song_uri");
-        song.albumArt = intent.getStringExtra("album_art");
+        song.id = intent.getLongExtra(KEY_ID, 0);
+        song.title = intent.getStringExtra(KEY_TITLE);
+        song.artist = intent.getStringExtra(KEY_ARTIST);
+        song.album = intent.getStringExtra(KEY_ALBUM);
+        song.duration = intent.getLongExtra(KEY_DURATION, 0);
+        song.filePath = intent.getStringExtra(KEY_PATH);
+        song.contentUri = intent.getStringExtra(KEY_URI);
+        song.albumArt = intent.getStringExtra(KEY_ALBUM_ART);
         song.displayName = song.title;
-        song.sourceType = intent.getIntExtra("song_source_type", SOURCE_LOCAL);
-        song.bvid = intent.getStringExtra("song_bvid");
-        song.cid = intent.getLongExtra("song_cid", 0);
-        song.audioUrl = intent.getStringExtra("song_audio_url");
-        song.audioUrlExpire = intent.getLongExtra("song_audio_url_expire", 0);
-        song.coverUrl = intent.getStringExtra("song_cover_url");
+        song.sourceType = intent.getIntExtra(KEY_SOURCE_TYPE, SOURCE_LOCAL);
+        song.bvid = intent.getStringExtra(KEY_BVID);
+        song.cid = intent.getLongExtra(KEY_CID, 0);
+        song.audioUrl = intent.getStringExtra(KEY_AUDIO_URL);
+        song.audioUrlExpire = intent.getLongExtra(KEY_AUDIO_URL_EXP, 0);
+        song.coverUrl = intent.getStringExtra(KEY_COVER_URL);
         return song;
     }
 
@@ -198,20 +214,20 @@ public class Song {
      */
     public void saveToPrefs(SharedPreferences.Editor editor) {
         if (editor == null) return;
-        editor.putLong("song_id", id)
-                .putString("song_title", title != null ? title : "")
-                .putString("song_artist", artist != null ? artist : "")
-                .putString("song_album", album != null ? album : "")
-                .putLong("song_duration", duration)
-                .putString("song_path", filePath != null ? filePath : "")
-                .putString("song_uri", contentUri != null ? contentUri : "")
-                .putString("album_art", albumArt != null ? albumArt : "")
-                .putInt("song_source_type", sourceType)
-                .putString("song_bvid", bvid != null ? bvid : "")
-                .putLong("song_cid", cid)
-                .putString("song_audio_url", audioUrl != null ? audioUrl : "")
-                .putLong("song_audio_url_expire", audioUrlExpire)
-                .putString("song_cover_url", coverUrl != null ? coverUrl : "");
+        editor.putLong(KEY_ID, id)
+                .putString(KEY_TITLE, title != null ? title : "")
+                .putString(KEY_ARTIST, artist != null ? artist : "")
+                .putString(KEY_ALBUM, album != null ? album : "")
+                .putLong(KEY_DURATION, duration)
+                .putString(KEY_PATH, filePath != null ? filePath : "")
+                .putString(KEY_URI, contentUri != null ? contentUri : "")
+                .putString(KEY_ALBUM_ART, albumArt != null ? albumArt : "")
+                .putInt(KEY_SOURCE_TYPE, sourceType)
+                .putString(KEY_BVID, bvid != null ? bvid : "")
+                .putLong(KEY_CID, cid)
+                .putString(KEY_AUDIO_URL, audioUrl != null ? audioUrl : "")
+                .putLong(KEY_AUDIO_URL_EXP, audioUrlExpire)
+                .putString(KEY_COVER_URL, coverUrl != null ? coverUrl : "");
     }
 
     /**
@@ -219,25 +235,25 @@ public class Song {
      * @return Song 对象，如果没有数据则返回 null
      */
     public static Song fromPrefs(SharedPreferences prefs) {
-        if (prefs == null || !prefs.getBoolean("has_last", false)) return null;
-        String title = prefs.getString("song_title", "");
+        if (prefs == null || !prefs.getBoolean(KEY_HAS_LAST, false)) return null;
+        String title = prefs.getString(KEY_TITLE, "");
         if (title == null || title.isEmpty()) return null;
         Song song = new Song();
-        song.id = prefs.getLong("song_id", 0);
+        song.id = prefs.getLong(KEY_ID, 0);
         song.title = title;
-        song.artist = prefs.getString("song_artist", "");
-        song.album = prefs.getString("song_album", "");
-        song.duration = prefs.getLong("song_duration", 0);
-        song.filePath = prefs.getString("song_path", "");
-        song.contentUri = prefs.getString("song_uri", "");
-        song.albumArt = prefs.getString("album_art", "");
+        song.artist = prefs.getString(KEY_ARTIST, "");
+        song.album = prefs.getString(KEY_ALBUM, "");
+        song.duration = prefs.getLong(KEY_DURATION, 0);
+        song.filePath = prefs.getString(KEY_PATH, "");
+        song.contentUri = prefs.getString(KEY_URI, "");
+        song.albumArt = prefs.getString(KEY_ALBUM_ART, "");
         song.displayName = title;
-        song.sourceType = prefs.getInt("song_source_type", SOURCE_LOCAL);
-        song.bvid = prefs.getString("song_bvid", "");
-        song.cid = prefs.getLong("song_cid", 0);
-        song.audioUrl = prefs.getString("song_audio_url", "");
-        song.audioUrlExpire = prefs.getLong("song_audio_url_expire", 0);
-        song.coverUrl = prefs.getString("song_cover_url", "");
+        song.sourceType = prefs.getInt(KEY_SOURCE_TYPE, SOURCE_LOCAL);
+        song.bvid = prefs.getString(KEY_BVID, "");
+        song.cid = prefs.getLong(KEY_CID, 0);
+        song.audioUrl = prefs.getString(KEY_AUDIO_URL, "");
+        song.audioUrlExpire = prefs.getLong(KEY_AUDIO_URL_EXP, 0);
+        song.coverUrl = prefs.getString(KEY_COVER_URL, "");
         return song;
     }
 
@@ -246,20 +262,20 @@ public class Song {
      */
     public void toIntent(Intent intent) {
         if (intent == null) return;
-        intent.putExtra("song_id", id);
-        intent.putExtra("song_title", title);
-        intent.putExtra("song_artist", artist);
-        intent.putExtra("song_album", album);
-        intent.putExtra("song_duration", duration);
-        intent.putExtra("song_path", filePath != null ? filePath : "");
-        intent.putExtra("song_uri", contentUri != null ? contentUri : "");
-        intent.putExtra("album_art", albumArt != null ? albumArt : "");
-        intent.putExtra("song_source_type", sourceType);
-        intent.putExtra("song_bvid", bvid != null ? bvid : "");
-        intent.putExtra("song_cid", cid);
-        intent.putExtra("song_audio_url", audioUrl != null ? audioUrl : "");
-        intent.putExtra("song_audio_url_expire", audioUrlExpire);
-        intent.putExtra("song_cover_url", coverUrl != null ? coverUrl : "");
+        intent.putExtra(KEY_ID, id);
+        intent.putExtra(KEY_TITLE, title);
+        intent.putExtra(KEY_ARTIST, artist);
+        intent.putExtra(KEY_ALBUM, album);
+        intent.putExtra(KEY_DURATION, duration);
+        intent.putExtra(KEY_PATH, filePath != null ? filePath : "");
+        intent.putExtra(KEY_URI, contentUri != null ? contentUri : "");
+        intent.putExtra(KEY_ALBUM_ART, albumArt != null ? albumArt : "");
+        intent.putExtra(KEY_SOURCE_TYPE, sourceType);
+        intent.putExtra(KEY_BVID, bvid != null ? bvid : "");
+        intent.putExtra(KEY_CID, cid);
+        intent.putExtra(KEY_AUDIO_URL, audioUrl != null ? audioUrl : "");
+        intent.putExtra(KEY_AUDIO_URL_EXP, audioUrlExpire);
+        intent.putExtra(KEY_COVER_URL, coverUrl != null ? coverUrl : "");
     }
 
     /**

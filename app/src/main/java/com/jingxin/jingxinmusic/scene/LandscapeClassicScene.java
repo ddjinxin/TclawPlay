@@ -54,32 +54,8 @@ public class LandscapeClassicScene implements CoverScene {
 
     @Override
     public void layout(int width, int height) {
-        // info_panel 占左 65%
-        int infoWidth = (int) (width * 0.65f);
-        FrameLayout.LayoutParams infoParams =
-                (FrameLayout.LayoutParams) h.infoPanel.getLayoutParams();
-        infoParams.width = infoWidth;
-        infoParams.height = FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.gravity = Gravity.START;
-        h.infoPanel.setLayoutParams(infoParams);
-        if (h.infoPanel instanceof LinearLayout) {
-            ((LinearLayout) h.infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
-        }
-
-        // 歌名 topMargin = 52dp
-        LinearLayout.LayoutParams nameParams =
-                (LinearLayout.LayoutParams) h.tvSongName.getLayoutParams();
-        nameParams.topMargin = (int) (h.density * 52);
-        h.tvSongName.setLayoutParams(nameParams);
-        h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
-        h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
-
-        // 歌名歌手字号随歌词动态调整
-        float lyricCurrentSize = h.lyricView != null ? h.lyricView.getTextSizeCurrent() : 48f;
-        float songNameSize = Math.min(lyricCurrentSize * 1.1f, 36f);
-        float artistSize = Math.min(songNameSize * 0.7f, 28f);
-        h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
-        h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, artistSize);
+        // 横屏公共布局
+        h.layoutLandscapeBase(width);
 
         // 封面布局：右35%面板居中
         int rightPanelWidth = (int) (width * 0.35f);
@@ -136,6 +112,6 @@ public class LandscapeClassicScene implements CoverScene {
 
     @Override
     public float getSpectrumHeightRatio() {
-        return 0.08f;
+        return 0.10f;
     }
 }

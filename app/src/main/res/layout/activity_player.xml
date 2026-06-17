@@ -105,7 +105,7 @@
         <com.jingxin.jingxinmusic.view.SpectrumView
             android:id="@+id/spectrum_view"
             android:layout_width="match_parent"
-            android:layout_height="80dp"
+            android:layout_height="150dp"
             android:layout_marginBottom="16dp"
             android:layout_marginStart="24dp"
             android:layout_marginEnd="24dp" />
@@ -237,7 +237,7 @@
         android:layout_marginTop="32dp"
         android:background="@drawable/circle_cover_background" />
 
-    <!-- 返回按钮（左上角，最上层） -->
+    <!-- 返回按钮（左上角） -->
     <ImageView
         android:id="@+id/back_button"
         android:layout_width="36dp"
@@ -251,7 +251,20 @@
         android:focusable="true"
         android:background="?attr/selectableItemBackgroundBorderless" />
 
-    <!-- 主题切换按钮（右上角，最上层） -->
+    <!-- 皮肤/风格按钮（顶部居中，切换经典/沉浸模式） -->
+    <ImageView
+        android:id="@+id/outfit_button"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginTop="16dp"
+        android:layout_gravity="center_horizontal|top"
+        android:src="@drawable/ic_outfit"
+        android:padding="4dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?attr/selectableItemBackgroundBorderless" />
+
+    <!-- 主题切换按钮（右上角） -->
     <ImageView
         android:id="@+id/theme_button"
         android:layout_width="36dp"

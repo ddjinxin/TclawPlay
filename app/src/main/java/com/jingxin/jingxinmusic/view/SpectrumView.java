@@ -15,7 +15,7 @@ import android.view.View;
 
 /**
  * 频谱视图
- * 支持三种样式：竖条模式（128条）、圆点模式（64个）、波浪线模式（64点）
+ * 支持三种样式：竖条模式、圆点模式、波浪线模式
  * 点击切换样式
  */
 public class SpectrumView extends View {
@@ -23,18 +23,22 @@ public class SpectrumView extends View {
     private static final String TAG = "SpectrumView";
     
     // 频谱样式常量
-    private static final int STYLE_BAR = 0;   // 竖条模式
-    private static final int STYLE_DOT = 1;   // 圆点模式
-    private static final int STYLE_WAVE = 2;  // 波浪线模式
+    private static final int STYLE_BAR = 0;          // 竖条模式
+    private static final int STYLE_DOT = 1;          // 圆点模式
+    private static final int STYLE_WAVE = 2;         // 波浪线模式
     
-    // 竖条模式的频谱条数量
-    private static final int BAR_COUNT = 128;
+    // 竖条模式：每根柱目标占用像素（含间距），据此动态计算柱数
+    private static final float BAR_PIXELS_PER_BAR = 15f;
+    private static final int BAR_COUNT_MIN = 32;
+    private static final int BAR_COUNT_MAX = 256;
     
-    // 圆点/波浪线模式的分量数量
+    // 圆点/波浪线模式的分量数量（固定不变）
     private static final int DOT_COUNT = 64;
     
-    // 当前数据分量数量（根据样式切换）
-    private int currentCount = BAR_COUNT;
+    // 当前数据分量数量（根据样式和宽度动态变化）
+    private int currentCount = 128;
+    // 竖条模式当前柱数（仅在 STYLE_BAR 时使用）
+    private int barCount = 128;
     
     // 当前样式
     private int currentStyle = STYLE_BAR;
@@ -118,10 +122,10 @@ public class SpectrumView extends View {
      * 初始化
      */
     private void init() {
-        barHeights = new float[BAR_COUNT];
-        targetBarHeights = new float[BAR_COUNT];
-        peakHeights = new float[BAR_COUNT];
-        peakDecayTimers = new float[BAR_COUNT];
+        barHeights = new float[currentCount];
+        targetBarHeights = new float[currentCount];
+        peakHeights = new float[currentCount];
+        peakDecayTimers = new float[currentCount];
         
         // 竖条/圆点画笔
         barPaint = new Paint();
@@ -156,7 +160,11 @@ public class SpectrumView extends View {
                         // 重力衰减：高度越大下落越快，模拟物理重力效果
                         float fallSpeed = targetBarHeights[i] * 0.12f;
                         targetBarHeights[i] -= fallSpeed;
-                        float minVal = currentStyle == STYLE_BAR ? 4f : 6f;
+                        float minVal;
+                        switch (currentStyle) {
+                            case STYLE_BAR: minVal = 4f; break;
+                            default: minVal = 6f; break;
+                        }
                         if (targetBarHeights[i] < minVal) {
                             targetBarHeights[i] = minVal;
                         }
@@ -202,16 +210,11 @@ public class SpectrumView extends View {
             case STYLE_WAVE:
             default:
                 currentStyle = STYLE_BAR;
-                currentCount = BAR_COUNT;
-                Log.d(TAG, "切换到竖条模式");
+                currentCount = barCount;
+                Log.d(TAG, "切换到竖条模式，barCount=" + barCount);
                 break;
         }
-        float[] newHeights = new float[currentCount];
-        float[] newTargets = new float[currentCount];
-        peakHeights = new float[currentCount];
-        peakDecayTimers = new float[currentCount];
-        barHeights = newHeights;
-        targetBarHeights = newTargets;
+        rebuildArrays();
         requestLayout();
         postInvalidate();
     }
@@ -279,6 +282,19 @@ public class SpectrumView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        
+        // 竖条模式：根据宽度动态计算柱数
+        if (w > 0) {
+            int newBarCount = Math.max(BAR_COUNT_MIN, Math.min(BAR_COUNT_MAX, Math.round(w / BAR_PIXELS_PER_BAR)));
+            if (newBarCount != barCount) {
+                barCount = newBarCount;
+                if (currentStyle == STYLE_BAR) {
+                    currentCount = barCount;
+                    rebuildArrays();
+                }
+            }
+        }
+        
         float totalSpacing = barSpacing * (currentCount - 1);
         barWidth = (w - totalSpacing) / currentCount;
         // 更新波浪线填充渐变
@@ -347,7 +363,7 @@ public class SpectrumView extends View {
             }
             default: {
                 barPaint.setColor(staticColor);
-                for (int i = 0; i < BAR_COUNT; i++) {
+                for (int i = 0; i < currentCount; i++) {
                     float x = i * (barWidth + barSpacing);
                     canvas.drawRect(x, getHeight() - 8f, x + barWidth, getHeight(), barPaint);
                 }
@@ -361,9 +377,6 @@ public class SpectrumView extends View {
      */
     private void drawBars(Canvas canvas) {
         int[] colors = isNightMode ? nightGradientColors : gradientColors;
-        int peakColor = isNightMode ? Color.parseColor("#FFCA28") : Color.parseColor("#FFD54F");
-        peakPaint.setColor(peakColor);
-        float peakHeight = 3f; // 峰值帽高度（dp用像素近似）
         
         for (int i = 0; i < currentCount; i++) {
             barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
@@ -377,12 +390,6 @@ public class SpectrumView extends View {
             barPaint.setColor(interpolateColor(colors[0], colors[1], t));
             
             canvas.drawRoundRect(x, y, x + barWidth, getHeight(), 2f, 2f, barPaint);
-            
-            // 绘制峰值帽
-            float peakY = getHeight() - peakHeights[i];
-            if (peakHeights[i] > 6f) {
-                canvas.drawRect(x, peakY, x + barWidth, peakY + peakHeight, peakPaint);
-            }
         }
     }
     
@@ -564,36 +571,166 @@ public class SpectrumView extends View {
     }
 
     /**
+     * 重建频谱数组（柱数变化时调用）
+     */
+    private void rebuildArrays() {
+        barHeights = new float[currentCount];
+        targetBarHeights = new float[currentCount];
+        peakHeights = new float[currentCount];
+        peakDecayTimers = new float[currentCount];
+    }
+
+    /**
+     * 获取当前频谱柱数（供 PlayerActivity 的 FFT 合并逻辑使用）
+     */
+    public int getCurrentCount() {
+        return currentCount;
+    }
+
+    /**
+     * 获取竖条模式实际需要的 FFT 频段数
+     */
+    public int getBarInputCount() {
+        return currentCount;
+    }
+
+    /**
+     * 对称镜像：将半个数组的频段数据镜像展开为完整柱数
+     * 左半 = 原始倒序（高频→低频），右半 = 原始正序（低频→高频）
+     * 结果：低频在中间，高频在两端，形成对称山丘
+     */
+    private float[] mirrorData(float[] half) {
+        if (half == null || half.length == 0) return half;
+        int fullLen = half.length * 2;
+        float[] result = new float[fullLen];
+        // 左半：倒序排列
+        for (int i = 0; i < half.length; i++) {
+            result[i] = half[half.length - 1 - i];
+        }
+        // 右半：正序排列
+        for (int i = 0; i < half.length; i++) {
+            result[half.length + i] = half[i];
+        }
+        return result;
+    }
+
+    /**
      * 用 DFT 幅度数据更新频谱
-     * 对数映射：连续映射音频能量，保留节奏细节
+     * 竖条模式：BD 方式 — 非线性倒数归一化 + 高斯平滑
+     * 圆点/波浪线：保留原有对数映射
      */
     public void updateDTFMagnitudes(float[] magnitudes, float maxMag) {
         if (magnitudes == null || magnitudes.length == 0) return;
         
-        float maxHeight = getHeight() * 0.9f;
-        float logMax = (float) Math.log1p(maxMag > 0 ? maxMag : 1);
-        float centerIndex = (currentCount - 1) / 2f;
-        
-        for (int i = 0; i < currentCount && i < magnitudes.length; i++) {
-            // 对数连续映射：log(1 + mag) / log(1 + maxMag)
-            float normalized = (float) Math.log1p(magnitudes[i]) / logMax;
-            // 二次曲线微调：稍微拉伸低段、压低高段，视觉更舒适
-            normalized = normalized * (2f - normalized);
+        if (currentStyle == STYLE_BAR) {
+            // ========= BD visualize1 方式：非线性倒数归一化 =========
+            float maxHeight = getHeight() * 0.9f;
+            int offset = 3;  // 跳过前3个超低频频段（直流分量干扰）
             
-            // 钟形位置权重：中间1.0，两端0.3，形成中间高两边低的视觉效果
-            // 圆点模式自身已有对称权重，不再重复压低
-            float distFromCenter = Math.abs(i - centerIndex) / centerIndex;
-            float positionWeight = (currentStyle == STYLE_DOT) ? 1.0f : (1.0f - distFromCenter * 0.9f);
+            // 0. 跳过offset频段：左移数据，前offset根柱子用最小高度
+            int dataLen = Math.min(currentCount, magnitudes.length) - offset;
+            if (dataLen < 1) dataLen = 1;
+            float[] offsetData = new float[currentCount];
+            for (int i = 0; i < currentCount; i++) {
+                offsetData[i] = (i < offset) ? 0f : ((i - offset < magnitudes.length) ? magnitudes[i - offset] : 0f);
+            }
             
-            float height = normalized * maxHeight * positionWeight;
-            float minVal = currentStyle == STYLE_BAR ? 4f : 6f;
-            targetBarHeights[i] = Math.max(minVal, height);
+            // 1. 非线性倒数放大：小幅度放大、大幅度压缩，增强视觉差异
+            //    公式：val = (max/val) * h + val （阈值 20% * max）
+            float threshold = 0.2f * maxMag;
+            for (int i = 0; i < currentCount; i++) {
+                if (offsetData[i] != 0 && offsetData[i] >= threshold) {
+                    offsetData[i] = (maxMag / offsetData[i]) * maxHeight + offsetData[i];
+                }
+            }
+            
+            // 2. 缩放倍率（g=5.0）和上限（f=200.0）
+            float scale = 4.0f;
+            float cap = maxHeight;
+            for (int i = 0; i < currentCount; i++) {
+                float v = offsetData[i] * scale;
+                if (v > cap) v = cap;
+                offsetData[i] = v;
+            }
+            
+            // 3. 高斯平滑（sigma = 1.5 * 3 = 4.5 → kernelSize=9）
+            float sigma = 1.5f;
+            offsetData = gaussianSmooth(offsetData, sigma);
+            
+            // 4. 对称镜像：暂不启用
+            // magnitudes = mirrorData(magnitudes);
+            
+            // 5. 赋值给 targetBarHeights
+            float minVal = 4f;
+            for (int i = 0; i < currentCount; i++) {
+                targetBarHeights[i] = Math.max(minVal, offsetData[i]);
+            }
+        } else {
+            // ========= 原有方式：对数映射 + 钟形权重 =========
+            float maxHeight = getHeight() * 0.9f;
+            float logMax = (float) Math.log1p(maxMag > 0 ? maxMag : 1);
+            float centerIndex = (currentCount - 1) / 2f;
+            
+            for (int i = 0; i < currentCount && i < magnitudes.length; i++) {
+                float normalized = (float) Math.log1p(magnitudes[i]) / logMax;
+                normalized = normalized * (2f - normalized);
+                float distFromCenter = Math.abs(i - centerIndex) / centerIndex;
+                float positionWeight = (currentStyle == STYLE_DOT) ? 1.0f : (1.0f - distFromCenter * 0.9f);
+                float height = normalized * maxHeight * positionWeight;
+                float minVal = 6f;
+                targetBarHeights[i] = Math.max(minVal, height);
+            }
         }
         
         if (isPlaying && !animRunning) {
             startAnimation();
         }
         postInvalidate();
+    }
+    
+    /**
+     * 高斯平滑（参考 BD 的 DataManipulationUtil 实现）
+     * @param data 原始数据
+     * @param sigma 高斯核标准差
+     * @return 平滑后的数据
+     */
+    private float[] gaussianSmooth(float[] data, float sigma) {
+        if (data == null || data.length == 0) return data;
+        
+        int len = data.length;
+        float[] result = new float[len];
+        
+        // 构建高斯核：size = (int)(6 * sigma)，确保奇数
+        int kernelSize = (int) (6 * sigma);
+        if (kernelSize % 2 == 0) kernelSize++;
+        if (kernelSize < 3) kernelSize = 3;
+        int half = kernelSize / 2;
+        
+        // 计算高斯权重
+        double[] kernel = new double[kernelSize];
+        double sum = 0;
+        for (int i = -half; i <= half; i++) {
+            double w = Math.exp(-(i * i) / (2.0 * sigma * sigma));
+            kernel[i + half] = w;
+            sum += w;
+        }
+        // 归一化
+        for (int i = 0; i < kernelSize; i++) {
+            kernel[i] /= sum;
+        }
+        
+        // 卷积
+        for (int i = 0; i < len; i++) {
+            float v = 0;
+            for (int k = -half; k <= half; k++) {
+                int idx = i + k;
+                if (idx >= 0 && idx < len) {
+                    v += data[idx] * (float) kernel[k + half];
+                }
+            }
+            result[i] = v;
+        }
+        return result;
     }
     
     /**
@@ -605,7 +742,11 @@ public class SpectrumView extends View {
             startAnimation();
         } else {
             stopAnimation();
-            float minVal = currentStyle == STYLE_BAR ? 8f : 4f;
+            float minVal;
+            switch (currentStyle) {
+                case STYLE_BAR: minVal = 8f; break;
+                default: minVal = 4f; break;
+            }
             for (int i = 0; i < currentCount; i++) {
                 targetBarHeights[i] = minVal;
                 barHeights[i] = minVal;

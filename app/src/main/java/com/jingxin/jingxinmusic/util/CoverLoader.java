@@ -13,11 +13,14 @@ import java.util.concurrent.ExecutorService;
 
 /**
  * 封面三层加载器：内嵌封面 → 本地缓存 → 在线获取
- * 统一 PlayerActivity 和 MiniFloatService 的封面加载逻辑
+ * 统一 PlayerActivity、MiniFloatService、BrowseAdapter 的封面加载逻辑
  */
 public class CoverLoader {
 
     private static final String TAG = "CoverLoader";
+
+    /** 在线封面缓存降采样默认尺寸 */
+    public static final int COVER_DECODE_SIZE = 200;
 
     /**
      * 封面加载回调
@@ -27,6 +30,57 @@ public class CoverLoader {
         void onCoverLoaded(Bitmap bitmap);
         /** 所有来源均失败（在主线程回调） */
         void onCoverFailed();
+    }
+
+    /**
+     * 获取封面缓存目录
+     */
+    public static File getCoverDir(Context context) {
+        File dir = context.getExternalFilesDir("covers");
+        if (dir != null && !dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    /**
+     * 按歌曲名前缀匹配查找缓存封面（BrowseAdapter 目录封面使用）
+     * @param songName 歌曲名
+     * @return 匹配的封面 Bitmap，未找到返回 null
+     */
+    public static Bitmap findCachedCoverByName(Context context, String songName) {
+        if (songName == null) return null;
+        try {
+            File coversDir = getCoverDir(context);
+            if (coversDir != null && coversDir.isDirectory()) {
+                File[] coverFiles = coversDir.listFiles();
+                if (coverFiles != null) {
+                    String lowerName = songName.toLowerCase();
+                    for (File cf : coverFiles) {
+                        String cfName = cf.getName().replace(".jpg", "").toLowerCase();
+                        if (cfName.startsWith(lowerName) || lowerName.startsWith(cfName)) {
+                            Bitmap bmp = BitmapUtil.decodeSampledFromFile(cf.getAbsolutePath(), COVER_DECODE_SIZE, COVER_DECODE_SIZE);
+                            if (bmp != null) return bmp;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "缓存封面查找失败: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 从文件路径推导歌曲名，再按前缀匹配查找缓存封面
+     * @param filePath 音频文件路径
+     * @return 匹配的封面 Bitmap，未找到返回 null
+     */
+    public static Bitmap findCachedCoverByFilePath(Context context, String filePath) {
+        if (filePath == null) return null;
+        String fileName = filePath.substring(filePath.lastIndexOf('/') + 1);
+        String songName = fileName;
+        int dotIdx = fileName.lastIndexOf('.');
+        if (dotIdx > 0) songName = fileName.substring(0, dotIdx);
+        return findCachedCoverByName(context, songName);
     }
 
     /**

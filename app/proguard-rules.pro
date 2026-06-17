@@ -24,6 +24,15 @@
 # ThemeColors - 静态方法被多处调用
 -keep class com.jingxin.jingxinmusic.util.ThemeColors { *; }
 
+# ColorUtil - 静态方法被多处调用
+-keep class com.jingxin.jingxinmusic.util.ColorUtil { *; }
+
+# CoverRotationHelper - 公共方法被 Activity/Service 调用
+-keep class com.jingxin.jingxinmusic.util.CoverRotationHelper { *; }
+
+# NotificationHelper - 静态方法被 Service 调用
+-keep class com.jingxin.jingxinmusic.util.NotificationHelper { *; }
+
 # MiniFloatService - 动态构建视图，公共字段/方法不能混淆
 -keep class com.jingxin.jingxinmusic.service.MiniFloatService { *; }
 

@@ -82,7 +82,7 @@ public class MiniFloatService extends Service {
     private String currentLyricArtist = "";
 
     // 封面旋转动画
-    private android.animation.ObjectAnimator coverRotateAnimator;
+    private com.jingxin.jingxinmusic.util.CoverRotationHelper coverRotationHelper = new com.jingxin.jingxinmusic.util.CoverRotationHelper();
 
     // 进度更新
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
@@ -166,7 +166,7 @@ public class MiniFloatService extends Service {
     public void onDestroy() {
         super.onDestroy();
         uiHandler.removeCallbacks(progressRunnable);
-        if (coverRotateAnimator != null) coverRotateAnimator.cancel();
+        coverRotationHelper.release();
         if (bound) {
             unbindService(serviceConnection);
             bound = false;
@@ -186,14 +186,8 @@ public class MiniFloatService extends Service {
     // ========== 前台通知 ==========
 
     private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID, "悬浮播放窗", NotificationManager.IMPORTANCE_LOW);
-            channel.setDescription("悬浮迷你播放窗服务");
-            channel.setShowBadge(false);
-            NotificationManager nm = getSystemService(NotificationManager.class);
-            if (nm != null) nm.createNotificationChannel(channel);
-        }
+        com.jingxin.jingxinmusic.util.NotificationHelper.createChannel(
+                this, CHANNEL_ID, "悬浮播放窗", "悬浮迷你播放窗服务");
     }
 
     private Notification buildNotification() {
@@ -269,10 +263,7 @@ public class MiniFloatService extends Service {
         setCircularCover(BitmapFactory.decodeResource(getResources(), R.drawable.ic_music_icon));
 
         // 旋转动画
-        coverRotateAnimator = android.animation.ObjectAnimator.ofFloat(coverImage, View.ROTATION, 0f, 360f);
-        coverRotateAnimator.setDuration(12000);
-        coverRotateAnimator.setInterpolator(new android.view.animation.LinearInterpolator());
-        coverRotateAnimator.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
+        coverRotationHelper.attach(coverImage);
         // 先不启动，等数据加载后再判断
 
         coverWrap.addView(coverImage);
@@ -600,19 +591,7 @@ public class MiniFloatService extends Service {
     }
 
     private void updateCoverRotation(boolean playing) {
-        if (coverRotateAnimator == null) return;
-        if (playing) {
-            // 使用resume避免重新start导致角度重置为0度
-            if (coverRotateAnimator.isPaused()) {
-                coverRotateAnimator.resume();
-            } else if (!coverRotateAnimator.isRunning()) {
-                coverRotateAnimator.start();
-            }
-        } else {
-            if (coverRotateAnimator.isRunning()) {
-                coverRotateAnimator.pause();
-            }
-        }
+        coverRotationHelper.update(playing);
     }
 
     /**
@@ -713,7 +692,7 @@ public class MiniFloatService extends Service {
                     color = playedColor;
                 } else if (wordPlaying) {
                     float progress = (pos - word.startTime) / (float) word.duration;
-                    color = blendColor(playedColor, unplayedColor, progress);
+                    color = com.jingxin.jingxinmusic.util.ColorUtil.blendColor(playedColor, unplayedColor, progress);
                 } else {
                     color = unplayedColor;
                 }
@@ -725,13 +704,6 @@ public class MiniFloatService extends Service {
             // LRC 整行高亮
             tvLyric.setText(currentLine.text);
         }
-    }
-
-    private int blendColor(int c1, int c2, float progress) {
-        int r = (int) (android.graphics.Color.red(c1) * progress + android.graphics.Color.red(c2) * (1 - progress));
-        int g = (int) (android.graphics.Color.green(c1) * progress + android.graphics.Color.green(c2) * (1 - progress));
-        int b = (int) (android.graphics.Color.blue(c1) * progress + android.graphics.Color.blue(c2) * (1 - progress));
-        return android.graphics.Color.rgb(r, g, b);
     }
 
     /**

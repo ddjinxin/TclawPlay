@@ -234,13 +234,6 @@ public class LyricView extends View {
         return Color.argb(a, Color.red(color), Color.green(color), Color.blue(color));
     }
     
-    private int blendColor(int c1, int c2, float progress) {
-        int r = (int) (Color.red(c1) * progress + Color.red(c2) * (1 - progress));
-        int g = (int) (Color.green(c1) * progress + Color.green(c2) * (1 - progress));
-        int b = (int) (Color.blue(c1) * progress + Color.blue(c2) * (1 - progress));
-        return Color.rgb(r, g, b);
-    }
-    
     // ===== 查找当前行 =====
     
     private void findCurrentLine() {
@@ -344,7 +337,7 @@ public class LyricView extends View {
                     color = textColorPlayed;
                 } else if (wordPlaying) {
                     float progress = (currentPosition - word.startTime) / (float) word.duration;
-                    color = blendColor(textColorPlayed, effectiveUnplayedColor, progress);
+                    color = com.jingxin.jingxinmusic.util.ColorUtil.blendColor(textColorPlayed, effectiveUnplayedColor, progress);
                 } else {
                     color = effectiveUnplayedColor;
                 }
