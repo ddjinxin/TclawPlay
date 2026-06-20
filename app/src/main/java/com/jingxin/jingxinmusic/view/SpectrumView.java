@@ -29,6 +29,7 @@ public class SpectrumView extends View {
     private static final int STYLE_DOT = 1;          // 圆点模式
     private static final int STYLE_WAVE = 2;         // 波浪线模式
     private static final int STYLE_RING = 3;         // 圆环模式
+    private static final int STYLE_COLUMNAR = 4;     // ColumnarView柱状模式（原版）
     
     // 圆环子模式常量
     private static final int RING_COLUMNAR = 0;      // 柱状（放射白线）
@@ -45,6 +46,16 @@ public class SpectrumView extends View {
     
     // 圆环模式FFT请求数量（匹配原版SAMPLE_SIZE=256）
     private static final int RING_INPUT_COUNT = 256;
+    
+    // ColumnarView模式FFT请求数量（匹配原版SAMPLE_SIZE=256）
+    private static final int COLUMNAR_INPUT_COUNT = 256;
+    
+    // ColumnarView模式状态（严格匹配原版ColumnarView）
+    private Paint columnarPaint;                     // 渐变画笔
+    private float[] columnarBlockTop;                // 能量块top位置
+    private float columnarSpacing;                   // 柱子间距（1dp）
+    private float columnarBlockSpeed;                // 能量块下落速度（1dp/帧）
+    private float columnarDistance;                   // 能量块与柱顶间距（1dp）
     
     // 当前数据分量数量（根据样式和宽度动态变化）
     private int currentCount = 128;
@@ -184,6 +195,16 @@ public class SpectrumView extends View {
         ringPaint.setAntiAlias(true);
         ringPaint.setStyle(Paint.Style.FILL);
         
+        // ColumnarView画笔
+        columnarPaint = new Paint();
+        columnarPaint.setAntiAlias(true);
+        columnarPaint.setStyle(Paint.Style.FILL);
+        
+        // ColumnarView参数（严格匹配原版）
+        columnarSpacing = 1f * getResources().getDisplayMetrics().density; // 1dp
+        columnarBlockSpeed = 1f * getResources().getDisplayMetrics().density; // 1dp/帧
+        columnarDistance = 1f * getResources().getDisplayMetrics().density; // 1dp
+        
         barSpacing = 4f;
         
         animRunnable = new Runnable() {
@@ -198,6 +219,7 @@ public class SpectrumView extends View {
                         switch (currentStyle) {
                             case STYLE_BAR: minVal = 4f; break;
                             case STYLE_RING: minVal = 2f; break;
+                            case STYLE_COLUMNAR: minVal = 1f; break;
                             default: minVal = 6f; break;
                         }
                         if (targetBarHeights[i] < minVal) {
@@ -228,7 +250,7 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 切换频谱样式：竖条 → 圆点 → 波浪线 → 圆环 → 竖条
+     * 切换频谱样式：竖条 → 圆点 → 波浪线 → 圆环 → ColumnarView → 竖条
      */
     public void switchStyle() {
         switch (currentStyle) {
@@ -244,11 +266,17 @@ public class SpectrumView extends View {
                 break;
             case STYLE_WAVE:
                 currentStyle = STYLE_RING;
-                ringCount = RING_INPUT_COUNT - ringScope; // 原版: total = data.length - scope
+                ringCount = RING_INPUT_COUNT - ringScope;
                 currentCount = ringCount;
                 Log.d(TAG, "切换到圆环模式，ringCount=" + ringCount);
                 break;
             case STYLE_RING:
+                currentStyle = STYLE_COLUMNAR;
+                currentCount = COLUMNAR_INPUT_COUNT;
+                columnarBlockTop = null; // 重置能量块
+                Log.d(TAG, "切换到ColumnarView模式");
+                break;
+            case STYLE_COLUMNAR:
             default:
                 currentStyle = STYLE_BAR;
                 currentCount = barCount;
@@ -403,6 +431,11 @@ public class SpectrumView extends View {
         int[] colors = isNightMode ? nightGradientColors : gradientColors;
         waveFillPaint.setShader(new LinearGradient(0, 0, 0, h, colors[0], colors[1], Shader.TileMode.CLAMP));
         waveStrokePaint.setColor(colors[0]);
+        
+        // ColumnarView渐变：红→绿→蓝 对角线（匹配原版）
+        columnarPaint.setShader(new LinearGradient(0f, 0f, w, h,
+                new int[]{0xFFFF0000, 0xFF00FF00, 0xFF0000FF},
+                new float[]{0, 0.5f, 1f}, Shader.TileMode.CLAMP));
     }
     
     @Override
@@ -423,6 +456,9 @@ public class SpectrumView extends View {
                 break;
             case STYLE_RING:
                 drawRing(canvas);
+                break;
+            case STYLE_COLUMNAR:
+                drawColumnar(canvas);
                 break;
             default:
                 drawBars(canvas);
@@ -476,6 +512,21 @@ public class SpectrumView extends View {
                 ringPaint.setStrokeWidth(1f);
                 canvas.drawCircle(cx, cy, radius, ringPaint);
                 ringPaint.setStyle(Paint.Style.FILL);
+                break;
+            }
+            case STYLE_COLUMNAR: {
+                // ColumnarView静态：底部小矩形条（实时计算柱宽）
+                columnarPaint.setColor(Color.argb(80, 255, 0, 0));
+                float colTotalSpacing = (currentCount - 1) * columnarSpacing;
+                float colW = (getWidth() - colTotalSpacing) / currentCount;
+                if (colW < 1f) colW = 1f;
+                float colBlockH = colW / 2f;
+                float colTotalW = currentCount * colW + (currentCount - 1) * columnarSpacing;
+                float colCompensate = (getWidth() - colTotalW) / 2f;
+                for (int i = 0; i < currentCount; i++) {
+                    float x = colCompensate + i * (colW + columnarSpacing);
+                    canvas.drawRect(x, getHeight() - colBlockH, x + colW, getHeight(), columnarPaint);
+                }
                 break;
             }
             default: {
@@ -639,6 +690,76 @@ public class SpectrumView extends View {
                     canvas.drawCircle(pointsX[i], peakY, 2f, peakPaint);
                 }
             }
+        }
+    }
+    
+    /**
+     * 绘制ColumnarView频谱（严格匹配原版ColumnarView）
+     * 特征：256根细柱 + 下落式峰值能量块 + 红绿蓝对角线渐变
+     */
+    private void drawColumnar(Canvas canvas) {
+        float viewWidth = getWidth();
+        float viewHeight = getHeight();
+        float minBarPx = getResources().getDisplayMetrics().density; // 1dp最小柱高
+        
+        // 实时计算柱宽和居中补偿（防止切换模式时onSizeChanged未触发）
+        float totalSpacing = (currentCount - 1) * columnarSpacing;
+        float colWidth = (viewWidth - totalSpacing) / currentCount;
+        if (colWidth < 1f) colWidth = 1f;
+        float blockHeight = colWidth / 2f;
+        float totalWidth = currentCount * colWidth + (currentCount - 1) * columnarSpacing;
+        float compensate = (viewWidth - totalWidth) / 2f;
+        
+        // 初始化能量块数组
+        if (columnarBlockTop == null || columnarBlockTop.length != currentCount) {
+            columnarBlockTop = new float[currentCount];
+            for (int i = 0; i < currentCount; i++) {
+                columnarBlockTop[i] = viewHeight - blockHeight;
+            }
+        }
+        
+        // 更新柱高平滑
+        for (int i = 0; i < currentCount; i++) {
+            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
+        }
+        
+        // 找出当前帧最大高度，用于按比例缩放
+        float lagerOffsetRate = 3.0f;
+        float maxBarHeight = 0f;
+        for (int i = 0; i < currentCount; i++) {
+            float h = barHeights[i] * (1.0f + lagerOffsetRate);
+            if (h > maxBarHeight) maxBarHeight = h;
+        }
+        
+        // 缩放因子：如果最大柱高超过频谱区域，按比例压缩
+        float scale = 1.0f;
+        if (maxBarHeight > viewHeight) {
+            scale = (viewHeight - minBarPx) / maxBarHeight;
+        }
+        
+        for (int i = 0; i < currentCount; i++) {
+            float x = compensate + i * (colWidth + columnarSpacing);
+            
+            float barTop = viewHeight - barHeights[i] * (1.0f + lagerOffsetRate) * scale;
+            if (barTop < minBarPx) barTop = minBarPx;
+            barTop = Math.min(barTop, viewHeight - minBarPx);
+            
+            canvas.drawRect(x, barTop, x + colWidth, viewHeight, columnarPaint);
+            
+            // 更新能量块（峰值帽）
+            if (barTop > 0 && barTop < columnarBlockTop[i]) {
+                columnarBlockTop[i] = barTop - blockHeight - columnarDistance;
+            } else {
+                columnarBlockTop[i] = columnarBlockTop[i] + columnarBlockSpeed;
+            }
+            float blockTop = columnarBlockTop[i];
+            float blockBottom = blockTop + blockHeight;
+            if (blockBottom > viewHeight) {
+                blockBottom = viewHeight;
+                blockTop = viewHeight - blockHeight;
+            }
+            
+            canvas.drawRect(x, blockTop, x + colWidth, blockBottom, columnarPaint);
         }
     }
     
@@ -882,6 +1003,9 @@ public class SpectrumView extends View {
         if (currentStyle == STYLE_RING) {
             return RING_INPUT_COUNT;
         }
+        if (currentStyle == STYLE_COLUMNAR) {
+            return COLUMNAR_INPUT_COUNT;
+        }
         return currentCount;
     }
 
@@ -973,6 +1097,13 @@ public class SpectrumView extends View {
                 for (int i = 0; i < currentCount && i < magnitudes.length; i++) {
                     targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
                 }
+            } else if (currentStyle == STYLE_COLUMNAR) {
+                // 原版 ColumnarView: 直传，data[i] * (1 + 3.0) 作为柱高
+                int count = Math.min(currentCount, magnitudes.length);
+                float minVal = 1f;
+                for (int i = 0; i < count; i++) {
+                    targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
+                }
             } else {
                 // 圆点/波浪线模式：对数映射
                 float maxHeight = getHeight() * 0.9f;
@@ -1060,6 +1191,7 @@ public class SpectrumView extends View {
             switch (currentStyle) {
                 case STYLE_BAR: minVal = 8f; break;
                 case STYLE_RING: minVal = 2f; break;
+                case STYLE_COLUMNAR: minVal = 1f; break;
                 default: minVal = 4f; break;
             }
             for (int i = 0; i < currentCount; i++) {
