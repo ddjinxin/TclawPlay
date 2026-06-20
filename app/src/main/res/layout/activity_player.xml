@@ -237,45 +237,62 @@
         android:layout_marginTop="32dp"
         android:background="@drawable/circle_cover_background" />
 
-    <!-- 返回按钮（左上角） -->
-    <ImageView
-        android:id="@+id/back_button"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
+    <!-- 顶部按钮栏：4个按钮均匀分布 -->
+    <LinearLayout
+        android:id="@+id/top_buttons_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
         android:layout_marginTop="16dp"
-        android:layout_marginStart="16dp"
-        android:layout_gravity="start|top"
-        android:src="@drawable/ic_back"
-        android:padding="6dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackgroundBorderless" />
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-    <!-- 皮肤/风格按钮（顶部居中，切换经典/沉浸模式） -->
-    <ImageView
-        android:id="@+id/outfit_button"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginTop="16dp"
-        android:layout_gravity="center_horizontal|top"
-        android:src="@drawable/ic_outfit"
-        android:padding="4dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackgroundBorderless" />
+        <ImageView
+            android:id="@+id/back_button"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_back"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
 
-    <!-- 主题切换按钮（右上角） -->
-    <ImageView
-        android:id="@+id/theme_button"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_gravity="end|top"
-        android:src="@drawable/ic_theme"
-        android:padding="4dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackgroundBorderless" />
+        <ImageView
+            android:id="@+id/spectrum_button"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_spectrum"
+            android:padding="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <ImageView
+            android:id="@+id/outfit_button"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_outfit"
+            android:padding="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <ImageView
+            android:id="@+id/theme_button"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_theme"
+            android:padding="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+    </LinearLayout>
 
 </FrameLayout>

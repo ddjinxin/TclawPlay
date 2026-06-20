@@ -62,6 +62,8 @@ public class PortraitImmersiveScene implements CoverScene {
 
     @Override
     public void layout(int width, int height) {
+        // 顶部/底部按钮间距按可用高度比例
+        h.applyButtonMargins(height);
         // info_panel 全宽
         FrameLayout.LayoutParams infoParams =
                 (FrameLayout.LayoutParams) h.infoPanel.getLayoutParams();
@@ -77,10 +79,10 @@ public class PortraitImmersiveScene implements CoverScene {
         // 歌名歌手位置
         h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
-        // 歌名与当前歌词同字号
-        float lyricCurrentSize = h.lyricView != null ? h.lyricView.getTextSizeCurrent() : 48f;
-        h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, lyricCurrentSize);
-        h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, lyricCurrentSize * 0.7f);
+        // 歌名字号：基于竖屏宽度独立计算，避免横屏→竖屏切换时LyricView尚未resize导致字号错误
+        float songNameSize = Math.max(32f, Math.min(60f, width * 0.048f));
+        h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
+        h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
         // 歌名推到遮罩区（43% 高度）
         boolean isFull = h.lyricView != null &&
                 h.lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL;

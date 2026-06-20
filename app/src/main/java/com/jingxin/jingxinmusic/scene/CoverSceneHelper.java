@@ -49,6 +49,12 @@ public class CoverSceneHelper {
     public final View whiteOverlay;
     public final View immersiveDarkOverlay;
     public final ImmersiveOverlayView immersiveOverlay;
+    public final ImageView btnBack;
+    public final ImageView btnSpectrum;
+    public final ImageView btnOutfit;
+    public final ImageView btnTheme;
+    public final View topButtonsBar;
+    public final View controlButtons;
 
     // --- 可变状态 ---
     public boolean isNightMode;
@@ -91,6 +97,12 @@ public class CoverSceneHelper {
             View whiteOverlay,
             View immersiveDarkOverlay,
             ImmersiveOverlayView immersiveOverlay,
+            ImageView btnBack,
+            ImageView btnSpectrum,
+            ImageView btnOutfit,
+            ImageView btnTheme,
+            View topButtonsBar,
+            View controlButtons,
             float density) {
         this.rootLayout = rootLayout;
         this.blurBackground = blurBackground;
@@ -112,10 +124,39 @@ public class CoverSceneHelper {
         this.whiteOverlay = whiteOverlay;
         this.immersiveDarkOverlay = immersiveDarkOverlay;
         this.immersiveOverlay = immersiveOverlay;
+        this.btnBack = btnBack;
+        this.btnSpectrum = btnSpectrum;
+        this.btnOutfit = btnOutfit;
+        this.btnTheme = btnTheme;
+        this.topButtonsBar = topButtonsBar;
+        this.controlButtons = controlButtons;
         this.density = density;
     }
 
     // ========== 通用工具方法 ==========
+
+    /**
+     * 根据可用高度按比例设置顶部和底部按钮间距
+     * 顶部 marginTop = height × 4%，底部 marginBottom = height × 6%
+     */
+    public void applyButtonMargins(int height) {
+        int topMargin = Math.max(4, (int) (height * 0.01f));
+        int bottomMargin = Math.max(8, (int) (height * 0.01f));
+
+        // 顶部按钮栏
+        if (topButtonsBar != null) {
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) topButtonsBar.getLayoutParams();
+            params.topMargin = topMargin;
+            topButtonsBar.setLayoutParams(params);
+        }
+
+        // 底部按钮容器
+        if (controlButtons != null) {
+            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) controlButtons.getLayoutParams();
+            params.bottomMargin = bottomMargin;
+            controlButtons.setLayoutParams(params);
+        }
+    }
 
     /**
      * 获取根 FrameLayout 的实际宽度
@@ -227,9 +268,8 @@ public class CoverSceneHelper {
         tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
 
-        // 歌名与当前歌词同字号，歌手为歌名的0.7倍
-        float lyricCurrentSize = lyricView != null ? lyricView.getTextSizeCurrent() : 48f;
-        float songNameSize = lyricCurrentSize;
+        // 歌名字号：基于横屏信息区宽度独立计算，避免竖屏→横屏切换时LyricView尚未resize导致字号错误
+        float songNameSize = Math.max(32f, Math.min(60f, infoWidth * 0.048f));
         float artistSize = songNameSize * 0.7f;
         tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, artistSize);

@@ -87,9 +87,9 @@ public class PlayerActivity extends AppCompatActivity {
     private LyricView lyricView;
     private SpectrumView spectrumView;
     
-    // 双击歌词恢复频谱
-    private long lastLyricClickTime = 0;
     private static final int DOUBLE_CLICK_INTERVAL = 300;
+    // 频谱按钮双击检测
+    private long lastSpectrumBtnClickTime = 0;
     private SeekBar seekBar;
     private TextView tvCurrentTime;
     private TextView tvTotalTime;
@@ -101,6 +101,7 @@ public class PlayerActivity extends AppCompatActivity {
     private ImageView btnPlayOrder;
     private ImageView btnTheme;
     private ImageView btnBack;
+    private ImageView btnSpectrum;
     private ImageView btnOutfit;
     private View overlayView;
     private View whiteOverlay;
@@ -350,6 +351,7 @@ public class PlayerActivity extends AppCompatActivity {
         btnPlayOrder = findViewById(R.id.play_order_button);
         btnTheme = findViewById(R.id.theme_button);
         btnBack = findViewById(R.id.back_button);
+        btnSpectrum = findViewById(R.id.spectrum_button);
         btnOutfit = findViewById(R.id.outfit_button);
         overlayView = findViewById(R.id.overlay_view);
         whiteOverlay = findViewById(R.id.white_overlay);
@@ -479,39 +481,48 @@ public class PlayerActivity extends AppCompatActivity {
         btnFavorite.setOnClickListener(v -> toggleFavorite());
         btnPlayOrder.setOnClickListener(v -> togglePlayOrder());
 
-        // 歌词区域：单击切换模式，频谱隐藏时双击恢复
+        // 歌词区域：单击切换模式
         lyricView.setOnClickListener(v -> {
-            if (spectrumView.getVisibility() == View.GONE) {
-                // 频谱隐藏状态下，双击恢复，单击也恢复（方便操作）
-                long now = System.currentTimeMillis();
-                if (now - lastLyricClickTime < DOUBLE_CLICK_INTERVAL) {
-                    spectrumView.setVisibility(View.VISIBLE);
-                    lastLyricClickTime = 0;
+            if (isImmersiveMode) {
+                // 沉浸模式：只在双行和多行之间切换，不进入全屏
+                com.jingxin.jingxinmusic.view.LyricView.DisplayMode cur = lyricView.getDisplayMode();
+                com.jingxin.jingxinmusic.view.LyricView.DisplayMode newMode;
+                if (cur == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE) {
+                    newMode = com.jingxin.jingxinmusic.view.LyricView.DisplayMode.MULTI_LINE;
                 } else {
-                    lastLyricClickTime = now;
+                    newMode = com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE;
                 }
+                lyricView.setDisplayMode(newMode);
+                updateLayoutForMode(newMode);
             } else {
-                // 频谱可见状态下，正常单击切换模式
-                if (isImmersiveMode) {
-                    // 沉浸模式：只在双行和多行之间切换，不进入全屏
-                    com.jingxin.jingxinmusic.view.LyricView.DisplayMode cur = lyricView.getDisplayMode();
-                    com.jingxin.jingxinmusic.view.LyricView.DisplayMode newMode;
-                    if (cur == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE) {
-                        newMode = com.jingxin.jingxinmusic.view.LyricView.DisplayMode.MULTI_LINE;
-                    } else {
-                        newMode = com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE;
-                    }
-                    lyricView.setDisplayMode(newMode);
-                    updateLayoutForMode(newMode);
-                } else {
-                    com.jingxin.jingxinmusic.view.LyricView.DisplayMode newMode = lyricView.toggleMode();
-                    updateLayoutForMode(newMode);
-                }
+                com.jingxin.jingxinmusic.view.LyricView.DisplayMode newMode = lyricView.toggleMode();
+                updateLayoutForMode(newMode);
             }
         });
         lyricView.setOnModeChangeListener(newMode -> updateLayoutForMode(newMode));
         btnTheme.setOnClickListener(v -> toggleTheme());
         btnOutfit.setOnClickListener(v -> toggleImmersiveMode());
+        btnSpectrum.setOnClickListener(v -> {
+            long now = System.currentTimeMillis();
+            if (now - lastSpectrumBtnClickTime < DOUBLE_CLICK_INTERVAL) {
+                // 双击：关闭/显示频谱
+                if (spectrumView.isSpectrumVisible()) {
+                    spectrumView.toggleVisibility();
+                } else {
+                    spectrumView.toggleVisibility();
+                }
+                lastSpectrumBtnClickTime = 0;
+            } else {
+                // 单击：切换频谱样式
+                if (spectrumView.isSpectrumVisible()) {
+                    spectrumView.switchStyle();
+                } else {
+                    // 频谱关闭时单击恢复显示
+                    spectrumView.toggleVisibility();
+                }
+                lastSpectrumBtnClickTime = now;
+            }
+        });
         btnBack.setOnClickListener(v -> {
             Log.d(TAG, "Back button clicked, isFinishing=" + isFinishing());
             stopSpectrum();
@@ -786,6 +797,9 @@ public class PlayerActivity extends AppCompatActivity {
                 btnPlayPause, btnPrevious, btnNext, btnFavorite,
                 infoPanel, coverPlaceholder, overlayView, whiteOverlay,
                 immersiveDarkOverlay, immersiveOverlay,
+                btnBack, btnSpectrum, btnOutfit, btnTheme,
+                findViewById(R.id.top_buttons_bar),
+                findViewById(R.id.control_buttons),
                 getResources().getDisplayMetrics().density);
         sceneHelper.callback = new CoverSceneHelper.Callback() {
             @Override public void loadCover() { PlayerActivity.this.loadCover(); }
@@ -1259,7 +1273,7 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void applyButtonTheme(boolean isNight) {
         ImageView[] buttons = {btnPlayPause, btnPrevious, btnNext,
-                btnHistory, btnPlayOrder, btnTheme, btnBack, btnOutfit};
+                btnHistory, btnPlayOrder, btnTheme, btnBack, btnSpectrum, btnOutfit};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
             // 收藏按钮：已收藏用红色，未收藏清除滤镜

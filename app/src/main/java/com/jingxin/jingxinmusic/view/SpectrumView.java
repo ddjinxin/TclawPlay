@@ -195,7 +195,7 @@ public class SpectrumView extends View {
     /**
      * 切换频谱样式：竖条 → 圆点 → 波浪线 → 竖条
      */
-    private void switchStyle() {
+    public void switchStyle() {
         switch (currentStyle) {
             case STYLE_BAR:
                 currentStyle = STYLE_DOT;
@@ -222,35 +222,26 @@ public class SpectrumView extends View {
     // 是否显示频谱
     private boolean visible = true;
     
-    // 双击检测
-    private long lastClickTime = 0;
-    private static final int DOUBLE_CLICK_INTERVAL = 300; // 300ms 内两次点击视为双击
-    
     @Override
-    public boolean performClick() {
-        super.performClick();
-        
-        long now = System.currentTimeMillis();
-        if (now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
-            // 双击：切换频谱显隐
-            visible = !visible;
-            setVisibility(visible ? VISIBLE : GONE);
-            Log.d(TAG, "双击：频谱" + (visible ? "显示" : "隐藏"));
-            lastClickTime = 0; // 重置，避免三击触发
-        } else {
-            // 单击：切换样式
-            switchStyle();
-            lastClickTime = now;
-        }
-        return true;
+    public void setVisibility(int visibility) {
+        super.setVisibility(visibility);
+        visible = (visibility == VISIBLE);
     }
     
-    @Override
-    public boolean onTouchEvent(android.view.MotionEvent event) {
-        if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
-            performClick();
-        }
-        return true;
+    /**
+     * 切换频谱显隐（供外部按钮调用）
+     */
+    public void toggleVisibility() {
+        visible = !visible;
+        super.setVisibility(visible ? VISIBLE : GONE);
+        Log.d(TAG, "频谱" + (visible ? "显示" : "隐藏"));
+    }
+    
+    /**
+     * 频谱是否可见
+     */
+    public boolean isSpectrumVisible() {
+        return visible;
     }
     
     /**

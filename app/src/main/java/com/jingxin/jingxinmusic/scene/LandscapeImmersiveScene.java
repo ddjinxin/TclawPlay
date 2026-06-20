@@ -70,6 +70,8 @@ public class LandscapeImmersiveScene implements CoverScene {
 
     @Override
     public void layout(int width, int height) {
+        // 顶部/底部按钮间距按可用高度比例
+        h.applyButtonMargins(height);
         // 横屏公共布局
         h.layoutLandscapeBase(width);
 
