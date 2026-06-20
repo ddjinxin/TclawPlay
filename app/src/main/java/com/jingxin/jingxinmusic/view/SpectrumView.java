@@ -6,8 +6,9 @@ import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Shader;
-import android.os.Handler;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.Shader;import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -30,6 +31,9 @@ public class SpectrumView extends View {
     private static final int STYLE_WAVE = 2;         // 波浪线模式
     private static final int STYLE_RING = 3;         // 圆环模式
     private static final int STYLE_COLUMNAR = 4;     // ColumnarView柱状模式（原版）
+    private static final int STYLE_KUGOU = 5;       // KugouColumn酷狗风格柱状模式（原版）
+    private static final int STYLE_AIVOICE = 6;     // AiVoiceView AI语音模式（原版）
+    private static final int STYLE_WAVECOLUMN = 7;  // WaveColumnformView 波形柱模式（原版）
     
     // 圆环子模式常量
     private static final int RING_COLUMNAR = 0;      // 柱状（放射白线）
@@ -47,8 +51,48 @@ public class SpectrumView extends View {
     // 圆环模式FFT请求数量（匹配原版SAMPLE_SIZE=256）
     private static final int RING_INPUT_COUNT = 256;
     
-    // ColumnarView模式FFT请求数量（匹配原版SAMPLE_SIZE=256）
-    private static final int COLUMNAR_INPUT_COUNT = 256;
+    // ColumnarView模式柱数（横屏128，竖屏64）
+    private static final int COLUMNAR_COUNT_LANDSCAPE = 128;
+    private static final int COLUMNAR_COUNT_PORTRAIT = 64;
+    private int columnarCount = COLUMNAR_COUNT_PORTRAIT;
+    
+    // KugouColumn模式柱数
+    private static final int KUGOU_COUNT = 128;
+    
+    // AiVoiceView模式FFT数据量
+    private static final int AIVOICE_INPUT_COUNT = 256;
+    
+    // WaveColumnformView模式FFT数据量（横屏128，竖屏64）
+    private static final int WAVECOLUMN_COUNT_LANDSCAPE = 128;
+    private static final int WAVECOLUMN_COUNT_PORTRAIT = 64;
+    private int waveColumnCount = WAVECOLUMN_COUNT_PORTRAIT;
+    
+    // KugouColumn模式状态（严格匹配原版KugouColumn）
+    private Paint kugouPaint;
+    private float[] kugouBlockTop;              // 能量块top位置
+    private float kugouSpacing;                 // 柱子间距（1dp）
+    private float kugouBlockSpeed;              // 能量块下落速度（3dp/帧）
+    private float kugouDistance;                 // 能量块与柱顶间距（1dp）
+    private float kugouLagerOffsetRate = 35f;   // 放大倍率
+    private LinearGradient kugouGradient1;       // 偶数组渐变（右→左，半透明暖色）
+    private LinearGradient kugouGradient2;       // 奇数组渐变（左→右，渐显暖色）
+    
+    // AiVoiceView模式状态（严格匹配原版AiVoiceView）
+    private Paint aiVoicePaint;
+    private Path[] aiVoicePaths;
+    private int[] aiVoiceColors;    // 3条曲线颜色
+    private float[] aiVoiceStart;   // 3条曲线起始位置比例
+    private float[] aiVoiceEnd;     // 3条曲线结束位置比例
+    
+    // WaveColumnformView模式状态（严格匹配原版WaveColumnformView）
+    private Paint waveColumnPaint;
+    private int waveColumnMainColor;        // 主色调 #F53F3F
+    private int waveColumnSpacingOffset;    // 间距偏移（默认0）
+    private int waveColumnCenterHolder;     // 中心保持距离（默认20）
+    private static final int WAVECOLUMN_LAGER_OFFSET = 10; // 放大量（匹配原版LAGER_OFFSET）
+    private static final int WAVECOLUMN_RECT_WIDTH = 10;   // 圆角矩形宽度（用户指定10px）
+    private static final float WAVECOLUMN_ROUND_RX = 10f;  // 圆角x半径
+    private static final float WAVECOLUMN_ROUND_RY = 10f;  // 圆角y半径
     
     // ColumnarView模式状态（严格匹配原版ColumnarView）
     private Paint columnarPaint;                     // 渐变画笔
@@ -205,6 +249,41 @@ public class SpectrumView extends View {
         columnarBlockSpeed = 1f * getResources().getDisplayMetrics().density; // 1dp/帧
         columnarDistance = 1f * getResources().getDisplayMetrics().density; // 1dp
         
+        // KugouColumn画笔
+        kugouPaint = new Paint();
+        kugouPaint.setAntiAlias(true);
+        
+        // KugouColumn参数（严格匹配原版）
+        kugouSpacing = 1f * getResources().getDisplayMetrics().density; // 1dp
+        kugouBlockSpeed = 3f * getResources().getDisplayMetrics().density; // 3dp/帧（原版dp2px(3)）
+        kugouDistance = 1f * getResources().getDisplayMetrics().density; // 1dp
+        
+        // AiVoiceView画笔和路径（严格匹配原版：LAYER_TYPE_SOFTWARE + LIGHTEN混合）
+        aiVoicePaint = new Paint();
+        aiVoicePaint.setAntiAlias(true);
+        aiVoicePaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.LIGHTEN));
+        aiVoicePaths = new Path[3];
+        // AiVoice 3条曲线颜色（原版AppConstant: ALPHA=255, RED=255, GREEN=255, BLUE=255）
+        aiVoiceColors = new int[]{
+            Color.argb(255, 255, 0, 0),    // red
+            Color.argb(255, 0, 255, 0),    // green
+            Color.argb(255, 0, 0, 255)     // blue
+        };
+        aiVoiceStart = new float[]{0f, 0.1f, 0.2f};
+        aiVoiceEnd = new float[]{0.8f, 0.9f, 1.0f};
+        for (int i = 0; i < 3; i++) {
+            aiVoicePaths[i] = new Path();
+        }
+        
+        // WaveColumnformView画笔和参数（严格匹配原版）
+        waveColumnPaint = new Paint();
+        waveColumnPaint.setAntiAlias(true);
+        waveColumnPaint.setStyle(Paint.Style.FILL);
+        waveColumnPaint.setStrokeWidth(3f); // 原版setWaveData中设置
+        waveColumnMainColor = Color.parseColor("#F53F3F"); // 原版默认主色调
+        waveColumnSpacingOffset = 0;
+        waveColumnCenterHolder = 20;
+        
         barSpacing = 4f;
         
         animRunnable = new Runnable() {
@@ -212,33 +291,42 @@ public class SpectrumView extends View {
             public void run() {
                 if (isPlaying && animRunning) {
                     for (int i = 0; i < currentCount; i++) {
-                        // 重力衰减：高度越大下落越快，模拟物理重力效果
-                        float fallSpeed = targetBarHeights[i] * 0.12f;
-                        targetBarHeights[i] -= fallSpeed;
+                        // AiVoice不需要重力衰减，数据由updateDTFMagnitudes直接更新
+                        if (currentStyle != STYLE_AIVOICE) {
+                            // 重力衰减：高度越大下落越快，模拟物理重力效果
+                            float fallSpeed = targetBarHeights[i] * 0.12f;
+                            targetBarHeights[i] -= fallSpeed;
+                        }
                         float minVal;
                         switch (currentStyle) {
                             case STYLE_BAR: minVal = 4f; break;
                             case STYLE_RING: minVal = 2f; break;
                             case STYLE_COLUMNAR: minVal = 1f; break;
-                            default: minVal = 6f; break;
+                            case STYLE_KUGOU: minVal = 1f; break;
+                            case STYLE_AIVOICE: minVal = 2f; break;
+                             case STYLE_WAVECOLUMN: minVal = 2f; break;
+                             default: minVal = 6f; break;
                         }
                         if (targetBarHeights[i] < minVal) {
                             targetBarHeights[i] = minVal;
                         }
                         
-                        // 峰值指示器更新
-                        if (barHeights[i] >= peakHeights[i]) {
-                            // 新峰值：更新并重置保持计时器
-                            peakHeights[i] = barHeights[i];
-                            peakDecayTimers[i] = PEAK_HOLD_FRAMES;
-                        } else if (peakDecayTimers[i] > 0) {
-                            // 保持期：峰值帽不动
-                            peakDecayTimers[i]--;
-                        } else {
-                            // 衰减期：峰值帽缓慢下落
-                            peakHeights[i] -= PEAK_FALL_SPEED;
-                            if (peakHeights[i] < minVal) {
-                                peakHeights[i] = minVal;
+                        // AiVoice不需要峰值指示器
+                        if (currentStyle != STYLE_AIVOICE) {
+                            // 峰值指示器更新
+                            if (barHeights[i] >= peakHeights[i]) {
+                                // 新峰值：更新并重置保持计时器
+                                peakHeights[i] = barHeights[i];
+                                peakDecayTimers[i] = PEAK_HOLD_FRAMES;
+                            } else if (peakDecayTimers[i] > 0) {
+                                // 保持期：峰值帽不动
+                                peakDecayTimers[i]--;
+                            } else {
+                                // 衰减期：峰值帽缓慢下落
+                                peakHeights[i] -= PEAK_FALL_SPEED;
+                                if (peakHeights[i] < minVal) {
+                                    peakHeights[i] = minVal;
+                                }
                             }
                         }
                     }
@@ -250,7 +338,7 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 切换频谱样式：竖条 → 圆点 → 波浪线 → 圆环 → ColumnarView → 竖条
+     * 切换频谱样式：竖条 → 圆点 → 波浪线 → 圆环 → ColumnarView → KugouColumn → AiVoiceView → WaveColumnformView → 竖条
      */
     public void switchStyle() {
         switch (currentStyle) {
@@ -272,11 +360,29 @@ public class SpectrumView extends View {
                 break;
             case STYLE_RING:
                 currentStyle = STYLE_COLUMNAR;
-                currentCount = COLUMNAR_INPUT_COUNT;
-                columnarBlockTop = null; // 重置能量块
-                Log.d(TAG, "切换到ColumnarView模式");
+                columnarCount = (getWidth() > getHeight()) ? COLUMNAR_COUNT_LANDSCAPE : COLUMNAR_COUNT_PORTRAIT;
+                currentCount = columnarCount;
+                columnarBlockTop = null;
+                Log.d(TAG, "切换到ColumnarView模式，columnarCount=" + columnarCount);
                 break;
             case STYLE_COLUMNAR:
+                currentStyle = STYLE_KUGOU;
+                currentCount = KUGOU_COUNT;
+                kugouBlockTop = null;
+                Log.d(TAG, "切换到KugouColumn模式");
+                break;
+            case STYLE_KUGOU:
+                currentStyle = STYLE_AIVOICE;
+                currentCount = AIVOICE_INPUT_COUNT;
+                Log.d(TAG, "切换到AiVoice模式");
+                break;
+            case STYLE_AIVOICE:
+                currentStyle = STYLE_WAVECOLUMN;
+                waveColumnCount = (getWidth() > getHeight()) ? WAVECOLUMN_COUNT_LANDSCAPE : WAVECOLUMN_COUNT_PORTRAIT;
+                currentCount = waveColumnCount;
+                Log.d(TAG, "切换到WaveColumnformView模式，waveColumnCount=" + waveColumnCount);
+                break;
+            case STYLE_WAVECOLUMN:
             default:
                 currentStyle = STYLE_BAR;
                 currentCount = barCount;
@@ -284,6 +390,24 @@ public class SpectrumView extends View {
                 break;
         }
         rebuildArrays();
+        // 重新计算竖条宽度（切换模式时onSizeChanged不一定触发）
+        float totalSpacing = barSpacing * (currentCount - 1);
+        barWidth = (getWidth() - totalSpacing) / currentCount;
+        // 切换到圆环模式时重置Kugou渐变
+        if (currentStyle != STYLE_KUGOU) {
+            kugouGradient1 = null;
+            kugouGradient2 = null;
+        }
+        // 切换时重置WaveColumn渐变（下次进入时重建）
+        if (currentStyle != STYLE_WAVECOLUMN) {
+            waveColumnPaint.setShader(null);
+        }
+        // AiVoiceView需要SOFTWARE图层才能让LIGHTEN混合模式生效
+        if (currentStyle == STYLE_AIVOICE) {
+            setLayerType(LAYER_TYPE_SOFTWARE, null);
+        } else {
+            setLayerType(LAYER_TYPE_NONE, null);
+        }
         requestLayout();
         postInvalidate();
     }
@@ -423,6 +547,25 @@ public class SpectrumView extends View {
                     rebuildArrays();
                 }
             }
+            // WaveColumn模式：横竖屏切换时调整柱数
+            int newWaveColumnCount = (w > h) ? WAVECOLUMN_COUNT_LANDSCAPE : WAVECOLUMN_COUNT_PORTRAIT;
+            if (newWaveColumnCount != waveColumnCount) {
+                waveColumnCount = newWaveColumnCount;
+                if (currentStyle == STYLE_WAVECOLUMN) {
+                    currentCount = waveColumnCount;
+                    rebuildArrays();
+                }
+            }
+            // ColumnarView模式：横竖屏切换时调整柱数
+            int newColumnarCount = (w > h) ? COLUMNAR_COUNT_LANDSCAPE : COLUMNAR_COUNT_PORTRAIT;
+            if (newColumnarCount != columnarCount) {
+                columnarCount = newColumnarCount;
+                if (currentStyle == STYLE_COLUMNAR) {
+                    currentCount = columnarCount;
+                    columnarBlockTop = null;
+                    rebuildArrays();
+                }
+            }
         }
         
         float totalSpacing = barSpacing * (currentCount - 1);
@@ -459,6 +602,15 @@ public class SpectrumView extends View {
                 break;
             case STYLE_COLUMNAR:
                 drawColumnar(canvas);
+                break;
+            case STYLE_KUGOU:
+                drawKugou(canvas);
+                break;
+            case STYLE_AIVOICE:
+                drawAiVoice(canvas);
+                break;
+            case STYLE_WAVECOLUMN:
+                drawWaveColumn(canvas);
                 break;
             default:
                 drawBars(canvas);
@@ -526,6 +678,58 @@ public class SpectrumView extends View {
                 for (int i = 0; i < currentCount; i++) {
                     float x = colCompensate + i * (colW + columnarSpacing);
                     canvas.drawRect(x, getHeight() - colBlockH, x + colW, getHeight(), columnarPaint);
+                }
+                break;
+            }
+            case STYLE_KUGOU: {
+                // KugouColumn静态：底部两排暖色小块
+                kugouPaint.setColor(Color.argb(80, 253, 178, 230));
+                float kTotalSpacing = (KUGOU_COUNT - 1) * kugouSpacing;
+                float kW = (getWidth() - kTotalSpacing) / KUGOU_COUNT;
+                if (kW < 1f) kW = 1f;
+                float kBlockH = kW / 2f;
+                float kTotalW = KUGOU_COUNT * kW + (KUGOU_COUNT - 1) * kugouSpacing;
+                float kCompensate = (getWidth() - kTotalW) / 2f;
+                float aaa = getWidth() / 2f / 2f;
+                int halfCount = KUGOU_COUNT / 2;
+                for (int i = 0; i < halfCount; i++) {
+                    float x = kCompensate + i * (kW + kugouSpacing) + aaa;
+                    canvas.drawRect(x, getHeight() - kBlockH, x + kW, getHeight(), kugouPaint);
+                }
+                for (int i = 0; i < halfCount; i++) {
+                    float x = kCompensate + (i + halfCount - 1) * (kW + kugouSpacing) - aaa;
+                    canvas.drawRect(x, getHeight() - kBlockH, x + kW, getHeight(), kugouPaint);
+                }
+                break;
+            }
+            case STYLE_AIVOICE: {
+                // AiVoiceView静态：3条平直线
+                aiVoicePaint.setColor(Color.argb(60, 255, 255, 255));
+                aiVoicePaint.setStyle(Paint.Style.STROKE);
+                aiVoicePaint.setStrokeWidth(2f);
+                aiVoicePaint.setXfermode(null);
+                float midY = getHeight() / 2f;
+                for (int i = 0; i < 3; i++) {
+                    float startX = getWidth() * aiVoiceStart[i];
+                    float endX = getWidth() * aiVoiceEnd[i];
+                    canvas.drawLine(startX, midY, endX, midY, aiVoicePaint);
+                }
+                aiVoicePaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.LIGHTEN));
+                aiVoicePaint.setStyle(Paint.Style.FILL);
+                break;
+            }
+            case STYLE_WAVECOLUMN: {
+                // WaveColumnformView静态：底部一排小圆角矩形
+                float midY = getHeight() / 2f;
+                waveColumnPaint.setColor(Color.argb(80, 245, 63, 63));
+                int spacing = getWidth() / waveColumnCount + waveColumnSpacingOffset;
+                float left = 0f;
+                for (int i = 0; i < waveColumnCount && left < getWidth(); i++) {
+                    float top = midY - waveColumnCenterHolder;
+                    float bottom = midY + waveColumnCenterHolder;
+                    canvas.drawRoundRect(left, top, left + WAVECOLUMN_RECT_WIDTH, bottom,
+                            WAVECOLUMN_ROUND_RX, WAVECOLUMN_ROUND_RY, waveColumnPaint);
+                    left += WAVECOLUMN_RECT_WIDTH + spacing;
                 }
                 break;
             }
@@ -761,6 +965,281 @@ public class SpectrumView extends View {
             
             canvas.drawRect(x, blockTop, x + colWidth, blockBottom, columnarPaint);
         }
+    }
+    
+    /**
+     * 绘制KugouColumn频谱（严格匹配原版KugouColumn）
+     * 特征：128根柱子只绘制能量块峰值帽 + 两组渐变叠加（中间交汇）
+     * lagerOffsetRate=35，blockSpeed=3dp/帧
+     */
+    private void drawKugou(Canvas canvas) {
+        float viewWidth = getWidth();
+        float viewHeight = getHeight();
+        float minBarPx = getResources().getDisplayMetrics().density;
+        
+        // 实时计算柱宽和居中补偿
+        float totalSpacing = (currentCount - 1) * kugouSpacing;
+        float colWidth = (viewWidth - totalSpacing) / currentCount + 1.5f * minBarPx; // 原版+dp2px(1.5)
+        if (colWidth < 1f) colWidth = 1f;
+        float blockHeight = colWidth / 2f;
+        float totalWidth = currentCount * colWidth + (currentCount - 1) * kugouSpacing;
+        float compensate = (viewWidth - totalWidth) / 2f;
+        
+        // aaa: 原版 getWidth() / 2 / drawListSize(2)
+        float aaa = viewWidth / 2f / 2f;
+        int halfCount = currentCount / 2;
+        
+        // 初始化能量块数组
+        if (kugouBlockTop == null || kugouBlockTop.length != currentCount) {
+            kugouBlockTop = new float[currentCount];
+            for (int i = 0; i < currentCount; i++) {
+                kugouBlockTop[i] = viewHeight - blockHeight;
+            }
+        }
+        
+        // 更新柱高平滑
+        for (int i = 0; i < currentCount; i++) {
+            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
+        }
+        
+        // 钟形权重：中间高两边低，sigma=0.35
+        float centerIndex = (currentCount - 1) / 2f;
+        float sigma = 0.35f;
+        
+        // 找出当前帧最大高度，按比例缩放（含钟形权重）
+        float maxBarHeight = 0f;
+        for (int i = 0; i < currentCount; i++) {
+            float dist = (i - centerIndex) / centerIndex;
+            float bellWeight = (float) Math.exp(-(dist * dist) / (2 * sigma * sigma));
+            float h = barHeights[i] * (1.0f + kugouLagerOffsetRate) * bellWeight;
+            if (h > maxBarHeight) maxBarHeight = h;
+        }
+        float scale = 1.0f;
+        if (maxBarHeight > viewHeight) {
+            scale = (viewHeight - minBarPx) / maxBarHeight;
+        }
+        
+        // 计算每根柱子的barTop和能量块位置
+        float[] barTops = new float[currentCount];
+        for (int i = 0; i < currentCount; i++) {
+            float dist = (i - centerIndex) / centerIndex;
+            float bellWeight = (float) Math.exp(-(dist * dist) / (2 * sigma * sigma));
+            float barTop = viewHeight - barHeights[i] * (1.0f + kugouLagerOffsetRate) * bellWeight * scale;
+            if (barTop < minBarPx) barTop = minBarPx;
+            barTop = Math.min(barTop, viewHeight - minBarPx);
+            barTops[i] = barTop;
+            
+            // 更新能量块（原版逻辑）
+            if (barTops[i] > 0 && barTops[i] < kugouBlockTop[i]) {
+                kugouBlockTop[i] = barTops[i] - blockHeight - kugouDistance;
+            } else {
+                kugouBlockTop[i] = kugouBlockTop[i] + kugouBlockSpeed;
+            }
+        }
+        
+        // 计算每根柱子的x坐标
+        float[] colLeft = new float[currentCount];
+        float[] colRight = new float[currentCount];
+        for (int i = 0; i < currentCount; i++) {
+            if (i == 0) {
+                colLeft[i] = compensate;
+            } else {
+                colLeft[i] = colRight[i - 1] + kugouSpacing;
+            }
+            colRight[i] = colLeft[i] + colWidth;
+        }
+        
+        // 初始化渐变（严格匹配原版onSizeChanged中的两段渐变）
+        if (kugouGradient1 == null && viewWidth > 0 && viewHeight > 0) {
+            // 偶数组：右→左，半透明暖色
+            kugouGradient1 = new LinearGradient(viewWidth, 0f, 0f, viewHeight,
+                    new int[]{0xCCFDF4BE, 0xCCFEDBB6, 0xCCFEC9C7, 0xCCFEC2DF, 0xCCFDB2E6},
+                    new float[]{0, 0.25f, 0.5f, 0.75f, 1f},
+                    Shader.TileMode.CLAMP);
+            // 奇数组：左→右，渐显暖色
+            kugouGradient2 = new LinearGradient(0f, 0f, viewWidth, viewHeight,
+                    new int[]{0x4DFDF4BE, 0x7DFEDBB6, 0xBAFEC9C7, 0xE5FEC2DF, 0xFFFDB2E6},
+                    new float[]{0, 0.25f, 0.5f, 0.75f, 1f},
+                    Shader.TileMode.CLAMP);
+        }
+        
+        // 绘制第一组（前半段，右移aaa）— 偶数组渐变
+        if (kugouGradient1 != null) {
+            kugouPaint.setShader(kugouGradient1);
+            for (int i = 0; i < halfCount; i++) {
+                float left = colLeft[i] + aaa;
+                float right = colRight[i] + aaa;
+                float blockTop = kugouBlockTop[i];
+                float blockBottom = blockTop + blockHeight;
+                if (blockBottom > viewHeight) {
+                    blockBottom = viewHeight;
+                    blockTop = viewHeight - blockHeight;
+                }
+                canvas.drawRect(left, blockTop, right, blockBottom, kugouPaint);
+            }
+        }
+        
+        // 绘制第二组（后半段，左移aaa）— 奇数组渐变
+        if (kugouGradient2 != null) {
+            kugouPaint.setShader(kugouGradient2);
+            int offset = halfCount - 1; // 原版: reallyData.get(0).size() - 1
+            for (int i = 0; i < halfCount; i++) {
+                int srcIdx = i + offset;
+                float left = colLeft[srcIdx] - aaa;
+                float right = colRight[srcIdx] - aaa;
+                float blockTop = kugouBlockTop[srcIdx];
+                float blockBottom = blockTop + blockHeight;
+                if (blockBottom > viewHeight) {
+                    blockBottom = viewHeight;
+                    blockTop = viewHeight - blockHeight;
+                }
+                canvas.drawRect(left, blockTop, right, blockBottom, kugouPaint);
+            }
+        }
+    }
+    
+    /**
+     * 绘制AiVoiceView频谱（严格匹配原版AiVoiceView）
+     * 特征：3条cubic贝塞尔闭合曲线（红/绿/蓝），LIGHTEN混合模式叠加
+     * 每条曲线用两个cubicTo形成上下对称的叶形
+     * FFT数据通过getEnergyByPoint公式计算能量值
+     * 高度超频谱区域时按比例缩放
+     */
+    private void drawAiVoice(Canvas canvas) {
+        float viewWidth = getWidth();
+        float viewHeight = getHeight();
+        float defultY = viewHeight / 2f;
+        
+        // 平滑过渡（替代原版直接用setWaveData赋值）
+        for (int i = 0; i < currentCount && i < barHeights.length; i++) {
+            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
+        }
+        
+        // 原版 getEnergyByPoint: 计算每条曲线的能量值
+        // index = data.length * (end + start) / 2
+        // if index < data.length: (abs(abs(data[index])) - 2) * 1.5
+        // else: (abs(abs(data[data.length - 1])) + 2) * 1.5
+        float[] energies = new float[3];
+        float maxEnergy = 0f;
+        for (int i = 0; i < 3; i++) {
+            int index = (int) (barHeights.length * (aiVoiceEnd[i] + aiVoiceStart[i]) / 2f);
+            if (index < barHeights.length) {
+                energies[i] = (float) ((Math.abs(Math.abs(barHeights[index])) - 2) * 1.5);
+            } else {
+                energies[i] = (float) ((Math.abs(Math.abs(barHeights[barHeights.length - 1])) + 2) * 1.5);
+            }
+            if (energies[i] < 0) energies[i] = 0;
+            if (energies[i] > maxEnergy) maxEnergy = energies[i];
+        }
+        
+        // 缩放：如果最大能量超过频谱区域上半（defultY），按比例压缩
+        float scale = 1.0f;
+        if (maxEnergy > defultY) {
+            scale = defultY / maxEnergy;
+        }
+        
+        // 严格匹配原版 setWaveData 逻辑
+        for (int i = 0; i < 3; i++) {
+            float energy = energies[i] * scale;
+            
+            aiVoicePaths[i].reset();
+            aiVoicePaths[i].moveTo(viewWidth * aiVoiceStart[i], defultY);
+            // 上半弧线（原版第一个cubicTo）
+            aiVoicePaths[i].cubicTo(
+                viewWidth * aiVoiceStart[i], defultY,
+                viewWidth * (aiVoiceEnd[i] + aiVoiceStart[i]) / 2, defultY - energy,
+                viewWidth * aiVoiceEnd[i], defultY
+            );
+            // 下半弧线（原版第二个cubicTo）
+            aiVoicePaths[i].cubicTo(
+                viewWidth * aiVoiceEnd[i], defultY,
+                viewWidth * (aiVoiceStart[i] + aiVoiceEnd[i]) / 2, defultY + energy,
+                viewWidth * aiVoiceStart[i], defultY
+            );
+            aiVoicePaths[i].close();
+            
+            aiVoicePaint.setColor(aiVoiceColors[i]);
+            canvas.drawPath(aiVoicePaths[i], aiVoicePaint);
+        }
+    }
+    
+    /**
+     * 绘制WaveColumnformView频谱（严格匹配原版WaveColumnformView）
+     * 特征：256个圆角矩形柱，从中心上下对称展开，高度随音频数据变化
+     * 水平渐变（两端30%alpha→中间100%alpha），主色调#F53F3F
+     * 高度超频谱区域时按比例压缩
+     */
+    private void drawWaveColumn(Canvas canvas) {
+        float viewWidth = getWidth();
+        float viewHeight = getHeight();
+        float defultY = viewHeight / 2f;
+        
+        // 原版 spacing = getWidth() / SAMPLE_SIZE + spacingOffset
+        int spacing = (int) (viewWidth / waveColumnCount) + waveColumnSpacingOffset;
+        
+        // 更新渐变shader（匹配原版onLayout中的水平渐变）
+        if (waveColumnPaint.getShader() == null && viewWidth > 0 && viewHeight > 0) {
+            waveColumnPaint.setShader(new LinearGradient(0f, viewHeight / 2f, viewWidth, viewHeight / 2f,
+                    new int[]{
+                            getColorWithAlpha(0.3f, waveColumnMainColor),
+                            getColorWithAlpha(1f, waveColumnMainColor),
+                            getColorWithAlpha(1f, waveColumnMainColor),
+                            getColorWithAlpha(0.3f, waveColumnMainColor)
+                    },
+                    new float[]{0, 0.1f, 0.9f, 1f},
+                    Shader.TileMode.CLAMP));
+        }
+        
+        // 平滑过渡
+        for (int i = 0; i < currentCount && i < barHeights.length; i++) {
+            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
+        }
+        
+        // 找出最大偏移量，用于按比例缩放
+        // 原版 getOffsetY: top = data*LAGER_OFFSET + centerHolder, bottom = -data*LAGER_OFFSET - centerHolder
+        // 单侧最大偏移 = maxData * LAGER_OFFSET + centerHolder
+        float maxOffset = 0f;
+        for (int i = 0; i < currentCount && i < barHeights.length; i++) {
+            float offset = barHeights[i] * WAVECOLUMN_LAGER_OFFSET + waveColumnCenterHolder;
+            if (offset > maxOffset) maxOffset = offset;
+        }
+        
+        // 缩放：如果单侧最大偏移超过频谱区域上半（defultY），按比例压缩
+        float scale = 1.0f;
+        if (maxOffset > defultY) {
+            scale = defultY / maxOffset;
+        }
+        
+        // 原版 setWaveData 逻辑：逐个构造RectF并绘制
+        float left = 0f;
+        for (int i = 0; i < currentCount && i < barHeights.length && left < viewWidth; i++) {
+            float data = barHeights[i];
+            // 原版 getOffsetY
+            float topOffset = data * WAVECOLUMN_LAGER_OFFSET + waveColumnCenterHolder;
+            float bottomOffset = data * WAVECOLUMN_LAGER_OFFSET + waveColumnCenterHolder;
+            
+            // 应用缩放
+            topOffset *= scale;
+            bottomOffset *= scale;
+            
+            float top = defultY - bottomOffset;   // 上边界（原版 rect.bottom = defultY + (-data*10 - 20)）
+            float bottom = defultY + topOffset;     // 下边界（原版 rect.top = defultY + (data*10 + 20)）
+            float right = left + WAVECOLUMN_RECT_WIDTH;
+            
+            canvas.drawRoundRect(left, top, right, bottom,
+                    WAVECOLUMN_ROUND_RX, WAVECOLUMN_ROUND_RY, waveColumnPaint);
+            
+            left = right + spacing;
+        }
+    }
+    
+    /**
+     * 带alpha的颜色生成（严格匹配原版WaveColumnformView.getColorWithAlpha）
+     */
+    private int getColorWithAlpha(float alpha, int baseColor) {
+        int a = Math.min(255, Math.max(0, (int) (alpha * 255))) << 24;
+        int rgb = 0x00ffffff & baseColor;
+        return a + rgb;
     }
     
     /**
@@ -1004,7 +1483,16 @@ public class SpectrumView extends View {
             return RING_INPUT_COUNT;
         }
         if (currentStyle == STYLE_COLUMNAR) {
-            return COLUMNAR_INPUT_COUNT;
+            return columnarCount;
+        }
+        if (currentStyle == STYLE_KUGOU) {
+            return KUGOU_COUNT;
+        }
+        if (currentStyle == STYLE_AIVOICE) {
+            return AIVOICE_INPUT_COUNT;
+        }
+        if (currentStyle == STYLE_WAVECOLUMN) {
+            return waveColumnCount;
         }
         return currentCount;
     }
@@ -1104,6 +1592,27 @@ public class SpectrumView extends View {
                 for (int i = 0; i < count; i++) {
                     targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
                 }
+            } else if (currentStyle == STYLE_KUGOU) {
+                // 原版 KugouColumn: 直传，data[i] * (1 + 35) 作为柱高
+                int count = Math.min(currentCount, magnitudes.length);
+                float minVal = 1f;
+                for (int i = 0; i < count; i++) {
+                    targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
+                }
+            } else if (currentStyle == STYLE_AIVOICE) {
+                // AiVoiceView: 直传原始幅度值（drawAiVoice用getEnergyByPoint公式处理）
+                int count = Math.min(currentCount, magnitudes.length);
+                float minVal = 2f;
+                for (int i = 0; i < count; i++) {
+                    targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
+                }
+            } else if (currentStyle == STYLE_WAVECOLUMN) {
+                // WaveColumnformView: 直传原始幅度值（drawWaveColumn用getOffsetY公式处理）
+                int count = Math.min(currentCount, magnitudes.length);
+                float minVal = 2f;
+                for (int i = 0; i < count; i++) {
+                    targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
+                }
             } else {
                 // 圆点/波浪线模式：对数映射
                 float maxHeight = getHeight() * 0.9f;
@@ -1192,6 +1701,9 @@ public class SpectrumView extends View {
                 case STYLE_BAR: minVal = 8f; break;
                 case STYLE_RING: minVal = 2f; break;
                 case STYLE_COLUMNAR: minVal = 1f; break;
+                case STYLE_KUGOU: minVal = 1f; break;
+                case STYLE_AIVOICE: minVal = 2f; break;
+                case STYLE_WAVECOLUMN: minVal = 2f; break;
                 default: minVal = 4f; break;
             }
             for (int i = 0; i < currentCount; i++) {
