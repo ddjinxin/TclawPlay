@@ -91,8 +91,8 @@ public class PortraitImmersiveScene implements CoverScene {
         } else {
             h.callback.updateImmersiveLyricMargin(false);
         }
-        // 频谱高度
-        h.spectrumView.getLayoutParams().height = (int) (height * getSpectrumHeightRatio());
+        // 频谱位置：沉浸模式始终在底部
+        h.applySpectrumPosition(true, 0, 0, 0, height, getSpectrumHeightRatio());
     }
 
     @Override

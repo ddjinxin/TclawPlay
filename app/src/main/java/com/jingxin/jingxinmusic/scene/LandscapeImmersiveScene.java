@@ -81,8 +81,8 @@ public class LandscapeImmersiveScene implements CoverScene {
         // 重新定位封面
         applyLandscapeImmersiveCover();
 
-        // 频谱高度
-        h.spectrumView.getLayoutParams().height = (int) (height * getSpectrumHeightRatio());
+        // 频谱位置：沉浸模式始终在底部
+        h.applySpectrumPosition(true, 0, 0, 0, height, getSpectrumHeightRatio());
         h.coverPlaceholder.setVisibility(View.GONE);
     }
 

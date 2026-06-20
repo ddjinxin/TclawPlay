@@ -302,4 +302,110 @@ public class CoverSceneHelper {
             }
         });
     }
+
+    // ========== 圆环频谱位置切换 ==========
+
+    /**
+     * 将 SpectrumView 移动到 rootLayout 全屏覆盖（圆环模式时调用）
+     * SpectrumView 从 info_panel 移出，铺满 rootLayout，不被裁剪
+     */
+    public void moveSpectrumToCover() {
+        if (spectrumView == null || rootLayout == null) return;
+        // 避免重复移动
+        if (spectrumView.getParent() == rootLayout) return;
+        // 先从 info_panel 移除
+        if (spectrumView.getParent() != null) {
+            ((android.view.ViewGroup) spectrumView.getParent()).removeView(spectrumView);
+        }
+        // 添加到 rootLayout，铺满全屏（透明背景，不遮挡其他内容）
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT);
+        rootLayout.addView(spectrumView, params);
+        // 确保 SpectrumView 在 coverView 之上但在按钮之下
+        int spectrumIndex = rootLayout.indexOfChild(spectrumView);
+        int topBarIndex = rootLayout.indexOfChild(topButtonsBar);
+        if (topBarIndex >= 0 && spectrumIndex > topBarIndex) {
+            rootLayout.removeView(spectrumView);
+            rootLayout.addView(spectrumView, topBarIndex);
+        }
+        // 通知 SpectrumView 重新计算布局
+        spectrumView.requestLayout();
+    }
+
+    /**
+     * 将 SpectrumView 移回 info_panel 底部（非圆环模式时调用）
+     */
+    public void moveSpectrumToBottom() {
+        if (spectrumView == null || infoPanel == null) return;
+        // 避免重复移动
+        if (spectrumView.getParent() == infoPanel) return;
+        // 先从 rootLayout 移除
+        if (spectrumView.getParent() != null) {
+            ((android.view.ViewGroup) spectrumView.getParent()).removeView(spectrumView);
+        }
+        // 添加回 info_panel，放到歌词和进度条之间（频谱原本在歌词后面）
+        if (infoPanel instanceof LinearLayout) {
+            LinearLayout panel = (LinearLayout) infoPanel;
+            // 频谱在 lyric_view 之后、progress_layout 之前
+            int lyricIndex = -1;
+            for (int i = 0; i < panel.getChildCount(); i++) {
+                if (panel.getChildAt(i).getId() == R.id.lyric_view) {
+                    lyricIndex = i;
+                    break;
+                }
+            }
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    (int) (density * 150)); // 默认150dp高度
+            if (lyricIndex >= 0 && lyricIndex + 1 < panel.getChildCount()) {
+                panel.addView(spectrumView, lyricIndex + 1, params);
+            } else {
+                panel.addView(spectrumView, params);
+            }
+        }
+        spectrumView.requestLayout();
+    }
+
+    /**
+     * 更新圆环模式 SpectrumView 的封面位置信息
+     * SpectrumView 铺满 rootLayout，圆心/半径通过 setCoverCenter 传入
+     */
+    public void layoutSpectrumRing(int coverCenterX, int coverCenterY, int coverSize) {
+        if (spectrumView == null) return;
+        float radius = coverSize / 2f;
+        spectrumView.setCoverCenter(coverCenterX, coverCenterY, radius);
+    }
+
+    /**
+     * 根据频谱模式统一处理 SpectrumView 位置
+     * 经典模式下：圆环→移到rootLayout全屏覆盖，非圆环→移回info_panel底部
+     * 沉浸模式下：SpectrumView始终在info_panel底部
+     *
+     * @param isImmersive 是否沉浸模式
+     * @param coverCenterX 封面圆心X（相对rootLayout）
+     * @param coverCenterY 封面圆心Y（相对rootLayout）
+     * @param coverSize 封面尺寸
+     * @param height 可用高度（用于设置底部频谱高度）
+     * @param spectrumHeightRatio 频谱高度比例
+     */
+    public void applySpectrumPosition(boolean isImmersive, int coverCenterX, int coverCenterY,
+                                       int coverSize, int height, float spectrumHeightRatio) {
+        boolean isRingMode = spectrumView != null && spectrumView.isRingMode();
+        
+        if (isRingMode && !isImmersive) {
+            // 经典模式 + 圆环：频谱铺满rootLayout，设置封面位置
+            moveSpectrumToCover();
+            layoutSpectrumRing(coverCenterX, coverCenterY, coverSize);
+        } else {
+            // 非圆环 或 沉浸模式：频谱在info_panel底部
+            if (spectrumView != null && spectrumView.getParent() == rootLayout) {
+                // 之前在rootLayout上（圆环模式），移回来
+                moveSpectrumToBottom();
+            }
+            if (spectrumView != null) {
+                spectrumView.getLayoutParams().height = (int) (height * spectrumHeightRatio);
+            }
+        }
+    }
 }

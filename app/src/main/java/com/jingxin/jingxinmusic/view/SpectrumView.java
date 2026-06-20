@@ -13,10 +13,12 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 
+import java.util.Random;
+
 /**
  * 频谱视图
- * 支持三种样式：竖条模式、圆点模式、波浪线模式
- * 点击切换样式
+ * 支持四种样式：竖条模式、圆点模式、波浪线模式、圆环模式
+ * 圆环模式有三种子模式：柱状、爆炸、波形
  */
 public class SpectrumView extends View {
     
@@ -26,6 +28,12 @@ public class SpectrumView extends View {
     private static final int STYLE_BAR = 0;          // 竖条模式
     private static final int STYLE_DOT = 1;          // 圆点模式
     private static final int STYLE_WAVE = 2;         // 波浪线模式
+    private static final int STYLE_RING = 3;         // 圆环模式
+    
+    // 圆环子模式常量
+    private static final int RING_COLUMNAR = 0;      // 柱状（放射白线）
+    private static final int RING_BOMB = 1;           // 爆炸（半透明白线+末端圆点）
+    private static final int RING_WAVE = 2;           // 波形（端点连线）
     
     // 竖条模式：每根柱目标占用像素（含间距），据此动态计算柱数
     private static final float BAR_PIXELS_PER_BAR = 15f;
@@ -34,6 +42,9 @@ public class SpectrumView extends View {
     
     // 圆点/波浪线模式的分量数量（固定不变）
     private static final int DOT_COUNT = 64;
+    
+    // 圆环模式FFT请求数量（匹配原版SAMPLE_SIZE=256）
+    private static final int RING_INPUT_COUNT = 256;
     
     // 当前数据分量数量（根据样式和宽度动态变化）
     private int currentCount = 128;
@@ -97,6 +108,24 @@ public class SpectrumView extends View {
     // 是否正在播放
     private boolean isPlaying = false;
     
+    // 圆环模式状态
+    private int ringSubMode = RING_COLUMNAR;   // 圆环子模式
+    private int ringCount = 64;                 // 圆环当前显示频段数（= RING_INPUT_COUNT - ringScope）
+    private float ringRotation = 0f;            // 圆环旋转角度
+    private Paint ringPaint;                    // 圆环画笔
+    // 圆环封面信息（由外部通过setCoverCenter设置）
+    private float coverCenterX;                 // 封面圆心X（相对SpectrumView）
+    private float coverCenterY;                 // 封面圆心Y（相对SpectrumView）
+    private float coverRadius;                  // 封面半径
+    // 圆环参数（严格匹配原版AttachmentRingView）
+    private int ringBetween = 1;                // 相邻频段间隔角度（度）
+    private int ringScope = 50;                 // 跳过末尾高频分量数
+    private float ringStart = 10f;              // 射线最短长度偏移（像素，原版直接+start当px用）
+    private boolean ringRandomAngle = true;     // 是否随机跳跃角度
+    private int ringRandomAngleValue = 0;       // 当前随机角度值
+    private int ringFrameCounter = 0;           // 帧计数器（用于随机角度切换）
+    private Random random = new Random();       // 随机数生成器（类字段复用）
+    
     // 动画驱动 Handler
     private Handler animHandler = new Handler(Looper.getMainLooper());
     private Runnable animRunnable;
@@ -150,6 +179,11 @@ public class SpectrumView extends View {
         waveStrokePaint.setStrokeJoin(Paint.Join.ROUND);
         waveStrokePaint.setStrokeCap(Paint.Cap.ROUND);
         
+        // 圆环画笔
+        ringPaint = new Paint();
+        ringPaint.setAntiAlias(true);
+        ringPaint.setStyle(Paint.Style.FILL);
+        
         barSpacing = 4f;
         
         animRunnable = new Runnable() {
@@ -163,6 +197,7 @@ public class SpectrumView extends View {
                         float minVal;
                         switch (currentStyle) {
                             case STYLE_BAR: minVal = 4f; break;
+                            case STYLE_RING: minVal = 2f; break;
                             default: minVal = 6f; break;
                         }
                         if (targetBarHeights[i] < minVal) {
@@ -193,7 +228,7 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 切换频谱样式：竖条 → 圆点 → 波浪线 → 竖条
+     * 切换频谱样式：竖条 → 圆点 → 波浪线 → 圆环 → 竖条
      */
     public void switchStyle() {
         switch (currentStyle) {
@@ -208,6 +243,12 @@ public class SpectrumView extends View {
                 Log.d(TAG, "切换到波浪线模式");
                 break;
             case STYLE_WAVE:
+                currentStyle = STYLE_RING;
+                ringCount = RING_INPUT_COUNT - ringScope; // 原版: total = data.length - scope
+                currentCount = ringCount;
+                Log.d(TAG, "切换到圆环模式，ringCount=" + ringCount);
+                break;
+            case STYLE_RING:
             default:
                 currentStyle = STYLE_BAR;
                 currentCount = barCount;
@@ -217,6 +258,44 @@ public class SpectrumView extends View {
         rebuildArrays();
         requestLayout();
         postInvalidate();
+    }
+    
+    /**
+     * 切换圆环子模式：柱状 → 爆炸 → 波形 → 柱状
+     */
+    public void switchRingSubMode() {
+        switch (ringSubMode) {
+            case RING_COLUMNAR:
+                ringSubMode = RING_BOMB;
+                Log.d(TAG, "圆环切换到爆炸模式");
+                break;
+            case RING_BOMB:
+                ringSubMode = RING_WAVE;
+                Log.d(TAG, "圆环切换到波形模式");
+                break;
+            case RING_WAVE:
+            default:
+                ringSubMode = RING_COLUMNAR;
+                Log.d(TAG, "圆环切换到柱状模式");
+                break;
+        }
+        postInvalidate();
+    }
+    
+    /**
+     * 当前是否为圆环模式
+     */
+    public boolean isRingMode() {
+        return currentStyle == STYLE_RING;
+    }
+    
+    /**
+     * 设置封面在 SpectrumView 中的位置和半径（圆环模式用）
+     */
+    public void setCoverCenter(float cx, float cy, float radius) {
+        this.coverCenterX = cx;
+        this.coverCenterY = cy;
+        this.coverRadius = radius;
     }
     
     // 是否显示频谱
@@ -242,6 +321,38 @@ public class SpectrumView extends View {
      */
     public boolean isSpectrumVisible() {
         return visible;
+    }
+    
+    /**
+     * 圆环模式下的触摸事件：单击圆环外围切换子模式
+     * 点击封面区域不拦截（让触摸穿透到封面）
+     */
+    @Override
+    public boolean onTouchEvent(android.view.MotionEvent event) {
+        if (currentStyle != STYLE_RING) {
+            return super.onTouchEvent(event);
+        }
+        if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
+            float dx = event.getX() - coverCenterX;
+            float dy = event.getY() - coverCenterY;
+            float dist = (float) Math.sqrt(dx * dx + dy * dy);
+            float baseRadius = coverRadius + 4 * getResources().getDisplayMetrics().density;
+            
+            if (dist > coverRadius) {
+                // 点击在圆环外围区域，切换子模式
+                switchRingSubMode();
+            }
+            // 点击封面内部，不消费，让事件穿透
+            return dist > coverRadius + 4 * getResources().getDisplayMetrics().density;
+        }
+        // 圆环模式下：封面外区域拦截，封面内穿透
+        if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+            float dx = event.getX() - coverCenterX;
+            float dy = event.getY() - coverCenterY;
+            float dist = (float) Math.sqrt(dx * dx + dy * dy);
+            return dist > coverRadius + 4 * getResources().getDisplayMetrics().density;
+        }
+        return false;
     }
     
     /**
@@ -310,6 +421,9 @@ public class SpectrumView extends View {
             case STYLE_WAVE:
                 drawWave(canvas);
                 break;
+            case STYLE_RING:
+                drawRing(canvas);
+                break;
             default:
                 drawBars(canvas);
                 break;
@@ -350,6 +464,18 @@ public class SpectrumView extends View {
                 path.lineTo(getWidth(), getHeight());
                 path.close();
                 canvas.drawPath(path, waveFillPaint);
+                break;
+            }
+            case STYLE_RING: {
+                // 圆环静态：画一个白色细圆环基线
+                float cx = coverCenterX;
+                float cy = coverCenterY;
+                float radius = coverRadius + 4 * getResources().getDisplayMetrics().density;
+                ringPaint.setColor(Color.argb(60, 255, 255, 255));
+                ringPaint.setStyle(Paint.Style.STROKE);
+                ringPaint.setStrokeWidth(1f);
+                canvas.drawCircle(cx, cy, radius, ringPaint);
+                ringPaint.setStyle(Paint.Style.FILL);
                 break;
             }
             default: {
@@ -517,6 +643,176 @@ public class SpectrumView extends View {
     }
     
     /**
+     * 绘制圆环频谱（围绕封面的放射状频谱）
+     * 三种子模式：柱状/爆炸/波形
+     * 使用外部传入的封面位置信息（coverCenterX/Y, coverRadius）
+     */
+    private void drawRing(Canvas canvas) {
+        float cx = coverCenterX;
+        float cy = coverCenterY;
+        float density = getResources().getDisplayMetrics().density;
+        float baseRadius = coverRadius + 4 * density; // 基线在封面边缘外4dp
+        int total = currentCount;
+        
+        // 原版线宽计算（严格匹配AttachmentRingView setWaveData）:
+        // totalLength = 2 * π * radius
+        // eachWidthByDataLength = totalLength / total
+        // betweenWidth = between * totalLength / 360
+        // width = eachWidthByDataLength - betweenWidth
+        float totalLength = (float) (2 * Math.PI * baseRadius);
+        float eachWidthByDataLength = totalLength / total;
+        float eachWidthByAngle = totalLength / 360f;
+        float betweenWidth = ringBetween * eachWidthByAngle;
+        float lineWidth = eachWidthByDataLength - betweenWidth;
+        if (lineWidth < 1f) lineWidth = 1f;
+        
+        // start: 原版直接+start当像素用，不做dp转换
+        // float startPx = ringStart; // 10px
+        
+        // 更新平滑高度
+        for (int i = 0; i < currentCount; i++) {
+            barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
+        }
+        
+        // 旋转：原版 isRotate 每帧+1°，isRandom 用随机跳跃角度
+        float currentRotation;
+        if (ringRandomAngle) {
+            currentRotation = ringRandomAngleValue;
+        } else {
+            currentRotation = ringRotation;
+        }
+        
+        canvas.save();
+        canvas.rotate(currentRotation, cx, cy);
+        
+        // 计算所有频段的角度和端点
+        // 原版: positionAngle = i * 1.0f / total * 360
+        float[][] innerPoints = new float[total][2];
+        float[][] outerPoints = new float[total][2];
+        
+        for (int i = 0; i < total; i++) {
+            float positionAngle = i * 1.0f / total * 360f;
+            double rad = Math.toRadians(positionAngle + currentRotation);
+            // 不对，原版rotation已经加在positionAngle中了
+            // 但我们用canvas.rotate处理了旋转，所以这里只用positionAngle
+            double radNoRot = Math.toRadians(positionAngle);
+            
+            // 基线上的点: calcPoint(cx, cy, radius, angle, start)
+            innerPoints[i][0] = (float) (cx + baseRadius * Math.cos(radNoRot));
+            innerPoints[i][1] = (float) (cy + baseRadius * Math.sin(radNoRot));
+            
+            // 外端点: calcPoint(cx, cy, radius + data[i]*1.5 + start, angle, end)
+            // 原版: (int)(radius + data[i] * 1.5) + start
+            float outerRadius = baseRadius + barHeights[i] * 1.5f + ringStart;
+            outerPoints[i][0] = (float) (cx + outerRadius * Math.cos(radNoRot));
+            outerPoints[i][1] = (float) (cy + outerRadius * Math.sin(radNoRot));
+        }
+        
+        // 根据子模式绘制
+        switch (ringSubMode) {
+            case RING_COLUMNAR:
+                drawRingColumnar(canvas, total, lineWidth, innerPoints, outerPoints);
+                break;
+            case RING_BOMB:
+                drawRingBomb(canvas, total, lineWidth, innerPoints, outerPoints);
+                break;
+            case RING_WAVE:
+                drawRingWaveForm(canvas, total, innerPoints, outerPoints);
+                break;
+        }
+        
+        canvas.restore();
+        
+        // 更新旋转角度（isRotate模式：每帧+1°，匹配原版 degress++）
+        if (!ringRandomAngle) {
+            ringRotation += 1f;
+            if (ringRotation >= 360f) ringRotation -= 360f;
+        }
+        
+        // 随机角度跳跃：每300帧随机切换（匹配原版 x > 300）
+        ringFrameCounter++;
+        if (ringFrameCounter > 300) {
+            int r = random.nextInt(4) + 1;
+            switch (r) {
+                case 1: ringRandomAngleValue = 90; break;
+                case 2: ringRandomAngleValue = 180; break;
+                case 3: ringRandomAngleValue = 270; break;
+                case 4: ringRandomAngleValue = 360; break;
+            }
+            ringFrameCounter = 0;
+        }
+    }
+    
+    /**
+     * 圆环柱状模式：白色粗线从基线向外放射
+     */
+    private void drawRingColumnar(Canvas canvas, int total, float lineWidth,
+                                   float[][] innerPoints, float[][] outerPoints) {
+        ringPaint.setColor(Color.WHITE);
+        ringPaint.setStyle(Paint.Style.FILL);
+        ringPaint.setStrokeWidth(lineWidth);
+        
+        for (int i = 0; i < total; i++) {
+            canvas.drawLine(
+                innerPoints[i][0], innerPoints[i][1],
+                outerPoints[i][0], outerPoints[i][1],
+                ringPaint);
+        }
+    }
+    
+    /**
+     * 圆环爆炸模式：半透明白线 + 末端白色圆点
+     */
+    private void drawRingBomb(Canvas canvas, int total, float lineWidth,
+                               float[][] innerPoints, float[][] outerPoints) {
+        // 半透明线（原版: Color.argb((int)(ALPHA * 0.3f), RED, GREEN, BLUE) = argb(76, 255, 255, 255)）
+        ringPaint.setColor(Color.argb(76, 255, 255, 255));
+        ringPaint.setStyle(Paint.Style.FILL);
+        ringPaint.setStrokeWidth(lineWidth);
+        
+        for (int i = 0; i < total; i++) {
+            canvas.drawLine(
+                innerPoints[i][0], innerPoints[i][1],
+                outerPoints[i][0], outerPoints[i][1],
+                ringPaint);
+        }
+        
+        // 末端白色点（原版: drawPoint，白色，strokeWidth=lineWidth）
+        ringPaint.setColor(Color.WHITE);
+        ringPaint.setStrokeWidth(lineWidth);
+        
+        for (int i = 0; i < total; i++) {
+            canvas.drawPoint(outerPoints[i][0], outerPoints[i][1], ringPaint);
+        }
+    }
+    
+    /**
+     * 圆环波形模式：相邻端点连线形成环形波浪
+     */
+    private void drawRingWaveForm(Canvas canvas, int total,
+                                   float[][] innerPoints, float[][] outerPoints) {
+        // 原版波形：仅画相邻外端点连线，线宽=dp2px(1)=1个density像素，颜色半透明白
+        float density = getResources().getDisplayMetrics().density;
+        ringPaint.setColor(Color.argb(76, 255, 255, 255));
+        ringPaint.setStyle(Paint.Style.FILL);
+        ringPaint.setStrokeWidth(density); // 匹配原版 Utils.dp2px(1)
+        
+        for (int i = 0; i < total; i++) {
+            if (i == 0) {
+                canvas.drawLine(
+                    outerPoints[total - 1][0], outerPoints[total - 1][1],
+                    outerPoints[0][0], outerPoints[0][1],
+                    ringPaint);
+            } else {
+                canvas.drawLine(
+                    outerPoints[i - 1][0], outerPoints[i - 1][1],
+                    outerPoints[i][0], outerPoints[i][1],
+                    ringPaint);
+            }
+        }
+    }
+    
+    /**
      * 根据比例获取渐变颜色
      * @param ratio 高度比例 0~1
      * @param useGoldStyle 是否使用金色样式（竖条模式）
@@ -580,8 +876,12 @@ public class SpectrumView extends View {
 
     /**
      * 获取竖条模式实际需要的 FFT 频段数
+     * 圆环模式返回 RING_INPUT_COUNT（匹配原版SAMPLE_SIZE=256），以便 scope 生效
      */
     public int getBarInputCount() {
+        if (currentStyle == STYLE_RING) {
+            return RING_INPUT_COUNT;
+        }
         return currentCount;
     }
 
@@ -657,19 +957,42 @@ public class SpectrumView extends View {
                 targetBarHeights[i] = Math.max(minVal, offsetData[i]);
             }
         } else {
-            // ========= 原有方式：对数映射 + 钟形权重 =========
-            float maxHeight = getHeight() * 0.9f;
-            float logMax = (float) Math.log1p(maxMag > 0 ? maxMag : 1);
-            float centerIndex = (currentCount - 1) / 2f;
-            
-            for (int i = 0; i < currentCount && i < magnitudes.length; i++) {
-                float normalized = (float) Math.log1p(magnitudes[i]) / logMax;
-                normalized = normalized * (2f - normalized);
-                float distFromCenter = Math.abs(i - centerIndex) / centerIndex;
-                float positionWeight = (currentStyle == STYLE_DOT) ? 1.0f : (1.0f - distFromCenter * 0.9f);
-                float height = normalized * maxHeight * positionWeight;
+            // ========= 圆环模式：原版直传（无log映射，无positionWeight）=========
+            // ========= 圆点/波浪线模式：对数映射 =========
+            if (currentStyle == STYLE_RING) {
+                // 原版 AttachmentRingView: int total = data.length - scope
+                // 直接用原始幅度值，barHeights[i] * 1.5 在drawRing中作为射线像素长度
+                int total = Math.min(magnitudes.length, RING_INPUT_COUNT) - ringScope;
+                if (total < 1) total = 1;
+                if (total != currentCount) {
+                    currentCount = total;
+                    ringCount = total;
+                    rebuildArrays();
+                }
+                float minVal = 2f;
+                for (int i = 0; i < currentCount && i < magnitudes.length; i++) {
+                    targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
+                }
+            } else {
+                // 圆点/波浪线模式：对数映射
+                float maxHeight = getHeight() * 0.9f;
                 float minVal = 6f;
-                targetBarHeights[i] = Math.max(minVal, height);
+                float logMax = (float) Math.log1p(maxMag > 0 ? maxMag : 1);
+                float centerIndex = (currentCount - 1) / 2f;
+                
+                for (int i = 0; i < currentCount && i < magnitudes.length; i++) {
+                    float normalized = (float) Math.log1p(magnitudes[i]) / logMax;
+                    normalized = normalized * (2f - normalized);
+                    float positionWeight;
+                    if (currentStyle == STYLE_DOT) {
+                        positionWeight = 1.0f;
+                    } else {
+                        float distFromCenter = Math.abs(i - centerIndex) / centerIndex;
+                        positionWeight = 1.0f - distFromCenter * 0.9f;
+                    }
+                    float height = normalized * maxHeight * positionWeight;
+                    targetBarHeights[i] = Math.max(minVal, height);
+                }
             }
         }
         
@@ -736,6 +1059,7 @@ public class SpectrumView extends View {
             float minVal;
             switch (currentStyle) {
                 case STYLE_BAR: minVal = 8f; break;
+                case STYLE_RING: minVal = 2f; break;
                 default: minVal = 4f; break;
             }
             for (int i = 0; i < currentCount; i++) {

@@ -105,8 +105,10 @@ public class PortraitClassicScene implements CoverScene {
             h.coverPlaceholder.setVisibility(View.GONE);
             h.coverView.setVisibility(View.GONE);
         }
-        // 频谱高度
-        h.spectrumView.getLayoutParams().height = (int) (height * getSpectrumHeightRatio());
+        // 频谱位置：圆环模式覆盖封面，非圆环模式在底部
+        int coverCenterX = width / 2;
+        int coverCenterY = coverMarginTop + coverSize / 2;
+        h.applySpectrumPosition(false, coverCenterX, coverCenterY, coverSize, height, getSpectrumHeightRatio());
     }
 
     @Override

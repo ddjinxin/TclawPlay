@@ -506,16 +506,24 @@ public class PlayerActivity extends AppCompatActivity {
             long now = System.currentTimeMillis();
             if (now - lastSpectrumBtnClickTime < DOUBLE_CLICK_INTERVAL) {
                 // 双击：关闭/显示频谱
-                if (spectrumView.isSpectrumVisible()) {
-                    spectrumView.toggleVisibility();
-                } else {
-                    spectrumView.toggleVisibility();
-                }
+                spectrumView.toggleVisibility();
                 lastSpectrumBtnClickTime = 0;
             } else {
                 // 单击：切换频谱样式
                 if (spectrumView.isSpectrumVisible()) {
+                    boolean wasRing = spectrumView.isRingMode();
                     spectrumView.switchStyle();
+                    // 沉浸模式下如果切到了圆环，再切一次跳过
+                    if (isImmersiveMode && spectrumView.isRingMode()) {
+                        spectrumView.switchStyle();
+                    }
+                    // 圆环↔非圆环切换，需要重新布局频谱位置
+                    boolean isRing = spectrumView.isRingMode();
+                    if (wasRing != isRing) {
+                        int w = getLayoutWidth();
+                        int h = getAvailableScreenHeight();
+                        currentScene.layout(w, h);
+                    }
                 } else {
                     // 频谱关闭时单击恢复显示
                     spectrumView.toggleVisibility();
@@ -1163,6 +1171,11 @@ public class PlayerActivity extends AppCompatActivity {
     private void toggleImmersiveMode() {
         isImmersiveMode = !isImmersiveMode;
         getSharedPreferences("theme", MODE_PRIVATE).edit().putBoolean("immersive", isImmersiveMode).apply();
+
+        // 沉浸模式下圆环不可用，如果当前是圆环则切换到竖条
+        if (isImmersiveMode && spectrumView.isRingMode()) {
+            spectrumView.switchStyle();
+        }
 
         syncSceneState();
         switchScene();

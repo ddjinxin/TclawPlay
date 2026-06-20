@@ -70,8 +70,11 @@ public class LandscapeClassicScene implements CoverScene {
         coverParams.leftMargin = 0;
         h.coverView.setLayoutParams(coverParams);
 
-        // 频谱高度
-        h.spectrumView.getLayoutParams().height = (int) (height * getSpectrumHeightRatio());
+        // 频谱位置：圆环模式覆盖封面，非圆环模式在底部
+        // 横屏封面圆心：右侧面板居中
+        int coverCenterX = width - rightPanelWidth / 2;
+        int coverCenterY = height / 2;
+        h.applySpectrumPosition(false, coverCenterX, coverCenterY, coverSize, height, getSpectrumHeightRatio());
 
         // 横屏不需要封面占位
         h.coverPlaceholder.setVisibility(View.GONE);
