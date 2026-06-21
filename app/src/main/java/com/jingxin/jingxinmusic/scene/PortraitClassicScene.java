@@ -29,8 +29,8 @@ public class PortraitClassicScene implements CoverScene {
         // 隐藏沉浸相关 View
         h.immersiveOverlay.setVisibility(View.GONE);
         h.immersiveDarkOverlay.setVisibility(View.GONE);
-        if (h.landscapeGradientOverlay != null) {
-            h.landscapeGradientOverlay.setVisibility(View.GONE);
+        if (h.landscapeGradientOverlay != null && h.landscapeGradientOverlay.getParent() != null) {
+            h.rootLayout.removeView(h.landscapeGradientOverlay);
         }
         // 显示非沉浸遮罩
         h.overlayView.setVisibility(View.GONE);

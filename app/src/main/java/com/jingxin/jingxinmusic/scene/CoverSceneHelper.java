@@ -242,8 +242,8 @@ public class CoverSceneHelper {
             rootLayout.removeView(immersiveDarkOverlay);
             rootLayout.addView(immersiveDarkOverlay, newOverlayIndex + 1);
         }
-        if (landscapeGradientOverlay != null) {
-            landscapeGradientOverlay.setVisibility(android.view.View.GONE);
+        if (landscapeGradientOverlay != null && landscapeGradientOverlay.getParent() != null) {
+            rootLayout.removeView(landscapeGradientOverlay);
         }
     }
 

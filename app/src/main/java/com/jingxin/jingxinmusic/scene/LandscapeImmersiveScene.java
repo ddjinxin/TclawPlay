@@ -46,13 +46,15 @@ public class LandscapeImmersiveScene implements CoverScene {
         h.coverView.setBackground(null);
         h.coverView.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
         h.coverView.stopAndResetRotation();
-        // 创建渐变过渡层
+        // 创建或恢复渐变过渡层
         if (h.landscapeGradientOverlay == null) {
             h.landscapeGradientOverlay = new com.jingxin.jingxinmusic.view.LandscapeGradientOverlay(
                     h.rootLayout.getContext());
             h.landscapeGradientOverlay.setLayoutParams(new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
+        }
+        if (h.landscapeGradientOverlay.getParent() == null) {
             h.rootLayout.addView(h.landscapeGradientOverlay);
         }
         h.landscapeGradientOverlay.setOverlayColor(h.immersiveOverlay.getOverlayColor());
@@ -94,9 +96,9 @@ public class LandscapeImmersiveScene implements CoverScene {
         h.immersiveDarkOverlay.setVisibility(View.GONE);
         h.blurBackground.setVisibility(View.GONE);
         h.coverView.setVisibility(View.VISIBLE);
-        // 隐藏渐变过渡层
-        if (h.landscapeGradientOverlay != null) {
-            h.landscapeGradientOverlay.setVisibility(View.GONE);
+        // 移除渐变过渡层（而不是仅GONE，避免反复切换时叠加残留）
+        if (h.landscapeGradientOverlay != null && h.landscapeGradientOverlay.getParent() != null) {
+            h.rootLayout.removeView(h.landscapeGradientOverlay);
         }
         // 恢复封面为圆形裁剪
         h.coverView.setClipToOutline(true);

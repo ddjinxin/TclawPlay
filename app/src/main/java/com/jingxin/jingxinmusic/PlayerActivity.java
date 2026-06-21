@@ -872,9 +872,18 @@ public class PlayerActivity extends AppCompatActivity {
         sceneHelper.isNightMode = isNightMode;
         sceneHelper.isPlaying = bound && playerBinder != null && playerBinder.isPlaying();
         sceneHelper.playerBinder = playerBinder;
-        sceneHelper.coverBorderGradient = coverBorderGradient;
-        sceneHelper.landscapeGradientOverlay = landscapeGradientOverlay;
         sceneHelper.executor = executor;
+        // 双向同步：helper可能由scene创建了实例，不能被activity的null覆盖
+        if (coverBorderGradient != null) {
+            sceneHelper.coverBorderGradient = coverBorderGradient;
+        } else if (sceneHelper.coverBorderGradient != null) {
+            coverBorderGradient = sceneHelper.coverBorderGradient;
+        }
+        if (landscapeGradientOverlay != null) {
+            sceneHelper.landscapeGradientOverlay = landscapeGradientOverlay;
+        } else if (sceneHelper.landscapeGradientOverlay != null) {
+            landscapeGradientOverlay = sceneHelper.landscapeGradientOverlay;
+        }
     }
 
      /**

@@ -28,8 +28,8 @@ public class LandscapeClassicScene implements CoverScene {
         // 隐藏沉浸相关
         h.immersiveOverlay.setVisibility(View.GONE);
         h.immersiveDarkOverlay.setVisibility(View.GONE);
-        if (h.landscapeGradientOverlay != null) {
-            h.landscapeGradientOverlay.setVisibility(View.GONE);
+        if (h.landscapeGradientOverlay != null && h.landscapeGradientOverlay.getParent() != null) {
+            h.rootLayout.removeView(h.landscapeGradientOverlay);
         }
         // 非沉浸遮罩
         h.callback.updateThemeUI();
