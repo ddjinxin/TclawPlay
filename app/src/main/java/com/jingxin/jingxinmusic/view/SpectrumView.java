@@ -998,6 +998,8 @@ public class SpectrumView extends View {
      * 特征：256根细柱 + 下落式峰值能量块 + 红绿蓝对角线渐变
      */
     private void drawColumnar(Canvas canvas) {
+        // 重置Paint alpha，避免drawStatic()残留的alpha污染Shader渲染
+        columnarPaint.setAlpha(255);
         float viewWidth = getWidth();
         float viewHeight = getHeight();
         float minBarPx = getResources().getDisplayMetrics().density; // 1dp最小柱高
@@ -1069,6 +1071,8 @@ public class SpectrumView extends View {
      * lagerOffsetRate=35，blockSpeed=3dp/帧
      */
     private void drawKugou(Canvas canvas) {
+        // 重置Paint alpha，避免drawStatic()残留的alpha污染Shader渲染
+        kugouPaint.setAlpha(255);
         float viewWidth = getWidth();
         float viewHeight = getHeight();
         float minBarPx = getResources().getDisplayMetrics().density;
@@ -1266,6 +1270,8 @@ public class SpectrumView extends View {
      * 高度超频谱区域时按比例压缩
      */
     private void drawWaveColumn(Canvas canvas) {
+        // 重置Paint alpha，避免drawStatic()残留的alpha污染Shader渲染
+        waveColumnPaint.setAlpha(255);
         float viewWidth = getWidth();
         float viewHeight = getHeight();
         float defultY = viewHeight / 2f;
