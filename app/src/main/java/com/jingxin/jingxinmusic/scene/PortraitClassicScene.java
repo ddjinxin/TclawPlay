@@ -124,17 +124,23 @@ public class PortraitClassicScene implements CoverScene {
     @Override
     public void onLyricModeChanged(boolean isFullScreen) {
         if (isFullScreen) {
-            // 竖屏全屏歌词：隐藏封面，歌名歌手
+            // 竖屏全屏歌词：隐藏封面，歌名歌手，圆环类频谱
             h.coverView.setVisibility(View.GONE);
             h.tvSongName.setVisibility(View.GONE);
             h.tvArtist.setVisibility(View.GONE);
             h.coverPlaceholder.setVisibility(View.GONE);
+            if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
+                h.spectrumView.setVisibility(View.GONE);
+            }
         } else {
             // 恢复
             h.coverView.setVisibility(View.VISIBLE);
             h.tvSongName.setVisibility(View.VISIBLE);
             h.tvArtist.setVisibility(View.VISIBLE);
             h.callback.updateCoverPlaceholder();
+            if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
+                h.spectrumView.setVisibility(View.VISIBLE);
+            }
         }
     }
 

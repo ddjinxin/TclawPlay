@@ -145,10 +145,17 @@ public class PortraitImmersiveScene implements CoverScene {
         if (isFullScreen) {
             h.immersiveOverlay.setFullScreenMode(true);
             h.callback.resetLyricMargin();
+            // 竖屏全屏歌词：隐藏圆环类频谱
+            if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
+                h.spectrumView.setVisibility(View.GONE);
+            }
         } else {
             h.immersiveOverlay.setFullScreenMode(false);
             h.blurBackground.setAlpha(1.0f);
             h.callback.updateImmersiveLyricMargin(false);
+            if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
+                h.spectrumView.setVisibility(View.VISIBLE);
+            }
         }
     }
 

@@ -117,6 +117,7 @@ public class PlayerActivity extends AppCompatActivity {
     // 沉浸模式
     private boolean isImmersiveMode = false; // 沉浸封面模式
     private com.jingxin.jingxinmusic.view.ImmersiveOverlayView immersiveOverlay;
+    private android.widget.PopupWindow spectrumPickerPopup; // 频谱选择浮窗
 
     // 横屏模式
     private boolean isLandscapeMode = false; // 宽>高*1.2 时为横屏
@@ -397,6 +398,10 @@ public class PlayerActivity extends AppCompatActivity {
                         int newWidth = right - left;
                         int oldWidth = oldRight - oldLeft;
                         if (oldWidth > 0 && newWidth != oldWidth) {
+                            // 横竖屏切换时关闭频谱选择弹窗
+                            if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
+                                spectrumPickerPopup.dismiss();
+                            }
                             Log.d(TAG, "Root FrameLayout width changed: " + oldWidth + " -> " + newWidth + " landscape=" + isLandscapeMode + " immersive=" + isImmersiveMode);
                             // 重新检测横竖屏并应用完整布局
                             boolean wasLandscape = isLandscapeMode;
@@ -509,21 +514,9 @@ public class PlayerActivity extends AppCompatActivity {
                 spectrumView.toggleVisibility();
                 lastSpectrumBtnClickTime = 0;
             } else {
-                // 单击：切换频谱样式
+                // 单击：弹出频谱选择面板
                 if (spectrumView.isSpectrumVisible()) {
-                    boolean wasRing = spectrumView.isCoverOverlayMode();
-                    spectrumView.switchStyle();
-                    // 沉浸模式下如果切到了圆环/扩散圆环，再切一次跳过
-                    if (isImmersiveMode && spectrumView.isCoverOverlayMode()) {
-                        spectrumView.switchStyle();
-                    }
-                    // 圆环↔非圆环切换，需要重新布局频谱位置
-                    boolean isRing = spectrumView.isCoverOverlayMode();
-                    if (wasRing != isRing) {
-                        int w = getLayoutWidth();
-                        int h = getAvailableScreenHeight();
-                        currentScene.layout(w, h);
-                    }
+                    showSpectrumPicker();
                 } else {
                     // 频谱关闭时单击恢复显示
                     spectrumView.toggleVisibility();
@@ -587,6 +580,10 @@ public class PlayerActivity extends AppCompatActivity {
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         Log.d(TAG, "onConfigurationChanged: newOrientation=" + newConfig.orientation);
+        // 横竖屏切换时关闭频谱选择弹窗
+        if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
+            spectrumPickerPopup.dismiss();
+        }
         // 延迟一帧再检测，确保 DisplayMetrics 已更新
         uiHandler.post(() -> {
             boolean wasLandscape = isLandscapeMode;
@@ -1173,9 +1170,11 @@ public class PlayerActivity extends AppCompatActivity {
         isImmersiveMode = !isImmersiveMode;
         getSharedPreferences("theme", MODE_PRIVATE).edit().putBoolean("immersive", isImmersiveMode).apply();
 
-        // 沉浸模式下圆环/扩散圆环不可用，如果当前则切换到下一个
+        // 沉浸模式下圆环/扩散圆环/波浪圆环不可用，循环跳过
         if (isImmersiveMode && spectrumView.isCoverOverlayMode()) {
-            spectrumView.switchStyle();
+            while (spectrumView.isCoverOverlayMode()) {
+                spectrumView.switchStyle();
+            }
         }
 
         syncSceneState();
@@ -1195,6 +1194,117 @@ public class PlayerActivity extends AppCompatActivity {
 
         android.widget.Toast.makeText(this, isImmersiveMode ? "沉浸模式" : "经典模式",
                 android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 弹出频谱选择浮窗面板（竖屏2列5行，横屏5列2行）
+     */
+    private void showSpectrumPicker() {
+        if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
+            spectrumPickerPopup.dismiss();
+            return;
+        }
+
+        String[] names = com.jingxin.jingxinmusic.view.SpectrumView.STYLE_NAMES;
+        int currentStyle = spectrumView.getCurrentStyle();
+        float density = getResources().getDisplayMetrics().density;
+
+        // 外层容器
+        android.widget.LinearLayout container = new android.widget.LinearLayout(this);
+        container.setOrientation(android.widget.LinearLayout.VERTICAL);
+        container.setPadding(
+                (int)(10 * density), (int)(10 * density),
+                (int)(10 * density), (int)(10 * density));
+        // 圆角背景
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setCornerRadius(16 * density);
+        bg.setColor(Color.argb(51, 30, 30, 30));  // 透明度20%
+        container.setBackground(bg);
+
+        // 标题
+        android.widget.TextView title = new android.widget.TextView(this);
+        title.setText("频谱选择");
+        title.setTextColor(Color.parseColor("#00FFB0"));
+        title.setTextSize(18);
+        title.setGravity(android.view.Gravity.CENTER);
+        title.setPadding(0, 0, 0, (int)(12 * density));
+        container.addView(title);
+
+        // 竖屏2列5行，横屏5列2行
+        boolean isLandscape = getLayoutWidth() > getAvailableScreenHeight() * 1.2f;
+        int columns = isLandscape ? 5 : 2;
+
+        int itemWidth = isLandscape
+                ? (int)(120 * density)
+                : (int)(140 * density);
+
+        android.widget.GridLayout grid = new android.widget.GridLayout(this);
+        grid.setColumnCount(columns);
+
+        for (int i = 0; i < names.length; i++) {
+            final int style = i;
+            android.widget.TextView item = new android.widget.TextView(this);
+            item.setText(names[i]);
+            item.setTextSize(16);
+            item.setGravity(android.view.Gravity.CENTER);
+            item.setPadding(
+                    (int)(20 * density), (int)(14 * density),
+                    (int)(20 * density), (int)(14 * density));
+
+            android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams();
+            lp.width = itemWidth;
+            lp.height = android.widget.GridLayout.LayoutParams.WRAP_CONTENT;
+            lp.setMargins((int)(6 * density), (int)(4 * density), (int)(6 * density), (int)(4 * density));
+            item.setLayoutParams(lp);
+
+            // 沉浸模式下圆环类灰色不可选
+            boolean isOverlay = (style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_RING
+                    || style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_DIFFUSION_RING
+                    || style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_WAVE_RING);
+            boolean disabled = isImmersiveMode && isOverlay;
+
+            if (disabled) {
+                item.setTextColor(Color.parseColor("#666666"));
+                item.setBackgroundColor(Color.argb(153, 42, 42, 42));    // 透明度60%
+            } else if (i == currentStyle) {
+                // 当前选中：青色发光
+                item.setTextColor(Color.parseColor("#003322"));
+                item.setBackgroundColor(Color.argb(153, 0, 230, 180));  // 透明度60%
+            } else {
+                item.setTextColor(Color.parseColor("#CCCCCC"));
+                item.setBackgroundColor(Color.argb(153, 68, 68, 68));   // 透明度60%
+            }
+
+            item.setOnClickListener(v -> {
+                if (disabled) return;
+                boolean wasRing = spectrumView.isCoverOverlayMode();
+                spectrumView.setStyle(style);
+                boolean isRing = spectrumView.isCoverOverlayMode();
+                if (wasRing != isRing) {
+                    int w = getLayoutWidth();
+                    int h = getAvailableScreenHeight();
+                    currentScene.layout(w, h);
+                }
+                spectrumPickerPopup.dismiss();
+            });
+
+            grid.addView(item);
+        }
+        container.addView(grid);
+
+        int popupWidth = getLayoutWidth() - (int)(20 * density);
+        int margin10dp = (int)(10 * density);
+        spectrumPickerPopup = new android.widget.PopupWindow(container,
+                popupWidth,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                true);
+        spectrumPickerPopup.setOutsideTouchable(true);
+        spectrumPickerPopup.setElevation(8 * density);
+        // 用showAtLocation精确控制位置：距左10dp，按钮下方4dp
+        int[] btnPos = new int[2];
+        btnSpectrum.getLocationOnScreen(btnPos);
+        spectrumPickerPopup.showAtLocation(btnSpectrum, android.view.Gravity.NO_GRAVITY,
+                margin10dp, btnPos[1] + btnSpectrum.getHeight() + (int)(4 * density));
     }
 
     private void toggleTheme() {

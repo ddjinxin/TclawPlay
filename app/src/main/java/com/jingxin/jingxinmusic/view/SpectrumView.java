@@ -27,15 +27,23 @@ public class SpectrumView extends View {
     private static final String TAG = "SpectrumView";
     
     // 频谱样式常量
-    private static final int STYLE_BAR = 0;          // 竖条模式
-    private static final int STYLE_DOT = 1;          // 圆点模式
-    private static final int STYLE_WAVE = 2;         // 波浪线模式
-    private static final int STYLE_RING = 3;         // 圆环模式
-    private static final int STYLE_COLUMNAR = 4;     // ColumnarView柱状模式（原版）
-    private static final int STYLE_KUGOU = 5;       // KugouColumn酷狗风格柱状模式（原版）
-    private static final int STYLE_AIVOICE = 6;     // AiVoiceView AI语音模式（原版）
-    private static final int STYLE_WAVECOLUMN = 7;  // WaveColumnformView 波形柱模式（原版）
-    private static final int STYLE_DIFFUSION_RING = 8; // DiffusionRingView 扩散圆环模式（原版）
+    public static final int STYLE_BAR = 0;          // 竖条模式
+    public static final int STYLE_DOT = 1;          // 圆点模式
+    public static final int STYLE_WAVE = 2;         // 波浪线模式
+    public static final int STYLE_RING = 3;         // 圆环模式
+    public static final int STYLE_COLUMNAR = 4;     // ColumnarView柱状模式（原版）
+    public static final int STYLE_KUGOU = 5;       // KugouColumn酷狗风格柱状模式（原版）
+    public static final int STYLE_AIVOICE = 6;     // AiVoiceView AI语音模式（原版）
+    public static final int STYLE_WAVECOLUMN = 7;  // WaveColumnformView 波形柱模式（原版）
+    public static final int STYLE_DIFFUSION_RING = 8; // DiffusionRingView 扩散圆环模式（原版）
+    public static final int STYLE_WAVE_RING = 9;     // WaveRingView 波浪圆环模式（原版）
+    
+    // 频谱名称数组（对外暴露）
+    public static final String[] STYLE_NAMES = {
+        "竖条", "圆点", "波浪线", "网易圆环",
+        "柱状", "酷狗柱状", "AI语音", "波形柱",
+        "扩散圆环", "波浪圆环"
+    };
     
     // 圆环子模式常量
     private static final int RING_COLUMNAR = 0;      // 柱状（放射白线）
@@ -190,6 +198,26 @@ public class SpectrumView extends View {
     private float diffusionTotalEnergy = 0f;    // 累计总能量
     private Paint diffusionPaint;               // 扩散圆环画笔
     
+    // 波浪圆环模式状态（基于封面大小动态缩放：内环+2px，外径120%封面）
+    private static final float WAVE_RING_OUTER_RATIO = 2.0f;   // 外径 = coverRadius * 2.0
+    private static final int WAVE_RING_INNER_OFFSET = 2;       // 内环距封面外沿2px
+    private static final int WAVE_RING_SCOPE = 1;               // 能量阈值
+    private static final int WAVE_RING_SPEED = 2;               // 能量点扩散速度(px/帧)
+    private boolean waveRingIsRotate = true;            // 原版isRotate
+    private boolean waveRingIsRandom = false;           // 原版isRandom
+    private boolean waveRingIsBase = false;             // 原版isBase（不画基线）
+    private boolean waveRingIsWave = true;              // 原版isWave（画波浪）
+    private boolean waveRingIsPoint = true;             // 原版isPoint（画能量圆点）
+    private boolean waveRingIsPowerOffset = true;       // 原版isPowerOffset（均衡能量）
+    private boolean waveRingIsSpread = true;            // 原版isSpread（能量点扩散）
+    private float waveRingDegrees = 0f;                 // 旋转角度
+    private int waveRingRandomAngle = 0;                // 随机角度值
+    private int waveRingFrameCounter = 0;               // 帧计数器
+    private java.util.List<WaveRingBean> waveRingList = new java.util.ArrayList<>();
+    private java.util.List<Float> waveRingLastRadius = new java.util.ArrayList<>();
+    private Paint waveRingPaint;                        // 波浪圆环画笔
+    private android.graphics.SweepGradient waveRingSweepGradient; // 渐变
+    
     // 动画驱动 Handler
     private Handler animHandler = new Handler(Looper.getMainLooper());
     private Runnable animRunnable;
@@ -252,6 +280,10 @@ public class SpectrumView extends View {
         diffusionPaint = new Paint();
         diffusionPaint.setStrokeWidth(getResources().getDisplayMetrics().density); // dp2px(1)
         diffusionPaint.setAntiAlias(true);
+        
+        // 波浪圆环画笔（严格匹配原版WaveRingView）
+        waveRingPaint = new Paint();
+        waveRingPaint.setAntiAlias(true);
         
         // ColumnarView画笔
         columnarPaint = new Paint();
@@ -320,6 +352,7 @@ public class SpectrumView extends View {
                             case STYLE_AIVOICE: minVal = 2f; break;
                              case STYLE_WAVECOLUMN: minVal = 2f; break;
                              case STYLE_DIFFUSION_RING: minVal = 2f; break;
+                             case STYLE_WAVE_RING: minVal = 2f; break;
                              default: minVal = 6f; break;
                         }
                         if (targetBarHeights[i] < minVal) {
@@ -404,6 +437,13 @@ public class SpectrumView extends View {
                 Log.d(TAG, "切换到DiffusionRingView扩散圆环模式");
                 break;
             case STYLE_DIFFUSION_RING:
+                currentStyle = STYLE_WAVE_RING;
+                waveRingList.clear();
+                waveRingLastRadius.clear();
+                currentCount = 1; // 波浪圆环由waveRingList管理
+                Log.d(TAG, "切换到WaveRingView波浪圆环模式");
+                break;
+            case STYLE_WAVE_RING:
             default:
                 currentStyle = STYLE_BAR;
                 currentCount = barCount;
@@ -424,6 +464,76 @@ public class SpectrumView extends View {
             waveColumnPaint.setShader(null);
         }
         // AiVoiceView需要SOFTWARE图层才能让LIGHTEN混合模式生效
+        if (currentStyle == STYLE_AIVOICE) {
+            setLayerType(LAYER_TYPE_SOFTWARE, null);
+        } else {
+            setLayerType(LAYER_TYPE_NONE, null);
+        }
+        requestLayout();
+        postInvalidate();
+    }
+    
+    /**
+     * 获取当前频谱样式
+     */
+    public int getCurrentStyle() {
+        return currentStyle;
+    }
+    
+    /**
+     * 直接设置频谱样式
+     */
+    public void setStyle(int style) {
+        if (style < 0 || style > STYLE_WAVE_RING) return;
+        currentStyle = style;
+        switch (style) {
+            case STYLE_BAR:
+                currentCount = barCount;
+                break;
+            case STYLE_DOT:
+            case STYLE_WAVE:
+                currentCount = DOT_COUNT;
+                break;
+            case STYLE_RING:
+                ringCount = RING_INPUT_COUNT - ringScope;
+                currentCount = ringCount;
+                break;
+            case STYLE_COLUMNAR:
+                columnarCount = (getWidth() > getHeight()) ? COLUMNAR_COUNT_LANDSCAPE : COLUMNAR_COUNT_PORTRAIT;
+                currentCount = columnarCount;
+                columnarBlockTop = null;
+                break;
+            case STYLE_KUGOU:
+                currentCount = KUGOU_COUNT;
+                kugouBlockTop = null;
+                break;
+            case STYLE_AIVOICE:
+                currentCount = AIVOICE_INPUT_COUNT;
+                break;
+            case STYLE_WAVECOLUMN:
+                waveColumnCount = (getWidth() > getHeight()) ? WAVECOLUMN_COUNT_LANDSCAPE : WAVECOLUMN_COUNT_PORTRAIT;
+                currentCount = waveColumnCount;
+                break;
+            case STYLE_DIFFUSION_RING:
+                diffusionRings.clear();
+                currentCount = 1;
+                break;
+            case STYLE_WAVE_RING:
+                waveRingList.clear();
+                waveRingLastRadius.clear();
+                currentCount = 1;
+                break;
+        }
+        rebuildArrays();
+        float totalSpacing = barSpacing * (currentCount - 1);
+        barWidth = (getWidth() - totalSpacing) / currentCount;
+        if (currentStyle != STYLE_KUGOU) {
+            kugouGradient1 = null;
+            kugouGradient2 = null;
+        }
+        if (currentStyle != STYLE_WAVECOLUMN) {
+            waveColumnPaint.setShader(null);
+        }
         if (currentStyle == STYLE_AIVOICE) {
             setLayerType(LAYER_TYPE_SOFTWARE, null);
         } else {
@@ -466,7 +576,7 @@ public class SpectrumView extends View {
      * 当前是否为需要铺满rootLayout覆盖封面的模式（圆环/扩散圆环）
      */
     public boolean isCoverOverlayMode() {
-        return currentStyle == STYLE_RING || currentStyle == STYLE_DIFFUSION_RING;
+        return currentStyle == STYLE_RING || currentStyle == STYLE_DIFFUSION_RING || currentStyle == STYLE_WAVE_RING;
     }
     
     /**
@@ -605,6 +715,8 @@ public class SpectrumView extends View {
         columnarPaint.setShader(new LinearGradient(0f, 0f, w, h,
                 new int[]{0xFFFF0000, 0xFF00FF00, 0xFF0000FF},
                 new float[]{0, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        
+        // WaveRingView渐变：在drawWaveRing中根据coverCenter动态创建
     }
     
     @Override
@@ -640,6 +752,9 @@ public class SpectrumView extends View {
                 break;
             case STYLE_DIFFUSION_RING:
                 drawDiffusionRing(canvas);
+                break;
+            case STYLE_WAVE_RING:
+                drawWaveRing(canvas);
                 break;
             default:
                 drawBars(canvas);
@@ -770,6 +885,18 @@ public class SpectrumView extends View {
                 diffusionPaint.setStyle(Paint.Style.STROKE);
                 diffusionPaint.setColor(Color.argb(60, 255, 255, 255));
                 canvas.drawCircle(dCx, dCy, dRadius, diffusionPaint);
+                break;
+            }
+            case STYLE_WAVE_RING: {
+                // WaveRingView静态：白色细圆环基线，外径120%封面
+                float wCx = coverCenterX;
+                float wCy = coverCenterY;
+                float wRadius = coverRadius * WAVE_RING_OUTER_RATIO;
+                waveRingPaint.setShader(null);
+                waveRingPaint.setStyle(Paint.Style.STROKE);
+                waveRingPaint.setColor(Color.argb(60, 255, 255, 255));
+                waveRingPaint.setStrokeWidth(1f);
+                canvas.drawCircle(wCx, wCy, wRadius, waveRingPaint);
                 break;
             }
             default: {
@@ -1536,6 +1663,9 @@ public class SpectrumView extends View {
         if (currentStyle == STYLE_DIFFUSION_RING) {
             return RING_INPUT_COUNT; // 与圆环一样需要足够FFT数据计算总能量
         }
+        if (currentStyle == STYLE_WAVE_RING) {
+            return RING_INPUT_COUNT; // 原版SAMPLE_SIZE=256
+        }
         return currentCount;
     }
 
@@ -1674,6 +1804,87 @@ public class SpectrumView extends View {
                     bean.angle = positionPercent * 360f;
                     diffusionRings.add(bean);
                 }
+            } else if (currentStyle == STYLE_WAVE_RING) {
+                // WaveRingView: 内环+2px，外径120%封面，参数按封面大小自适应
+                float cx = coverCenterX;
+                float cy = coverCenterY;
+                float baseRadius = coverRadius + WAVE_RING_INNER_OFFSET; // 内环距封面外沿2px
+                float outerLimit = coverRadius * WAVE_RING_OUTER_RATIO;  // 外径上限
+                float amplitude = outerLimit - baseRadius;                // 波浪可用振幅空间
+                // 采样数：根据振幅空间自适应，保证视觉密度合理
+                int total = Math.min(magnitudes.length, RING_INPUT_COUNT);
+                if (total > amplitude * 0.5f) total = (int)(amplitude * 0.5f);
+                if (total < 8) total = 8;
+                // basePoint = 能量圆点的默认半径位置（约在振幅中段）
+                float basePoint = baseRadius + amplitude * 0.3f;
+                
+                // lastRadius spread逻辑
+                if (waveRingList.size() > 0) {
+                    if (waveRingLastRadius.size() == 0 || waveRingList.size() != waveRingLastRadius.size()) {
+                        waveRingLastRadius.clear();
+                        for (int i = 0; i < total; i++) {
+                            waveRingLastRadius.add(basePoint);
+                        }
+                    }
+                    for (int i = 0; i < waveRingLastRadius.size(); i++) {
+                        if (i < waveRingList.size()) {
+                            if (waveRingList.get(i).radius < waveRingLastRadius.get(i)) {
+                                waveRingLastRadius.set(i, waveRingList.get(i).radius);
+                            } else {
+                                if (waveRingIsSpread) {
+                                    waveRingLastRadius.set(i, waveRingLastRadius.get(i) + WAVE_RING_SPEED);
+                                } else {
+                                    waveRingLastRadius.set(i, waveRingList.get(i).radius);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                waveRingList.clear();
+                
+                for (int i = 0; i < total && i < magnitudes.length; i++) {
+                    float positionAngle = i * 1.0f / total * 360f;
+                    float currentRotation = waveRingIsRotate ? waveRingDegrees : waveRingRandomAngle;
+                    float angle = positionAngle + currentRotation;
+                    float powerPercent = waveRingIsPowerOffset ? 0f : magnitudes[i] / 256f;
+                    float dataVal = magnitudes[i];
+                    // dataVal归一化到0~1，再映射到amplitude
+                    float normVal = dataVal / 256f;
+                    
+                    WaveRingBean bean = new WaveRingBean();
+                    bean.angle = angle;
+                    bean.powerPercent = normVal;
+                    
+                    double rad = Math.toRadians(angle);
+                    
+                    if (dataVal > WAVE_RING_SCOPE) {
+                        // outter: 内环向内收缩（最多收缩到baseRadius的80%）
+                        float outterContraction = normVal * amplitude * 0.4f + powerPercent * normVal * amplitude * 0.1f;
+                        float outterR = Math.max(baseRadius * 0.8f, baseRadius - outterContraction);
+                        bean.outterX = (float) (cx + outterR * Math.cos(rad));
+                        bean.outterY = (float) (cy + outterR * Math.sin(rad));
+                        // inner: 内环向外扩展，不超过外径上限
+                        float innerExpansion = normVal * amplitude * 0.7f;
+                        float innerR = Math.min(outerLimit, baseRadius + innerExpansion);
+                        bean.innerX = (float) (cx + innerR * Math.cos(rad));
+                        bean.innerY = (float) (cy + innerR * Math.sin(rad));
+                        // center: 基线位置
+                        bean.centerX = (float) (cx + baseRadius * Math.cos(rad));
+                        bean.centerY = (float) (cy + baseRadius * Math.sin(rad));
+                        // radius: 能量圆点位置
+                        bean.radius = basePoint + normVal * amplitude * 0.3f;
+                    } else {
+                        bean.radius = basePoint;
+                        bean.innerX = (float) (cx + baseRadius * Math.cos(rad));
+                        bean.innerY = (float) (cy + baseRadius * Math.sin(rad));
+                        bean.outterX = bean.innerX;
+                        bean.outterY = bean.innerY;
+                        bean.centerX = bean.innerX;
+                        bean.centerY = bean.innerY;
+                    }
+                    waveRingList.add(bean);
+                }
             } else {
                 // 圆点/波浪线模式：对数映射
                 float maxHeight = getHeight() * 0.9f;
@@ -1766,6 +1977,7 @@ public class SpectrumView extends View {
                 case STYLE_AIVOICE: minVal = 2f; break;
                 case STYLE_WAVECOLUMN: minVal = 2f; break;
                 case STYLE_DIFFUSION_RING: minVal = 2f; break;
+                case STYLE_WAVE_RING: minVal = 2f; break;
                 default: minVal = 4f; break;
             }
             for (int i = 0; i < currentCount; i++) {
@@ -1804,7 +2016,7 @@ public class SpectrumView extends View {
         // 原版: 遍历扩散圆环列表，每个ring: alpha-=5, radius+=5
         for (int i = 0; i < diffusionRings.size(); i++) {
             DiffusionRingBean ring = diffusionRings.get(i);
-            ring.alpha -= 10;
+            ring.alpha -= 5;
             ring.radius += 5;
             if (ring.alpha <= 0) {
                 ring.enable = false;
@@ -1842,5 +2054,97 @@ public class SpectrumView extends View {
         int alpha;          // 当前透明度
         boolean enable = true;  // 是否有效
         float angle;        // 能量高亮点角度
+    }
+    
+    /**
+     * 波浪圆环模式绘制（内环+2px，外径120%封面，不显示文字）
+     */
+    private void drawWaveRing(Canvas canvas) {
+        float cx = coverCenterX;
+        float cy = coverCenterY;
+        float baseRadius = coverRadius + WAVE_RING_INNER_OFFSET; // 内环距封面外沿2px
+        
+        int total = waveRingList.size();
+        if (total == 0) return;
+        
+        float amplitude = coverRadius * (WAVE_RING_OUTER_RATIO - 1f);
+        
+        // sweepGradient以圆心为中心，每帧更新中心点
+        waveRingSweepGradient = new android.graphics.SweepGradient(cx, cy,
+                new int[]{Color.GREEN, Color.RED, Color.BLUE, Color.GREEN}, null);
+        
+        waveRingPaint.setShader(waveRingSweepGradient);
+        waveRingPaint.setColor(Color.WHITE);
+        // 线宽按振幅比例缩放，避免粗线淹没小空间
+        float strokeWidth = Math.max(1f, amplitude * 0.015f);
+        waveRingPaint.setStrokeWidth(strokeWidth);
+        
+        for (int i = 0; i < total; i++) {
+            WaveRingBean bean = waveRingList.get(i);
+            
+            // isBase: 画基线（从inner到outter的线段）
+            if (waveRingIsBase) {
+                waveRingPaint.setStyle(Paint.Style.STROKE);
+                waveRingPaint.setStrokeWidth(Math.max(0.5f, amplitude * 0.008f));
+                canvas.drawLine(bean.innerX, bean.innerY, bean.outterX, bean.outterY, waveRingPaint);
+            }
+            
+            // isPoint: 画能量圆点（使用lastRadius位置，有扩散效果）
+            if (waveRingIsPoint && i < waveRingLastRadius.size()) {
+                waveRingPaint.setStyle(Paint.Style.FILL);
+                float lastR = waveRingLastRadius.get(i);
+                double rad = Math.toRadians(bean.angle);
+                float px = (float) (cx + lastR * Math.cos(rad));
+                float py = (float) (cy + lastR * Math.sin(rad));
+                float dotR = Math.max(1f, amplitude * 0.02f);
+                canvas.drawArc(px - dotR, py - dotR, px + dotR, py + dotR, 0, 360, true, waveRingPaint);
+            }
+            
+            // isWave: 画波浪（锯齿形闭合曲线）
+            if (waveRingIsWave) {
+                waveRingPaint.setStyle(Paint.Style.STROKE);
+                waveRingPaint.setStrokeWidth(Math.max(1f, amplitude * 0.012f));
+                
+                WaveRingBean prevBean = waveRingList.get(i == 0 ? total - 1 : i - 1);
+                WaveRingBean nextBean = waveRingList.get(i == total - 1 ? 0 : i + 1);
+                
+                // prevCenter→outter, outter→nextCenter, nextCenter→inner, inner→prevCenter
+                canvas.drawLine(prevBean.centerX, prevBean.centerY, bean.outterX, bean.outterY, waveRingPaint);
+                canvas.drawLine(bean.outterX, bean.outterY, nextBean.centerX, nextBean.centerY, waveRingPaint);
+                canvas.drawLine(nextBean.centerX, nextBean.centerY, bean.innerX, bean.innerY, waveRingPaint);
+                canvas.drawLine(bean.innerX, bean.innerY, prevBean.centerX, prevBean.centerY, waveRingPaint);
+            }
+        }
+        
+        // 旋转更新
+        if (waveRingIsRotate) {
+            waveRingDegrees += 0.3f;
+            if (waveRingDegrees >= 360f) waveRingDegrees -= 360f;
+        }
+        
+        // 随机角度：每300帧切换
+        waveRingFrameCounter++;
+        if (waveRingFrameCounter > 300) {
+            int r = random.nextInt(4) + 1;
+            switch (r) {
+                case 1: waveRingRandomAngle = 90; break;
+                case 2: waveRingRandomAngle = 180; break;
+                case 3: waveRingRandomAngle = 270; break;
+                case 4: waveRingRandomAngle = 360; break;
+            }
+            waveRingFrameCounter = 0;
+        }
+    }
+    
+    /**
+     * 波浪圆环数据Bean（严格匹配原版WaveRingViewBean）
+     */
+    private static class WaveRingBean {
+        float innerX, innerY;   // 内端点
+        float centerX, centerY; // 中心点（基线上）
+        float outterX, outterY; // 外端点
+        float angle;            // 角度位置
+        float radius;           // 能量圆点半径位置
+        float powerPercent;     // 能量百分比
     }
 }
