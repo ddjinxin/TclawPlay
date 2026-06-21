@@ -408,16 +408,16 @@ public class CoverSceneHelper {
      */
     public void applySpectrumPosition(boolean isImmersive, int coverCenterX, int coverCenterY,
                                        int coverSize, int height, float spectrumHeightRatio) {
-        boolean isRingMode = spectrumView != null && spectrumView.isRingMode();
+        boolean isCoverOverlay = spectrumView != null && spectrumView.isCoverOverlayMode();
         
-        if (isRingMode && !isImmersive) {
-            // 经典模式 + 圆环：频谱铺满rootLayout，设置封面位置
+        if (isCoverOverlay && !isImmersive) {
+            // 经典模式 + 圆环/扩散圆环：频谱铺满rootLayout，设置封面位置
             moveSpectrumToCover();
             layoutSpectrumRing(coverCenterX, coverCenterY, coverSize);
         } else {
-            // 非圆环 或 沉浸模式：频谱在info_panel底部
+            // 非圆环/扩散圆环 或 沉浸模式：频谱在info_panel底部
             if (spectrumView != null && spectrumView.getParent() == rootLayout) {
-                // 之前在rootLayout上（圆环模式），移回来
+                // 之前在rootLayout上（圆环/扩散圆环模式），移回来
                 moveSpectrumToBottom();
             }
             if (spectrumView != null) {

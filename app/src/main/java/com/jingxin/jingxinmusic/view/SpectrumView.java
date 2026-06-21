@@ -18,8 +18,9 @@ import java.util.Random;
 
 /**
  * 频谱视图
- * 支持四种样式：竖条模式、圆点模式、波浪线模式、圆环模式
+ * 支持九种样式：竖条、圆点、波浪线、圆环、ColumnarView、KugouColumn、AiVoiceView、WaveColumnformView、DiffusionRingView
  * 圆环模式有三种子模式：柱状、爆炸、波形
+ * 扩散圆环模式无子模式
  */
 public class SpectrumView extends View {
     
@@ -34,6 +35,7 @@ public class SpectrumView extends View {
     private static final int STYLE_KUGOU = 5;       // KugouColumn酷狗风格柱状模式（原版）
     private static final int STYLE_AIVOICE = 6;     // AiVoiceView AI语音模式（原版）
     private static final int STYLE_WAVECOLUMN = 7;  // WaveColumnformView 波形柱模式（原版）
+    private static final int STYLE_DIFFUSION_RING = 8; // DiffusionRingView 扩散圆环模式（原版）
     
     // 圆环子模式常量
     private static final int RING_COLUMNAR = 0;      // 柱状（放射白线）
@@ -181,6 +183,13 @@ public class SpectrumView extends View {
     private int ringFrameCounter = 0;           // 帧计数器（用于随机角度切换）
     private Random random = new Random();       // 随机数生成器（类字段复用）
     
+    // 扩散圆环模式状态（严格匹配原版DiffusionRingView）
+    private static final int DIFFUSION_THRESHOLD = 500;  // 能量触发阈值
+    private static final int DIFFUSION_START_RADIUS = 0; // 扩散起始半径偏移
+    private java.util.List<DiffusionRingBean> diffusionRings = new java.util.ArrayList<>();
+    private float diffusionTotalEnergy = 0f;    // 累计总能量
+    private Paint diffusionPaint;               // 扩散圆环画笔
+    
     // 动画驱动 Handler
     private Handler animHandler = new Handler(Looper.getMainLooper());
     private Runnable animRunnable;
@@ -238,6 +247,11 @@ public class SpectrumView extends View {
         ringPaint = new Paint();
         ringPaint.setAntiAlias(true);
         ringPaint.setStyle(Paint.Style.FILL);
+        
+        // 扩散圆环画笔（严格匹配原版DiffusionRingView）
+        diffusionPaint = new Paint();
+        diffusionPaint.setStrokeWidth(getResources().getDisplayMetrics().density); // dp2px(1)
+        diffusionPaint.setAntiAlias(true);
         
         // ColumnarView画笔
         columnarPaint = new Paint();
@@ -305,6 +319,7 @@ public class SpectrumView extends View {
                             case STYLE_KUGOU: minVal = 1f; break;
                             case STYLE_AIVOICE: minVal = 2f; break;
                              case STYLE_WAVECOLUMN: minVal = 2f; break;
+                             case STYLE_DIFFUSION_RING: minVal = 2f; break;
                              default: minVal = 6f; break;
                         }
                         if (targetBarHeights[i] < minVal) {
@@ -383,6 +398,12 @@ public class SpectrumView extends View {
                 Log.d(TAG, "切换到WaveColumnformView模式，waveColumnCount=" + waveColumnCount);
                 break;
             case STYLE_WAVECOLUMN:
+                currentStyle = STYLE_DIFFUSION_RING;
+                diffusionRings.clear();
+                currentCount = 1; // 扩散圆环不使用柱数，但需要非零值
+                Log.d(TAG, "切换到DiffusionRingView扩散圆环模式");
+                break;
+            case STYLE_DIFFUSION_RING:
             default:
                 currentStyle = STYLE_BAR;
                 currentCount = barCount;
@@ -442,6 +463,13 @@ public class SpectrumView extends View {
     }
     
     /**
+     * 当前是否为需要铺满rootLayout覆盖封面的模式（圆环/扩散圆环）
+     */
+    public boolean isCoverOverlayMode() {
+        return currentStyle == STYLE_RING || currentStyle == STYLE_DIFFUSION_RING;
+    }
+    
+    /**
      * 设置封面在 SpectrumView 中的位置和半径（圆环模式用）
      */
     public void setCoverCenter(float cx, float cy, float radius) {
@@ -497,7 +525,7 @@ public class SpectrumView extends View {
             float dist = (float) Math.sqrt(dx * dx + dy * dy);
             
             if (dist <= coverRadius) {
-                // 点击在封面区域，切换子模式
+                // 圆环模式：点击封面区域切换子模式
                 switchRingSubMode();
             }
             return dist <= coverRadius;
@@ -609,6 +637,9 @@ public class SpectrumView extends View {
                 break;
             case STYLE_WAVECOLUMN:
                 drawWaveColumn(canvas);
+                break;
+            case STYLE_DIFFUSION_RING:
+                drawDiffusionRing(canvas);
                 break;
             default:
                 drawBars(canvas);
@@ -729,6 +760,16 @@ public class SpectrumView extends View {
                             WAVECOLUMN_ROUND_RX, WAVECOLUMN_ROUND_RY, waveColumnPaint);
                     left += WAVECOLUMN_RECT_WIDTH + spacing;
                 }
+                break;
+            }
+            case STYLE_DIFFUSION_RING: {
+                // DiffusionRingView静态：白色细圆环基线
+                float dCx = coverCenterX;
+                float dCy = coverCenterY;
+                float dRadius = coverRadius + 4 * getResources().getDisplayMetrics().density;
+                diffusionPaint.setStyle(Paint.Style.STROKE);
+                diffusionPaint.setColor(Color.argb(60, 255, 255, 255));
+                canvas.drawCircle(dCx, dCy, dRadius, diffusionPaint);
                 break;
             }
             default: {
@@ -1492,6 +1533,9 @@ public class SpectrumView extends View {
         if (currentStyle == STYLE_WAVECOLUMN) {
             return waveColumnCount;
         }
+        if (currentStyle == STYLE_DIFFUSION_RING) {
+            return RING_INPUT_COUNT; // 与圆环一样需要足够FFT数据计算总能量
+        }
         return currentCount;
     }
 
@@ -1611,6 +1655,25 @@ public class SpectrumView extends View {
                 for (int i = 0; i < count; i++) {
                     targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
                 }
+            } else if (currentStyle == STYLE_DIFFUSION_RING) {
+                // DiffusionRingView: 基于总能量决定是否生成扩散环
+                // 原版逻辑: positionPercent = totalEnergy / 4000, 触发条件 totalEnergy > 2500
+                // 但原版 totalEnergy 来自 VisualizerHelper，数值范围与 DFT magnitudes 不同
+                // 使用 maxMag 动态计算阈值，确保节奏强时频繁触发
+                float totalEnergy = 0f;
+                for (float m : magnitudes) {
+                    totalEnergy += m;
+                }
+                float positionPercent = totalEnergy / (maxMag * magnitudes.length * 0.5f + 1f);
+                // 阈值：maxMag 的 2 倍（节奏强时 maxMag 大，阈值提高但更容易超过）
+                if (totalEnergy > maxMag * 2.5f) {
+                    DiffusionRingBean bean = new DiffusionRingBean();
+                    bean.alpha = 255;    // AppConstant.ALPHA = 255
+                    float density = getResources().getDisplayMetrics().density;
+                    bean.radius = coverRadius + 4 * density + DIFFUSION_START_RADIUS;
+                    bean.angle = positionPercent * 360f;
+                    diffusionRings.add(bean);
+                }
             } else {
                 // 圆点/波浪线模式：对数映射
                 float maxHeight = getHeight() * 0.9f;
@@ -1702,6 +1765,7 @@ public class SpectrumView extends View {
                 case STYLE_KUGOU: minVal = 1f; break;
                 case STYLE_AIVOICE: minVal = 2f; break;
                 case STYLE_WAVECOLUMN: minVal = 2f; break;
+                case STYLE_DIFFUSION_RING: minVal = 2f; break;
                 default: minVal = 4f; break;
             }
             for (int i = 0; i < currentCount; i++) {
@@ -1712,5 +1776,71 @@ public class SpectrumView extends View {
             }
         }
         postInvalidate();
+    }
+    
+    /**
+     * 扩散圆环模式绘制（严格匹配原版DiffusionRingView）
+     * 效果：能量超过阈值时从封面边缘生成扩散圆环，逐渐扩大淡出消失
+     */
+    private void drawDiffusionRing(Canvas canvas) {
+        float cx = coverCenterX;
+        float cy = coverCenterY;
+        float density = getResources().getDisplayMetrics().density;
+        float baseRadius = coverRadius + 4 * density; // 与圆环模式一致，封面边缘外4dp
+        
+        // 原版: 清理 disable 的 ring（每帧只移除一个，匹配原版 for+break）
+        for (int i = 0; i < diffusionRings.size(); i++) {
+            if (!diffusionRings.get(i).enable) {
+                diffusionRings.remove(i);
+                break;
+            }
+        }
+        
+        // 原版: 画基线圆（白色描边）
+        diffusionPaint.setStyle(Paint.Style.STROKE);
+        diffusionPaint.setColor(Color.WHITE);
+        canvas.drawCircle(cx, cy, baseRadius + DIFFUSION_START_RADIUS, diffusionPaint);
+        
+        // 原版: 遍历扩散圆环列表，每个ring: alpha-=5, radius+=5
+        for (int i = 0; i < diffusionRings.size(); i++) {
+            DiffusionRingBean ring = diffusionRings.get(i);
+            ring.alpha -= 10;
+            ring.radius += 5;
+            if (ring.alpha <= 0) {
+                ring.enable = false;
+            }
+            if (ring.enable) {
+                // 画扩散圆弧（原版: drawArc，STROKE，color=argb(alpha, RED, GREEN, BLUE)）
+                // 原版 AppConstant: ALPHA=255, RED=255, GREEN=255, BLUE=255
+                diffusionPaint.setStyle(Paint.Style.STROKE);
+                diffusionPaint.setColor(Color.argb(ring.alpha, 255, 255, 255));
+                // 原版用 drawArc 画完整圆: left=top=cx-radius, right=bottom=cx+radius, 0~360
+                canvas.drawArc(cx - ring.radius, cy - ring.radius,
+                        cx + ring.radius, cy + ring.radius,
+                        0, 360, false, diffusionPaint);
+                
+                // 画能量高亮点（原版: calcPoint计算圆弧上的点，drawArc画小圆点）
+                // 原版: Utils.calcPoint(centerX, centerY, radius, angle, point)
+                float rad = (float) Math.toRadians(ring.angle);
+                float pointX = (float) (cx + ring.radius * Math.cos(rad));
+                float pointY = (float) (cy + ring.radius * Math.sin(rad));
+                diffusionPaint.setStyle(Paint.Style.FILL);
+                diffusionPaint.setColor(Color.argb(ring.alpha, 255, 255, 255));
+                // 原版: drawArc(point.x-10, point.y-10, point.x+10, point.y+10, 0, 360, true)
+                canvas.drawArc(pointX - 10, pointY - 10,
+                        pointX + 10, pointY + 10,
+                        0, 360, true, diffusionPaint);
+            }
+        }
+    }
+    
+    /**
+     * 扩散圆环数据Bean（严格匹配原版DiffusionRingViewBean）
+     */
+    private static class DiffusionRingBean {
+        float radius;       // 当前扩散半径
+        int alpha;          // 当前透明度
+        boolean enable = true;  // 是否有效
+        float angle;        // 能量高亮点角度
     }
 }
