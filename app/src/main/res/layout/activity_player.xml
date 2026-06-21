@@ -237,61 +237,74 @@
         android:layout_marginTop="32dp"
         android:background="@drawable/circle_cover_background" />
 
-    <!-- 顶部按钮栏：4个按钮均匀分布 -->
+    <!-- 顶部按钮栏：返回(左) + 弹性空间 + 右3按钮组(占35%宽度) -->
     <LinearLayout
         android:id="@+id/top_buttons_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
-        android:layout_marginTop="16dp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
         <ImageView
             android:id="@+id/back_button"
-            android:layout_width="0dp"
+            android:layout_width="36dp"
             android:layout_height="36dp"
-            android:layout_weight="1"
             android:src="@drawable/ic_back"
             android:padding="6dp"
             android:clickable="true"
             android:focusable="true"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
-        <ImageView
-            android:id="@+id/spectrum_button"
+        <!-- 中间弹性空间 -->
+        <View
+            android:id="@+id/top_spacer"
             android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_spectrum"
-            android:padding="4dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:layout_height="0dp"
+            android:layout_weight="1" />
 
-        <ImageView
-            android:id="@+id/outfit_button"
+        <!-- 右侧三按钮容器，宽度由代码动态设置为页面35% -->
+        <LinearLayout
+            android:id="@+id/right_buttons_group"
             android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_outfit"
-            android:padding="4dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <ImageView
-            android:id="@+id/theme_button"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_theme"
-            android:padding="4dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            <ImageView
+                android:id="@+id/spectrum_button"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_spectrum"
+                android:padding="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageView
+                android:id="@+id/outfit_button"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_outfit"
+                android:padding="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageView
+                android:id="@+id/theme_button"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_theme"
+                android:padding="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

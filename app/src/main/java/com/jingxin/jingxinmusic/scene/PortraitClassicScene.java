@@ -66,7 +66,7 @@ public class PortraitClassicScene implements CoverScene {
     @Override
     public void layout(int width, int height) {
         // 顶部/底部按钮间距按可用高度比例
-        h.applyButtonMargins(height);
+        h.applyButtonMargins(height, width, false);
         // info_panel 全宽
         FrameLayout.LayoutParams infoParams =
                 (FrameLayout.LayoutParams) h.infoPanel.getLayoutParams();

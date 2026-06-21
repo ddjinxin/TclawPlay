@@ -808,6 +808,7 @@ public class PlayerActivity extends AppCompatActivity {
                 btnBack, btnSpectrum, btnOutfit, btnTheme,
                 findViewById(R.id.top_buttons_bar),
                 findViewById(R.id.control_buttons),
+                findViewById(R.id.right_buttons_group),
                 getResources().getDisplayMetrics().density);
         sceneHelper.callback = new CoverSceneHelper.Callback() {
             @Override public void loadCover() { PlayerActivity.this.loadCover(); }

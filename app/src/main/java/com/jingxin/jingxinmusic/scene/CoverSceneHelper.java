@@ -55,6 +55,7 @@ public class CoverSceneHelper {
     public final ImageView btnTheme;
     public final View topButtonsBar;
     public final View controlButtons;
+    public final LinearLayout rightButtonsGroup;
 
     // --- 可变状态 ---
     public boolean isNightMode;
@@ -103,6 +104,7 @@ public class CoverSceneHelper {
             ImageView btnTheme,
             View topButtonsBar,
             View controlButtons,
+            LinearLayout rightButtonsGroup,
             float density) {
         this.rootLayout = rootLayout;
         this.blurBackground = blurBackground;
@@ -130,6 +132,7 @@ public class CoverSceneHelper {
         this.btnTheme = btnTheme;
         this.topButtonsBar = topButtonsBar;
         this.controlButtons = controlButtons;
+        this.rightButtonsGroup = rightButtonsGroup;
         this.density = density;
     }
 
@@ -137,17 +140,31 @@ public class CoverSceneHelper {
 
     /**
      * 根据可用高度按比例设置顶部和底部按钮间距
-     * 顶部 marginTop = height × 4%，底部 marginBottom = height × 6%
+     * 顶部 marginTop = height × 1%，底部 marginBottom = height × 1%
+     * 同时设置顶部按钮栏的左右padding和右侧按钮组宽度
+     *
+     * 竖屏：返回按钮左对齐底部第一个按钮，右3按钮占35%宽度右对齐底部最后一个按钮
+     * 横屏：返回按钮左对齐底部第一个按钮，右3按钮占35%宽度，右边距=左边距（对称）
      */
-    public void applyButtonMargins(int height) {
+    public void applyButtonMargins(int height, int width, boolean isLandscape) {
         int topMargin = Math.max(4, (int) (height * 0.01f));
         int bottomMargin = Math.max(8, (int) (height * 0.01f));
+        int sidePadding = (int) (density * 8); // 与底部按钮区 marginStart/End 一致
 
         // 顶部按钮栏
         if (topButtonsBar != null) {
             FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) topButtonsBar.getLayoutParams();
             params.topMargin = topMargin;
             topButtonsBar.setLayoutParams(params);
+            topButtonsBar.setPadding(sidePadding, 0, sidePadding, 0);
+        }
+
+        // 右侧3按钮组：占页面宽度35%
+        if (rightButtonsGroup != null) {
+            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) rightButtonsGroup.getLayoutParams();
+            params.width = (int) (width * 0.35f);
+            params.weight = 0;
+            rightButtonsGroup.setLayoutParams(params);
         }
 
         // 底部按钮容器
