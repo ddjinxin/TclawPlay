@@ -476,33 +476,31 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 圆环模式下的触摸事件：单击圆环外围切换子模式
-     * 点击封面区域不拦截（让触摸穿透到封面）
+     * 圆环模式下的触摸事件：单击封面区域切换子模式
+     * 点击封面外区域不拦截（让触摸穿透到其他控件）
      */
     @Override
     public boolean onTouchEvent(android.view.MotionEvent event) {
         if (currentStyle != STYLE_RING) {
             return super.onTouchEvent(event);
         }
-        if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
-            float dx = event.getX() - coverCenterX;
-            float dy = event.getY() - coverCenterY;
-            float dist = (float) Math.sqrt(dx * dx + dy * dy);
-            float baseRadius = coverRadius + 4 * getResources().getDisplayMetrics().density;
-            
-            if (dist > coverRadius) {
-                // 点击在圆环外围区域，切换子模式
-                switchRingSubMode();
-            }
-            // 点击封面内部，不消费，让事件穿透
-            return dist > coverRadius + 4 * getResources().getDisplayMetrics().density;
-        }
-        // 圆环模式下：封面外区域拦截，封面内穿透
         if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
             float dx = event.getX() - coverCenterX;
             float dy = event.getY() - coverCenterY;
             float dist = (float) Math.sqrt(dx * dx + dy * dy);
-            return dist > coverRadius + 4 * getResources().getDisplayMetrics().density;
+            // 封面区域内拦截触摸（覆盖封面本身的点击），封面外穿透
+            return dist <= coverRadius;
+        }
+        if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
+            float dx = event.getX() - coverCenterX;
+            float dy = event.getY() - coverCenterY;
+            float dist = (float) Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist <= coverRadius) {
+                // 点击在封面区域，切换子模式
+                switchRingSubMode();
+            }
+            return dist <= coverRadius;
         }
         return false;
     }
