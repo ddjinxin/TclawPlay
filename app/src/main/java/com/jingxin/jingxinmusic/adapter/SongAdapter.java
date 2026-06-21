@@ -283,17 +283,10 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // 箭头旋转
         holder.ivArrow.setRotation(fi.expanded ? 90 : 0);
         // 主题颜色
-        if (isNightMode) {
-            holder.itemView.setBackgroundColor(ThemeColors.nightItemBg());
-            holder.tvName.setTextColor(ThemeColors.nightTextPrimary());
-            holder.tvCount.setTextColor(ThemeColors.nightTextSecondary());
-            holder.ivArrow.setColorFilter(ThemeColors.nightTextSecondary());
-        } else {
-            holder.itemView.setBackgroundColor(ThemeColors.dayItemBg());
-            holder.tvName.setTextColor(ThemeColors.dayTextPrimary());
-            holder.tvCount.setTextColor(ThemeColors.dayTextSecondary());
-            holder.ivArrow.setColorFilter(ThemeColors.dayTextSecondary());
-        }
+        holder.itemView.setBackgroundColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayItemBg(), ThemeColors.nightItemBg()));
+        holder.tvName.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextPrimary(), ThemeColors.nightTextPrimary()));
+        holder.tvCount.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary()));
+        holder.ivArrow.setColorFilter(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary()));
         // 封面：内嵌封面 → 本地缓存文件 → 在线获取
         holder.ivCover.setImageResource(R.drawable.bg_folder_cover);
         Bitmap localCover = null;
@@ -338,17 +331,10 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         holder.tvArtist.setText(song.artist);
         holder.tvDuration.setText(Song.formatDuration(song.duration));
         // 主题颜色
-        if (isNightMode) {
-            holder.itemView.setBackgroundColor(ThemeColors.nightItemBg());
-            holder.tvTitle.setTextColor(ThemeColors.nightTextPrimary());
-            holder.tvArtist.setTextColor(ThemeColors.nightTextSecondary());
-            holder.tvDuration.setTextColor(ThemeColors.nightTextTertiary());
-        } else {
-            holder.itemView.setBackgroundColor(ThemeColors.dayItemBg());
-            holder.tvTitle.setTextColor(ThemeColors.dayTextPrimary());
-            holder.tvArtist.setTextColor(ThemeColors.dayTextSecondary());
-            holder.tvDuration.setTextColor(ThemeColors.dayTextSecondary());
-        }
+        holder.itemView.setBackgroundColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayItemBg(), ThemeColors.nightItemBg()));
+        holder.tvTitle.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextPrimary(), ThemeColors.nightTextPrimary()));
+        holder.tvArtist.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary()));
+        holder.tvDuration.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextTertiary()));
         holder.itemView.setOnClickListener(v -> {
             if (songListener != null) songListener.onSongClick(song);
         });

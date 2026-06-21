@@ -7,8 +7,6 @@ import android.util.Log;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 
 /**
  * WebDAV 配置管理
@@ -164,48 +162,27 @@ public class WebDavConfig {
      */
     public void clearAll() {
         prefs.edit().clear().apply();
-        // 同时删除备份文件
-        File backup = getBackupFile();
+        File backup = new File(getBackupPath());
         if (backup != null && backup.exists()) backup.delete();
-        File backupOld = getOldBackupFile();
+        File backupOld = new File(getOldBackupPath());
         if (backupOld != null && backupOld.exists()) backupOld.delete();
     }
 
     // ===== 备份与恢复（Download目录） =====
 
-    /**
-     * 获取Download目录下的备份文件
-     */
-    private File getBackupFile() {
-        return new File("/sdcard/Download/" + BACKUP_FILENAME);
+    private String getBackupPath() {
+        return "/sdcard/Download/" + BACKUP_FILENAME;
     }
 
-    /**
-     * 获取旧版备份文件（兼容迁移）
-     */
-    private File getOldBackupFile() {
-        return new File("/sdcard/Download/" + BACKUP_FILENAME_OLD);
+    private String getOldBackupPath() {
+        return "/sdcard/Download/" + BACKUP_FILENAME_OLD;
     }
 
-    /**
-     * 检查Download目录下是否有备份文件
-     */
     public boolean hasBackup() {
-        File backup = getBackupFile();
-        File oldBackup = getOldBackupFile();
-        boolean newReadable = backup.exists() && backup.canRead();
-        boolean oldReadable = oldBackup.exists() && oldBackup.canRead();
-        Log.d(TAG, "hasBackup: new=" + backup.getAbsolutePath() + " readable=" + newReadable
-                + ", old=" + oldBackup.getAbsolutePath() + " readable=" + oldReadable);
-        return newReadable || oldReadable;
+        return ConfigBackupHelper.hasBackup(getBackupPath(), getOldBackupPath());
     }
 
-    /**
-     * 将当前配置导出到 /sdcard/Download/jingxin_webdav_config.json
-     * @return true 导出成功
-     */
     public boolean exportToDownload() {
-        File backup = getBackupFile();
         try {
             JSONObject json = new JSONObject();
             json.put(KEY_SERVER_URL, getServerUrl());
@@ -214,60 +191,26 @@ public class WebDavConfig {
             json.put(KEY_MUSIC_PATH, getMusicPath());
             json.put(KEY_CACHE_SIZE_MB, getCacheSizeMb());
             json.put(KEY_ENABLED, isEnabled());
-
-            FileOutputStream fos = new FileOutputStream(backup);
-            fos.write(json.toString().getBytes("UTF-8"));
-            fos.flush();
-            fos.close();
-            // 设置全局可读权限，确保卸载重装后新app也能读取
-            backup.setReadable(true, false);
-            Log.i(TAG, "WebDAV配置已导出到: " + backup.getAbsolutePath());
-            return true;
+            return ConfigBackupHelper.exportToDownload(getBackupPath(), json, "WebDAV");
         } catch (Exception e) {
             Log.e(TAG, "导出WebDAV配置失败: " + e.getMessage());
             return false;
         }
     }
 
-    /**
-     * 从 /sdcard/Download/ 导入配置
-     * 优先读取新文件名，不存在则尝试旧文件名（兼容迁移）
-     * @return true 导入成功
-     */
     public boolean importFromDownload() {
-        File backup = getBackupFile();
-        // 如果新文件不存在，尝试旧文件名
-        if (!backup.exists()) {
-            File oldBackup = getOldBackupFile();
-            if (oldBackup.exists()) {
-                backup = oldBackup;
-                Log.d(TAG, "使用旧版备份文件: " + oldBackup.getAbsolutePath());
-            } else {
-                return false;
+        File backup = ConfigBackupHelper.findBackupFile(getBackupPath(), getOldBackupPath());
+        return ConfigBackupHelper.importFromDownload(backup, prefs, (editor, json) -> {
+            try {
+                if (json.has(KEY_SERVER_URL)) editor.putString(KEY_SERVER_URL, json.getString(KEY_SERVER_URL));
+                if (json.has(KEY_USERNAME)) editor.putString(KEY_USERNAME, json.getString(KEY_USERNAME));
+                if (json.has(KEY_PASSWORD)) editor.putString(KEY_PASSWORD, json.getString(KEY_PASSWORD));
+                if (json.has(KEY_MUSIC_PATH)) editor.putString(KEY_MUSIC_PATH, json.getString(KEY_MUSIC_PATH));
+                if (json.has(KEY_CACHE_SIZE_MB)) editor.putInt(KEY_CACHE_SIZE_MB, json.getInt(KEY_CACHE_SIZE_MB));
+                if (json.has(KEY_ENABLED)) editor.putBoolean(KEY_ENABLED, json.getBoolean(KEY_ENABLED));
+            } catch (org.json.JSONException e) {
+                throw new RuntimeException(e);
             }
-        }
-        try {
-            FileInputStream fis = new FileInputStream(backup);
-            byte[] buffer = new byte[(int) backup.length()];
-            fis.read(buffer);
-            fis.close();
-
-            JSONObject json = new JSONObject(new String(buffer, "UTF-8"));
-
-            SharedPreferences.Editor editor = prefs.edit();
-            if (json.has(KEY_SERVER_URL)) editor.putString(KEY_SERVER_URL, json.getString(KEY_SERVER_URL));
-            if (json.has(KEY_USERNAME)) editor.putString(KEY_USERNAME, json.getString(KEY_USERNAME));
-            if (json.has(KEY_PASSWORD)) editor.putString(KEY_PASSWORD, json.getString(KEY_PASSWORD));
-            if (json.has(KEY_MUSIC_PATH)) editor.putString(KEY_MUSIC_PATH, json.getString(KEY_MUSIC_PATH));
-            if (json.has(KEY_CACHE_SIZE_MB)) editor.putInt(KEY_CACHE_SIZE_MB, json.getInt(KEY_CACHE_SIZE_MB));
-            if (json.has(KEY_ENABLED)) editor.putBoolean(KEY_ENABLED, json.getBoolean(KEY_ENABLED));
-            editor.apply();
-
-            Log.i(TAG, "从备份恢复WebDAV配置成功: " + backup.getAbsolutePath());
-            return true;
-        } catch (Exception e) {
-            Log.e(TAG, "导入WebDAV配置失败: " + e.getMessage());
-            return false;
-        }
+        }, "WebDAV");
     }
 }

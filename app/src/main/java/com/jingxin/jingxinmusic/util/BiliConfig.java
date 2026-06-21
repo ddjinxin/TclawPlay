@@ -7,8 +7,6 @@ import android.util.Log;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 
 /**
  * B站配置管理
@@ -127,29 +125,21 @@ public class BiliConfig {
      */
     public void clearAll() {
         prefs.edit().clear().apply();
-        File backup = getBackupFile();
+        File backup = new File(getBackupPath());
         if (backup != null && backup.exists()) backup.delete();
     }
 
     // ===== 备份与恢复（Download目录） =====
 
-    private File getBackupFile() {
-        return new File("/sdcard/Download/" + BACKUP_FILENAME);
+    private String getBackupPath() {
+        return "/sdcard/Download/" + BACKUP_FILENAME;
     }
 
-    /**
-     * 检查Download目录下是否有备份文件
-     */
     public boolean hasBackup() {
-        File backup = getBackupFile();
-        return backup.exists() && backup.canRead();
+        return ConfigBackupHelper.hasBackup(getBackupPath());
     }
 
-    /**
-     * 将当前配置导出到 /sdcard/Download/
-     */
     public boolean exportToDownload() {
-        File backup = getBackupFile();
         try {
             JSONObject json = new JSONObject();
             json.put(KEY_SESSDATA, getSessData());
@@ -158,48 +148,26 @@ public class BiliConfig {
             json.put(KEY_NICKNAME, getNickname());
             json.put(KEY_AVATAR_URL, getAvatarUrl());
             json.put(KEY_ENABLED, isEnabled());
-
-            FileOutputStream fos = new FileOutputStream(backup);
-            fos.write(json.toString().getBytes("UTF-8"));
-            fos.flush();
-            fos.close();
-            backup.setReadable(true, false);
-            Log.i(TAG, "B站配置已导出到: " + backup.getAbsolutePath());
-            return true;
+            return ConfigBackupHelper.exportToDownload(getBackupPath(), json, "B站");
         } catch (Exception e) {
             Log.e(TAG, "导出B站配置失败: " + e.getMessage());
             return false;
         }
     }
 
-    /**
-     * 从 /sdcard/Download/ 导入配置
-     */
     public boolean importFromDownload() {
-        File backup = getBackupFile();
-        if (!backup.exists()) return false;
-        try {
-            FileInputStream fis = new FileInputStream(backup);
-            byte[] buffer = new byte[(int) backup.length()];
-            fis.read(buffer);
-            fis.close();
-
-            JSONObject json = new JSONObject(new String(buffer, "UTF-8"));
-
-            SharedPreferences.Editor editor = prefs.edit();
-            if (json.has(KEY_SESSDATA)) editor.putString(KEY_SESSDATA, json.getString(KEY_SESSDATA));
-            if (json.has(KEY_BILI_JCT)) editor.putString(KEY_BILI_JCT, json.getString(KEY_BILI_JCT));
-            if (json.has(KEY_DEDE_USER_ID)) editor.putString(KEY_DEDE_USER_ID, json.getString(KEY_DEDE_USER_ID));
-            if (json.has(KEY_NICKNAME)) editor.putString(KEY_NICKNAME, json.getString(KEY_NICKNAME));
-            if (json.has(KEY_AVATAR_URL)) editor.putString(KEY_AVATAR_URL, json.getString(KEY_AVATAR_URL));
-            if (json.has(KEY_ENABLED)) editor.putBoolean(KEY_ENABLED, json.getBoolean(KEY_ENABLED));
-            editor.apply();
-
-            Log.i(TAG, "从备份恢复B站配置成功");
-            return true;
-        } catch (Exception e) {
-            Log.e(TAG, "导入B站配置失败: " + e.getMessage());
-            return false;
-        }
+        File backup = ConfigBackupHelper.findBackupFile(getBackupPath());
+        return ConfigBackupHelper.importFromDownload(backup, prefs, (editor, json) -> {
+            try {
+                if (json.has(KEY_SESSDATA)) editor.putString(KEY_SESSDATA, json.getString(KEY_SESSDATA));
+                if (json.has(KEY_BILI_JCT)) editor.putString(KEY_BILI_JCT, json.getString(KEY_BILI_JCT));
+                if (json.has(KEY_DEDE_USER_ID)) editor.putString(KEY_DEDE_USER_ID, json.getString(KEY_DEDE_USER_ID));
+                if (json.has(KEY_NICKNAME)) editor.putString(KEY_NICKNAME, json.getString(KEY_NICKNAME));
+                if (json.has(KEY_AVATAR_URL)) editor.putString(KEY_AVATAR_URL, json.getString(KEY_AVATAR_URL));
+                if (json.has(KEY_ENABLED)) editor.putBoolean(KEY_ENABLED, json.getBoolean(KEY_ENABLED));
+            } catch (org.json.JSONException e) {
+                throw new RuntimeException(e);
+            }
+        }, "B站");
     }
 }

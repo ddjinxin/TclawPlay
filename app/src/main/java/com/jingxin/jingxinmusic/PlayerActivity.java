@@ -427,7 +427,10 @@ public class PlayerActivity extends AppCompatActivity {
         int availableHeight = getAvailableScreenHeight();
         coverView.getLayoutParams().height = (int) (availableHeight * 0.25f);
         coverView.getLayoutParams().width = (int) (availableHeight * 0.25f);
-        spectrumView.getLayoutParams().height = (int) (availableHeight * 0.10f);
+        // 圆环模式频谱需铺满rootLayout（MATCH_PARENT），由applySpectrumPosition处理
+        if (!spectrumView.isCoverOverlayMode()) {
+            spectrumView.getLayoutParams().height = (int) (availableHeight * 0.10f);
+        }
 
         // 读取主题状态并同步所有 UI
         isNightMode = getSharedPreferences("theme", MODE_PRIVATE).getBoolean("isNight", true);
@@ -1107,16 +1110,7 @@ public class PlayerActivity extends AppCompatActivity {
                         .setTitle("播放历史")
                         .setItems(items, (dialog, which) -> {
                             HistoryManager.HistoryItem item = history.get(which);
-                            // 把历史项转为 Song 并播放
-                            Song s = new Song();
-                            s.title = item.title;
-                            s.artist = item.artist;
-                            s.album = item.album;
-                            s.duration = item.duration;
-                            s.filePath = item.filePath;
-                            s.contentUri = item.contentUri;
-                            s.albumArt = item.albumArt;
-                            s.displayName = s.title;
+                            Song s = item.song;
 
                             song = s;
                             tvSongName.setText(s.title);
@@ -1127,25 +1121,9 @@ public class PlayerActivity extends AppCompatActivity {
                             fetchLyrics();
 
                             if (bound && playerBinder != null) {
-                                // 将历史列表转为播放列表，下一首即为历史中的下一首
                                 List<Song> historySongs = new ArrayList<>();
                                 for (HistoryManager.HistoryItem h : history) {
-                                    Song hs = new Song();
-                                    hs.title = h.title;
-                                    hs.artist = h.artist;
-                                    hs.album = h.album;
-                                    hs.duration = h.duration;
-                                    hs.filePath = h.filePath;
-                                    hs.contentUri = h.contentUri;
-                                    hs.albumArt = h.albumArt;
-                                    hs.displayName = hs.title;
-                                    hs.sourceType = h.sourceType;
-                                    hs.bvid = h.bvid;
-                                    hs.cid = h.cid;
-                                    hs.audioUrl = h.audioUrl;
-                                    hs.audioUrlExpire = h.audioUrlExpire;
-                                    hs.coverUrl = h.coverUrl;
-                                    historySongs.add(hs);
+                                    historySongs.add(h.song);
                                 }
                                 playerBinder.setPlaylist(historySongs);
                                 playerBinder.playSong(s, which);
@@ -1215,9 +1193,10 @@ public class PlayerActivity extends AppCompatActivity {
         container.setPadding(
                 (int)(10 * density), (int)(10 * density),
                 (int)(10 * density), (int)(10 * density));
-        // 圆角背景
+        // 左直角右圆角背景
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setCornerRadius(16 * density);
+        float r = 16 * density;
+        bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});  // 左上0, 右上r, 右下r, 左下0
         bg.setColor(Color.argb(51, 30, 30, 30));  // 透明度20%
         container.setBackground(bg);
 
@@ -1292,19 +1271,15 @@ public class PlayerActivity extends AppCompatActivity {
         }
         container.addView(grid);
 
-        int popupWidth = getLayoutWidth() - (int)(20 * density);
-        int margin10dp = (int)(10 * density);
         spectrumPickerPopup = new android.widget.PopupWindow(container,
-                popupWidth,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 true);
         spectrumPickerPopup.setOutsideTouchable(true);
         spectrumPickerPopup.setElevation(8 * density);
-        // 用showAtLocation精确控制位置：距左10dp，按钮下方4dp
-        int[] btnPos = new int[2];
-        btnSpectrum.getLocationOnScreen(btnPos);
-        spectrumPickerPopup.showAtLocation(btnSpectrum, android.view.Gravity.NO_GRAVITY,
-                margin10dp, btnPos[1] + btnSpectrum.getHeight() + (int)(4 * density));
+        // 左边距0，垂直居中
+        spectrumPickerPopup.showAtLocation(btnSpectrum, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
+                0, 0);
     }
 
     private void toggleTheme() {

@@ -10,6 +10,7 @@ import org.json.JSONObject;
 
 import java.io.InputStream;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -60,61 +61,39 @@ public class CoverFetcher {
     /**
      * 从酷狗获取封面（支持重试）
      */
-    private static Bitmap fetchFromKugou(String searchKeyword, String songTitle, int maxRetries) {
+    private static Bitmap fetchWithRetry(Callable<String> urlSupplier, String sourceName, int maxRetries) {
         for (int retry = 0; retry < maxRetries; retry++) {
             try {
-                String coverUrl = searchKugouAndGetCoverUrl(searchKeyword, songTitle);
+                String coverUrl = urlSupplier.call();
                 if (coverUrl == null || coverUrl.isEmpty()) {
-                    Log.e(TAG, "酷狗未找到封面 URL（第" + (retry + 1) + "次）");
+                    Log.e(TAG, sourceName + "未找到封面 URL（第" + (retry + 1) + "次）");
                     if (retry < maxRetries - 1) Thread.sleep(3000);
                     continue;
                 }
-                
-                Log.d(TAG, "酷狗封面 URL: " + coverUrl);
+
+                Log.d(TAG, sourceName + "封面 URL: " + coverUrl);
                 Bitmap coverBitmap = HttpUtil.getBitmap(coverUrl);
                 if (coverBitmap == null) {
-                    Log.e(TAG, "酷狗下载封面失败（第" + (retry + 1) + "次）");
+                    Log.e(TAG, sourceName + "下载封面失败（第" + (retry + 1) + "次）");
                     if (retry < maxRetries - 1) Thread.sleep(3000);
                     continue;
                 }
-                
+
                 return coverBitmap;
             } catch (Exception e) {
-                Log.e(TAG, "酷狗封面获取异常（第" + (retry + 1) + "次）: " + e.getMessage());
+                Log.e(TAG, sourceName + "封面获取异常（第" + (retry + 1) + "次）: " + e.getMessage());
                 try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
             }
         }
         return null;
     }
-    
-    /**
-     * 从网易云获取封面（支持重试）
-     */
+
+    private static Bitmap fetchFromKugou(String searchKeyword, String songTitle, int maxRetries) {
+        return fetchWithRetry(() -> searchKugouAndGetCoverUrl(searchKeyword, songTitle), "酷狗", maxRetries);
+    }
+
     private static Bitmap fetchFromNetease(String songTitle, String artistName) {
-        for (int retry = 0; retry < 3; retry++) {
-            try {
-                String coverUrl = searchNeteaseAndGetCoverUrl(songTitle, artistName);
-                if (coverUrl == null || coverUrl.isEmpty()) {
-                    Log.e(TAG, "网易云未找到封面 URL（第" + (retry + 1) + "次）");
-                    if (retry < 2) Thread.sleep(3000);
-                    continue;
-                }
-
-                Log.d(TAG, "网易云封面 URL: " + coverUrl);
-                Bitmap coverBitmap = HttpUtil.getBitmap(coverUrl);
-                if (coverBitmap == null) {
-                    Log.e(TAG, "网易云下载封面失败（第" + (retry + 1) + "次）");
-                    if (retry < 2) Thread.sleep(3000);
-                    continue;
-                }
-
-                return coverBitmap;
-            } catch (Exception e) {
-                Log.e(TAG, "网易云封面获取异常（第" + (retry + 1) + "次）: " + e.getMessage());
-                try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
-            }
-        }
-        return null;
+        return fetchWithRetry(() -> searchNeteaseAndGetCoverUrl(songTitle, artistName), "网易云", 3);
     }
     
     /**

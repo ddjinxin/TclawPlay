@@ -950,29 +950,18 @@ public class MusicPlayerService extends Service {
 
     private void sendPlayStateBroadcast() {
         Song currentSong = getCurrentSong();
-        // 应用内广播（带包名限制，确保稳定送达）
-        Intent internalIntent = new Intent(ACTION_PLAY_STATE_CHANGED);
-        internalIntent.setPackage(getPackageName());
-        internalIntent.putExtra(EXTRA_IS_PLAYING, isPlaying());
-        if (currentSong != null) {
-            internalIntent.putExtra(EXTRA_SONG_TITLE, currentSong.title);
-            internalIntent.putExtra(EXTRA_SONG_ARTIST, currentSong.artist);
-            internalIntent.putExtra(EXTRA_CURRENT_POSITION, getCurrentPosition());
-            internalIntent.putExtra(EXTRA_DURATION, getDuration());
+        for (String pkg : new String[]{getPackageName(), null}) {
+            Intent intent = new Intent(ACTION_PLAY_STATE_CHANGED);
+            if (pkg != null) intent.setPackage(pkg);
+            intent.putExtra(EXTRA_IS_PLAYING, isPlaying());
+            if (currentSong != null) {
+                intent.putExtra(EXTRA_SONG_TITLE, currentSong.title);
+                intent.putExtra(EXTRA_SONG_ARTIST, currentSong.artist);
+                intent.putExtra(EXTRA_CURRENT_POSITION, getCurrentPosition());
+                intent.putExtra(EXTRA_DURATION, getDuration());
+            }
+            sendBroadcast(intent);
         }
-        sendBroadcast(internalIntent);
-
-        // 外部广播（无包名限制，供其他应用读取播放状态）
-        Intent externalIntent = new Intent(ACTION_PLAY_STATE_CHANGED);
-        externalIntent.putExtra(EXTRA_IS_PLAYING, isPlaying());
-        if (currentSong != null) {
-            externalIntent.putExtra(EXTRA_SONG_TITLE, currentSong.title);
-            externalIntent.putExtra(EXTRA_SONG_ARTIST, currentSong.artist);
-            externalIntent.putExtra(EXTRA_CURRENT_POSITION, getCurrentPosition());
-            externalIntent.putExtra(EXTRA_DURATION, getDuration());
-        }
-        sendBroadcast(externalIntent);
-
         Log.d(TAG, "播放状态: " + (isPlaying() ? "播放中" : "暂停") + " - " +
                 (currentSong != null ? currentSong.title : "无歌曲"));
     }

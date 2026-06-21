@@ -102,7 +102,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         }
 
         // 名称文字颜色
-        holder.tvName.setTextColor(isNightMode ? 0xFFDDDDDD : 0xFF333333);
+        holder.tvName.setTextColor(ThemeColors.themedColor(isNightMode, 0xFF333333, 0xFFDDDDDD));
 
         // 图片
         if (item.isDirectory) {
@@ -148,7 +148,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         // 默认封面：应用图标风格，背景渐变跟随主题
         holder.ivCover.setImageResource(R.drawable.ic_music_icon);
         holder.ivCover.setBackground(ThemeColors.cardGradient(isNightMode));
-        holder.ivCover.setColorFilter(isNightMode ? ThemeColors.nightCoverTint() : ThemeColors.dayCoverTint(), android.graphics.PorterDuff.Mode.SRC_ATOP);
+        holder.ivCover.setColorFilter(ThemeColors.themedColor(isNightMode, ThemeColors.dayCoverTint(), ThemeColors.nightCoverTint()), android.graphics.PorterDuff.Mode.SRC_ATOP);
 
         if (context == null) return;
 
@@ -368,7 +368,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 Bitmap cover = CoverLoader.findCachedCoverByName(context, songName);
                 if (cover != null) {
                     // 保存到WebDAV本地缓存
-                    saveWebDavCoverCache(dirUrl, cover);
+                    saveCoverCache(cover, new File(webdavCacheDir, webdavUrlToCacheName(dirUrl)));
                     return cover;
                 }
             }
@@ -405,27 +405,22 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         }
     }
 
-    /** 保存WebDAV封面到本地缓存 */
-    private void saveWebDavCoverCache(String dirUrl, Bitmap cover) {
+    private void saveCoverCache(Bitmap bitmap, File outputFile) {
         try {
-            File webdavCacheDir = getWebDavCacheDir();
-            if (webdavCacheDir == null) return;
-            Bitmap scaled = cover;
-            if (cover.getWidth() > 200 || cover.getHeight() > 200) {
-                int size = Math.min(cover.getWidth(), cover.getHeight());
+            Bitmap scaled = bitmap;
+            if (bitmap.getWidth() > 200 || bitmap.getHeight() > 200) {
+                int size = Math.min(bitmap.getWidth(), bitmap.getHeight());
                 float scale = 200f / size;
-                scaled = Bitmap.createScaledBitmap(cover,
-                    (int)(cover.getWidth() * scale),
-                    (int)(cover.getHeight() * scale), true);
+                scaled = Bitmap.createScaledBitmap(bitmap,
+                    (int)(bitmap.getWidth() * scale),
+                    (int)(bitmap.getHeight() * scale), true);
             }
-            String cacheFileName = webdavUrlToCacheName(dirUrl);
-            File cacheFile = new File(webdavCacheDir, cacheFileName);
-            FileOutputStream fos = new FileOutputStream(cacheFile);
+            FileOutputStream fos = new FileOutputStream(outputFile);
             scaled.compress(Bitmap.CompressFormat.JPEG, 85, fos);
             fos.close();
-            Log.d(TAG, "保存WebDAV封面缓存: " + dirUrl);
+            Log.d(TAG, "保存封面缓存: " + outputFile.getName());
         } catch (Exception e) {
-            Log.d(TAG, "保存WebDAV封面缓存失败: " + e.getMessage());
+            Log.d(TAG, "保存封面缓存失败: " + e.getMessage());
         }
     }
 
@@ -486,13 +481,13 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 // 1. 内嵌封面
                 Bitmap cover = CoverFetcher.extractEmbeddedCover(f.getAbsolutePath());
                 if (cover != null) {
-                    saveCoverCache(dir, cover);
+                    saveCoverCache(cover, new File(dir, COVER_CACHE_NAME));
                     return cover;
                 }
                 // 2. MediaStore albumArt
                 cover = getAlbumArtFromMediaStore(f.getAbsolutePath());
                 if (cover != null) {
-                    saveCoverCache(dir, cover);
+                    saveCoverCache(cover, new File(dir, COVER_CACHE_NAME));
                     return cover;
                 }
             }
@@ -502,7 +497,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             if (f.isFile() && WebDavScanner.isMusicFile(f.getName())) {
                 Bitmap cover = CoverLoader.findCachedCoverByFilePath(context, f.getAbsolutePath());
                 if (cover != null) {
-                    saveCoverCache(dir, cover);
+                    saveCoverCache(cover, new File(dir, COVER_CACHE_NAME));
                     return cover;
                 }
             }
@@ -512,7 +507,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             if (f.isDirectory()) {
                 Bitmap cover = scanDirectoryForCover(f);
                 if (cover != null) {
-                    saveCoverCache(dir, cover);
+                    saveCoverCache(cover, new File(dir, COVER_CACHE_NAME));
                     return cover;
                 }
             }
@@ -520,31 +515,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         return null;
     }
     
-    /**
-     * 保存封面缓存到目录下
-     * 保存为一个较小的图片（200x200），避免占用过多存储
-     */
-    private void saveCoverCache(File dir, Bitmap cover) {
-        try {
-            // 缩放至合理大小，节省存储空间
-            Bitmap scaled = cover;
-            if (cover.getWidth() > 200 || cover.getHeight() > 200) {
-                int size = Math.min(cover.getWidth(), cover.getHeight());
-                float scale = 200f / size;
-                scaled = Bitmap.createScaledBitmap(cover, 
-                    (int)(cover.getWidth() * scale), 
-                    (int)(cover.getHeight() * scale), true);
-            }
-            File cacheFile = new File(dir, COVER_CACHE_NAME);
-            FileOutputStream fos = new FileOutputStream(cacheFile);
-            scaled.compress(Bitmap.CompressFormat.JPEG, 85, fos);
-            fos.close();
-            Log.d(TAG, "保存封面缓存: " + dir.getName());
-        } catch (Exception e) {
-            Log.d(TAG, "保存封面缓存失败: " + e.getMessage());
-        }
-    }
-
     /** 从MediaStore获取albumArt */
     private Bitmap getAlbumArtFromMediaStore(String filePath) {
         try {

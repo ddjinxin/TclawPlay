@@ -27,32 +27,24 @@ public class HistoryManager {
      * 历史记录项
      */
     public static class HistoryItem {
-        public String title;
-        public String artist;
-        public String album;
-        public long duration;
-        public String filePath;
-        public String contentUri;
-        public String albumArt;
-        public long playedAt; // 播放时间戳
+        public final Song song;
+        public long playedAt;
 
-        // B站音源字段
-        public int sourceType = Song.SOURCE_LOCAL;
-        public String bvid;
-        public long cid;
-        public String audioUrl;
-        public long audioUrlExpire;
-        public String coverUrl;
+        public HistoryItem(Song song) {
+            this.song = song;
+            this.playedAt = System.currentTimeMillis();
+        }
 
-        public HistoryItem() {
-            playedAt = System.currentTimeMillis();
+        public HistoryItem(Song song, long playedAt) {
+            this.song = song;
+            this.playedAt = playedAt;
         }
 
         public String getDisplayName() {
-            if (artist != null && !artist.isEmpty() && !"<unknown>".equals(artist)) {
-                return artist + " - " + title;
+            if (song.artist != null && !song.artist.isEmpty() && !"<unknown>".equals(song.artist)) {
+                return song.artist + " - " + song.title;
             }
-            return title;
+            return song.title;
         }
     }
 
@@ -67,28 +59,14 @@ public class HistoryManager {
         // 去重：找到相同歌名+歌手的记录，移除旧的
         for (int i = list.size() - 1; i >= 0; i--) {
             HistoryItem item = list.get(i);
-            if (item.title != null && item.title.equals(song.title) &&
-                (item.artist == null || item.artist.equals(song.artist))) {
+            if (item.song.title != null && item.song.title.equals(song.title) &&
+                (item.song.artist == null || item.song.artist.equals(song.artist))) {
                 list.remove(i);
             }
         }
 
         // 添加新记录到开头
-        HistoryItem item = new HistoryItem();
-        item.title = song.title;
-        item.artist = song.artist;
-        item.album = song.album;
-        item.duration = song.duration;
-        item.filePath = song.filePath;
-        item.contentUri = song.contentUri;
-        item.albumArt = song.albumArt;
-        item.sourceType = song.sourceType;
-        item.bvid = song.bvid;
-        item.cid = song.cid;
-        item.audioUrl = song.audioUrl;
-        item.audioUrlExpire = song.audioUrlExpire;
-        item.coverUrl = song.coverUrl;
-        item.playedAt = System.currentTimeMillis();
+        HistoryItem item = new HistoryItem(song);
         list.add(0, item);
 
         // 限制数量
@@ -115,23 +93,10 @@ public class HistoryManager {
             List<HistoryItem> list = new ArrayList<>();
             for (int i = 0; i < array.length(); i++) {
                 JSONObject obj = array.getJSONObject(i);
-                HistoryItem item = new HistoryItem();
-                item.title = obj.optString("title", "");
-                item.artist = obj.optString("artist", "");
-                item.album = obj.optString("album", "");
-                item.duration = obj.optLong("duration", 0);
-                item.filePath = obj.optString("filePath", "");
-                item.contentUri = obj.optString("contentUri", "");
-                item.albumArt = obj.optString("albumArt", "");
-                item.sourceType = obj.optInt("sourceType", Song.SOURCE_LOCAL);
-                item.bvid = obj.optString("bvid", "");
-                item.cid = obj.optLong("cid", 0);
-                item.audioUrl = obj.optString("audioUrl", "");
-                item.audioUrlExpire = obj.optLong("audioUrlExpire", 0);
-                item.coverUrl = obj.optString("coverUrl", "");
-                item.playedAt = obj.optLong("playedAt", 0);
-                if (!item.title.isEmpty()) {
-                    list.add(item);
+                Song song = Song.fromJson(obj);
+                if (song != null && song.title != null && !song.title.isEmpty()) {
+                    long playedAt = obj.optLong("playedAt", 0);
+                    list.add(new HistoryItem(song, playedAt));
                 }
             }
 
@@ -163,20 +128,7 @@ public class HistoryManager {
             historyDir.mkdirs();
             JSONArray array = new JSONArray();
             for (HistoryItem item : list) {
-                JSONObject obj = new JSONObject();
-                obj.put("title", item.title);
-                obj.put("artist", item.artist);
-                obj.put("album", item.album);
-                obj.put("duration", item.duration);
-                obj.put("filePath", item.filePath);
-                obj.put("contentUri", item.contentUri);
-                obj.put("albumArt", item.albumArt);
-                obj.put("sourceType", item.sourceType);
-                obj.put("bvid", item.bvid);
-                obj.put("cid", item.cid);
-                obj.put("audioUrl", item.audioUrl);
-                obj.put("audioUrlExpire", item.audioUrlExpire);
-                obj.put("coverUrl", item.coverUrl);
+                JSONObject obj = item.song.toJson();
                 obj.put("playedAt", item.playedAt);
                 array.put(obj);
             }

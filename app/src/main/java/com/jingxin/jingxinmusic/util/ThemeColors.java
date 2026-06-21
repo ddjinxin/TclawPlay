@@ -64,6 +64,10 @@ public class ThemeColors {
         }
     }
 
+    public static int themedColor(boolean isNight, int dayColor, int nightColor) {
+        return isNight ? nightColor : dayColor;
+    }
+
     // ========== 渐变 Drawable 工厂方法 ==========
 
     /** 主背景渐变 — 夜间从上到下微绿，白天左上奶白→右下柔青绿 */

@@ -140,37 +140,20 @@ public class KrcParser {
      * 解析解密后的 KRC 内容
      */
     private static LyricData parseKrcContent(String content) {
-        android.util.Log.d("KrcParser", "开始解析 KRC 内容，长度: " + (content != null ? content.length() : 0));
-        if (content == null || content.isEmpty()) {
-            android.util.Log.d("KrcParser", "KRC 内容为空，返回 null");
-            return null;
-        }
-        
+        if (content == null || content.isEmpty()) return null;
+
         LyricData lyricData = new LyricData();
         List<LyricLine> lines = new ArrayList<>();
-        
-        // 移除 Windows 格式的换行符 \r，避免正则表达式匹配失败
         String[] contentLines = content.replace("\r", "").split("\n");
-        android.util.Log.d("KrcParser", "分割行数: " + contentLines.length);
-        
-        // 打印所有行内容，确认格式（限制最多20行）
-        for (int i = 0; i < Math.min(20, contentLines.length); i++) {
-            android.util.Log.d("KrcParser", "第" + (i+1) + "行: " + contentLines[i]);
-        }
-        
+
         for (String line : contentLines) {
-            // 解析头部标签
             if (line.startsWith("[ti:")) {
                 lyricData.title = extractTagValue(line, "ti");
-                android.util.Log.d("KrcParser", "歌曲标题: " + lyricData.title);
             } else if (line.startsWith("[ar:")) {
                 lyricData.artist = extractTagValue(line, "ar");
-                android.util.Log.d("KrcParser", "歌手: " + lyricData.artist);
             } else if (line.startsWith("[al:")) {
                 lyricData.album = extractTagValue(line, "al");
-                android.util.Log.d("KrcParser", "专辑: " + lyricData.album);
             } else if (line.startsWith("[total:")) {
-                // 总时长（毫秒）
                 lyricData.duration = extractNumberValue(line, "total");
             }
             
@@ -179,7 +162,6 @@ public class KrcParser {
             Matcher matcher = linePattern.matcher(line);
             
             if (matcher.matches()) {
-                android.util.Log.d("KrcParser", "匹配歌词行: " + line);
                 long startTime = Long.parseLong(matcher.group(1));
                 long duration = Long.parseLong(matcher.group(2));
                 String lyricContent = matcher.group(3);
@@ -215,26 +197,17 @@ public class KrcParser {
      */
     private static List<LyricWord> parseWords(String content, long lineStartTime) {
         List<LyricWord> words = new ArrayList<>();
-        android.util.Log.d("KrcParser", "解析逐字标签，内容: " + content);
-        
         Pattern wordPattern = Pattern.compile("<(\\d+),(\\d+),(\\d+)>([^<]*)");
         Matcher matcher = wordPattern.matcher(content);
-        
-        int matchCount = 0;
         while (matcher.find()) {
-            matchCount++;
             LyricWord word = new LyricWord();
-            word.offset = Long.parseLong(matcher.group(1));  // 相对于行开始时间的偏移
-            word.duration = Long.parseLong(matcher.group(2)); // 该字的持续时间
-            word.color = Integer.parseInt(matcher.group(3));  // 颜色标记
-            word.text = matcher.group(4);                      // 文字内容
-            
-            word.startTime = lineStartTime + word.offset;      // 绝对开始时间
-            
+            word.offset = Long.parseLong(matcher.group(1));
+            word.duration = Long.parseLong(matcher.group(2));
+            word.color = Integer.parseInt(matcher.group(3));
+            word.text = matcher.group(4);
+            word.startTime = lineStartTime + word.offset;
             words.add(word);
         }
-        
-        android.util.Log.d("KrcParser", "匹配到的逐字标签数: " + matchCount);
         return words;
     }
     
@@ -298,17 +271,6 @@ public class KrcParser {
             long seconds = totalSeconds % 60;
             long centiseconds = (ms % 1000) / 10;
             return String.format("%02d:%02d.%02d", minutes, seconds, centiseconds);
-        }
-        public String findCurrentLineText(long positionMs) {
-            if (lines == null || lines.isEmpty()) return "";
-            for (int i = 0; i < lines.size(); i++) {
-                LyricLine line = lines.get(i);
-                LyricLine nextLine = (i + 1 < lines.size()) ? lines.get(i + 1) : null;
-                if (positionMs >= line.startTime && (nextLine == null || positionMs < nextLine.startTime)) {
-                    return line.text;
-                }
-            }
-            return "";
         }
     }
     

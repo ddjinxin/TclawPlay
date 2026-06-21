@@ -14,6 +14,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 
+import com.jingxin.jingxinmusic.util.ColorUtil;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 
@@ -227,13 +228,6 @@ public class LyricView extends View {
         }
     }
     
-    private int applyAlpha(int color, float alpha) {
-        int a = Math.round(Color.alpha(color) * alpha);
-        if (a < 0) a = 0;
-        if (a > 255) a = 255;
-        return Color.argb(a, Color.red(color), Color.green(color), Color.blue(color));
-    }
-    
     // ===== 查找当前行 =====
     
     private void findCurrentLine() {
@@ -425,7 +419,7 @@ public class LyricView extends View {
                 if (lines.size() > 1) {
                     float nextY = centerY + firstH / 2 + lineSpacing;
                     StaticLayout secondLayout = buildSimpleLayout(
-                            lines.get(1), textSizeNormal, applyAlpha(getFadedTextColor(), 0.6f));
+                            lines.get(1), textSizeNormal, ColorUtil.adjustAlpha(getFadedTextColor(), 0.6f));
                     drawLayoutAt(canvas, secondLayout, nextY);
                 }
             }
@@ -442,7 +436,7 @@ public class LyricView extends View {
             KrcParser.LyricLine prevLine = lines.get(currentLineIndex - 1);
             float prevH = getWrappedHeight(prevLine.text, textSizeNormal);
             float prevTop = currentTop - lineSpacing - prevH;
-            StaticLayout prevLayout = buildSimpleLayout(prevLine, textSizeNormal, applyAlpha(getFadedTextColor(), 0.6f));
+            StaticLayout prevLayout = buildSimpleLayout(prevLine, textSizeNormal, ColorUtil.adjustAlpha(getFadedTextColor(), 0.6f));
             drawLayoutAt(canvas, prevLayout, prevTop);
         }
         
@@ -454,7 +448,7 @@ public class LyricView extends View {
         if (currentLineIndex + 1 < lines.size()) {
             KrcParser.LyricLine nextLine = lines.get(currentLineIndex + 1);
             float nextTop = currentBottom + lineSpacing;
-            StaticLayout nextLayout = buildSimpleLayout(nextLine, textSizeNormal, applyAlpha(getFadedTextColor(), 0.6f));
+            StaticLayout nextLayout = buildSimpleLayout(nextLine, textSizeNormal, ColorUtil.adjustAlpha(getFadedTextColor(), 0.6f));
             drawLayoutAt(canvas, nextLayout, nextTop);
         }
     }
@@ -478,7 +472,7 @@ public class LyricView extends View {
                 float h = getWrappedHeight(lines.get(i).text, textSizeNormal);
                 float alpha = 1.0f - i * 0.2f;
                 StaticLayout layout = buildSimpleLayout(lines.get(i), textSizeNormal,
-                        applyAlpha(getFadedTextColor(), alpha));
+                        ColorUtil.adjustAlpha(getFadedTextColor(), alpha));
                 drawLayoutAt(canvas, layout, y);
                 y += h + lineSpacing;
             }
@@ -499,7 +493,7 @@ public class LyricView extends View {
             float h = getWrappedHeight(line.text, textSizeNormal);
             y -= h; // y 指向该行顶部
             float alpha = 1.0f - Math.abs(offset) * 0.2f; // 0.8, 0.6
-            StaticLayout layout = buildSimpleLayout(line, textSizeNormal, applyAlpha(getFadedTextColor(), alpha));
+            StaticLayout layout = buildSimpleLayout(line, textSizeNormal, ColorUtil.adjustAlpha(getFadedTextColor(), alpha));
             drawLayoutAt(canvas, layout, y);
             y -= lineSpacing;
         }
@@ -515,7 +509,7 @@ public class LyricView extends View {
             if (idx >= lines.size()) break;
             KrcParser.LyricLine line = lines.get(idx);
             float alpha = 1.0f - Math.abs(offset) * 0.2f; // 0.8, 0.6
-            StaticLayout layout = buildSimpleLayout(line, textSizeNormal, applyAlpha(getFadedTextColor(), alpha));
+            StaticLayout layout = buildSimpleLayout(line, textSizeNormal, ColorUtil.adjustAlpha(getFadedTextColor(), alpha));
             drawLayoutAt(canvas, layout, y);
             y += getWrappedHeight(line.text, textSizeNormal) + lineSpacing;
         }
@@ -539,7 +533,7 @@ public class LyricView extends View {
                     } else {
                         float alpha = Math.max(0.15f, 1.0f - i * 0.1f);
                         StaticLayout layout = buildSimpleLayout(lines.get(i), textSizeCurrent,
-                                applyAlpha(getFadedTextColor(), alpha));
+                                ColorUtil.adjustAlpha(getFadedTextColor(), alpha));
                         drawLayoutAt(canvas, layout, y);
                     }
                 }
@@ -577,7 +571,7 @@ public class LyricView extends View {
                 } else {
                     int dist = Math.abs(i - currentLineIndex);
                     float alpha = Math.max(0.15f, 1.0f - dist * 0.18f);
-                    int color = applyAlpha(getFadedTextColor(), alpha);
+                    int color = ColorUtil.adjustAlpha(getFadedTextColor(), alpha);
                     StaticLayout layout = buildSimpleLayout(lines.get(i), textSize, color);
                     drawLayoutAt(canvas, layout, y);
                 }
@@ -598,7 +592,7 @@ public class LyricView extends View {
         if (currentLineIndex < 0 || currentLineIndex >= lines.size()) {
             if (!lines.isEmpty()) {
                 float firstH = getWrappedHeight(lines.get(0).text, textSizeKaraoke);
-                StaticLayout firstLayout = buildCurrentLineLayout(lines.get(0), textSizeKaraoke, applyAlpha(getFadedTextColor(), 0.6f));
+                StaticLayout firstLayout = buildCurrentLineLayout(lines.get(0), textSizeKaraoke, ColorUtil.adjustAlpha(getFadedTextColor(), 0.6f));
                 drawLayoutAt(canvas, firstLayout, centerY - firstH / 2);
             }
             return;
@@ -610,14 +604,14 @@ public class LyricView extends View {
         float currentTop = centerY - currentH / 2;
         float currentBottom = centerY + currentH / 2;
         
-        StaticLayout currentLayout = buildCurrentLineLayout(currentLine, textSizeKaraoke, applyAlpha(getFadedTextColor(), 0.6f));
+        StaticLayout currentLayout = buildCurrentLineLayout(currentLine, textSizeKaraoke, ColorUtil.adjustAlpha(getFadedTextColor(), 0.6f));
         drawLayoutAt(canvas, currentLayout, currentTop);
         
         // 下一行（半透明预览）
         if (currentLineIndex + 1 < lines.size()) {
             KrcParser.LyricLine nextLine = lines.get(currentLineIndex + 1);
             float nextTop = currentBottom + lineSpacing;
-            StaticLayout nextLayout = buildSimpleLayout(nextLine, textSizeKaraoke, applyAlpha(getFadedTextColor(), 0.6f));
+            StaticLayout nextLayout = buildSimpleLayout(nextLine, textSizeKaraoke, ColorUtil.adjustAlpha(getFadedTextColor(), 0.6f));
             drawLayoutAt(canvas, nextLayout, nextTop);
         }
     }

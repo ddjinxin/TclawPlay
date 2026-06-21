@@ -1203,17 +1203,10 @@ public class MainActivity extends AppCompatActivity {
                     TextView tvTitle = child.findViewById(R.id.tv_song_title);
                     TextView tvArtist = child.findViewById(R.id.tv_song_artist);
                     TextView tvDuration = child.findViewById(R.id.tv_song_duration);
-                    if (isNightMode) {
-                        child.setBackgroundColor(ThemeColors.nightItemBg());
-                        tvTitle.setTextColor(ThemeColors.nightTextPrimary());
-                        tvArtist.setTextColor(ThemeColors.nightTextSecondary());
-                        tvDuration.setTextColor(ThemeColors.nightTextTertiary());
-                    } else {
-                        child.setBackgroundColor(ThemeColors.dayItemBg());
-                        tvTitle.setTextColor(ThemeColors.dayTextPrimary());
-                        tvArtist.setTextColor(ThemeColors.dayTextSecondary());
-                        tvDuration.setTextColor(ThemeColors.dayTextSecondary());
-                    }
+                    child.setBackgroundColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayItemBg(), ThemeColors.nightItemBg()));
+                    tvTitle.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextPrimary(), ThemeColors.nightTextPrimary()));
+                    tvArtist.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary()));
+                    tvDuration.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextTertiary()));
                 }
             }
         });
@@ -1286,35 +1279,41 @@ public class MainActivity extends AppCompatActivity {
         requestOverlayPermissionIfNeeded();
     }
 
+    private void showPermissionDeniedDialog(String title, String message, Runnable retryAction) {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("去设置", (dialog, which) -> {
+                    if (retryAction != null) retryAction.run();
+                })
+                .setNegativeButton("暂不", null)
+                .show();
+    }
+
     private void requestOverlayPermissionIfNeeded() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             if (!android.provider.Settings.canDrawOverlays(this)) {
-                new android.app.AlertDialog.Builder(this)
-                        .setTitle("悬浮窗权限")
-                        .setMessage("后台播放时需要悬浮窗权限来显示迷你播放窗口。是否前往设置开启？")
-                        .setPositiveButton("去设置", (dialog, which) -> {
+                showPermissionDeniedDialog("悬浮窗权限",
+                        "后台播放时需要悬浮窗权限来显示迷你播放窗口。是否前往设置开启？",
+                        () -> {
                             try {
                                 Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                         Uri.parse("package:" + getPackageName()));
                                 startActivity(intent);
                             } catch (Exception e) {
-                                // 降级：打开应用详情页
                                 Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
                                 intent.setData(Uri.fromParts("package", getPackageName(), null));
                                 startActivity(intent);
                             }
-                        })
-                        .setNegativeButton("暂不", null)
-                        .show();
+                        });
             }
         }
     }
 
     private void showNotificationPermissionDeniedDialog() {
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("通知权限")
-                .setMessage("播放控制通知需要通知权限才能正常显示。是否前往设置开启？")
-                .setPositiveButton("去设置", (dialog, which) -> {
+        showPermissionDeniedDialog("通知权限",
+                "播放控制通知需要通知权限才能正常显示。是否前往设置开启？",
+                () -> {
                     try {
                         Intent intent = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
                         intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName());
@@ -1324,16 +1323,13 @@ public class MainActivity extends AppCompatActivity {
                         intent.setData(Uri.fromParts("package", getPackageName(), null));
                         startActivity(intent);
                     }
-                })
-                .setNegativeButton("暂不", null)
-                .show();
+                });
     }
 
     private void showWriteStoragePermissionDeniedDialog() {
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("存储写入权限")
-                .setMessage("歌词导出到公共目录需要写入权限。是否前往设置开启？")
-                .setPositiveButton("去设置", (dialog, which) -> {
+        showPermissionDeniedDialog("存储写入权限",
+                "歌词导出到公共目录需要写入权限。是否前往设置开启？",
+                () -> {
                     try {
                         Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
                         intent.setData(Uri.fromParts("package", getPackageName(), null));
@@ -1341,9 +1337,7 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Exception e) {
                         Log.e(TAG, "无法打开应用设置页", e);
                     }
-                })
-                .setNegativeButton("暂不", null)
-                .show();
+                });
     }
 
     private void scanMusic() {
@@ -1391,6 +1385,19 @@ public class MainActivity extends AppCompatActivity {
 
     // ========== 自动恢复上次播放 ==========
 
+    private Intent buildPlayerIntent(Song song, int position, String playlistMode) {
+        Intent intent = new Intent(this, PlayerActivity.class);
+        song.toIntent(intent);
+        intent.putExtra("position", position);
+        intent.putExtra("playlist_mode", playlistMode);
+        intent.putExtra("resume_play", true);
+        if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
+            intent.putExtra("from_webdav", true);
+            intent.putExtra("song_index", position);
+        }
+        return intent;
+    }
+
     private boolean autoResumeLastPlayed(List<Song> songs) {
         if (hasAutoResumed) {
             Log.d(TAG, "autoResumeLastPlayed: already resumed, skip");
@@ -1420,25 +1427,13 @@ public class MainActivity extends AppCompatActivity {
             currentTab = 1;
         }
 
-        Intent intent = new Intent(this, PlayerActivity.class);
-        resumeSong.toIntent(intent);
-        intent.putExtra("position", foundPosition);
-        intent.putExtra("playlist_mode", savedPlaylistMode);
-        intent.putExtra("resume_play", true);
+        Intent intent = buildPlayerIntent(resumeSong, foundPosition, savedPlaylistMode);
 
         if ("folder".equals(savedPlaylistMode)) {
             java.util.Set<String> pathSet = prefs.getStringSet("folder_song_paths", null);
             if (pathSet != null && !pathSet.isEmpty()) {
                 intent.putStringArrayListExtra("folder_song_paths", new java.util.ArrayList<>(pathSet));
             }
-        } else if ("webdav".equals(savedPlaylistMode)) {
-            // WebDAV模式：恢复from_webdav标记和播放索引
-            intent.putExtra("from_webdav", true);
-            intent.putExtra("song_index", foundPosition);
-        } else if ("bili".equals(savedPlaylistMode)) {
-            // B站模式：恢复from_webdav标记（B站播放列表也存webdav_playlist SP中）和播放索引
-            intent.putExtra("from_webdav", true);
-            intent.putExtra("song_index", foundPosition);
         }
 
         hasAutoResumed = true;
@@ -1473,43 +1468,21 @@ public class MainActivity extends AppCompatActivity {
         if (bound && playerBinder != null) {
             Song currentSong = playerBinder.getCurrentSong();
             if (currentSong != null && currentSong.title != null && !currentSong.title.isEmpty()) {
-                // 从 last_played 读取完整的来源信息（playlist_mode、B站字段、导航上下文）
                 android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
                 String savedPlaylistMode = prefs.getString("playlist_mode", "all");
                 String biliNavUrl = prefs.getString("bili_nav_url", "");
 
-                Intent intent = new Intent(this, PlayerActivity.class);
-                currentSong.toIntent(intent);
-                intent.putExtra("position", playerBinder.getCurrentIndex());
-                intent.putExtra("playlist_mode", savedPlaylistMode);
-                intent.putExtra("resume_play", true);
+                Intent intent = buildPlayerIntent(currentSong, playerBinder.getCurrentIndex(), savedPlaylistMode);
                 intent.putExtra("bili_nav_url", biliNavUrl);
-
-                if ("webdav".equals(savedPlaylistMode) || "bili".equals(savedPlaylistMode)) {
-                    intent.putExtra("from_webdav", true);
-                    intent.putExtra("song_index", playerBinder.getCurrentIndex());
-                }
 
                 returningFromPlayer = true;
                 startActivity(intent);
             } else if (playerBinder.isPlaying() || playerBinder.getCurrentIndex() >= 0) {
-                // Service 在播放但 getCurrentSong 返回 null（playlist/index 状态异常）
-                // 用 last_played 恢复
                 android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
                 Song resumeSong = Song.fromPrefs(prefs);
                 if (resumeSong != null) {
-                    Intent intent = new Intent(this, PlayerActivity.class);
-                    resumeSong.toIntent(intent);
-                    intent.putExtra("position", prefs.getInt("position", 0));
-                    intent.putExtra("playlist_mode", prefs.getString("playlist_mode", "all"));
-                    intent.putExtra("resume_play", true);
+                    Intent intent = buildPlayerIntent(resumeSong, prefs.getInt("position", 0), prefs.getString("playlist_mode", "all"));
                     intent.putExtra("bili_nav_url", prefs.getString("bili_nav_url", ""));
-
-                    String savedPlaylistMode = prefs.getString("playlist_mode", "all");
-                    if ("webdav".equals(savedPlaylistMode) || "bili".equals(savedPlaylistMode)) {
-                        intent.putExtra("from_webdav", true);
-                        intent.putExtra("song_index", prefs.getInt("position", 0));
-                    }
 
                     returningFromPlayer = true;
                     startActivity(intent);

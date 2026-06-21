@@ -118,6 +118,8 @@ public class SpectrumView extends View {
     
     // 当前样式
     private int currentStyle = STYLE_BAR;
+    private static final String PREFS_NAME = "spectrum";
+    private static final String KEY_STYLE = "current_style";
     
     // 竖条宽度
     private float barWidth;
@@ -332,6 +334,14 @@ public class SpectrumView extends View {
         
         barSpacing = 4f;
         
+        // 恢复上次的频谱样式
+        int savedStyle = getContext().getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                .getInt(KEY_STYLE, STYLE_BAR);
+        if (savedStyle >= 0 && savedStyle <= STYLE_WAVE_RING) {
+            currentStyle = savedStyle;
+            initStyleParams(savedStyle);
+        }
+        
         animRunnable = new Runnable() {
             @Override
             public void run() {
@@ -343,18 +353,7 @@ public class SpectrumView extends View {
                             float fallSpeed = targetBarHeights[i] * 0.12f;
                             targetBarHeights[i] -= fallSpeed;
                         }
-                        float minVal;
-                        switch (currentStyle) {
-                            case STYLE_BAR: minVal = 4f; break;
-                            case STYLE_RING: minVal = 2f; break;
-                            case STYLE_COLUMNAR: minVal = 1f; break;
-                            case STYLE_KUGOU: minVal = 1f; break;
-                            case STYLE_AIVOICE: minVal = 2f; break;
-                             case STYLE_WAVECOLUMN: minVal = 2f; break;
-                             case STYLE_DIFFUSION_RING: minVal = 2f; break;
-                             case STYLE_WAVE_RING: minVal = 2f; break;
-                             default: minVal = 6f; break;
-                        }
+                        float minVal = getMinVal(currentStyle);
                         if (targetBarHeights[i] < minVal) {
                             targetBarHeights[i] = minVal;
                         }
@@ -386,91 +385,11 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 切换频谱样式：竖条 → 圆点 → 波浪线 → 圆环 → ColumnarView → KugouColumn → AiVoiceView → WaveColumnformView → 竖条
+     * 切换频谱样式：竖条 → 圆点 → 波浪线 → 圆环 → ... → 竖条
      */
     public void switchStyle() {
-        switch (currentStyle) {
-            case STYLE_BAR:
-                currentStyle = STYLE_DOT;
-                currentCount = DOT_COUNT;
-                Log.d(TAG, "切换到圆点模式");
-                break;
-            case STYLE_DOT:
-                currentStyle = STYLE_WAVE;
-                currentCount = DOT_COUNT;
-                Log.d(TAG, "切换到波浪线模式");
-                break;
-            case STYLE_WAVE:
-                currentStyle = STYLE_RING;
-                ringCount = RING_INPUT_COUNT - ringScope;
-                currentCount = ringCount;
-                Log.d(TAG, "切换到圆环模式，ringCount=" + ringCount);
-                break;
-            case STYLE_RING:
-                currentStyle = STYLE_COLUMNAR;
-                columnarCount = (getWidth() > getHeight()) ? COLUMNAR_COUNT_LANDSCAPE : COLUMNAR_COUNT_PORTRAIT;
-                currentCount = columnarCount;
-                columnarBlockTop = null;
-                Log.d(TAG, "切换到ColumnarView模式，columnarCount=" + columnarCount);
-                break;
-            case STYLE_COLUMNAR:
-                currentStyle = STYLE_KUGOU;
-                currentCount = KUGOU_COUNT;
-                kugouBlockTop = null;
-                Log.d(TAG, "切换到KugouColumn模式");
-                break;
-            case STYLE_KUGOU:
-                currentStyle = STYLE_AIVOICE;
-                currentCount = AIVOICE_INPUT_COUNT;
-                Log.d(TAG, "切换到AiVoice模式");
-                break;
-            case STYLE_AIVOICE:
-                currentStyle = STYLE_WAVECOLUMN;
-                waveColumnCount = (getWidth() > getHeight()) ? WAVECOLUMN_COUNT_LANDSCAPE : WAVECOLUMN_COUNT_PORTRAIT;
-                currentCount = waveColumnCount;
-                Log.d(TAG, "切换到WaveColumnformView模式，waveColumnCount=" + waveColumnCount);
-                break;
-            case STYLE_WAVECOLUMN:
-                currentStyle = STYLE_DIFFUSION_RING;
-                diffusionRings.clear();
-                currentCount = 1; // 扩散圆环不使用柱数，但需要非零值
-                Log.d(TAG, "切换到DiffusionRingView扩散圆环模式");
-                break;
-            case STYLE_DIFFUSION_RING:
-                currentStyle = STYLE_WAVE_RING;
-                waveRingList.clear();
-                waveRingLastRadius.clear();
-                currentCount = 1; // 波浪圆环由waveRingList管理
-                Log.d(TAG, "切换到WaveRingView波浪圆环模式");
-                break;
-            case STYLE_WAVE_RING:
-            default:
-                currentStyle = STYLE_BAR;
-                currentCount = barCount;
-                Log.d(TAG, "切换到竖条模式，barCount=" + barCount);
-                break;
-        }
-        rebuildArrays();
-        // 重新计算竖条宽度（切换模式时onSizeChanged不一定触发）
-        float totalSpacing = barSpacing * (currentCount - 1);
-        barWidth = (getWidth() - totalSpacing) / currentCount;
-        // 切换到圆环模式时重置Kugou渐变
-        if (currentStyle != STYLE_KUGOU) {
-            kugouGradient1 = null;
-            kugouGradient2 = null;
-        }
-        // 切换时重置WaveColumn渐变（下次进入时重建）
-        if (currentStyle != STYLE_WAVECOLUMN) {
-            waveColumnPaint.setShader(null);
-        }
-        // AiVoiceView需要SOFTWARE图层才能让LIGHTEN混合模式生效
-        if (currentStyle == STYLE_AIVOICE) {
-            setLayerType(LAYER_TYPE_SOFTWARE, null);
-        } else {
-            setLayerType(LAYER_TYPE_NONE, null);
-        }
-        requestLayout();
-        postInvalidate();
+        int next = (currentStyle + 1) % (STYLE_WAVE_RING + 1);
+        setStyle(next);
     }
     
     /**
@@ -481,11 +400,38 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 直接设置频谱样式
+     * 直接设置频谱样式（switchStyle也调用此方法）
      */
     public void setStyle(int style) {
         if (style < 0 || style > STYLE_WAVE_RING) return;
         currentStyle = style;
+        // 持久化保存
+        getContext().getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                .edit().putInt(KEY_STYLE, style).apply();
+        initStyleParams(style);
+        rebuildArrays();
+        float totalSpacing = barSpacing * (currentCount - 1);
+        barWidth = (getWidth() - totalSpacing) / currentCount;
+        if (currentStyle != STYLE_KUGOU) {
+            kugouGradient1 = null;
+            kugouGradient2 = null;
+        }
+        if (currentStyle != STYLE_WAVECOLUMN) {
+            waveColumnPaint.setShader(null);
+        }
+        if (currentStyle == STYLE_AIVOICE) {
+            setLayerType(LAYER_TYPE_SOFTWARE, null);
+        } else {
+            setLayerType(LAYER_TYPE_NONE, null);
+        }
+        requestLayout();
+        postInvalidate();
+    }
+    
+    /**
+     * 根据样式初始化currentCount和相关状态
+     */
+    private void initStyleParams(int style) {
         switch (style) {
             case STYLE_BAR:
                 currentCount = barCount;
@@ -525,22 +471,6 @@ public class SpectrumView extends View {
                 break;
         }
         rebuildArrays();
-        float totalSpacing = barSpacing * (currentCount - 1);
-        barWidth = (getWidth() - totalSpacing) / currentCount;
-        if (currentStyle != STYLE_KUGOU) {
-            kugouGradient1 = null;
-            kugouGradient2 = null;
-        }
-        if (currentStyle != STYLE_WAVECOLUMN) {
-            waveColumnPaint.setShader(null);
-        }
-        if (currentStyle == STYLE_AIVOICE) {
-            setLayerType(LAYER_TYPE_SOFTWARE, null);
-        } else {
-            setLayerType(LAYER_TYPE_NONE, null);
-        }
-        requestLayout();
-        postInvalidate();
     }
     
     /**
@@ -1736,7 +1666,7 @@ public class SpectrumView extends View {
             // magnitudes = mirrorData(magnitudes);
             
             // 5. 赋值给 targetBarHeights
-            float minVal = 4f;
+            float minVal = getMinVal(currentStyle);
             for (int i = 0; i < currentCount; i++) {
                 targetBarHeights[i] = Math.max(minVal, offsetData[i]);
             }
@@ -1744,8 +1674,6 @@ public class SpectrumView extends View {
             // ========= 圆环模式：原版直传（无log映射，无positionWeight）=========
             // ========= 圆点/波浪线模式：对数映射 =========
             if (currentStyle == STYLE_RING) {
-                // 原版 AttachmentRingView: int total = data.length - scope
-                // 直接用原始幅度值，barHeights[i] * 1.5 在drawRing中作为射线像素长度
                 int total = Math.min(magnitudes.length, RING_INPUT_COUNT) - ringScope;
                 if (total < 1) total = 1;
                 if (total != currentCount) {
@@ -1753,35 +1681,15 @@ public class SpectrumView extends View {
                     ringCount = total;
                     rebuildArrays();
                 }
-                float minVal = 2f;
+                float minVal = getMinVal(currentStyle);
                 for (int i = 0; i < currentCount && i < magnitudes.length; i++) {
                     targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
                 }
-            } else if (currentStyle == STYLE_COLUMNAR) {
-                // 原版 ColumnarView: 直传，data[i] * (1 + 3.0) 作为柱高
+            } else if (currentStyle == STYLE_COLUMNAR || currentStyle == STYLE_KUGOU
+                    || currentStyle == STYLE_AIVOICE || currentStyle == STYLE_WAVECOLUMN) {
+                // 直传模式：直接用原始幅度值（各draw方法自行放大）
                 int count = Math.min(currentCount, magnitudes.length);
-                float minVal = 1f;
-                for (int i = 0; i < count; i++) {
-                    targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
-                }
-            } else if (currentStyle == STYLE_KUGOU) {
-                // 原版 KugouColumn: 直传，data[i] * (1 + 35) 作为柱高
-                int count = Math.min(currentCount, magnitudes.length);
-                float minVal = 1f;
-                for (int i = 0; i < count; i++) {
-                    targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
-                }
-            } else if (currentStyle == STYLE_AIVOICE) {
-                // AiVoiceView: 直传原始幅度值（drawAiVoice用getEnergyByPoint公式处理）
-                int count = Math.min(currentCount, magnitudes.length);
-                float minVal = 2f;
-                for (int i = 0; i < count; i++) {
-                    targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
-                }
-            } else if (currentStyle == STYLE_WAVECOLUMN) {
-                // WaveColumnformView: 直传原始幅度值（drawWaveColumn用getOffsetY公式处理）
-                int count = Math.min(currentCount, magnitudes.length);
-                float minVal = 2f;
+                float minVal = getMinVal(currentStyle);
                 for (int i = 0; i < count; i++) {
                     targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
                 }
@@ -1920,6 +1828,32 @@ public class SpectrumView extends View {
      * @param sigma 高斯核标准差
      * @return 平滑后的数据
      */
+    /**
+     * 获取播放中各模式的最小值
+     */
+    private static float getMinVal(int style) {
+        switch (style) {
+            case STYLE_BAR: return 4f;
+            case STYLE_RING:
+            case STYLE_AIVOICE:
+            case STYLE_WAVECOLUMN:
+            case STYLE_DIFFUSION_RING:
+            case STYLE_WAVE_RING: return 2f;
+            case STYLE_COLUMNAR:
+            case STYLE_KUGOU: return 1f;
+            default: return 6f;
+        }
+    }
+    
+    /**
+     * 获取停止时各模式的最小值（较高，静止状态更明显）
+     */
+    private static float getStopMinVal(int style) {
+        if (style == STYLE_BAR) return 8f;
+        if (style == STYLE_COLUMNAR || style == STYLE_KUGOU) return 1f;
+        return 2f;
+    }
+    
     private float[] gaussianSmooth(float[] data, float sigma) {
         if (data == null || data.length == 0) return data;
         
@@ -1968,18 +1902,7 @@ public class SpectrumView extends View {
             startAnimation();
         } else {
             stopAnimation();
-            float minVal;
-            switch (currentStyle) {
-                case STYLE_BAR: minVal = 8f; break;
-                case STYLE_RING: minVal = 2f; break;
-                case STYLE_COLUMNAR: minVal = 1f; break;
-                case STYLE_KUGOU: minVal = 1f; break;
-                case STYLE_AIVOICE: minVal = 2f; break;
-                case STYLE_WAVECOLUMN: minVal = 2f; break;
-                case STYLE_DIFFUSION_RING: minVal = 2f; break;
-                case STYLE_WAVE_RING: minVal = 2f; break;
-                default: minVal = 4f; break;
-            }
+            float minVal = getStopMinVal(currentStyle);
             for (int i = 0; i < currentCount; i++) {
                 targetBarHeights[i] = minVal;
                 barHeights[i] = minVal;
