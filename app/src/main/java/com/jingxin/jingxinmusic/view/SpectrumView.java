@@ -202,7 +202,7 @@ public class SpectrumView extends View {
     
     // 波浪圆环模式状态（基于封面大小动态缩放：内环+2px，外径120%封面）
     private static final float WAVE_RING_OUTER_RATIO = 2.0f;   // 外径 = coverRadius * 2.0
-    private static final int WAVE_RING_INNER_OFFSET = 2;       // 内环距封面外沿2px
+    private static final int WAVE_RING_INNER_OFFSET = 10;              // 内环距封面外沿10px
     private static final int WAVE_RING_SCOPE = 1;               // 能量阈值
     private static final int WAVE_RING_SPEED = 2;               // 能量点扩散速度(px/帧)
     private boolean waveRingIsRotate = true;            // 原版isRotate
@@ -1169,6 +1169,9 @@ public class SpectrumView extends View {
             for (int i = 0; i < halfCount; i++) {
                 float left = colLeft[i] + aaa;
                 float right = colRight[i] + aaa;
+                // 柱身：从barTop到viewHeight
+                canvas.drawRect(left, barTops[i], right, viewHeight, kugouPaint);
+                // 能量块：顶部跳动的点
                 float blockTop = kugouBlockTop[i];
                 float blockBottom = blockTop + blockHeight;
                 if (blockBottom > viewHeight) {
@@ -1187,6 +1190,9 @@ public class SpectrumView extends View {
                 int srcIdx = i + offset;
                 float left = colLeft[srcIdx] - aaa;
                 float right = colRight[srcIdx] - aaa;
+                // 柱身：从barTop到viewHeight
+                canvas.drawRect(left, barTops[srcIdx], right, viewHeight, kugouPaint);
+                // 能量块：顶部跳动的点
                 float blockTop = kugouBlockTop[srcIdx];
                 float blockBottom = blockTop + blockHeight;
                 if (blockBottom > viewHeight) {
@@ -1376,13 +1382,8 @@ public class SpectrumView extends View {
             barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
         }
         
-        // 旋转：原版 isRotate 每帧+1°，isRandom 用随机跳跃角度
-        float currentRotation;
-        if (ringRandomAngle) {
-            currentRotation = ringRandomAngleValue;
-        } else {
-            currentRotation = ringRotation;
-        }
+        // 旋转+随机跳跃叠加：匀速旋转每帧+1°，随机角度额外偏移
+        float currentRotation = ringRotation + ringRandomAngleValue;
         
         canvas.save();
         canvas.rotate(currentRotation, cx, cy);
@@ -1425,11 +1426,9 @@ public class SpectrumView extends View {
         
         canvas.restore();
         
-        // 更新旋转角度（isRotate模式：每帧+1°，匹配原版 degress++）
-        if (!ringRandomAngle) {
-            ringRotation += 1f;
-            if (ringRotation >= 360f) ringRotation -= 360f;
-        }
+        // 更新旋转角度（每帧+1°，匀速旋转始终进行）
+        ringRotation += 0.3f;
+        if (ringRotation >= 360f) ringRotation -= 360f;
         
         // 随机角度跳跃：每300帧随机切换（匹配原版 x > 300）
         ringFrameCounter++;
@@ -1759,7 +1758,7 @@ public class SpectrumView extends View {
                 
                 for (int i = 0; i < total && i < magnitudes.length; i++) {
                     float positionAngle = i * 1.0f / total * 360f;
-                    float currentRotation = waveRingIsRotate ? waveRingDegrees : waveRingRandomAngle;
+                    float currentRotation = waveRingDegrees + waveRingRandomAngle;
                     float angle = positionAngle + currentRotation;
                     float powerPercent = waveRingIsPowerOffset ? 0f : magnitudes[i] / 256f;
                     float dataVal = magnitudes[i];
@@ -2045,11 +2044,9 @@ public class SpectrumView extends View {
             }
         }
         
-        // 旋转更新
-        if (waveRingIsRotate) {
-            waveRingDegrees += 0.3f;
-            if (waveRingDegrees >= 360f) waveRingDegrees -= 360f;
-        }
+        // 旋转更新（匀速旋转始终进行）
+        waveRingDegrees += 0.3f;
+        if (waveRingDegrees >= 360f) waveRingDegrees -= 360f;
         
         // 随机角度：每300帧切换
         waveRingFrameCounter++;
