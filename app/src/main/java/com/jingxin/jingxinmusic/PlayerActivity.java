@@ -87,9 +87,6 @@ public class PlayerActivity extends AppCompatActivity {
     private LyricView lyricView;
     private SpectrumView spectrumView;
     
-    private static final int DOUBLE_CLICK_INTERVAL = 300;
-    // 频谱按钮双击检测
-    private long lastSpectrumBtnClickTime = 0;
     private SeekBar seekBar;
     private TextView tvCurrentTime;
     private TextView tvTotalTime;
@@ -106,6 +103,9 @@ public class PlayerActivity extends AppCompatActivity {
     private View overlayView;
     private View whiteOverlay;
     private View immersiveDarkOverlay;
+
+    // 封面缓存：切歌时保持旧封面，避免「默认封面→真实封面」闪烁
+    private boolean hasCoverLoaded = false; // 是否已有封面加载过
 
     // 白天模式渐变遮罩（浅绿→白）
     private android.graphics.drawable.GradientDrawable whiteGradientDrawable;
@@ -510,22 +510,18 @@ public class PlayerActivity extends AppCompatActivity {
         lyricView.setOnModeChangeListener(newMode -> updateLayoutForMode(newMode));
         btnTheme.setOnClickListener(v -> toggleTheme());
         btnOutfit.setOnClickListener(v -> toggleImmersiveMode());
+        // 单击：弹出频谱选择面板（频谱可见时）或恢复显示频谱
+        // 长按：切换频谱显示/隐藏
         btnSpectrum.setOnClickListener(v -> {
-            long now = System.currentTimeMillis();
-            if (now - lastSpectrumBtnClickTime < DOUBLE_CLICK_INTERVAL) {
-                // 双击：关闭/显示频谱
-                spectrumView.toggleVisibility();
-                lastSpectrumBtnClickTime = 0;
+            if (spectrumView.isSpectrumVisible()) {
+                showSpectrumPicker();
             } else {
-                // 单击：弹出频谱选择面板
-                if (spectrumView.isSpectrumVisible()) {
-                    showSpectrumPicker();
-                } else {
-                    // 频谱关闭时单击恢复显示
-                    spectrumView.toggleVisibility();
-                }
-                lastSpectrumBtnClickTime = now;
+                spectrumView.toggleVisibility();
             }
+        });
+        btnSpectrum.setOnLongClickListener(v -> {
+            spectrumView.toggleVisibility();
+            return true;
         });
         btnBack.setOnClickListener(v -> {
             Log.d(TAG, "Back button clicked, isFinishing=" + isFinishing());
@@ -980,10 +976,11 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void loadCover() {
-        // 设置默认封面
-        coverView.setImageResource(R.drawable.ic_music_icon);
-        // 先用默认封面图标生成模糊背景，后续找到真实封面会覆盖
-        applyDefaultCoverBlur();
+        // 切歌时保持旧封面，避免闪烁——只有首次进入（无旧封面）才设默认封面
+        if (!hasCoverLoaded) {
+            coverView.setImageResource(R.drawable.ic_music_icon);
+            applyDefaultCoverBlur();
+        }
         // 横屏沉浸下，切换间隙隐藏 foreground 渐变，避免默认封面+渐变的闪烁
         if (isImmersiveMode && isLandscapeMode) {
             coverView.setForeground(null);
@@ -1033,6 +1030,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void setCoverBitmap(Bitmap bitmap) {
         if (bitmap == null || isDestroyed()) return;
+        hasCoverLoaded = true;
         syncSceneState();
         currentScene.setCover(bitmap);
         // 通知 Service 更新 MediaSession metadata（含封面）
@@ -1523,7 +1521,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /**
-     * AudioRecord 降级方案：通过麦克风采集音频 + DFT 计算频谱
+     * AudioRecord 降级方案：通过麦克风采集音频 + FFT 计算频谱
      */
     private void startSpectrumAudioRecord() {
         new Thread(() -> {
@@ -1579,33 +1577,84 @@ public class PlayerActivity extends AppCompatActivity {
 
                 audioRecord.startRecording();
                 Thread.sleep(500);
-                Log.d(TAG, "AudioRecord 启动成功，开始频谱采集");
+                Log.d(TAG, "AudioRecord 启动成功，开始频谱采集(FFT)");
 
-                short[] bigBuffer = new short[800];
+                // FFT 补零到 1024（2^10），800 采样点零填充
+                final int FFT_SIZE = 1024;
+                short[] readBuffer = new short[800];
+                float[] fftReal = new float[FFT_SIZE];
+                float[] fftImag = new float[FFT_SIZE];
+                // 预计算 bit-reverse 表
+                int[] bitRevTable = new int[FFT_SIZE];
+                int bits = 10; // log2(1024)
+                for (int i = 0; i < FFT_SIZE; i++) {
+                    int rev = 0;
+                    int val = i;
+                    for (int b = 0; b < bits; b++) {
+                        rev = (rev << 1) | (val & 1);
+                        val >>= 1;
+                    }
+                    bitRevTable[i] = rev;
+                }
+
                 int logFrameCount = 0;
                 while (spectrumRunning) {
-                    int totalRead = audioRecord.read(bigBuffer, 0, 800);
+                    int totalRead = audioRecord.read(readBuffer, 0, 800);
                     if (totalRead <= 0) continue;
 
                     if (logFrameCount++ % 10 == 0) {
                         Log.d(TAG, "AudioRecord totalRead=" + totalRead);
                     }
 
+                    // 零填充到 FFT_SIZE 并加窗（Hann 窗减少频谱泄漏）
+                    for (int i = 0; i < FFT_SIZE; i++) {
+                        if (i < totalRead) {
+                            double window = 0.5 * (1.0 - Math.cos(2.0 * Math.PI * i / (totalRead - 1)));
+                            fftReal[i] = readBuffer[i] * (float) window;
+                        } else {
+                            fftReal[i] = 0;
+                        }
+                        fftImag[i] = 0;
+                    }
+
+                    // Cooley-Tukey 原地 FFT
+                    for (int i = 0; i < FFT_SIZE; i++) {
+                        int j = bitRevTable[i];
+                        if (j > i) {
+                            float tmp = fftReal[i]; fftReal[i] = fftReal[j]; fftReal[j] = tmp;
+                            tmp = fftImag[i]; fftImag[i] = fftImag[j]; fftImag[j] = tmp;
+                        }
+                    }
+                    for (int len = 2; len <= FFT_SIZE; len <<= 1) {
+                        int halfLen = len >> 1;
+                        double angleStep = -2.0 * Math.PI / len;
+                        for (int i = 0; i < FFT_SIZE; i += len) {
+                            for (int j = 0; j < halfLen; j++) {
+                                double angle = angleStep * j;
+                                float wr = (float) Math.cos(angle);
+                                float wi = (float) Math.sin(angle);
+                                int idx1 = i + j;
+                                int idx2 = i + j + halfLen;
+                                float tr = wr * fftReal[idx2] - wi * fftImag[idx2];
+                                float ti = wr * fftImag[idx2] + wi * fftReal[idx2];
+                                fftReal[idx2] = fftReal[idx1] - tr;
+                                fftImag[idx2] = fftImag[idx1] - ti;
+                                fftReal[idx1] += tr;
+                                fftImag[idx1] += ti;
+                            }
+                        }
+                    }
+
+                    // 从 FFT 结果提取频谱幅度
                     int count = spectrumView != null ? spectrumView.getBarInputCount() : 65;
                     float[] magnitudes = new float[count];
                     float maxMag = 0;
-                    // BD 方式：DFT 1:1 直传，不预合并
                     for (int bar = 0; bar < count; bar++) {
-                        int k = bar + 1;
-                        if (k > totalRead - 1) k = totalRead - 1;
-                        float re = 0, im = 0;
-                        double freq = 2.0 * Math.PI * k / totalRead;
-                        for (int n = 0; n < totalRead; n++) {
-                            float sample = bigBuffer[n];
-                            re += sample * Math.cos(freq * n);
-                            im -= sample * Math.sin(freq * n);
-                        }
-                        float mag = (float) Math.sqrt(re * re + im * im) / totalRead;
+                        int k = bar + 1; // 跳过 DC 分量
+                        if (k >= FFT_SIZE / 2) k = FFT_SIZE / 2 - 1;
+                        float re = fftReal[k];
+                        float im = fftImag[k];
+                        float mag = (float) Math.sqrt(re * re + im * im) / FFT_SIZE;
                         magnitudes[bar] = mag;
                         if (mag > maxMag) maxMag = mag;
                     }
