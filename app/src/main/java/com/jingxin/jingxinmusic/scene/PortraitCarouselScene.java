@@ -44,8 +44,8 @@ public class PortraitCarouselScene implements CoverScene {
         h.coverView.setVisibility(View.GONE);
         ensureCarouselView();
         h.carouselView.setVisibility(View.VISIBLE);
-        // 隐藏封面占位
-        h.coverPlaceholder.setVisibility(View.GONE);
+        // 显示封面占位（轮播模式需要占位撑开歌名位置）
+        h.coverPlaceholder.setVisibility(View.VISIBLE);
         // 歌名歌手
         h.tvSongName.setVisibility(View.VISIBLE);
         h.tvArtist.setVisibility(View.VISIBLE);
@@ -54,8 +54,9 @@ public class PortraitCarouselScene implements CoverScene {
         moveCarouselAboveInfoPanel();
         // 恢复主题
         h.callback.updateThemeUI();
-        // 确保歌词不为全屏模式
+        // 竖屏轮播：恢复歌词显示上一行（三行模式），确保不为全屏
         if (h.lyricView != null) {
+            h.lyricView.setShowPrevLine(true);
             com.jingxin.jingxinmusic.view.LyricView.DisplayMode mode = h.lyricView.getDisplayMode();
             if (mode == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL) {
                 h.lyricView.setDisplayMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode.MULTI_LINE);
@@ -158,7 +159,7 @@ public class PortraitCarouselScene implements CoverScene {
 
     @Override
     public void onLyricModeChanged(boolean isFullScreen) {
-        // 轮播模式不支持全屏歌词
+        // 轮播竖屏：不支持全屏歌词，只在双行和多行之间切换
         h.tvSongName.setVisibility(View.VISIBLE);
         h.tvArtist.setVisibility(View.VISIBLE);
         if (isFullScreen) {

@@ -544,6 +544,20 @@ public class PlayerActivity extends AppCompatActivity {
                 }
                 lyricView.setDisplayMode(newMode);
                 updateLayoutForMode(newMode);
+            } else if (coverStyle == COVER_STYLE_CAROUSEL && isLandscapeMode) {
+                // 横屏轮播：歌词锁定双行，禁止点击切换
+                return;
+            } else if (coverStyle == COVER_STYLE_CAROUSEL && !isLandscapeMode) {
+                // 竖屏轮播：只在双行和多行之间切换，不进入全屏
+                com.jingxin.jingxinmusic.view.LyricView.DisplayMode cur = lyricView.getDisplayMode();
+                com.jingxin.jingxinmusic.view.LyricView.DisplayMode newMode;
+                if (cur == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE) {
+                    newMode = com.jingxin.jingxinmusic.view.LyricView.DisplayMode.MULTI_LINE;
+                } else {
+                    newMode = com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE;
+                }
+                lyricView.setDisplayMode(newMode);
+                updateLayoutForMode(newMode);
             } else {
                 com.jingxin.jingxinmusic.view.LyricView.DisplayMode newMode = lyricView.toggleMode();
                 updateLayoutForMode(newMode);
@@ -836,6 +850,11 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void updateLayoutForMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode mode) {
         syncSceneState();
+        // 横屏轮播：歌词锁定双行，强制修正
+        if (coverStyle == COVER_STYLE_CAROUSEL && isLandscapeMode
+                && mode != com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE) {
+            lyricView.setDisplayMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE);
+        }
         boolean isFull = mode == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL;
         currentScene.onLyricModeChanged(isFull);
     }
@@ -867,16 +886,20 @@ public class PlayerActivity extends AppCompatActivity {
 
     /**
      * 恢复歌名和歌词区域原始 margin（非沉浸模式）
+     * 轮播模式由 Scene 自行管理歌名 topMargin，此处不覆盖
      */
     private void resetLyricMargin() {
         if (lyricView == null) return;
         int density = (int) getResources().getDisplayMetrics().density;
 
-        // 恢复歌名原始 margin（竖屏16dp，横屏52dp：返回按钮底部位置）
-        android.widget.LinearLayout.LayoutParams nameParams =
-                (android.widget.LinearLayout.LayoutParams) tvSongName.getLayoutParams();
-        nameParams.topMargin = isLandscapeMode ? (density * 52) : (density * 16);
-        tvSongName.setLayoutParams(nameParams);
+        // 轮播模式：歌名 topMargin 由 Scene 管理，不覆盖
+        if (coverStyle != COVER_STYLE_CAROUSEL) {
+            // 恢复歌名原始 margin（竖屏16dp，横屏52dp：返回按钮底部位置）
+            android.widget.LinearLayout.LayoutParams nameParams =
+                    (android.widget.LinearLayout.LayoutParams) tvSongName.getLayoutParams();
+            nameParams.topMargin = isLandscapeMode ? (density * 52) : (density * 16);
+            tvSongName.setLayoutParams(nameParams);
+        }
 
         // 恢复歌词原始 margin
         android.widget.LinearLayout.LayoutParams lyricParams =

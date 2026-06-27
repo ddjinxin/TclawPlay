@@ -41,19 +41,45 @@ public class LandscapeCarouselScene implements CoverScene {
         h.coverView.setVisibility(View.GONE);
         ensureCarouselView();
         h.carouselView.setVisibility(View.VISIBLE);
-        // 隐藏封面占位
-        h.coverPlaceholder.setVisibility(View.GONE);
+        // 立即设好 infoPanel 全宽（前一个模式可能是65%宽度，必须提前覆盖）
+        FrameLayout.LayoutParams infoParams =
+                (FrameLayout.LayoutParams) h.infoPanel.getLayoutParams();
+        infoParams.width = FrameLayout.LayoutParams.MATCH_PARENT;
+        infoParams.height = FrameLayout.LayoutParams.MATCH_PARENT;
+        infoParams.gravity = Gravity.START;
+        h.infoPanel.setLayoutParams(infoParams);
+        if (h.infoPanel instanceof LinearLayout) {
+            ((LinearLayout) h.infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
+        }
+        // 显示封面占位，并预设高度防止闪跳（精确值在 layout() 中更新）
+        h.coverPlaceholder.setVisibility(View.VISIBLE);
+        int estimatedTopBarHeight = (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
+                ? h.topButtonsBar.getHeight() : (int) (h.density * 56);
+        int estimatedCoverSize = (int) (h.rootLayout.getHeight() * 0.25f);
+        if (estimatedCoverSize > 0) {
+            LinearLayout.LayoutParams placeholderParams =
+                    (LinearLayout.LayoutParams) h.coverPlaceholder.getLayoutParams();
+            placeholderParams.height = estimatedTopBarHeight + estimatedCoverSize;
+            placeholderParams.width = 1;
+            h.coverPlaceholder.setLayoutParams(placeholderParams);
+        }
+        // 立即把歌名topMargin设为10dp（轮播靠coverPlaceholder撑位置）
+        LinearLayout.LayoutParams nameParams =
+                (LinearLayout.LayoutParams) h.tvSongName.getLayoutParams();
+        nameParams.topMargin = (int) (h.density * 10);
+        h.tvSongName.setLayoutParams(nameParams);
         // 歌名歌手
         h.tvSongName.setVisibility(View.VISIBLE);
         h.tvArtist.setVisibility(View.VISIBLE);
         h.callback.resetLyricMargin();
         // 恢复封面层级
         moveCarouselAboveInfoPanel();
-        // 确保歌词为双行模式
+        // 确保歌词为双行模式，且不显示上一行（真正双行，垂直居中）
         if (h.lyricView != null) {
             if (h.lyricView.getDisplayMode() != com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE) {
                 h.lyricView.setDisplayMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE);
             }
+            h.lyricView.setShowPrevLine(false);
             h.callback.resetLyricMargin();
         }
     }
@@ -72,10 +98,10 @@ public class LandscapeCarouselScene implements CoverScene {
         if (h.infoPanel instanceof LinearLayout) {
             ((LinearLayout) h.infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
         }
-        // 歌名 topMargin = 0dp（紧贴轮播封面）
+        // 歌名 topMargin = 10dp（与轮播封面保持间距）
         LinearLayout.LayoutParams nameParams =
                 (LinearLayout.LayoutParams) h.tvSongName.getLayoutParams();
-        nameParams.topMargin = 0;
+        nameParams.topMargin = (int) (h.density * 10);
         h.tvSongName.setLayoutParams(nameParams);
         h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -94,8 +120,8 @@ public class LandscapeCarouselScene implements CoverScene {
         // 轮播封面区域：在顶部按钮栏下方
         int topBarHeight = (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
                 ? h.topButtonsBar.getHeight() : (int) (h.density * 56);
-        // 中间卡片尺寸：height * 25%
-        int coverSize = (int) (height * 0.25f);
+        // 中间卡片尺寸：height * 30%
+        int coverSize = (int) (height * 0.30f);
         // 轮播容器高度 = coverSize（无多余边距）
         int carouselHeight = coverSize;
         if (h.carouselView != null) {
@@ -110,11 +136,11 @@ public class LandscapeCarouselScene implements CoverScene {
             // 通知 carouselView 重新布局卡片
             h.carouselView.requestLayoutCards();
         }
-        // 封面占位：和轮播容器对齐
+        // 封面占位：需要包含topBarHeight，才能把歌名推到封面下方
         h.coverPlaceholder.setVisibility(View.VISIBLE);
         LinearLayout.LayoutParams placeholderParams =
                 (LinearLayout.LayoutParams) h.coverPlaceholder.getLayoutParams();
-        placeholderParams.height = carouselHeight;
+        placeholderParams.height = topBarHeight + carouselHeight;
         placeholderParams.width = 1;
         h.coverPlaceholder.setLayoutParams(placeholderParams);
         // 频谱位置：仅底部
@@ -132,6 +158,10 @@ public class LandscapeCarouselScene implements CoverScene {
             h.carouselView.setVisibility(View.GONE);
         }
         h.rootLayout.setClipChildren(true);
+        // 恢复歌词默认状态
+        if (h.lyricView != null) {
+            h.lyricView.setShowPrevLine(true);
+        }
     }
 
     @Override
@@ -157,16 +187,13 @@ public class LandscapeCarouselScene implements CoverScene {
 
     @Override
     public void onLyricModeChanged(boolean isFullScreen) {
+        // 横屏轮播：歌词锁定双行，禁止切换
         h.tvSongName.setVisibility(View.VISIBLE);
         h.tvArtist.setVisibility(View.VISIBLE);
-        if (isFullScreen) {
-            if (h.lyricView != null) {
-                h.lyricView.setDisplayMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode.MULTI_LINE);
-            }
-            h.callback.resetLyricMargin();
-        } else {
-            h.callback.resetLyricMargin();
+        if (h.lyricView != null && h.lyricView.getDisplayMode() != com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE) {
+            h.lyricView.setDisplayMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode.DOUBLE_LINE);
         }
+        h.callback.resetLyricMargin();
     }
 
     @Override

@@ -404,41 +404,97 @@ public class LyricView extends View {
         }
     }
     
-    // ===== 三行模式（上一行 + 当前行 + 下一行）=====
+    // ===== 双行/三行模式（根据 showPrevLine 决定是否显示上一行）=====
     
+    private boolean showPrevLine = true;
+
+    public void setShowPrevLine(boolean show) {
+        this.showPrevLine = show;
+        invalidate();
+    }
+
+    public boolean isShowPrevLine() {
+        return showPrevLine;
+    }
+
     private void drawDoubleLineMode(Canvas canvas) {
-        float centerY = viewHeight * 0.45f;
         
         if (currentLineIndex < 0 || currentLineIndex >= lines.size()) {
             // 还没有当前行，显示前两行
             if (!lines.isEmpty()) {
                 float firstH = getWrappedHeight(lines.get(0).text, textSizeCurrent);
                 StaticLayout firstLayout = buildCurrentLineLayout(lines.get(0), textSizeCurrent, textColorNormal);
-                drawLayoutAt(canvas, firstLayout, centerY - firstH / 2);
                 
+                float secondH = 0;
+                StaticLayout secondLayout = null;
                 if (lines.size() > 1) {
-                    float nextY = centerY + firstH / 2 + lineSpacing;
-                    StaticLayout secondLayout = buildSimpleLayout(
+                    secondLayout = buildSimpleLayout(
                             lines.get(1), textSizeNormal, ColorUtil.adjustAlpha(getFadedTextColor(), 0.6f));
-                    drawLayoutAt(canvas, secondLayout, nextY);
+                    secondH = getWrappedHeight(lines.get(1).text, textSizeNormal);
+                }
+                
+                float totalH = firstH + (secondH > 0 ? lineSpacing + secondH : 0);
+                float startY = (viewHeight - totalH) / 2f;
+                drawLayoutAt(canvas, firstLayout, startY);
+                if (secondLayout != null) {
+                    drawLayoutAt(canvas, secondLayout, startY + firstH + lineSpacing);
                 }
             }
             return;
         }
         
-        // 计算当前行高度
+        // 当前行高度
         float currentH = getWrappedHeight(lines.get(currentLineIndex).text, textSizeCurrent);
-        float currentTop = centerY - currentH / 2;
-        float currentBottom = centerY + currentH / 2;
         
-        // 上一行
-        if (currentLineIndex > 0) {
-            KrcParser.LyricLine prevLine = lines.get(currentLineIndex - 1);
-            float prevH = getWrappedHeight(prevLine.text, textSizeNormal);
-            float prevTop = currentTop - lineSpacing - prevH;
-            StaticLayout prevLayout = buildSimpleLayout(prevLine, textSizeNormal, ColorUtil.adjustAlpha(getFadedTextColor(), 0.6f));
-            drawLayoutAt(canvas, prevLayout, prevTop);
+        // 计算所有可见行的总高度，确定当前行起始Y
+        float totalContentH;
+        float prevH = 0;
+        float nextH = 0;
+        
+        if (showPrevLine && currentLineIndex > 0) {
+            prevH = getWrappedHeight(lines.get(currentLineIndex - 1).text, textSizeNormal);
         }
+        if (currentLineIndex + 1 < lines.size()) {
+            nextH = getWrappedHeight(lines.get(currentLineIndex + 1).text, textSizeNormal);
+        }
+        
+        // 总内容高度
+        if (prevH > 0) {
+            totalContentH = prevH + lineSpacing + currentH;
+        } else {
+            totalContentH = currentH;
+        }
+        if (nextH > 0) {
+            totalContentH += lineSpacing + nextH;
+        }
+        
+        // showPrevLine=false 时真正垂直居中，否则用原来的 0.45 偏上位置
+        float contentStartY;
+        if (!showPrevLine) {
+            // 真正垂直居中：上下留白相等
+            contentStartY = (viewHeight - totalContentH) / 2f;
+        } else {
+            // 原始偏上布局：当前行中心在 45% 处
+            float centerY = viewHeight * 0.45f;
+            float currentTop = centerY - currentH / 2;
+            contentStartY = prevH > 0 ? currentTop - lineSpacing - prevH : currentTop;
+        }
+        
+        // 上一行（仅 showPrevLine=true 时显示）
+        if (showPrevLine && currentLineIndex > 0) {
+            KrcParser.LyricLine prevLine = lines.get(currentLineIndex - 1);
+            StaticLayout prevLayout = buildSimpleLayout(prevLine, textSizeNormal, ColorUtil.adjustAlpha(getFadedTextColor(), 0.6f));
+            drawLayoutAt(canvas, prevLayout, contentStartY);
+        }
+        
+        // 当前行的Y
+        float currentTop;
+        if (showPrevLine && prevH > 0) {
+            currentTop = contentStartY + prevH + lineSpacing;
+        } else {
+            currentTop = contentStartY;
+        }
+        float currentBottom = currentTop + currentH;
         
         // 当前行（逐字颜色）
         StaticLayout currentLayout = buildCurrentLineLayout(lines.get(currentLineIndex), textSizeCurrent, textColorNormal);
