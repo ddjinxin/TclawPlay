@@ -42,7 +42,9 @@ public class PortraitImmersiveScene implements CoverScene {
         // 旋转封面隐藏
         h.coverView.setVisibility(View.GONE);
         h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        if (!h.coverView.isVinylMode()) {
+            h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        }
         h.coverView.setForeground(null);
         // 夜间暗层
         h.immersiveDarkOverlay.setVisibility(h.isNightMode ? View.VISIBLE : View.GONE);
@@ -104,8 +106,10 @@ public class PortraitImmersiveScene implements CoverScene {
         h.blurBackground.setVisibility(View.GONE);
         h.coverView.setVisibility(View.VISIBLE);
         // 恢复圆形裁剪
-        h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        h.coverView.setClipToOutline(!h.coverView.isVinylMode());
+        if (!h.coverView.isVinylMode()) {
+            h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        }
         h.coverView.setForeground(null);
         // 恢复封面层级
         h.moveCoverAboveInfoPanel();

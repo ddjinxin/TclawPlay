@@ -39,7 +39,9 @@ public class PortraitClassicScene implements CoverScene {
         // 封面：圆形旋转
         h.coverView.setVisibility(View.VISIBLE);
         h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        if (!h.coverView.isVinylMode()) {
+            h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        }
         h.coverView.setForeground(null);
         // 封面占位
         boolean isFullLyric = h.lyricView != null &&

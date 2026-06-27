@@ -54,6 +54,7 @@ import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.LyricView;
 import com.jingxin.jingxinmusic.view.RotatingCoverView;
 import com.jingxin.jingxinmusic.view.SpectrumView;
+import com.jingxin.jingxinmusic.view.TonearmView;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -114,8 +115,12 @@ public class PlayerActivity extends AppCompatActivity {
     private boolean isNightMode = true;  // 默认夜间模式
     private boolean isFavorite = false;  // 当前歌曲是否已收藏
 
-    // 沉浸模式
-    private boolean isImmersiveMode = false; // 沉浸封面模式
+    // 封面风格：0=经典, 1=沉浸, 2=唱片机
+    private static final int COVER_STYLE_CLASSIC = 0;
+    private static final int COVER_STYLE_IMMERSIVE = 1;
+    private static final int COVER_STYLE_RECORD = 2;
+    private int coverStyle = COVER_STYLE_CLASSIC;
+    private TonearmView tonearmView;
     private com.jingxin.jingxinmusic.view.ImmersiveOverlayView immersiveOverlay;
     private android.widget.PopupWindow spectrumPickerPopup; // 频谱选择浮窗
 
@@ -216,6 +221,13 @@ public class PlayerActivity extends AppCompatActivity {
                             coverView.startRotation();
                             spectrumView.setPlaying(true);
                             startSpectrumWithPermission();
+                            // 同步唱臂播放状态
+                            if (tonearmView != null && coverStyle == COVER_STYLE_RECORD) {
+                                tonearmView.setLandscapeMode(isLandscapeMode);
+                                tonearmView.setPlaying(true);
+                                tonearmView.refreshAngle();
+                                updateTonearmPosition();
+                            }
                         } else if ("folder".equals(playlistMode)) {
                             // 目录模式：播放队列 = 该目录歌曲
                             List<String> folderPaths = getIntent().getStringArrayListExtra("folder_song_paths");
@@ -336,7 +348,9 @@ public class PlayerActivity extends AppCompatActivity {
 
         // 初始化视图
         blurBackground = findViewById(R.id.blur_background);
-        coverView = findViewById(R.id.cover_view);
+         coverView = findViewById(R.id.cover_view);
+         coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        tonearmView = findViewById(R.id.tonearm_view);
         tvSongName = findViewById(R.id.song_name_text);
         tvArtist = findViewById(R.id.artist_text);
         lyricView = findViewById(R.id.lyric_view);
@@ -397,16 +411,19 @@ public class PlayerActivity extends AppCompatActivity {
                         if (isFinishing() || isDestroyed()) return;
                         int newWidth = right - left;
                         int oldWidth = oldRight - oldLeft;
-                        if (oldWidth > 0 && newWidth != oldWidth) {
+                        if (newWidth > 0 && newWidth != oldWidth) {
                             // 横竖屏切换时关闭频谱选择弹窗
                             if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
                                 spectrumPickerPopup.dismiss();
                             }
-                            Log.d(TAG, "Root FrameLayout width changed: " + oldWidth + " -> " + newWidth + " landscape=" + isLandscapeMode + " immersive=" + isImmersiveMode);
                             // 重新检测横竖屏并应用完整布局
                             boolean wasLandscape = isLandscapeMode;
                             detectAndApplyLandscapeMode();
                             applyLayoutMode();
+                            // 始终重新layout，更新频谱位置（圆环模式需要跟随封面中心）
+                            int w = getLayoutWidth();
+                            int h = getAvailableScreenHeight();
+                            currentScene.layout(w, h);
                             if (wasLandscape == isLandscapeMode && isLandscapeMode) {
                                 // 横屏宽度变化，同步主题和歌词布局
                                 updateThemeUI();
@@ -434,7 +451,9 @@ public class PlayerActivity extends AppCompatActivity {
 
         // 读取主题状态并同步所有 UI
         isNightMode = getSharedPreferences("theme", MODE_PRIVATE).getBoolean("isNight", true);
-        isImmersiveMode = getSharedPreferences("theme", MODE_PRIVATE).getBoolean("immersive", false);
+        coverStyle = getSharedPreferences("theme", MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC);
+        // 在初始化场景前先检测横竖屏（OnGlobalLayoutListener是异步的，会太晚）
+        detectAndApplyLandscapeMode();
         ThemeColors.init(this);
         updateThemeUI();
         lyricView.setThemeMode(isNightMode
@@ -442,14 +461,22 @@ public class PlayerActivity extends AppCompatActivity {
                 : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
         immersiveOverlay.setNightMode(isNightMode);
 
-        // 沉浸模式初始化：切换到正确的 scene
-        if (isImmersiveMode) {
+        // 封面风格初始化：切换到正确的 scene
+        if (coverStyle == COVER_STYLE_IMMERSIVE) {
             syncSceneState();
             currentScene = isLandscapeMode ? landscapeImmersive : portraitImmersive;
             currentScene.enter();
             if (lyricView != null) {
                 immersiveOverlay.setFullScreenMode(
                         lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
+            }
+        } else if (coverStyle == COVER_STYLE_RECORD) {
+            // 唱片机模式：使用经典布局 + 黑胶封面 + 唱臂
+            coverView.setVinylMode(true);
+            if (tonearmView != null) {
+                tonearmView.setVisibility(View.VISIBLE);
+                tonearmView.setLandscapeMode(isLandscapeMode);
+                updateTonearmPosition();
             }
         }
 
@@ -491,7 +518,7 @@ public class PlayerActivity extends AppCompatActivity {
 
         // 歌词区域：单击切换模式
         lyricView.setOnClickListener(v -> {
-            if (isImmersiveMode) {
+            if (coverStyle == COVER_STYLE_IMMERSIVE) {
                 // 沉浸模式：只在双行和多行之间切换，不进入全屏
                 com.jingxin.jingxinmusic.view.LyricView.DisplayMode cur = lyricView.getDisplayMode();
                 com.jingxin.jingxinmusic.view.LyricView.DisplayMode newMode;
@@ -573,12 +600,29 @@ public class PlayerActivity extends AppCompatActivity {
                     ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
                     : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
         }
+        // 从列表页返回时，可能横竖屏已变化，需要重新检测并刷新唱臂
+        if (tonearmView != null && tonearmView.getVisibility() == View.VISIBLE) {
+            tonearmView.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                boolean wasLandscape = isLandscapeMode;
+                detectAndApplyLandscapeMode();
+                if (wasLandscape != isLandscapeMode) {
+                    applyLayoutMode();
+                    updateThemeUI();
+                    updateLayoutForMode(lyricView.getDisplayMode());
+                } else {
+                    // 横竖没变但位置可能变了（窗口resize等），刷新唱臂位置
+                    tonearmView.setLandscapeMode(isLandscapeMode);
+                    tonearmView.refreshAngle();
+                    updateTonearmPosition();
+                }
+            });
+        }
     }
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        Log.d(TAG, "onConfigurationChanged: newOrientation=" + newConfig.orientation);
         // 横竖屏切换时关闭频谱选择弹窗
         if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
             spectrumPickerPopup.dismiss();
@@ -587,9 +631,7 @@ public class PlayerActivity extends AppCompatActivity {
         uiHandler.post(() -> {
             boolean wasLandscape = isLandscapeMode;
             detectAndApplyLandscapeMode();
-            Log.d(TAG, "onConfigChanged post: wasLandscape=" + wasLandscape + " isLandscape=" + isLandscapeMode);
             if (wasLandscape != isLandscapeMode) {
-                Log.d(TAG, "Applying layout mode, landscape=" + isLandscapeMode);
                 applyLayoutMode();
                 updateThemeUI();
                 updateLayoutForMode(lyricView.getDisplayMode());
@@ -842,15 +884,16 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /**
-     * 根据当前 isLandscapeMode 和 isImmersiveMode 切换到正确的 Scene
+     * 根据当前 isLandscapeMode 和 coverStyle 切换到正确的 Scene
      * @return 是否发生了 Scene 切换
      */
     private boolean switchScene() {
         CoverScene target;
-        if (isLandscapeMode) {
-            target = isImmersiveMode ? landscapeImmersive : landscapeClassic;
+        if (coverStyle == COVER_STYLE_IMMERSIVE) {
+            target = isLandscapeMode ? landscapeImmersive : portraitImmersive;
         } else {
-            target = isImmersiveMode ? portraitImmersive : portraitClassic;
+            // 经典和唱片机都用经典布局
+            target = isLandscapeMode ? landscapeClassic : portraitClassic;
         }
         if (target != currentScene) {
             currentScene.exit();
@@ -891,7 +934,6 @@ public class PlayerActivity extends AppCompatActivity {
         int width = getLayoutWidth();
         int height = getAvailableScreenHeight();
         boolean newLandscape = (width > height * 1.1f);
-        Log.d(TAG, "detectLandscape: width=" + width + " height=" + height + " landscape=" + newLandscape);
         isLandscapeMode = newLandscape;
     }
 
@@ -905,9 +947,15 @@ public class PlayerActivity extends AppCompatActivity {
         int height = getAvailableScreenHeight();
         currentScene.layout(width, height);
         immersiveOverlay.setLandscapeMode(isLandscapeMode);
-        // 沉浸模式下切换后需要重新加载封面
-        if (isImmersiveMode) {
+        // 沉浸/唱片机模式下切换后需要重新加载封面
+        if (coverStyle == COVER_STYLE_IMMERSIVE || coverStyle == COVER_STYLE_RECORD) {
             loadCover();
+        }
+        // 唱臂横屏模式和位置更新
+        if (tonearmView != null) {
+            tonearmView.setLandscapeMode(isLandscapeMode);
+            updateTonearmPosition();
+            tonearmView.refreshAngle();
         }
     }
 
@@ -922,14 +970,16 @@ public class PlayerActivity extends AppCompatActivity {
         if (isPlaying) {
             btnPlayPause.setImageResource(R.drawable.ic_pause);
             // 横屏沉浸模式下封面不旋转
-            if (!(isImmersiveMode && isLandscapeMode)) {
+            if (!(coverStyle == COVER_STYLE_IMMERSIVE && isLandscapeMode)) {
                 coverView.startRotation();
             }
             spectrumView.setPlaying(true);
+            if (tonearmView != null && coverStyle == COVER_STYLE_RECORD) tonearmView.setPlaying(true);
         } else {
             btnPlayPause.setImageResource(R.drawable.ic_play);
             coverView.stopRotation();
             spectrumView.setPlaying(false);
+            if (tonearmView != null) tonearmView.setPlaying(false);
         }
     }
 
@@ -982,7 +1032,7 @@ public class PlayerActivity extends AppCompatActivity {
             applyDefaultCoverBlur();
         }
         // 横屏沉浸下，切换间隙隐藏 foreground 渐变，避免默认封面+渐变的闪烁
-        if (isImmersiveMode && isLandscapeMode) {
+        if (coverStyle == COVER_STYLE_IMMERSIVE && isLandscapeMode) {
             coverView.setForeground(null);
         }
 
@@ -1148,18 +1198,39 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /**
-     * 切换沉浸封面模式——使用 CoverScene 策略
-     * 长按歌词区域触发
+     * 循环切换封面风格：经典 → 沉浸 → 唱片机 → 经典
      */
     private void toggleImmersiveMode() {
-        isImmersiveMode = !isImmersiveMode;
-        getSharedPreferences("theme", MODE_PRIVATE).edit().putBoolean("immersive", isImmersiveMode).apply();
+        int prevStyle = coverStyle;
+        coverStyle = (coverStyle + 1) % 3;
+        getSharedPreferences("theme", MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
         // 沉浸模式下圆环/扩散圆环/波浪圆环不可用，循环跳过
-        if (isImmersiveMode && spectrumView.isCoverOverlayMode()) {
+        if (coverStyle == COVER_STYLE_IMMERSIVE && spectrumView.isCoverOverlayMode()) {
             while (spectrumView.isCoverOverlayMode()) {
                 spectrumView.switchStyle();
             }
+        }
+
+        // 黑胶封面模式切换
+        coverView.setVinylMode(coverStyle == COVER_STYLE_RECORD);
+
+        // 唱臂显示/隐藏 + 位置调整 + 角度刷新
+        if (tonearmView != null) {
+            tonearmView.setVisibility(coverStyle == COVER_STYLE_RECORD ? View.VISIBLE : View.GONE);
+            tonearmView.setLandscapeMode(isLandscapeMode);
+            if (coverStyle == COVER_STYLE_RECORD) {
+                // 根据当前播放状态刷新唱臂角度
+                boolean isCurrentlyPlaying = bound && playerBinder != null && playerBinder.isPlaying();
+                tonearmView.setPlaying(isCurrentlyPlaying);
+                tonearmView.refreshAngle();
+            }
+            updateTonearmPosition();
+        }
+
+        // 退出上一个风格的特殊状态
+        if (prevStyle == COVER_STYLE_IMMERSIVE) {
+            // 退出沉浸：恢复歌词位置等
         }
 
         syncSceneState();
@@ -1171,14 +1242,120 @@ public class PlayerActivity extends AppCompatActivity {
         // 重新加载封面
         loadCover();
 
+        // 唱片机模式下同步封面旋转和唱臂状态（必须在loadCover之后）
+        if (coverStyle == COVER_STYLE_RECORD) {
+            boolean isCurrentlyPlaying = bound && playerBinder != null && playerBinder.isPlaying();
+            // 先重置userPaused标志（沉浸模式可能设为true），确保startRotation生效
+            coverView.stopAndResetRotation();
+            if (isCurrentlyPlaying) {
+                coverView.startRotation();
+            }
+        }
+
         // 同步歌词模式到沉浸遮罩
-        if (lyricView != null) {
+        if (coverStyle == COVER_STYLE_IMMERSIVE && lyricView != null) {
             immersiveOverlay.setFullScreenMode(
                     lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
         }
 
-        android.widget.Toast.makeText(this, isImmersiveMode ? "沉浸模式" : "经典模式",
+        String[] styleNames = {"经典模式", "沉浸模式", "唱片机模式"};
+        android.widget.Toast.makeText(this, styleNames[coverStyle],
                 android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 动态调整唱臂位置和尺寸
+     * 
+     * 横屏：pivot在View底部居中，View底边对齐封面上边沿，View水平居中于封面
+     *       View尺寸=封面尺寸×1.2（方形，足够容纳旋转45°）
+     * 
+     * 竖屏：pivot在View左上角，View左边对齐封面右边缘，View顶边对齐封面上边沿
+     */
+    private void updateTonearmPosition() {
+        if (tonearmView == null || coverView == null) return;
+        tonearmView.post(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            int coverW = coverView.getWidth();
+            int coverH = coverView.getHeight();
+            if (coverW <= 0 || coverH <= 0) return;
+
+            // 用绝对坐标定位，避免gravity导致getLeft/getTop不准
+            int[] coverLoc = new int[2];
+            int[] rootLoc = new int[2];
+            coverView.getLocationOnScreen(coverLoc);
+            android.widget.FrameLayout rootView = findViewById(R.id.root_layout);
+            rootView.getLocationOnScreen(rootLoc);
+            // 封面中心相对于根布局
+            float coverCenterX = coverLoc[0] - rootLoc[0] + coverW / 2f;
+            float coverCenterY = coverLoc[1] - rootLoc[1] + coverH / 2f;
+
+            android.widget.FrameLayout.LayoutParams lp =
+                    (android.widget.FrameLayout.LayoutParams) tonearmView.getLayoutParams();
+            lp.gravity = 0;
+
+            // ---- 唱臂几何常量（与TonearmView.onDraw一致） ----
+            float unit = isLandscapeMode ? coverW / 21f : coverW / 18f;
+            float armLength = 5.5f * unit;
+            float bendLength = 1.5f * unit;
+            float bendAngle = 35f;
+            float headHeight = 1.3f * unit;
+            float stylusLength = 0.6f * unit;
+            float cwDistance = 1.8f * unit;
+            float cwRadius = 0.7f * unit;
+
+            // pivot在View内偏移（与TonearmView.onDraw一致）
+            float pivotOffsetY = cwDistance + cwRadius + 0.3f * unit;
+            float pivotRightSpace = 0.707f * cwDistance + cwRadius + 0.5f * unit;
+
+            // ---- pivot到唱针尖端的偏移（未旋转时，向下为正Y，向右为正X） ----
+            double bendRad = Math.toRadians(bendAngle);
+            float totalBendDist = bendLength + headHeight + stylusLength;
+            float needleDx = (float) Math.sin(bendRad) * totalBendDist;
+            float needleDy = armLength + (float) Math.cos(bendRad) * totalBendDist;
+
+            // ---- 播放时唱针目标位置 ----
+            float vinylRadius = coverW / 2f;
+            float coverRadius = coverW * 2f / 3f / 2f;
+            // 横屏唱针在黑胶环偏内侧(0.3)，竖屏唱针在黑胶环中间(0.5)
+            float needleTargetR = coverRadius + (vinylRadius - coverRadius) * (isLandscapeMode ? 0.3f : 0.5f);
+
+            if (isLandscapeMode) {
+                // 横屏：主臂杆对齐封面中心线，pivot X = coverCenterX
+                float pivotScreenX = coverCenterX;
+                float pivotScreenY = coverCenterY - needleTargetR - needleDy;
+                // View尺寸
+                int armW = (int) (coverW * 1.2f);
+                int armH = (int) (pivotOffsetY + armLength + totalBendDist + cwDistance + cwRadius + unit);
+                // pivot在View内: (armW/2, pivotOffsetY)
+                lp.width = armW;
+                lp.height = armH;
+                lp.leftMargin = (int) (pivotScreenX - armW / 2f);
+                lp.topMargin = (int) (pivotScreenY - pivotOffsetY);
+            } else {
+                // 竖屏：唱臂在封面右侧，暂停0°垂直，播放45°唱针落入黑胶4点钟方向
+                float playAngle = 45f;
+                double playRad = Math.toRadians(playAngle);
+                float rotatedNeedleDy = (float)(-needleDx * Math.sin(playRad) + needleDy * Math.cos(playRad));
+                // 4点方向Y
+                float needleTargetY = coverCenterY + needleTargetR * 0.5f;
+                // pivot X：封面右边缘 + 偏移让唱针落在黑胶中间
+                float pivotScreenX = coverLoc[0] - rootLoc[0] + coverW + needleTargetR * 0.35f;
+                float pivotScreenY = needleTargetY - rotatedNeedleDy - unit;
+                // View尺寸
+                int armW = (int) (coverW + pivotRightSpace + cwDistance + cwRadius + unit);
+                int armH = (int) (pivotOffsetY + armLength + totalBendDist + cwDistance + cwRadius + unit);
+                // pivot在View内: (armW - pivotRightSpace, pivotOffsetY)
+                float pivotViewX = armW - pivotRightSpace;
+                lp.width = armW;
+                lp.height = armH;
+                lp.leftMargin = (int) (pivotScreenX - pivotViewX);
+                lp.topMargin = (int) (pivotScreenY - pivotOffsetY);
+            }
+
+            tonearmView.setCoverSize(coverW);
+            tonearmView.setLayoutParams(lp);
+            tonearmView.bringToFront();
+        });
     }
 
     /**
@@ -1247,7 +1424,7 @@ public class PlayerActivity extends AppCompatActivity {
             boolean isOverlay = (style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_RING
                     || style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_DIFFUSION_RING
                     || style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_WAVE_RING);
-            boolean disabled = isImmersiveMode && isOverlay;
+            boolean disabled = coverStyle == COVER_STYLE_IMMERSIVE && isOverlay;
 
             if (disabled) {
                 item.setTextColor(Color.parseColor("#666666"));
@@ -1305,7 +1482,13 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void updateThemeUI() {
-        if (isImmersiveMode) {
+        // 唱臂日夜主题 + 横屏模式
+        if (tonearmView != null) {
+            tonearmView.setNightMode(isNightMode);
+            tonearmView.setLandscapeMode(isLandscapeMode);
+        }
+
+        if (coverStyle == COVER_STYLE_IMMERSIVE) {
             // 沉浸模式：用沉浸遮罩替代普通遮罩
             // 先设状态再VISIBLE，防止状态未就绪时触发绘制
             immersiveOverlay.setLandscapeMode(isLandscapeMode);

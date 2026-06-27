@@ -101,8 +101,10 @@ public class LandscapeImmersiveScene implements CoverScene {
             h.rootLayout.removeView(h.landscapeGradientOverlay);
         }
         // 恢复封面为圆形裁剪
-        h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        h.coverView.setClipToOutline(!h.coverView.isVinylMode());
+        if (!h.coverView.isVinylMode()) {
+            h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        }
         h.coverView.setForeground(null);
         // 恢复封面层级
         h.moveCoverAboveInfoPanel();

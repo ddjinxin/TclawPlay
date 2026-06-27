@@ -36,7 +36,9 @@ public class LandscapeClassicScene implements CoverScene {
         // 封面显示
         h.coverView.setVisibility(View.VISIBLE);
         h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        if (!h.coverView.isVinylMode()) {
+            h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        }
         h.coverView.setForeground(null);
         // 不需要封面占位
         h.coverPlaceholder.setVisibility(View.GONE);
