@@ -38,8 +38,12 @@ import com.jingxin.jingxinmusic.scene.CoverScene;
 import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
 import com.jingxin.jingxinmusic.scene.PortraitClassicScene;
 import com.jingxin.jingxinmusic.scene.PortraitImmersiveScene;
+import com.jingxin.jingxinmusic.scene.PortraitRecordScene;
+import com.jingxin.jingxinmusic.scene.PortraitCarouselScene;
 import com.jingxin.jingxinmusic.scene.LandscapeClassicScene;
 import com.jingxin.jingxinmusic.scene.LandscapeImmersiveScene;
+import com.jingxin.jingxinmusic.scene.LandscapeRecordScene;
+import com.jingxin.jingxinmusic.scene.LandscapeCarouselScene;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService.MusicPlayerBinder;
@@ -119,6 +123,7 @@ public class PlayerActivity extends AppCompatActivity {
     private static final int COVER_STYLE_CLASSIC = 0;
     private static final int COVER_STYLE_IMMERSIVE = 1;
     private static final int COVER_STYLE_RECORD = 2;
+    private static final int COVER_STYLE_CAROUSEL = 3;
     private int coverStyle = COVER_STYLE_CLASSIC;
     private TonearmView tonearmView;
     private com.jingxin.jingxinmusic.view.ImmersiveOverlayView immersiveOverlay;
@@ -135,8 +140,12 @@ public class PlayerActivity extends AppCompatActivity {
     private CoverSceneHelper sceneHelper;
     private PortraitClassicScene portraitClassic;
     private PortraitImmersiveScene portraitImmersive;
+    private PortraitRecordScene portraitRecord;
+    private PortraitCarouselScene portraitCarousel;
     private LandscapeClassicScene landscapeClassic;
     private LandscapeImmersiveScene landscapeImmersive;
+    private LandscapeRecordScene landscapeRecord;
+    private LandscapeCarouselScene landscapeCarousel;
     private CoverScene currentScene;
 
     // 播放服务
@@ -173,6 +182,8 @@ public class PlayerActivity extends AppCompatActivity {
                 fetchLyrics();
                 checkFavoriteStatus();
                 saveLastPlayed();
+                // 轮播模式切歌时滚动到新位置
+                syncCarouselPosition();
                 Log.d(TAG, "UI 更新: " + newSong.title + " - " + newSong.artist);
             } else if (MusicPlayerService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
@@ -221,13 +232,8 @@ public class PlayerActivity extends AppCompatActivity {
                             coverView.startRotation();
                             spectrumView.setPlaying(true);
                             startSpectrumWithPermission();
-                            // 同步唱臂播放状态
-                            if (tonearmView != null && coverStyle == COVER_STYLE_RECORD) {
-                                tonearmView.setLandscapeMode(isLandscapeMode);
-                                tonearmView.setPlaying(true);
-                                tonearmView.refreshAngle();
-                                updateTonearmPosition();
-                            }
+                            // 通过 Scene 同步播放状态（唱片机同步唱臂等）
+                            currentScene.onServiceResumed(true);
                         } else if ("folder".equals(playlistMode)) {
                             // 目录模式：播放队列 = 该目录歌曲
                             List<String> folderPaths = getIntent().getStringArrayListExtra("folder_song_paths");
@@ -300,6 +306,10 @@ public class PlayerActivity extends AppCompatActivity {
                         } else {
                             playerBinder.setPlaylist(allSongs);
                             playSong();
+                        }
+                        // 轮播模式：歌曲列表已就绪，同步到 adapter
+                        if (coverStyle == COVER_STYLE_CAROUSEL) {
+                            syncCarouselSongs();
                         }
                     }
                 });
@@ -466,18 +476,23 @@ public class PlayerActivity extends AppCompatActivity {
             syncSceneState();
             currentScene = isLandscapeMode ? landscapeImmersive : portraitImmersive;
             currentScene.enter();
+            currentScene.onStyleEnter();
             if (lyricView != null) {
                 immersiveOverlay.setFullScreenMode(
                         lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
             }
         } else if (coverStyle == COVER_STYLE_RECORD) {
-            // 唱片机模式：使用经典布局 + 黑胶封面 + 唱臂
-            coverView.setVinylMode(true);
-            if (tonearmView != null) {
-                tonearmView.setVisibility(View.VISIBLE);
-                tonearmView.setLandscapeMode(isLandscapeMode);
-                updateTonearmPosition();
-            }
+            // 唱片机模式：通过 RecordScene 的 onStyleEnter 统一处理
+            syncSceneState();
+            currentScene = isLandscapeMode ? landscapeRecord : portraitRecord;
+            currentScene.enter();
+            currentScene.onStyleEnter();
+        } else if (coverStyle == COVER_STYLE_CAROUSEL) {
+            // 轮播模式：通过 CarouselScene 的 onStyleEnter 统一处理
+            syncSceneState();
+            currentScene = isLandscapeMode ? landscapeCarousel : portraitCarousel;
+            currentScene.enter();
+            currentScene.onStyleEnter();
         }
 
         // 显示歌曲信息
@@ -647,6 +662,70 @@ public class PlayerActivity extends AppCompatActivity {
             spectrumView.setPlaying(true);
             startSpectrumWithPermission();
             saveLastPlayed();
+        }
+    }
+
+    /**
+     * 轮播模式点击侧边封面切歌
+     */
+    /**
+     * 从轮播模式切歌，参数为偏移量（delta）
+     * delta=-1=上一曲, +1=下一曲, -2/+2跳两首
+     */
+    private void playSongAt(int delta) {
+        if (bound && playerBinder != null) {
+            int curIdx = playerBinder.getCurrentIndex();
+            int newIdx = curIdx + delta;
+            java.util.List<Song> playlist = playerBinder.getPlaylist();
+            if (playlist != null && newIdx >= 0 && newIdx < playlist.size()) {
+                Song newSong = playlist.get(newIdx);
+                // 同步 allSongs 中的 position
+                if (allSongs != null) {
+                    int allPos = allSongs.indexOf(newSong);
+                    if (allPos >= 0) position = allPos;
+                }
+                song = newSong;
+                tvSongName.setText(song.title);
+                tvArtist.setText(song.artist);
+                tvTotalTime.setText(Song.formatDuration(song.duration));
+                tvCurrentTime.setText("00:00");
+                playerBinder.playSongAtPosition(newIdx);
+                btnPlayPause.setImageResource(R.drawable.ic_pause);
+                spectrumView.setPlaying(true);
+                startSpectrumWithPermission();
+                loadCover();
+                fetchLyrics();
+                checkFavoriteStatus();
+                saveLastPlayed();
+                if (currentScene.shouldRotateCover()) {
+                    coverView.startRotation();
+                }
+            }
+        }
+    }
+
+    /**
+     * 同步轮播封面位置（切歌后调用）
+     */
+    private void syncCarouselPosition() {
+        if (coverStyle != COVER_STYLE_CAROUSEL || sceneHelper == null || sceneHelper.carouselView == null) return;
+        if (sceneHelper.carouselAdapter != null && bound && playerBinder != null) {
+            java.util.List<com.jingxin.jingxinmusic.model.Song> playlist = playerBinder.getPlaylist();
+            int idx = playerBinder.getCurrentIndex();
+            sceneHelper.carouselAdapter.updatePosition(idx, sceneHelper.carouselView.getCards());
+        }
+    }
+
+    /**
+     * 同步轮播封面歌曲列表（进入轮播模式/播放列表变化时调用）
+     */
+    private void syncCarouselSongs() {
+        if (sceneHelper == null || sceneHelper.carouselView == null || sceneHelper.carouselAdapter == null) return;
+        if (bound && playerBinder != null) {
+            java.util.List<com.jingxin.jingxinmusic.model.Song> playlist = playerBinder.getPlaylist();
+            int idx = playerBinder.getCurrentIndex();
+            sceneHelper.carouselAdapter.update(playlist, idx, sceneHelper.carouselView.getCards());
+            sceneHelper.carouselView.requestLayoutCards();
         }
     }
 
@@ -847,6 +926,7 @@ public class PlayerActivity extends AppCompatActivity {
                 findViewById(R.id.top_buttons_bar),
                 findViewById(R.id.control_buttons),
                 findViewById(R.id.right_buttons_group),
+                tonearmView,
                 getResources().getDisplayMetrics().density);
         sceneHelper.callback = new CoverSceneHelper.Callback() {
             @Override public void loadCover() { PlayerActivity.this.loadCover(); }
@@ -872,12 +952,18 @@ public class PlayerActivity extends AppCompatActivity {
                     }
                 });
             }
+            @Override public void updateTonearmPosition() { PlayerActivity.this.updateTonearmPosition(); }
+            @Override public void playSongAt(int pos) { PlayerActivity.this.playSongAt(pos); }
         };
 
         portraitClassic = new PortraitClassicScene(sceneHelper);
         portraitImmersive = new PortraitImmersiveScene(sceneHelper);
+        portraitRecord = new PortraitRecordScene(sceneHelper);
+        portraitCarousel = new PortraitCarouselScene(sceneHelper);
         landscapeClassic = new LandscapeClassicScene(sceneHelper);
         landscapeImmersive = new LandscapeImmersiveScene(sceneHelper);
+        landscapeRecord = new LandscapeRecordScene(sceneHelper);
+        landscapeCarousel = new LandscapeCarouselScene(sceneHelper);
 
         // 默认竖屏经典
         currentScene = portraitClassic;
@@ -891,14 +977,19 @@ public class PlayerActivity extends AppCompatActivity {
         CoverScene target;
         if (coverStyle == COVER_STYLE_IMMERSIVE) {
             target = isLandscapeMode ? landscapeImmersive : portraitImmersive;
+        } else if (coverStyle == COVER_STYLE_RECORD) {
+            target = isLandscapeMode ? landscapeRecord : portraitRecord;
+        } else if (coverStyle == COVER_STYLE_CAROUSEL) {
+            target = isLandscapeMode ? landscapeCarousel : portraitCarousel;
         } else {
-            // 经典和唱片机都用经典布局
             target = isLandscapeMode ? landscapeClassic : portraitClassic;
         }
         if (target != currentScene) {
+            currentScene.onStyleExit();
             currentScene.exit();
             currentScene = target;
             currentScene.enter();
+            currentScene.onStyleEnter();
             return true;
         }
         return false;
@@ -910,6 +1001,7 @@ public class PlayerActivity extends AppCompatActivity {
     private void syncSceneState() {
         sceneHelper.isNightMode = isNightMode;
         sceneHelper.isPlaying = bound && playerBinder != null && playerBinder.isPlaying();
+        sceneHelper.isLandscapeMode = isLandscapeMode;
         sceneHelper.playerBinder = playerBinder;
         sceneHelper.executor = executor;
         // 双向同步：helper可能由scene创建了实例，不能被activity的null覆盖
@@ -947,8 +1039,8 @@ public class PlayerActivity extends AppCompatActivity {
         int height = getAvailableScreenHeight();
         currentScene.layout(width, height);
         immersiveOverlay.setLandscapeMode(isLandscapeMode);
-        // 沉浸/唱片机模式下切换后需要重新加载封面
-        if (coverStyle == COVER_STYLE_IMMERSIVE || coverStyle == COVER_STYLE_RECORD) {
+        // 切换后需要重新加载封面的模式
+        if (currentScene.needsReloadCover()) {
             loadCover();
         }
         // 唱臂横屏模式和位置更新
@@ -969,17 +1061,16 @@ public class PlayerActivity extends AppCompatActivity {
     private void updatePlayPauseButton(boolean isPlaying) {
         if (isPlaying) {
             btnPlayPause.setImageResource(R.drawable.ic_pause);
-            // 横屏沉浸模式下封面不旋转
-            if (!(coverStyle == COVER_STYLE_IMMERSIVE && isLandscapeMode)) {
+            if (currentScene.shouldRotateCover()) {
                 coverView.startRotation();
             }
             spectrumView.setPlaying(true);
-            if (tonearmView != null && coverStyle == COVER_STYLE_RECORD) tonearmView.setPlaying(true);
+            currentScene.onPlayingStateChanged(true);
         } else {
             btnPlayPause.setImageResource(R.drawable.ic_play);
             coverView.stopRotation();
             spectrumView.setPlaying(false);
-            if (tonearmView != null) tonearmView.setPlaying(false);
+            currentScene.onPlayingStateChanged(false);
         }
     }
 
@@ -1202,30 +1293,14 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void toggleImmersiveMode() {
         int prevStyle = coverStyle;
-        coverStyle = (coverStyle + 1) % 3;
+        coverStyle = (coverStyle + 1) % 4;
         getSharedPreferences("theme", MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
         // 沉浸模式下圆环/扩散圆环/波浪圆环不可用，循环跳过
-        if (coverStyle == COVER_STYLE_IMMERSIVE && spectrumView.isCoverOverlayMode()) {
-            while (spectrumView.isCoverOverlayMode()) {
+        if (!currentScene.shouldShowSpectrumButton(spectrumView.getCurrentStyle())) {
+            while (!currentScene.shouldShowSpectrumButton(spectrumView.getCurrentStyle())) {
                 spectrumView.switchStyle();
             }
-        }
-
-        // 黑胶封面模式切换
-        coverView.setVinylMode(coverStyle == COVER_STYLE_RECORD);
-
-        // 唱臂显示/隐藏 + 位置调整 + 角度刷新
-        if (tonearmView != null) {
-            tonearmView.setVisibility(coverStyle == COVER_STYLE_RECORD ? View.VISIBLE : View.GONE);
-            tonearmView.setLandscapeMode(isLandscapeMode);
-            if (coverStyle == COVER_STYLE_RECORD) {
-                // 根据当前播放状态刷新唱臂角度
-                boolean isCurrentlyPlaying = bound && playerBinder != null && playerBinder.isPlaying();
-                tonearmView.setPlaying(isCurrentlyPlaying);
-                tonearmView.refreshAngle();
-            }
-            updateTonearmPosition();
         }
 
         // 退出上一个风格的特殊状态
@@ -1242,14 +1317,18 @@ public class PlayerActivity extends AppCompatActivity {
         // 重新加载封面
         loadCover();
 
-        // 唱片机模式下同步封面旋转和唱臂状态（必须在loadCover之后）
+        // 唱片机模式下同步封面旋转状态（必须在loadCover之后）
         if (coverStyle == COVER_STYLE_RECORD) {
             boolean isCurrentlyPlaying = bound && playerBinder != null && playerBinder.isPlaying();
-            // 先重置userPaused标志（沉浸模式可能设为true），确保startRotation生效
             coverView.stopAndResetRotation();
             if (isCurrentlyPlaying) {
                 coverView.startRotation();
             }
+        }
+
+        // 轮播模式下同步歌曲列表和当前位置
+        if (coverStyle == COVER_STYLE_CAROUSEL) {
+            syncCarouselSongs();
         }
 
         // 同步歌词模式到沉浸遮罩
@@ -1258,7 +1337,7 @@ public class PlayerActivity extends AppCompatActivity {
                     lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
         }
 
-        String[] styleNames = {"经典模式", "沉浸模式", "唱片机模式"};
+        String[] styleNames = {"经典模式", "沉浸模式", "唱片机模式", "轮播模式"};
         android.widget.Toast.makeText(this, styleNames[coverStyle],
                 android.widget.Toast.LENGTH_SHORT).show();
     }
@@ -1424,7 +1503,7 @@ public class PlayerActivity extends AppCompatActivity {
             boolean isOverlay = (style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_RING
                     || style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_DIFFUSION_RING
                     || style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_WAVE_RING);
-            boolean disabled = coverStyle == COVER_STYLE_IMMERSIVE && isOverlay;
+            boolean disabled = !currentScene.shouldShowSpectrumButton(style);
 
             if (disabled) {
                 item.setTextColor(Color.parseColor("#666666"));

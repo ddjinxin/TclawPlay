@@ -101,10 +101,8 @@ public class LandscapeImmersiveScene implements CoverScene {
             h.rootLayout.removeView(h.landscapeGradientOverlay);
         }
         // 恢复封面为圆形裁剪
-        h.coverView.setClipToOutline(!h.coverView.isVinylMode());
-        if (!h.coverView.isVinylMode()) {
-            h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        }
+        h.coverView.setClipToOutline(true);
+        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
         h.coverView.setForeground(null);
         // 恢复封面层级
         h.moveCoverAboveInfoPanel();
@@ -161,6 +159,45 @@ public class LandscapeImmersiveScene implements CoverScene {
     @Override
     public float getSpectrumHeightRatio() {
         return 0.10f;
+    }
+
+    @Override
+    public void onPlayingStateChanged(boolean isPlaying) {
+        // 横屏沉浸：封面不旋转
+    }
+
+    @Override
+    public void onServiceResumed(boolean isPlaying) {
+        // 沉浸横屏无特殊恢复逻辑
+    }
+
+    @Override
+    public boolean shouldShowSpectrumButton(int spectrumStyle) {
+        // 沉浸模式下圆环/扩散圆环/波浪圆环不可用
+        boolean isOverlay = (spectrumStyle == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_RING
+                || spectrumStyle == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_DIFFUSION_RING
+                || spectrumStyle == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_WAVE_RING);
+        return !isOverlay;
+    }
+
+    @Override
+    public boolean shouldRotateCover() {
+        return false; // 横屏沉浸封面不旋转
+    }
+
+    @Override
+    public boolean needsReloadCover() {
+        return true;
+    }
+
+    @Override
+    public void onStyleEnter() {
+        // 沉浸模式无额外初始化
+    }
+
+    @Override
+    public void onStyleExit() {
+        // 沉浸模式无额外清理
     }
 
     /**

@@ -454,6 +454,10 @@ public class MusicPlayerService extends Service {
             MusicPlayerService.this.setPlaylist(songs);
         }
 
+        public List<Song> getPlaylist() {
+            return MusicPlayerService.this.playlist;
+        }
+
         public void playSongAtPosition(int position) {
             MusicPlayerService.this.playSongAtPosition(position);
         }

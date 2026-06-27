@@ -58,4 +58,49 @@ public interface CoverScene {
      * 竖屏=0.10，横屏=0.08
      */
     float getSpectrumHeightRatio();
+
+    /**
+     * 播放/暂停状态变更时的处理
+     * 经典：封面旋转/停止
+     * 沉浸：横屏不旋转封面，其他旋转
+     * 唱片机：唱臂动画 + 封面旋转
+     * @param isPlaying 当前是否正在播放
+     */
+    void onPlayingStateChanged(boolean isPlaying);
+
+    /**
+     * 从 mini 播放条恢复时的特殊处理
+     * 唱片机需要同步唱臂状态和位置
+     * @param isPlaying 当前是否正在播放
+     */
+    void onServiceResumed(boolean isPlaying);
+
+    /**
+     * 是否显示频谱切换按钮（沉浸模式下圆环类不可用）
+     */
+    boolean shouldShowSpectrumButton(int spectrumStyle);
+
+    /**
+     * 是否旋转封面
+     * 沉浸横屏=false，其他=true
+     */
+    boolean shouldRotateCover();
+
+    /**
+     * 切换到该模式时是否需要重新加载封面
+     * 沉浸/唱片机=true，经典=false
+     */
+    boolean needsReloadCover();
+
+    /**
+     * 进入该模式时的额外初始化（风格特有逻辑）
+     * 在 enter() 之后调用
+     */
+    void onStyleEnter();
+
+    /**
+     * 退出该模式时的额外清理（风格特有逻辑）
+     * 在 exit() 之前调用
+     */
+    void onStyleExit();
 }

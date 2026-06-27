@@ -14,11 +14,14 @@ import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.util.BlurUtil;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable;
+import com.jingxin.jingxinmusic.view.CoverCarouselAdapter;
+import com.jingxin.jingxinmusic.view.CoverCarouselView;
 import com.jingxin.jingxinmusic.view.ImmersiveOverlayView;
 import com.jingxin.jingxinmusic.view.LandscapeGradientOverlay;
 import com.jingxin.jingxinmusic.view.LyricView;
 import com.jingxin.jingxinmusic.view.RotatingCoverView;
 import com.jingxin.jingxinmusic.view.SpectrumView;
+import com.jingxin.jingxinmusic.view.TonearmView;
 
 import java.util.concurrent.ExecutorService;
 
@@ -56,10 +59,16 @@ public class CoverSceneHelper {
     public final View topButtonsBar;
     public final View controlButtons;
     public final LinearLayout rightButtonsGroup;
+    public final TonearmView tonearmView;
+
+    // --- 动态创建的 View（轮播模式） ---
+    public CoverCarouselView carouselView;
+    public CoverCarouselAdapter carouselAdapter;
 
     // --- 可变状态 ---
     public boolean isNightMode;
     public boolean isPlaying;
+    public boolean isLandscapeMode;
     public MusicPlayerService.MusicPlayerBinder playerBinder;
     public CoverBorderGradientDrawable coverBorderGradient;
     public LandscapeGradientOverlay landscapeGradientOverlay;
@@ -74,6 +83,8 @@ public class CoverSceneHelper {
         void updateImmersiveLyricMargin(boolean isFullScreen);
         void updateThemeUI();
         void extractAndApplyDominantColor(Bitmap bitmap);
+        void updateTonearmPosition();
+        void playSongAt(int position);
     }
     public Callback callback;
 
@@ -105,6 +116,7 @@ public class CoverSceneHelper {
             View topButtonsBar,
             View controlButtons,
             LinearLayout rightButtonsGroup,
+            TonearmView tonearmView,
             float density) {
         this.rootLayout = rootLayout;
         this.blurBackground = blurBackground;
@@ -133,6 +145,7 @@ public class CoverSceneHelper {
         this.topButtonsBar = topButtonsBar;
         this.controlButtons = controlButtons;
         this.rightButtonsGroup = rightButtonsGroup;
+        this.tonearmView = tonearmView;
         this.density = density;
     }
 
