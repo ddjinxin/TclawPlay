@@ -12,6 +12,8 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.view.animation.OvershootInterpolator;
 
+import java.util.Random;
+
 /**
  * 唱臂视图（唱片机风格）
  * 
@@ -49,6 +51,16 @@ public class TonearmView extends View {
     private Paint counterWeightPaint;
     private Paint counterRingPaint;
     private Paint shadowPaint;
+
+    // 火花相关
+    private Paint sparkGlowPaint;   // 针尖发光点
+    private Paint sparkDotPaint;    // 飘散小火花
+    private final Random sparkRandom = new Random();
+    private long sparkFrame = 0;
+    private static final int SPARK_COUNT = 3;   // 飘散粒子数
+    private float[] sparkOffsetX = new float[SPARK_COUNT];
+    private float[] sparkOffsetY = new float[SPARK_COUNT];
+    private float[] sparkAlpha = new float[SPARK_COUNT];
 
     private boolean isNightMode = true;
 
@@ -88,6 +100,12 @@ public class TonearmView extends View {
         shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         shadowPaint.setStyle(Paint.Style.FILL);
 
+        sparkGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        sparkGlowPaint.setStyle(Paint.Style.FILL);
+
+        sparkDotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        sparkDotPaint.setStyle(Paint.Style.FILL);
+
         applyTheme();
     }
 
@@ -102,6 +120,8 @@ public class TonearmView extends View {
             counterWeightPaint.setColor(Color.parseColor("#707070"));
             counterRingPaint.setColor(Color.parseColor("#555555"));
             shadowPaint.setColor(Color.parseColor("#20000000"));
+            sparkGlowPaint.setColor(Color.parseColor("#00FF88"));
+            sparkDotPaint.setColor(Color.parseColor("#00FF88"));
         } else {
             basePaint.setColor(Color.parseColor("#606060"));
             armPaint.setColor(Color.parseColor("#888888"));
@@ -112,6 +132,8 @@ public class TonearmView extends View {
             counterWeightPaint.setColor(Color.parseColor("#505050"));
             counterRingPaint.setColor(Color.parseColor("#404040"));
             shadowPaint.setColor(Color.parseColor("#15000000"));
+            sparkGlowPaint.setColor(Color.parseColor("#00DDCC"));
+            sparkDotPaint.setColor(Color.parseColor("#00DDCC"));
         }
     }
 
@@ -141,6 +163,9 @@ public class TonearmView extends View {
     public void setPlaying(boolean playing) {
         if (this.isPlaying == playing) return;
         this.isPlaying = playing;
+        if (!playing) {
+            resetSparks();
+        }
         if (isLandscape) {
             // 横屏：播放=0°（落针），停止=60°（抬起）
             targetAngle = playing ? ANGLE_STOP : ANGLE_PLAY_LANDSCAPE;
@@ -162,6 +187,9 @@ public class TonearmView extends View {
         }
         // 直接设置角度，不动画
         currentAngle = targetAngle;
+        if (!isPlaying) {
+            resetSparks();
+        }
         invalidate();
     }
 
@@ -312,6 +340,31 @@ public class TonearmView extends View {
         stylusPaint.setStrokeWidth(0.1f * unit);
         canvas.drawLine(0, headHeight, 0, headHeight + stylusLength, stylusPaint);
 
+        // 针尖火花（仅播放时显示）
+        if (isPlaying && coverBasedUnit > 0) {
+            float needleTipX = 0;
+            float needleTipY = headHeight + stylusLength;
+
+            // 1) 针尖发光点（带呼吸效果）
+            float breathCycle = (float) Math.sin(sparkFrame * 0.15f) * 0.3f + 0.7f;
+            float glowRadius = 0.25f * unit * breathCycle;
+            sparkGlowPaint.setAlpha((int) (200 * breathCycle));
+            canvas.drawCircle(needleTipX, needleTipY, glowRadius, sparkGlowPaint);
+
+            // 2) 飘散小微粒（沿唱片切线方向飘散）
+            for (int i = 0; i < SPARK_COUNT; i++) {
+                float dx = sparkOffsetX[i] * unit;
+                float dy = sparkOffsetY[i] * unit;
+                float alpha = sparkAlpha[i];
+                float dotRadius = (0.06f + 0.04f * alpha) * unit;
+                sparkDotPaint.setAlpha((int) (180 * alpha));
+                canvas.drawCircle(needleTipX + dx, needleTipY + dy, dotRadius, sparkDotPaint);
+            }
+
+            // 更新粒子状态
+            updateSparks(unit);
+        }
+
         canvas.restore(); // 唱头壳旋转
         canvas.restore(); // 唱臂整体旋转
 
@@ -372,5 +425,39 @@ public class TonearmView extends View {
         canvas.restore();
 
         canvas.restore();
+    }
+
+    /**
+     * 重置火花粒子（切换到暂停/停止时调用）
+     */
+    private void resetSparks() {
+        sparkFrame = 0;
+        for (int i = 0; i < SPARK_COUNT; i++) {
+            sparkAlpha[i] = 0;
+            sparkOffsetX[i] = 0;
+            sparkOffsetY[i] = 0;
+        }
+    }
+
+    /**
+     * 更新飘散火花粒子
+     * 沿唱片切线方向（即唱针的水平方向，在35°旋转坐标系中为X轴方向）飘散
+     */
+    private void updateSparks(float unit) {
+        sparkFrame++;
+        for (int i = 0; i < SPARK_COUNT; i++) {
+            sparkAlpha[i] -= 0.04f;
+            sparkOffsetY[i] += 0.12f;     // 向下飘（沿唱片径向外侧）
+            sparkOffsetX[i] += sparkRandom.nextFloat() * 0.1f - 0.05f;  // 轻微左右抖动
+
+            if (sparkAlpha[i] <= 0) {
+                // 重生：从针尖出发，随机切线方向
+                sparkAlpha[i] = 0.6f + sparkRandom.nextFloat() * 0.4f;
+                sparkOffsetX[i] = sparkRandom.nextFloat() * 0.3f - 0.15f;
+                sparkOffsetY[i] = sparkRandom.nextFloat() * 0.2f;
+            }
+        }
+        // 50ms 刷新一次（约20fps，足够微小火花效果且不耗电）
+        postInvalidateDelayed(50);
     }
 }
