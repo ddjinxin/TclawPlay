@@ -280,7 +280,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## DEMO
 
-> https://pd.qq.com/s/1rzkspx0z
+> https://pd.qq.com/s/b9cqkneco?b=2
 
 ## 作者
 
@@ -568,7 +568,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## DEMO
 
-> https://pd.qq.com/s/1rzkspx0z
+> https://pd.qq.com/s/b9cqkneco?b=2
 
 ## Author
 
