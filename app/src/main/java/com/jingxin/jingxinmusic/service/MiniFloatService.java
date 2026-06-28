@@ -24,6 +24,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -218,8 +219,8 @@ public class MiniFloatService extends Service {
         android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
         windowManager.getDefaultDisplay().getMetrics(screenMetrics);
         boolean isPortrait = screenMetrics.widthPixels < screenMetrics.heightPixels;
-        // 竖屏：屏幕宽度的1/3，横屏：屏幕宽度的25%
-        floatWidthPx = (int) (screenMetrics.widthPixels * (isPortrait ? 1.0f / 3 : 0.25));
+        // 竖屏：屏幕宽度的40%，横屏：屏幕宽度的30%
+        floatWidthPx = (int) (screenMetrics.widthPixels * (isPortrait ? 0.40f : 0.30f));
         unit = floatWidthPx / 280.0f; // 以280dp为基准的比例因子
 
         // 颜色
@@ -367,6 +368,23 @@ public class MiniFloatService extends Service {
 
         rootLayout.addView(infoLayout, infoParams);
 
+        // ===== 外层 FrameLayout 包裹（用于放置右上角关闭按钮） =====
+        FrameLayout container = new FrameLayout(this);
+        container.addView(rootLayout, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+        // 右上角关闭按钮
+        ImageView btnClose = new ImageView(this);
+        btnClose.setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
+        btnClose.setColorFilter(textSecondary);
+        int closeSize = (int)(20 * unit);
+        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(closeSize, closeSize);
+        closeParams.gravity = Gravity.END | Gravity.TOP;
+        closeParams.setMargins((int)(4 * unit), (int)(4 * unit), (int)(4 * unit), 0);
+        btnClose.setLayoutParams(closeParams);
+        btnClose.setOnClickListener(v -> stopSelf());
+        container.addView(btnClose);
+
         // ===== 单击回app / 双击关闭悬浮窗 =====
         rootLayout.setOnClickListener(v -> {
             // 点击逻辑移到 onTouch 的 ACTION_UP 中处理
@@ -422,7 +440,7 @@ public class MiniFloatService extends Service {
             return false;
         });
 
-        return rootLayout;
+        return container;
     }
 
     private android.graphics.drawable.Drawable buildProgressDrawable(boolean night) {

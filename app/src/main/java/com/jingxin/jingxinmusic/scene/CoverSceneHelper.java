@@ -299,7 +299,7 @@ public class CoverSceneHelper {
         tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
 
         // 歌名字号：基于横屏信息区宽度独立计算，避免竖屏→横屏切换时LyricView尚未resize导致字号错误
-        float songNameSize = Math.max(32f, Math.min(60f, infoWidth * 0.048f));
+        float songNameSize = Math.max(32f, Math.min(50f, infoWidth * 0.048f));
         float artistSize = songNameSize * 0.7f;
         tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, artistSize);

@@ -23,7 +23,7 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:padding="6dp"
-                android:src="@drawable/ic_back"
+                android:src="@drawable/ic_back_arrow"
                 android:clickable="true"
                 android:focusable="true"
                 android:background="?attr/selectableItemBackgroundBorderless" />

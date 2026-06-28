@@ -137,8 +137,8 @@
                 android:layout_weight="1"
                 android:max="100"
                 android:progress="0"
-                android:minHeight="4dp"
-                android:maxHeight="4dp"
+                android:minHeight="2dp"
+                android:maxHeight="2dp"
                 android:progressDrawable="@drawable/seekbar_progress"
                 android:thumb="@drawable/seekbar_thumb" />
 
@@ -158,7 +158,7 @@
             android:id="@+id/control_buttons"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="32dp"
+            android:layout_marginBottom="20dp"
             android:layout_marginStart="8dp"
             android:layout_marginEnd="8dp"
             android:gravity="center"

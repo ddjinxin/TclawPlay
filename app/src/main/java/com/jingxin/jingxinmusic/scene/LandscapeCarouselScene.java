@@ -82,6 +82,8 @@ public class LandscapeCarouselScene implements CoverScene {
             h.lyricView.setShowPrevLine(false);
             h.callback.resetLyricMargin();
         }
+        // 启动中间封面轻微晃动
+        h.carouselView.startSwayAnimation();
     }
 
     @Override
@@ -107,7 +109,7 @@ public class LandscapeCarouselScene implements CoverScene {
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
         // 歌名字号：和经典横屏一致，基于65%宽度计算
         float infoWidth = width * 0.65f;
-        float songNameSize = Math.max(32f, Math.min(60f, infoWidth * 0.048f));
+        float songNameSize = Math.max(32f, Math.min(50f, infoWidth * 0.048f));
         h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
         // 歌词宽度限制为65%屏幕宽，确保字号和经典横屏一致
@@ -155,6 +157,7 @@ public class LandscapeCarouselScene implements CoverScene {
     @Override
     public void exit() {
         if (h.carouselView != null) {
+            h.carouselView.stopSwayAnimation();
             h.carouselView.setVisibility(View.GONE);
         }
         h.rootLayout.setClipChildren(true);
@@ -208,7 +211,7 @@ public class LandscapeCarouselScene implements CoverScene {
 
     @Override
     public float getSpectrumHeightRatio() {
-        return 0.12f;
+        return 0.10f;
     }
 
     @Override
@@ -254,6 +257,7 @@ public class LandscapeCarouselScene implements CoverScene {
     @Override
     public void onStyleExit() {
         if (h.carouselView != null) {
+            h.carouselView.stopSwayAnimation();
             h.carouselView.setVisibility(View.GONE);
         }
     }

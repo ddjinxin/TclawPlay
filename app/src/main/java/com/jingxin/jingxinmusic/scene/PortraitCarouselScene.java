@@ -63,6 +63,8 @@ public class PortraitCarouselScene implements CoverScene {
                 h.callback.resetLyricMargin();
             }
         }
+        // 启动中间封面轻微晃动
+        h.carouselView.startSwayAnimation();
     }
 
     @Override
@@ -87,7 +89,7 @@ public class PortraitCarouselScene implements CoverScene {
         h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
         // 歌名字号
-        float songNameSize = Math.max(32f, Math.min(60f, width * 0.048f));
+        float songNameSize = Math.max(32f, Math.min(50f, width * 0.048f));
         h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
         // 轮播封面区域：在顶部按钮栏下方
@@ -99,7 +101,7 @@ public class PortraitCarouselScene implements CoverScene {
         int carouselHeight = coverSize + (int) (h.density * 16);
         if (h.carouselView != null) {
             h.carouselView.setCoverSize(coverSize);
-            h.carouselView.setOverlapRatio(0.50f);
+            h.carouselView.setOverlapRatio(0.70f);
             FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) h.carouselView.getLayoutParams();
             lp.width = FrameLayout.LayoutParams.MATCH_PARENT;
             lp.height = carouselHeight;
@@ -129,6 +131,7 @@ public class PortraitCarouselScene implements CoverScene {
     public void exit() {
         // 隐藏轮播封面
         if (h.carouselView != null) {
+            h.carouselView.stopSwayAnimation();
             h.carouselView.setVisibility(View.GONE);
         }
         // 恢复裁剪（其他模式不需要溢出）
@@ -185,7 +188,7 @@ public class PortraitCarouselScene implements CoverScene {
 
     @Override
     public float getSpectrumHeightRatio() {
-        return 0.12f;
+        return 0.10f;
     }
 
     @Override
@@ -233,6 +236,7 @@ public class PortraitCarouselScene implements CoverScene {
     @Override
     public void onStyleExit() {
         if (h.carouselView != null) {
+            h.carouselView.stopSwayAnimation();
             h.carouselView.setVisibility(View.GONE);
         }
     }

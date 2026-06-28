@@ -13,6 +13,9 @@ import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
+
 import com.jingxin.jingxinmusic.R;
 
 import java.util.concurrent.ExecutorService;
@@ -39,6 +42,9 @@ public class CoverCarouselView extends FrameLayout {
 
     // 重叠比例，可配置
     private float overlapRatio = 0.30f;
+
+    // 中间封面的轻微晃动动画
+    private ObjectAnimator swayAnimator;
 
     // 圆角dp
     private static final float CORNER_RADIUS_DP = 14f;
@@ -283,5 +289,32 @@ public class CoverCarouselView extends FrameLayout {
 
     public void requestLayoutCards() {
         post(() -> layoutCards());
+    }
+
+    /**
+     * 启动中间封面的轻微晃动动画
+     * 旋转范围 -2° ~ +2°，周期 3 秒，无限循环
+     */
+    public void startSwayAnimation() {
+        stopSwayAnimation();
+        if (cards[2] == null) return;
+        swayAnimator = ObjectAnimator.ofFloat(cards[2], "rotation", -2f, 2f, -2f);
+        swayAnimator.setDuration(3000);
+        swayAnimator.setRepeatCount(ValueAnimator.INFINITE);
+        swayAnimator.setRepeatMode(ValueAnimator.RESTART);
+        swayAnimator.start();
+    }
+
+    /**
+     * 停止晃动动画，恢复旋转到0
+     */
+    public void stopSwayAnimation() {
+        if (swayAnimator != null && swayAnimator.isRunning()) {
+            swayAnimator.cancel();
+        }
+        swayAnimator = null;
+        if (cards[2] != null) {
+            cards[2].setRotation(0);
+        }
     }
 }

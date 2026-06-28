@@ -904,7 +904,7 @@ public class PlayerActivity extends AppCompatActivity {
         // 恢复歌词原始 margin
         android.widget.LinearLayout.LayoutParams lyricParams =
                 (android.widget.LinearLayout.LayoutParams) lyricView.getLayoutParams();
-        lyricParams.topMargin = density * 16;
+        lyricParams.topMargin = density * 10;
         lyricView.setLayoutParams(lyricParams);
     }
 
@@ -1340,8 +1340,8 @@ public class PlayerActivity extends AppCompatActivity {
         // 重新加载封面
         loadCover();
 
-        // 唱片机模式下同步封面旋转状态（必须在loadCover之后）
-        if (coverStyle == COVER_STYLE_RECORD) {
+        // 经典/唱片机模式下同步封面旋转状态（必须在loadCover之后）
+        if (coverStyle == COVER_STYLE_CLASSIC || coverStyle == COVER_STYLE_RECORD) {
             boolean isCurrentlyPlaying = bound && playerBinder != null && playerBinder.isPlaying();
             coverView.stopAndResetRotation();
             if (isCurrentlyPlaying) {
