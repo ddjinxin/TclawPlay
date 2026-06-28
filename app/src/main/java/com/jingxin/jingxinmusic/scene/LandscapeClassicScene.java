@@ -13,11 +13,13 @@ import com.jingxin.jingxinmusic.R;
  * - 布局：左65%信息区 + 右35%封面区
  * - 封面：圆形旋转，右侧面板居中
  * - 歌名歌手：左面板顶部（52dp），字号随歌词动态调整
- * - 频谱高度：8%
+ * - 频谱高度：10%
+ *
+ * 唱片机模式（LandscapeRecordScene）继承此类，覆盖黑胶/唱臂相关逻辑
  */
 public class LandscapeClassicScene implements CoverScene {
 
-    private final CoverSceneHelper h;
+    protected final CoverSceneHelper h;
 
     public LandscapeClassicScene(CoverSceneHelper helper) {
         this.h = helper;
@@ -26,18 +28,12 @@ public class LandscapeClassicScene implements CoverScene {
     @Override
     public void enter() {
         // 隐藏沉浸相关
-        h.immersiveOverlay.setVisibility(View.GONE);
-        h.immersiveDarkOverlay.setVisibility(View.GONE);
-        if (h.landscapeGradientOverlay != null && h.landscapeGradientOverlay.getParent() != null) {
-            h.rootLayout.removeView(h.landscapeGradientOverlay);
-        }
+        h.hideImmersiveViews();
         // 非沉浸遮罩
         h.callback.updateThemeUI();
         // 封面显示
         h.coverView.setVisibility(View.VISIBLE);
-        h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        h.coverView.setForeground(null);
+        setupCoverStyle();
         // 不需要封面占位
         h.coverPlaceholder.setVisibility(View.GONE);
         // 歌名歌手
@@ -50,6 +46,15 @@ public class LandscapeClassicScene implements CoverScene {
         if (h.isPlaying) {
             h.coverView.startRotation();
         }
+    }
+
+    /**
+     * 设置封面裁剪样式，子类可覆盖（唱片机模式不裁剪）
+     */
+    protected void setupCoverStyle() {
+        h.coverView.setClipToOutline(true);
+        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        h.coverView.setForeground(null);
     }
 
     @Override
@@ -78,6 +83,15 @@ public class LandscapeClassicScene implements CoverScene {
 
         // 横屏不需要封面占位
         h.coverPlaceholder.setVisibility(View.GONE);
+        // 唱臂位置（唱片机子类覆盖此方法添加唱臂逻辑）
+        onLayoutTonearm();
+    }
+
+    /**
+     * 布局唱臂，唱片机子类覆盖
+     */
+    protected void onLayoutTonearm() {
+        // 经典模式无唱臂
     }
 
     @Override

@@ -1523,9 +1523,7 @@ public class PlayerActivity extends AppCompatActivity {
             item.setLayoutParams(lp);
 
             // 沉浸模式下圆环类灰色不可选
-            boolean isOverlay = (style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_RING
-                    || style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_DIFFUSION_RING
-                    || style == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_WAVE_RING);
+            boolean isOverlay = com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(style);
             boolean disabled = !currentScene.shouldShowSpectrumButton(style);
 
             if (disabled) {

@@ -187,10 +187,7 @@ public class PortraitImmersiveScene implements CoverScene {
     @Override
     public boolean shouldShowSpectrumButton(int spectrumStyle) {
         // 沉浸模式下圆环/扩散圆环/波浪圆环不可用
-        boolean isOverlay = (spectrumStyle == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_RING
-                || spectrumStyle == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_DIFFUSION_RING
-                || spectrumStyle == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_WAVE_RING);
-        return !isOverlay;
+        return !com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(spectrumStyle);
     }
 
     @Override

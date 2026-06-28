@@ -15,10 +15,12 @@ import com.jingxin.jingxinmusic.R;
  * - 歌名歌手：封面下方居中
  * - info_panel：全宽
  * - 频谱高度：10%
+ *
+ * 唱片机模式（PortraitRecordScene）继承此类，覆盖黑胶/唱臂相关逻辑
  */
 public class PortraitClassicScene implements CoverScene {
 
-    private final CoverSceneHelper h;
+    protected final CoverSceneHelper h;
 
     public PortraitClassicScene(CoverSceneHelper helper) {
         this.h = helper;
@@ -27,20 +29,14 @@ public class PortraitClassicScene implements CoverScene {
     @Override
     public void enter() {
         // 隐藏沉浸相关 View
-        h.immersiveOverlay.setVisibility(View.GONE);
-        h.immersiveDarkOverlay.setVisibility(View.GONE);
-        if (h.landscapeGradientOverlay != null && h.landscapeGradientOverlay.getParent() != null) {
-            h.rootLayout.removeView(h.landscapeGradientOverlay);
-        }
+        h.hideImmersiveViews();
         // 显示非沉浸遮罩
         h.overlayView.setVisibility(View.GONE);
         h.whiteOverlay.setVisibility(View.VISIBLE);
         h.whiteOverlay.setAlpha(0.4f);
-        // 封面：圆形旋转
+        // 封面
         h.coverView.setVisibility(View.VISIBLE);
-        h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        h.coverView.setForeground(null);
+        setupCoverStyle();
         // 封面占位
         boolean isFullLyric = h.lyricView != null &&
                 h.lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL;
@@ -61,6 +57,15 @@ public class PortraitClassicScene implements CoverScene {
         if (h.isPlaying) {
             h.coverView.startRotation();
         }
+    }
+
+    /**
+     * 设置封面裁剪样式，子类可覆盖（唱片机模式不裁剪）
+     */
+    protected void setupCoverStyle() {
+        h.coverView.setClipToOutline(true);
+        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        h.coverView.setForeground(null);
     }
 
     @Override
@@ -84,8 +89,8 @@ public class PortraitClassicScene implements CoverScene {
         h.tvSongName.setLayoutParams(nameParams);
         h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
-        // 歌名字号：基于竖屏宽度独立计算，避免横屏→竖屏切换时LyricView尚未resize导致字号错误
-        float songNameSize = Math.max(32f, Math.min(60f, width * 0.048f));
+        // 歌名字号
+        float songNameSize = Math.max(32f, Math.min(50f, width * 0.048f));
         h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
         // 封面：顶部居中，25%屏幕高度
@@ -105,15 +110,24 @@ public class PortraitClassicScene implements CoverScene {
             h.coverPlaceholder.setVisibility(View.GONE);
             h.coverView.setVisibility(View.GONE);
         }
-        // 频谱位置：圆环模式覆盖封面，非圆环模式在底部
+        // 频谱位置
         int coverCenterX = width / 2;
         int coverCenterY = coverMarginTop + coverSize / 2;
         h.applySpectrumPosition(false, coverCenterX, coverCenterY, coverSize, height, getSpectrumHeightRatio());
+        // 唱臂位置（唱片机子类覆盖此方法添加唱臂逻辑）
+        onLayoutTonearm();
+    }
+
+    /**
+     * 布局唱臂，唱片机子类覆盖
+     */
+    protected void onLayoutTonearm() {
+        // 经典模式无唱臂
     }
 
     @Override
     public void exit() {
-        // 竖屏经典是默认模式，exit 不需要特别处理
+        // 经典模式无额外退出逻辑
     }
 
     @Override

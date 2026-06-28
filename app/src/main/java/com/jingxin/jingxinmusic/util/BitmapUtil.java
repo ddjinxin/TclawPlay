@@ -44,20 +44,6 @@ public class BitmapUtil {
     }
 
     /**
-     * 从 InputStream 降采样解码 Bitmap
-     * 注意：InputStream 只能读取一次，调用方需负责流的复制或重置
-     */
-    public static Bitmap decodeSampledFromStream(InputStream is, int reqWidth, int reqHeight) {
-        BitmapFactory.Options opts = new BitmapFactory.Options();
-        opts.inJustDecodeBounds = true;
-        BitmapFactory.decodeStream(is, null, opts);
-        opts.inSampleSize = calculateInSampleSize(opts, reqWidth, reqHeight);
-        opts.inJustDecodeBounds = false;
-        // InputStream 不能重读，调用方需重新提供流
-        return BitmapFactory.decodeStream(is, null, opts);
-    }
-
-    /**
      * 从字节数组降采样解码 Bitmap
      */
     public static Bitmap decodeSampledFromBytes(byte[] data, int reqWidth, int reqHeight) {

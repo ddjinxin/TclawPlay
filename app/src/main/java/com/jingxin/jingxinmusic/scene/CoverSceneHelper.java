@@ -438,4 +438,68 @@ public class CoverSceneHelper {
             }
         }
     }
+
+    /**
+     * 隐藏沉浸相关 View（非沉浸模式 enter 时统一调用）
+     */
+    public void hideImmersiveViews() {
+        immersiveOverlay.setVisibility(View.GONE);
+        immersiveDarkOverlay.setVisibility(View.GONE);
+        if (landscapeGradientOverlay != null && landscapeGradientOverlay.getParent() != null) {
+            rootLayout.removeView(landscapeGradientOverlay);
+        }
+    }
+
+    /**
+     * 确保 carouselView 和 carouselAdapter 已创建并添加到 rootLayout
+     */
+    public void ensureCarouselView() {
+        if (carouselView == null) {
+            carouselView = new CoverCarouselView(rootLayout.getContext());
+            carouselView.setId(View.generateViewId());
+            carouselView.setExecutor(executor);
+            carouselAdapter = new CoverCarouselAdapter(rootLayout.getContext(), executor);
+            carouselView.setOnSongChangeListener(delta -> callback.playSongAt(delta));
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT);
+            lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
+            rootLayout.addView(carouselView, lp);
+        }
+    }
+
+    /**
+     * 将 carouselView 移到 infoPanel 上方
+     */
+    public void moveCarouselAboveInfoPanel() {
+        if (carouselView == null) return;
+        int carouselIdx = rootLayout.indexOfChild(carouselView);
+        int infoIdx = rootLayout.indexOfChild(infoPanel);
+        if (infoIdx >= 0 && carouselIdx != infoIdx + 1) {
+            rootLayout.removeView(carouselView);
+            rootLayout.addView(carouselView, infoIdx + 1);
+        }
+    }
+
+    /**
+     * 轮播模式：仅更新模糊背景（封面由 carousel adapter 自行管理）
+     */
+    public void applyBlurBackground(Bitmap bitmap) {
+        blurBackground.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        executor.execute(() -> {
+            Bitmap blurred = com.jingxin.jingxinmusic.util.BlurUtil.blur(
+                    rootLayout.getContext(), bitmap, 10f);
+            if (blurred != null) {
+                rootLayout.post(() -> {
+                    blurBackground.setImageBitmap(blurred);
+                    blurBackground.setAlpha(0.5f);
+                    blurBackground.setVisibility(View.VISIBLE);
+                    if (!isNightMode) {
+                        whiteOverlay.setVisibility(View.VISIBLE);
+                        whiteOverlay.setAlpha(0.4f);
+                    }
+                });
+            }
+        });
+    }
 }

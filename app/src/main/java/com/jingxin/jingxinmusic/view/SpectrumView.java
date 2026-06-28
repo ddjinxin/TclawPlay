@@ -506,7 +506,14 @@ public class SpectrumView extends View {
      * 当前是否为需要铺满rootLayout覆盖封面的模式（圆环/扩散圆环）
      */
     public boolean isCoverOverlayMode() {
-        return currentStyle == STYLE_RING || currentStyle == STYLE_DIFFUSION_RING || currentStyle == STYLE_WAVE_RING;
+        return isOverlayStyle(currentStyle);
+    }
+
+    /**
+     * 判断指定频谱样式是否为覆盖封面的圆形模式（圆环/扩散圆环/波浪圆环）
+     */
+    public static boolean isOverlayStyle(int style) {
+        return style == STYLE_RING || style == STYLE_DIFFUSION_RING || style == STYLE_WAVE_RING;
     }
     
     /**

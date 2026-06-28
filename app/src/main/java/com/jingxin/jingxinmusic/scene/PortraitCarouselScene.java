@@ -28,11 +28,7 @@ public class PortraitCarouselScene implements CoverScene {
     @Override
     public void enter() {
         // 隐藏沉浸相关 View
-        h.immersiveOverlay.setVisibility(View.GONE);
-        h.immersiveDarkOverlay.setVisibility(View.GONE);
-        if (h.landscapeGradientOverlay != null && h.landscapeGradientOverlay.getParent() != null) {
-            h.rootLayout.removeView(h.landscapeGradientOverlay);
-        }
+        h.hideImmersiveViews();
         // 非沉浸遮罩
         h.overlayView.setVisibility(View.GONE);
         h.whiteOverlay.setVisibility(View.VISIBLE);
@@ -42,7 +38,7 @@ public class PortraitCarouselScene implements CoverScene {
         h.rootLayout.setClipToPadding(false);
         // 隐藏旋转封面，显示轮播封面
         h.coverView.setVisibility(View.GONE);
-        ensureCarouselView();
+        h.ensureCarouselView();
         h.carouselView.setVisibility(View.VISIBLE);
         // 显示封面占位（轮播模式需要占位撑开歌名位置）
         h.coverPlaceholder.setVisibility(View.VISIBLE);
@@ -51,7 +47,7 @@ public class PortraitCarouselScene implements CoverScene {
         h.tvArtist.setVisibility(View.VISIBLE);
         h.callback.resetLyricMargin();
         // 恢复封面层级（carousel 在 infoPanel 上方）
-        moveCarouselAboveInfoPanel();
+        h.moveCarouselAboveInfoPanel();
         // 恢复主题
         h.callback.updateThemeUI();
         // 竖屏轮播：恢复歌词显示上一行（三行模式），确保不为全屏
@@ -140,24 +136,7 @@ public class PortraitCarouselScene implements CoverScene {
 
     @Override
     public void setCover(Bitmap bitmap) {
-        // 轮播模式下封面由 carousel adapter 自行管理加载
-        // 此处仅更新模糊背景
-        h.blurBackground.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-        h.executor.execute(() -> {
-            Bitmap blurred = com.jingxin.jingxinmusic.util.BlurUtil.blur(
-                    h.rootLayout.getContext(), bitmap, 10f);
-            if (blurred != null) {
-                h.rootLayout.post(() -> {
-                    h.blurBackground.setImageBitmap(blurred);
-                    h.blurBackground.setAlpha(0.5f);
-                    h.blurBackground.setVisibility(View.VISIBLE);
-                    if (!h.isNightMode) {
-                        h.whiteOverlay.setVisibility(View.VISIBLE);
-                        h.whiteOverlay.setAlpha(0.4f);
-                    }
-                });
-            }
-        });
+        h.applyBlurBackground(bitmap);
     }
 
     @Override
@@ -204,10 +183,7 @@ public class PortraitCarouselScene implements CoverScene {
     @Override
     public boolean shouldShowSpectrumButton(int spectrumStyle) {
         // 禁用所有圆形频谱
-        boolean isOverlay = (spectrumStyle == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_RING
-                || spectrumStyle == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_DIFFUSION_RING
-                || spectrumStyle == com.jingxin.jingxinmusic.view.SpectrumView.STYLE_WAVE_RING);
-        return !isOverlay;
+        return !com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(spectrumStyle);
     }
 
     @Override
@@ -223,7 +199,7 @@ public class PortraitCarouselScene implements CoverScene {
     @Override
     public void onStyleEnter() {
         // 确保 carouselView 已创建并添加到 rootLayout
-        ensureCarouselView();
+        h.ensureCarouselView();
         h.carouselView.setVisibility(View.VISIBLE);
         // 如果当前是圆形频谱，切换到非圆形
         if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
@@ -238,45 +214,6 @@ public class PortraitCarouselScene implements CoverScene {
         if (h.carouselView != null) {
             h.carouselView.stopSwayAnimation();
             h.carouselView.setVisibility(View.GONE);
-        }
-    }
-
-    // ========== 私有方法 ==========
-
-    /**
-     * 确保 carouselView 和 carouselAdapter 已创建并添加到 rootLayout
-     */
-    private void ensureCarouselView() {
-        if (h.carouselView == null) {
-            h.carouselView = new CoverCarouselView(h.rootLayout.getContext());
-            h.carouselView.setId(View.generateViewId());
-            h.carouselView.setExecutor(h.executor);
-            // 创建 adapter
-            h.carouselAdapter = new CoverCarouselAdapter(
-                    h.rootLayout.getContext(), h.executor);
-            // 滑动/点击切歌回调
-            h.carouselView.setOnSongChangeListener(delta -> {
-                // delta: 负=上一曲方向, 正=下一曲方向
-                h.callback.playSongAt(delta);
-            });
-            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT);
-            lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
-            h.rootLayout.addView(h.carouselView, lp);
-        }
-    }
-
-    /**
-     * 将 carouselView 移到 infoPanel 上方
-     */
-    private void moveCarouselAboveInfoPanel() {
-        if (h.carouselView == null) return;
-        int carouselIdx = h.rootLayout.indexOfChild(h.carouselView);
-        int infoIdx = h.rootLayout.indexOfChild(h.infoPanel);
-        if (infoIdx >= 0 && carouselIdx != infoIdx + 1) {
-            h.rootLayout.removeView(h.carouselView);
-            h.rootLayout.addView(h.carouselView, infoIdx + 1);
         }
     }
 }
