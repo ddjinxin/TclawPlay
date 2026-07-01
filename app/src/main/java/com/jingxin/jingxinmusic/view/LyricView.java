@@ -68,9 +68,32 @@ public class LyricView extends View {
     private float textSizeNormal = 36f;
     private float textSizeCurrent = 48f;
     private float textSizeKaraoke = 60f;
+    private float maxTextSizeForHeight = Float.MAX_VALUE;  // 高度约束上限（横屏低高度时由 Scene 设置）
+    private float maxLyricAreaHeight = Float.MAX_VALUE;   // 歌词区域可用像素高度（横屏低高度时由 Scene 设置）
+    private boolean sceneSizingActive = false;            // Scene 直接控制字号时为 true，跳过内部计算
 
     /** 获取当前行歌词字体大小（像素），供外部动态调整歌名字号 */
     public float getTextSizeCurrent() { return textSizeCurrent; }
+    /** 设置高度约束上限（仅横屏低高度时使用，竖屏不调用此方法） */
+    public void setMaxTextSizeForHeight(float maxPx) { this.maxTextSizeForHeight = maxPx; }
+    /** 设置歌词区域可用像素高度，字号和行距将按此约束，确保双行歌词+行距不超出 */
+    public void setMaxLyricAreaHeight(float px) { this.maxLyricAreaHeight = px; }
+    /** Scene 直接设定字号和行距，跳过内部基于 viewWidth 的计算 */
+    public void setSceneTextSizes(float currentSize, float normalSize, float spacing) {
+        this.sceneSizingActive = true;
+        this.textSizeCurrent = currentSize;
+        this.textSizeNormal = normalSize;
+        this.textSizeKaraoke = currentSize * 1.25f;
+        this.lineSpacing = spacing;
+        paintHint.setTextSize(textSizeCurrent);
+        invalidate();
+    }
+    /** 清除 Scene 字号控制，恢复内部计算 */
+    public void clearSceneTextSizes() {
+        this.sceneSizingActive = false;
+        updateTextSize();
+        invalidate();
+    }
     private float lineSpacing = 60f;     // 歌词行之间的间距（不同时间戳的行之间）
     
     // 字体大小计算比例
@@ -261,17 +284,40 @@ public class LyricView extends View {
     
     private void updateTextSize() {
         if (viewWidth <= 0) return;
+        // Scene 直接控制字号时，跳过内部计算
+        if (sceneSizingActive) return;
         
         textSizeNormal = viewWidth * TEXT_SIZE_NORMAL_RATIO;
         textSizeCurrent = viewWidth * TEXT_SIZE_CURRENT_RATIO;
         textSizeKaraoke = viewWidth * TEXT_SIZE_KARAOKE_RATIO;
+        
+        // 高度约束：横屏低高度时由 Scene 设置上限，竖屏不设（MAX_VALUE）
+        if (maxTextSizeForHeight < Float.MAX_VALUE) {
+            textSizeCurrent = Math.min(textSizeCurrent, maxTextSizeForHeight);
+            textSizeNormal = Math.min(textSizeNormal, maxTextSizeForHeight * (TEXT_SIZE_NORMAL_RATIO / TEXT_SIZE_CURRENT_RATIO));
+            textSizeKaraoke = Math.min(textSizeKaraoke, maxTextSizeForHeight * 1.25f);
+        }
         
         textSizeNormal = Math.max(TEXT_SIZE_MIN, Math.min(TEXT_SIZE_MAX, textSizeNormal));
         textSizeCurrent = Math.max(TEXT_SIZE_MIN * 1.33f, Math.min(60f, textSizeCurrent));
         textSizeKaraoke = Math.max(TEXT_SIZE_MIN * 1.5f, Math.min(TEXT_SIZE_MAX * 1.5f, textSizeKaraoke));
         
         // 歌词行间距：不同时间戳行之间的间隔
-        lineSpacing = textSizeNormal * 1.0f;
+        // 默认行距 = 字号的 1.0 倍；有区域高度约束时，按可用高度缩放
+        if (maxLyricAreaHeight < Float.MAX_VALUE) {
+            // 双行歌词 + 行距 ≤ maxLyricAreaHeight
+            // 即 textSizeCurrent + textSizeNormal + lineSpacing ≤ maxLyricAreaHeight
+            // lineSpacing 默认 = textSizeNormal，所以先按默认算总高，超了就压缩行距
+            float totalDefault = textSizeCurrent + textSizeNormal + textSizeNormal;
+            if (totalDefault > maxLyricAreaHeight) {
+                // 优先压缩行距，最低保留字号 0.3 倍
+                lineSpacing = Math.max(textSizeNormal * 0.3f, maxLyricAreaHeight - textSizeCurrent - textSizeNormal);
+            } else {
+                lineSpacing = textSizeNormal * 1.0f;
+            }
+        } else {
+            lineSpacing = textSizeNormal * 1.0f;
+        }
         
         paintHint.setTextSize(textSizeCurrent);
     }

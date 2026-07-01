@@ -58,6 +58,7 @@ public class CoverSceneHelper {
     public final ImageView btnTheme;
     public final View topButtonsBar;
     public final View controlButtons;
+    public final View progressLayout;
     public final LinearLayout rightButtonsGroup;
     public final TonearmView tonearmView;
 
@@ -115,6 +116,7 @@ public class CoverSceneHelper {
             ImageView btnTheme,
             View topButtonsBar,
             View controlButtons,
+            View progressLayout,
             LinearLayout rightButtonsGroup,
             TonearmView tonearmView,
             float density) {
@@ -144,6 +146,7 @@ public class CoverSceneHelper {
         this.btnTheme = btnTheme;
         this.topButtonsBar = topButtonsBar;
         this.controlButtons = controlButtons;
+        this.progressLayout = progressLayout;
         this.rightButtonsGroup = rightButtonsGroup;
         this.tonearmView = tonearmView;
         this.density = density;

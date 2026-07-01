@@ -49,9 +49,11 @@ public class LandscapeCarouselScene implements CoverScene {
         }
         // 显示封面占位，并预设高度防止闪跳（精确值在 layout() 中更新）
         h.coverPlaceholder.setVisibility(View.VISIBLE);
-        int estimatedTopBarHeight = (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
-                ? h.topButtonsBar.getHeight() : (int) (h.density * 56);
-        int estimatedCoverSize = (int) (h.rootLayout.getHeight() * 0.25f);
+        int estimatedTopBarHeight = Math.max(
+                (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
+                        ? h.topButtonsBar.getHeight() : (int) (h.density * 48),
+                (int) (h.rootLayout.getHeight() * 0.06f));
+        int estimatedCoverSize = (int) (h.rootLayout.getHeight() * 0.28f);
         if (estimatedCoverSize > 0) {
             LinearLayout.LayoutParams placeholderParams =
                     (LinearLayout.LayoutParams) h.coverPlaceholder.getLayoutParams();
@@ -59,10 +61,10 @@ public class LandscapeCarouselScene implements CoverScene {
             placeholderParams.width = 1;
             h.coverPlaceholder.setLayoutParams(placeholderParams);
         }
-        // 立即把歌名topMargin设为10dp（轮播靠coverPlaceholder撑位置）
+        // 立即把歌名topMargin设为比例值（轮播靠coverPlaceholder撑位置）
         LinearLayout.LayoutParams nameParams =
                 (LinearLayout.LayoutParams) h.tvSongName.getLayoutParams();
-        nameParams.topMargin = (int) (h.density * 10);
+        nameParams.topMargin = (int) (h.rootLayout.getHeight() * 0.02f);
         h.tvSongName.setLayoutParams(nameParams);
         // 歌名歌手
         h.tvSongName.setVisibility(View.VISIBLE);
@@ -84,7 +86,7 @@ public class LandscapeCarouselScene implements CoverScene {
 
     @Override
     public void layout(int width, int height) {
-        // 顶部/底部按钮间距
+        // 顶部/底部按钮间距（比例分配，适配低高度横屏）
         h.applyButtonMargins(height, width, true);
         // info_panel 全宽（轮播模式横竖屏统一！）
         FrameLayout.LayoutParams infoParams =
@@ -96,30 +98,69 @@ public class LandscapeCarouselScene implements CoverScene {
         if (h.infoPanel instanceof LinearLayout) {
             ((LinearLayout) h.infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
         }
-        // 歌名 topMargin = 10dp（与轮播封面保持间距）
+        // === 全比例高度分配（适配低高度横屏） ===
+        // 顶部栏高度：6% 比例，但不小于实际按钮高度（避免遮挡）
+        int actualTopBarHeight = (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
+                ? h.topButtonsBar.getHeight() : (int) (h.density * 48);
+        int topBarHeight = Math.max(actualTopBarHeight, (int) (height * 0.06f));
+        // 歌名 topMargin：1.5% 比例
+        int songNameMargin = Math.max(4, (int) (height * 0.015f));
         LinearLayout.LayoutParams nameParams =
                 (LinearLayout.LayoutParams) h.tvSongName.getLayoutParams();
-        nameParams.topMargin = (int) (h.density * 10);
+        nameParams.topMargin = songNameMargin;
         h.tvSongName.setLayoutParams(nameParams);
         h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
-        // 歌名字号：和经典横屏一致，基于65%宽度计算
+        // 歌手 topMargin：1% 比例
+        if (h.tvArtist != null) {
+            LinearLayout.LayoutParams artistParams =
+                    (LinearLayout.LayoutParams) h.tvArtist.getLayoutParams();
+            artistParams.topMargin = Math.max(2, (int) (height * 0.01f));
+            h.tvArtist.setLayoutParams(artistParams);
+        }
+        // 歌名字号：基于65%宽度，同时受高度约束（横屏低高度时字号不能太大）
         float infoWidth = width * 0.65f;
-        float songNameSize = Math.max(32f, Math.min(50f, infoWidth * 0.048f));
+        float songNameSizeByWidth = Math.max(32f, Math.min(50f, infoWidth * 0.048f));
+        // 高度约束：歌名+歌手+间距合计不超过 H×8%
+        // 歌名约占60%，歌手约占42%（0.7倍），间距约2.5%
+        float songNameMaxForHeight = height * 0.08f * 0.55f;
+        float songNameSize = Math.min(songNameSizeByWidth, songNameMaxForHeight);
+        songNameSize = Math.max(24f, songNameSize); // 下限24px，保证可读
         h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
-        // 歌词宽度限制为65%屏幕宽，确保字号和经典横屏一致
+        // 歌词：marginTop 用 1.5% 比例，字号和行距由 Scene 直接控制（与歌名字号关联）
         if (h.lyricView != null) {
             LinearLayout.LayoutParams lyricParams = (LinearLayout.LayoutParams) h.lyricView.getLayoutParams();
             lyricParams.width = (int) infoWidth;
             lyricParams.gravity = Gravity.CENTER_HORIZONTAL;
+            int lyricTopMargin = Math.max(4, (int) (height * 0.015f));
+            lyricParams.topMargin = lyricTopMargin;
             h.lyricView.setLayoutParams(lyricParams);
+            // 歌词区域可用高度 = 总高 - 顶栏 - 歌名区域(~8%) - 歌词marginTop - 频谱(8%+1%) - 进度(1.5%) - 底部按钮(~3%)
+            float usedHeight = topBarHeight + height * 0.08f + lyricTopMargin + height * 0.08f + height * 0.01f + height * 0.015f + height * 0.03f;
+            float lyricAreaHeight = Math.max(40f, height - usedHeight);
+            // 歌词字号与歌名字号关联：当前行 = 歌名 × 1.2，普通行 = 歌名 × 0.9
+            float lyricCurrentSize = songNameSize * 1.2f;
+            float lyricNormalSize = songNameSize * 0.9f;
+            // 行距默认 = normalSize，双行歌词+行距不超出可用高度
+            float lyricLineSpacing = lyricNormalSize;
+            float totalLyricH = lyricCurrentSize + lyricNormalSize + lyricLineSpacing;
+            if (totalLyricH > lyricAreaHeight) {
+                // 先压缩行距（最低 normalSize × 0.3）
+                lyricLineSpacing = Math.max(lyricNormalSize * 0.3f, lyricAreaHeight - lyricCurrentSize - lyricNormalSize);
+                totalLyricH = lyricCurrentSize + lyricNormalSize + lyricLineSpacing;
+            }
+            if (totalLyricH > lyricAreaHeight) {
+                // 行距压到极限还不够，等比缩小字号
+                float scale = lyricAreaHeight / totalLyricH;
+                lyricCurrentSize *= scale;
+                lyricNormalSize *= scale;
+                lyricLineSpacing = lyricAreaHeight - lyricCurrentSize - lyricNormalSize;
+            }
+            h.lyricView.setSceneTextSizes(lyricCurrentSize, lyricNormalSize, lyricLineSpacing);
         }
-        // 轮播封面区域：在顶部按钮栏下方
-        int topBarHeight = (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
-                ? h.topButtonsBar.getHeight() : (int) (h.density * 56);
-        // 中间卡片尺寸：height * 30%
-        int coverSize = (int) (height * 0.30f);
+        // 轮播封面区域：28% 比例（原30%，为歌词腾出空间）
+        int coverSize = (int) (height * 0.28f);
         // 轮播容器高度 = coverSize（无多余边距）
         int carouselHeight = coverSize;
         if (h.carouselView != null) {
@@ -141,13 +182,26 @@ public class LandscapeCarouselScene implements CoverScene {
         placeholderParams.height = topBarHeight + carouselHeight;
         placeholderParams.width = 1;
         h.coverPlaceholder.setLayoutParams(placeholderParams);
-        // 频谱位置：仅底部
+        // 频谱：marginBottom 用 1% 比例
         if (h.spectrumView != null && h.spectrumView.getParent() == h.rootLayout) {
             h.moveSpectrumToBottom();
         }
         if (h.spectrumView != null) {
             h.spectrumView.getLayoutParams().height = (int) (height * getSpectrumHeightRatio());
+            LinearLayout.LayoutParams specParams = (LinearLayout.LayoutParams) h.spectrumView.getLayoutParams();
+            specParams.bottomMargin = Math.max(2, (int) (height * 0.01f));
+            h.spectrumView.setLayoutParams(specParams);
         }
+        // 进度条：marginBottom 用 1.5% 比例
+        if (h.controlButtons != null && h.controlButtons.getParent() instanceof LinearLayout) {
+            // progress_layout 在 control_buttons 之前，设它的 marginBottom
+        }
+        if (h.progressLayout != null) {
+            LinearLayout.LayoutParams progressParams = (LinearLayout.LayoutParams) h.progressLayout.getLayoutParams();
+            progressParams.bottomMargin = Math.max(2, (int) (height * 0.015f));
+            h.progressLayout.setLayoutParams(progressParams);
+        }
+        // 底部按钮：marginBottom 已由 applyButtonMargins 设为 H×1%，无需重复
     }
 
     @Override
@@ -157,9 +211,10 @@ public class LandscapeCarouselScene implements CoverScene {
             h.carouselView.setVisibility(View.GONE);
         }
         h.rootLayout.setClipChildren(true);
-        // 恢复歌词默认状态
+        // 恢复歌词默认状态（清除高度约束，不影响竖屏等其他模式）
         if (h.lyricView != null) {
             h.lyricView.setShowPrevLine(true);
+            h.lyricView.clearSceneTextSizes();
         }
     }
 
@@ -191,7 +246,7 @@ public class LandscapeCarouselScene implements CoverScene {
 
     @Override
     public float getSpectrumHeightRatio() {
-        return 0.10f;
+        return 0.08f;
     }
 
     @Override

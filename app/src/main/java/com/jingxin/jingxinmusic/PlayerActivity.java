@@ -953,6 +953,7 @@ public class PlayerActivity extends AppCompatActivity {
                 btnBack, btnSpectrum, btnOutfit, btnTheme,
                 findViewById(R.id.top_buttons_bar),
                 findViewById(R.id.control_buttons),
+                findViewById(R.id.progress_layout),
                 findViewById(R.id.right_buttons_group),
                 tonearmView,
                 getResources().getDisplayMetrics().density);
