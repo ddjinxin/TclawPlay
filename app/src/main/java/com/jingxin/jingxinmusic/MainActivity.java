@@ -315,7 +315,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 设置浏览 RecyclerView（本地/云端/收藏共用）
         browseAdapter = new BrowseAdapter();
-        int spanCount = Math.max(3, getResources().getDisplayMetrics().widthPixels / 360);
+        int spanCount = calcSpanCount();
         rvBrowse.setLayoutManager(new GridLayoutManager(this, spanCount));
         rvBrowse.setAdapter(browseAdapter);
 
@@ -334,7 +334,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 监听窗口宽度变化
+        // 监听窗口尺寸变化（横竖屏切换时触发比例布局）
         View rootView = findViewById(android.R.id.content);
         if (rootView != null) {
             rootView.addOnLayoutChangeListener(
@@ -342,12 +342,15 @@ public class MainActivity extends AppCompatActivity {
                      int oldLeft, int oldTop, int oldRight, int oldBottom) -> {
                         if (isFinishing() || isDestroyed()) return;
                         int newWidth = right - left;
+                        int newHeight = bottom - top;
                         int oldWidth = oldRight - oldLeft;
-                        if (oldWidth > 0 && newWidth != oldWidth) {
+                        int oldHeight = oldBottom - oldTop;
+                        if (oldWidth > 0 && (newWidth != oldWidth || newHeight != oldHeight)) {
                             if (rvBrowse != null) {
                                 rvBrowse.post(() -> {
                                     if (isFinishing() || isDestroyed()) return;
-                                    int newSpan = Math.max(3, getResources().getDisplayMetrics().widthPixels / 360);
+                                    applyLandscapeProportionalLayout();
+                                    int newSpan = calcSpanCount();
                                     rvBrowse.setLayoutManager(new GridLayoutManager(MainActivity.this, newSpan));
                                     if (browseAdapter != null) {
                                         browseAdapter.notifyDataSetChanged();
@@ -377,6 +380,13 @@ public class MainActivity extends AppCompatActivity {
 
         // 应用主题
         updateThemeUI();
+
+        // 首次进入时如果横屏，立即应用比例布局
+        rootView.post(() -> {
+            if (!isFinishing() && !isDestroyed()) {
+                applyLandscapeProportionalLayout();
+            }
+        });
 
         // 根布局初始不可见
         rootLayout.setVisibility(View.INVISIBLE);
@@ -520,6 +530,7 @@ public class MainActivity extends AppCompatActivity {
         if (rootView != null) {
             rootView.post(() -> {
                 if (isFinishing() || isDestroyed()) return;
+                applyLandscapeProportionalLayout();
                 if (rvBrowse != null) {
                     rvBrowse.requestLayout();
                 }
@@ -636,7 +647,7 @@ public class MainActivity extends AppCompatActivity {
         } else if (currentTab == 2) {
             loadBiliItems();
         } else {
-            int spanCount = Math.max(3, getResources().getDisplayMetrics().widthPixels / 360);
+            int spanCount = calcSpanCount();
             rvList.setLayoutManager(new GridLayoutManager(this, spanCount));
             rvList.setAdapter(browseAdapter);
             refreshFavorites();
@@ -1603,6 +1614,225 @@ public class MainActivity extends AppCompatActivity {
         float density = getResources().getDisplayMetrics().density;
         int px = (int) (dpSize * density);
         return BitmapUtil.createScaledCircularBitmap(bitmap, px);
+    }
+
+    /** 计算网格列数：保证至少显示2行卡片 */
+    private int calcSpanCount() {
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        int baseSpan = Math.max(3, screenWidth / 360);
+        if (!isLandscape) return baseSpan;
+        // 横屏：估算列表可用高度（总高 - 顶栏14% - Tab10% - Mini14% - 版权3% - 霓虹线）
+        int availableH = (int) (screenHeight * 0.59f);
+        // 卡片高 ≈ 卡片宽 + 30px（名称文字），至少2行：2*(screenWidth/span+30) ≤ availableH
+        int minSpanFor2Rows = (int) Math.ceil(2.0 * screenWidth / Math.max(1, availableH - 60));
+        return Math.max(baseSpan, minSpanFor2Rows);
+    }
+
+    // ===== 横屏比例布局 =====
+
+    /** 横屏时按比例分配各区域高度，竖屏时恢复 XML 默认值 */
+    private void applyLandscapeProportionalLayout() {
+        boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        View rootView = findViewById(android.R.id.content);
+        if (rootView == null || rootView.getHeight() == 0) return;
+        int height = rootView.getHeight();
+        float density = getResources().getDisplayMetrics().density;
+
+        if (isLandscape) {
+            // 顶部栏：H×14%，不小于36px（保证按钮可点）
+            int titleBarH = Math.max(36, (int) (height * 0.14f));
+            if (titleBar != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
+                lp.height = titleBarH;
+                titleBar.setLayoutParams(lp);
+            }
+            // Tab栏：H×10%
+            int tabBarH = Math.max(28, (int) (height * 0.10f));
+            if (tabBar != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tabBar.getLayoutParams();
+                lp.height = tabBarH;
+                tabBar.setLayoutParams(lp);
+                // Tab字号跟随比例
+                float tabTextSize = Math.max(10f, tabBarH * 0.38f);
+                if (tabLocal != null) tabLocal.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
+                if (tabCloud != null) tabCloud.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
+                if (tabBili != null) tabBili.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
+                if (tabFavorite != null) tabFavorite.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
+                // Tab分隔线高度跟随
+                int dividerH = Math.max(1, (int) (tabBarH * 0.5f));
+                if (tabDivider1 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider1.getLayoutParams(); lp2.height = dividerH; tabDivider1.setLayoutParams(lp2); }
+                if (tabDivider2 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider2.getLayoutParams(); lp2.height = dividerH; tabDivider2.setLayoutParams(lp2); }
+            }
+            // 版权行：H×3%
+            if (tvCopyright != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tvCopyright.getLayoutParams();
+                lp.topMargin = Math.max(2, (int) (height * 0.005f));
+                lp.bottomMargin = Math.max(2, (int) (height * 0.01f));
+                tvCopyright.setLayoutParams(lp);
+                tvCopyright.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, height * 0.02f));
+            }
+            // Mini播放条：H×14%
+            int miniH = Math.max(36, (int) (height * 0.14f));
+            if (miniPlayerWrap != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniPlayerWrap.getLayoutParams();
+                lp.height = miniH;
+                miniPlayerWrap.setLayoutParams(lp);
+            }
+            if (miniPlayer != null) {
+                android.widget.FrameLayout.LayoutParams lp = (android.widget.FrameLayout.LayoutParams) miniPlayer.getLayoutParams();
+                lp.height = miniH - 2; // 留2px给流光线
+                miniPlayer.setLayoutParams(lp);
+            }
+            // Mini播放条内部元素
+            int miniCoverSize = Math.max(24, (int) (miniH * 0.72f));
+            if (miniCover != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniCover.getLayoutParams();
+                lp.width = miniCoverSize;
+                lp.height = miniCoverSize;
+                lp.leftMargin = Math.max(4, (int) (miniH * 0.15f));
+                lp.rightMargin = Math.max(2, (int) (miniH * 0.1f));
+                miniCover.setLayoutParams(lp);
+            }
+            if (miniPlayPause != null) {
+                int btnSize = Math.max(28, (int) (miniH * 0.78f));
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniPlayPause.getLayoutParams();
+                lp.width = btnSize;
+                lp.height = btnSize;
+                lp.rightMargin = Math.max(4, (int) (miniH * 0.15f));
+                miniPlayPause.setLayoutParams(lp);
+            }
+            if (miniSongTitle != null) {
+                miniSongTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(10f, miniH * 0.24f));
+            }
+            if (miniSongArtist != null) {
+                miniSongArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, miniH * 0.2f));
+            }
+            // 路径栏：H×6%
+            int pathBarH = Math.max(28, (int) (height * 0.06f));
+            if (pathBar != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) pathBar.getLayoutParams();
+                lp.height = pathBarH;
+                pathBar.setLayoutParams(lp);
+                // 路径栏内部元素跟随高度缩放
+                int pathIconSize = Math.max(20, (int) (pathBarH * 0.8f));
+                if (btnNavigateBack != null) {
+                    android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnNavigateBack.getLayoutParams();
+                    lp2.width = pathIconSize;
+                    lp2.height = pathIconSize;
+                    btnNavigateBack.setLayoutParams(lp2);
+                }
+                if (btnWebDavSettings != null) {
+                    android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnWebDavSettings.getLayoutParams();
+                    lp2.width = pathIconSize;
+                    lp2.height = pathIconSize;
+                    btnWebDavSettings.setLayoutParams(lp2);
+                }
+                if (btnBiliSettings != null) {
+                    android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnBiliSettings.getLayoutParams();
+                    lp2.width = pathIconSize;
+                    lp2.height = pathIconSize;
+                    btnBiliSettings.setLayoutParams(lp2);
+                }
+                if (tvBrowsePath != null) {
+                    tvBrowsePath.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, pathBarH * 0.45f));
+                }
+            }
+            // 搜索栏：H×5%
+            if (etSearch != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) etSearch.getLayoutParams();
+                lp.height = Math.max(28, (int) (height * 0.05f));
+                etSearch.setLayoutParams(lp);
+            }
+        } else {
+            // 竖屏恢复 XML 默认值
+            if (titleBar != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
+                lp.height = (int) (56 * density);
+                titleBar.setLayoutParams(lp);
+            }
+            if (tabBar != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tabBar.getLayoutParams();
+                lp.height = (int) (40 * density);
+                tabBar.setLayoutParams(lp);
+                float tabDefaultSize = 14 * density;
+                if (tabLocal != null) tabLocal.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
+                if (tabCloud != null) tabCloud.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
+                if (tabBili != null) tabBili.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
+                if (tabFavorite != null) tabFavorite.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
+                int dividerDefault = (int) (20 * density);
+                if (tabDivider1 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider1.getLayoutParams(); lp2.height = dividerDefault; tabDivider1.setLayoutParams(lp2); }
+                if (tabDivider2 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider2.getLayoutParams(); lp2.height = dividerDefault; tabDivider2.setLayoutParams(lp2); }
+            }
+            if (tvCopyright != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tvCopyright.getLayoutParams();
+                lp.topMargin = (int) (8 * density);
+                lp.bottomMargin = (int) (12 * density);
+                tvCopyright.setLayoutParams(lp);
+                tvCopyright.setTextSize(11); // sp
+            }
+            if (miniPlayerWrap != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniPlayerWrap.getLayoutParams();
+                lp.height = (int) (58 * density);
+                miniPlayerWrap.setLayoutParams(lp);
+            }
+            if (miniPlayer != null) {
+                android.widget.FrameLayout.LayoutParams lp = (android.widget.FrameLayout.LayoutParams) miniPlayer.getLayoutParams();
+                lp.height = (int) (56 * density);
+                miniPlayer.setLayoutParams(lp);
+            }
+            int coverDefault = (int) (42 * density);
+            if (miniCover != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniCover.getLayoutParams();
+                lp.width = coverDefault;
+                lp.height = coverDefault;
+                lp.leftMargin = (int) (12 * density);
+                lp.rightMargin = (int) (8 * density);
+                miniCover.setLayoutParams(lp);
+            }
+            int btnDefault = (int) (44 * density);
+            if (miniPlayPause != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniPlayPause.getLayoutParams();
+                lp.width = btnDefault;
+                lp.height = btnDefault;
+                lp.rightMargin = (int) (12 * density);
+                miniPlayPause.setLayoutParams(lp);
+            }
+            if (miniSongTitle != null) miniSongTitle.setTextSize(14); // sp
+            if (miniSongArtist != null) miniSongArtist.setTextSize(12); // sp
+            if (pathBar != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) pathBar.getLayoutParams();
+                lp.height = (int) (36 * density);
+                pathBar.setLayoutParams(lp);
+                // 恢复路径栏内部元素默认值
+                int iconDefault = (int) (32 * density);
+                if (btnNavigateBack != null) {
+                    android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnNavigateBack.getLayoutParams();
+                    lp2.width = iconDefault;
+                    lp2.height = iconDefault;
+                    btnNavigateBack.setLayoutParams(lp2);
+                }
+                if (btnWebDavSettings != null) {
+                    android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnWebDavSettings.getLayoutParams();
+                    lp2.width = iconDefault;
+                    lp2.height = iconDefault;
+                    btnWebDavSettings.setLayoutParams(lp2);
+                }
+                if (btnBiliSettings != null) {
+                    android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnBiliSettings.getLayoutParams();
+                    lp2.width = iconDefault;
+                    lp2.height = iconDefault;
+                    btnBiliSettings.setLayoutParams(lp2);
+                }
+                if (tvBrowsePath != null) tvBrowsePath.setTextSize(13); // sp
+            }
+            if (etSearch != null) {
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) etSearch.getLayoutParams();
+                lp.height = (int) (40 * density);
+                etSearch.setLayoutParams(lp);
+            }
+        }
     }
 
     @Override
