@@ -29,6 +29,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.Tracks;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
@@ -113,6 +114,10 @@ public class MusicPlayerService extends Service {
     private ExoPlayer exoPlayer;
     private MediaSessionCompat mediaSession;
     private PlaybackStateCompat.Builder stateBuilder;
+
+    // MediaPlayer 兜底播放器：ExoPlayer 无法解码 ALAC 等格式时，使用系统 MediaPlayer
+    private android.media.MediaPlayer fallbackPlayer;
+    private boolean isFallbackMode = false;  // true = 当前由 fallbackPlayer 播放
 
     private List<Song> playlist = new ArrayList<>();
     private int currentIndex = -1;
@@ -226,9 +231,10 @@ public class MusicPlayerService extends Service {
         notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         createNotificationChannel();
 
-        // 初始化 ExoPlayer（强制软件解码，兼容老车机硬件解码器不支持 FLAC 的问题）
+        // 初始化 ExoPlayer（优先硬件解码，兜底软件解码）
+        // PREFER：硬件解码器优先处理ALAC等格式，软件解码器兜底处理FLAC等
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
-                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
+                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
 
         exoPlayer = new ExoPlayer.Builder(this, renderersFactory)
                 .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
@@ -277,6 +283,30 @@ public class MusicPlayerService extends Service {
             }
 
             @Override
+            public void onTracksChanged(Tracks tracks) {
+                // 关键修复：ExoPlayer 遇到不支持的音频编码（如ALAC），会静默跳过音频轨道，
+                // 不会触发 onPlayerError，但 onTracksChanged 可以检测到没有选中任何音频轨道
+                if (isFallbackMode) return;
+                // isTypeSelected 检查指定类型的轨道是否被选中
+                if (!tracks.isTypeSelected(C.TRACK_TYPE_AUDIO)
+                        && exoPlayer.getPlaybackState() == Player.STATE_READY) {
+                    Log.w(TAG, "ExoPlayer静默跳过音频轨道（可能不支持该编码），尝试MediaPlayer兜底");
+                    Song currentSong = getCurrentSong();
+                    if (currentSong != null) {
+                        String playUri = currentSong.contentUri != null ? currentSong.contentUri : currentSong.filePath;
+                        if (playUri != null && !playUri.startsWith("http") && !playUri.startsWith("bili://")) {
+                            startFallbackPlayback(currentSong, playUri, currentIndex);
+                            return;
+                        }
+                    }
+                    // 兜底也走不通，跳到下一首
+                    Log.w(TAG, "无法播放此格式，自动切歌");
+                    showToast("当前设备不支持播放此音频格式");
+                    playNext();
+                }
+            }
+
+            @Override
             public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
                 updateNotification();
                 sendPlayStateBroadcast();
@@ -286,6 +316,17 @@ public class MusicPlayerService extends Service {
             @Override
             public void onPlayerError(PlaybackException error) {
                 Log.e(TAG, "播放错误: " + error.getMessage());
+                // ExoPlayer 播放失败：尝试用 MediaPlayer 兜底（可能是 ALAC 等不支持的格式）
+                Song currentSong = getCurrentSong();
+                if (currentSong != null && !isFallbackMode) {
+                    String playUri = currentSong.contentUri != null ? currentSong.contentUri : currentSong.filePath;
+                    // 本地歌曲才兜底（WebDAV/B站 MediaPlayer 不方便处理）
+                    if (playUri != null && !playUri.startsWith("http") && !playUri.startsWith("bili://")) {
+                        Log.d(TAG, "ExoPlayer播放失败，尝试MediaPlayer兜底: " + currentSong.title);
+                        startFallbackPlayback(currentSong, playUri, currentIndex);
+                        return;
+                    }
+                }
                 consecutiveErrors++;
                 if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
                     Log.d(TAG, "播放错误(" + consecutiveErrors + "/" + MAX_CONSECUTIVE_ERRORS + ")，尝试下一首");
@@ -396,6 +437,7 @@ public class MusicPlayerService extends Service {
     public void onDestroy() {
         super.onDestroy();
         stopPlaybackStateUpdater();
+        releaseFallbackPlayer();
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;
@@ -463,6 +505,9 @@ public class MusicPlayerService extends Service {
         }
 
         public int getAudioSessionId() {
+            if (isFallbackMode && fallbackPlayer != null) {
+                return fallbackPlayer.getAudioSessionId();
+            }
             if (exoPlayer != null) {
                 return exoPlayer.getAudioSessionId();
             }
@@ -483,6 +528,10 @@ public class MusicPlayerService extends Service {
 
         public int getPlayOrder() {
             return MusicPlayerService.this.playOrder;
+        }
+
+        public boolean isFallbackMode() {
+            return MusicPlayerService.this.isFallbackMode;
         }
     }
 
@@ -551,7 +600,31 @@ public class MusicPlayerService extends Service {
      * 本地/WebDAV歌曲：开始播放
      */
     private void startPlayback(Song song, String playUri, int position) {
-        MediaItem mediaItem = MediaItem.fromUri(Uri.parse(playUri));
+        // 检测 ALAC 等需要 MediaPlayer 兜底的格式
+        if (needsFallback(song.filePath, playUri)) {
+            startFallbackPlayback(song, playUri, position);
+            return;
+        }
+
+        // 非 ALAC：使用 ExoPlayer 正常播放
+        releaseFallbackPlayer();
+        isFallbackMode = false;
+
+        // 先停掉当前播放，强制释放旧的 MediaCodec 解码器
+        // 避免从 FLAC 切到 MP4/ALAC 时，ExoPlayer 复用旧 FLAC 解码器导致无声
+        exoPlayer.stop();
+
+        String mimeType = inferMimeType(song.filePath, playUri);
+        MediaItem mediaItem;
+        if (mimeType != null) {
+            mediaItem = new MediaItem.Builder()
+                    .setUri(Uri.parse(playUri))
+                    .setMimeType(mimeType)
+                    .build();
+            Log.d(TAG, "startPlayback: 设置MIME类型=" + mimeType + " uri=" + playUri);
+        } else {
+            mediaItem = MediaItem.fromUri(Uri.parse(playUri));
+        }
         exoPlayer.setMediaItem(mediaItem);
         exoPlayer.prepare();
         exoPlayer.play();
@@ -674,6 +747,15 @@ public class MusicPlayerService extends Service {
     }
 
     private void togglePlayPause() {
+        if (isFallbackMode && fallbackPlayer != null) {
+            if (fallbackPlayer.isPlaying()) {
+                fallbackPlayer.pause();
+            } else {
+                fallbackPlayer.start();
+            }
+            updateNotification();
+            return;
+        }
         if (exoPlayer == null) return;
         if (exoPlayer.isPlaying()) {
             exoPlayer.pause();
@@ -729,16 +811,26 @@ public class MusicPlayerService extends Service {
     }
 
     private void seekTo(int positionMs) {
+        if (isFallbackMode && fallbackPlayer != null) {
+            fallbackPlayer.seekTo(positionMs);
+            return;
+        }
         if (exoPlayer != null) {
             exoPlayer.seekTo(positionMs);
         }
     }
 
     private boolean isPlaying() {
+        if (isFallbackMode && fallbackPlayer != null) {
+            return fallbackPlayer.isPlaying();
+        }
         return exoPlayer != null && exoPlayer.isPlaying();
     }
 
     private int getCurrentPosition() {
+        if (isFallbackMode && fallbackPlayer != null) {
+            return fallbackPlayer.getCurrentPosition();
+        }
         if (exoPlayer != null) {
             return (int) exoPlayer.getCurrentPosition();
         }
@@ -746,6 +838,9 @@ public class MusicPlayerService extends Service {
     }
 
     private int getDuration() {
+        if (isFallbackMode && fallbackPlayer != null) {
+            return fallbackPlayer.getDuration();
+        }
         if (exoPlayer != null && exoPlayer.getDuration() != C.TIME_UNSET) {
             return (int) exoPlayer.getDuration();
         }
@@ -882,7 +977,7 @@ public class MusicPlayerService extends Service {
 
         // 重建播放器
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
-                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
+                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
         exoPlayer = new ExoPlayer.Builder(this, renderersFactory)
                 .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
                 .setAudioAttributes(new AudioAttributes.Builder()
@@ -1098,6 +1193,175 @@ public class MusicPlayerService extends Service {
         if (currentIndex >= 0 && currentIndex < playlist.size()) {
             return playlist.get(currentIndex);
         }
+        return null;
+    }
+
+    // ========== MediaPlayer 兜底播放（ALAC等ExoPlayer不支持的格式） ==========
+
+    /**
+     * 判断是否需要使用 MediaPlayer 兜底播放
+     * ALAC 编码的 m4a：若设备无 ALAC 解码器，ExoPlayer 会静默跳过音频轨道（不报错），
+     * 所以必须提前检测，直接走 MediaPlayer 兜底。
+     * AIFF / WMA 等更罕见格式：同样直接兜底。
+     */
+    private boolean needsFallback(String filePath, String playUri) {
+        String path = filePath != null ? filePath : playUri;
+        if (path == null) return false;
+        // WebDAV URL 去掉查询参数
+        if (path.startsWith("http")) {
+            int q = path.indexOf('?');
+            if (q > 0) path = path.substring(0, q);
+        }
+        String lower = path.toLowerCase();
+        // m4a 可能是 ALAC 编码，先检查设备解码器
+        // 有 ALAC 解码器的设备（如部分三星/小米真机），ExoPlayer 能正常播放
+        // 无 ALAC 解码器的设备（如模拟器），ExoPlayer 会静默无声，必须走 MediaPlayer
+        if (lower.endsWith(".m4a") || lower.endsWith(".mp4")) {
+            return !hasAlacDecoder();
+        }
+        // AIFF / WMA 等罕见格式，直接兜底
+        if (lower.endsWith(".aiff") || lower.endsWith(".aif") || lower.endsWith(".wma")) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 检查设备是否有支持 ALAC 的 MediaCodec 解码器
+     */
+    private boolean hasAlacDecoder() {
+        try {
+            android.media.MediaCodecList codecList = new android.media.MediaCodecList(
+                    android.media.MediaCodecList.ALL_CODECS);
+            for (android.media.MediaCodecInfo info : codecList.getCodecInfos()) {
+                if (info.isEncoder()) continue;
+                for (String type : info.getSupportedTypes()) {
+                    if ("audio/alac".equals(type)) {
+                        Log.d(TAG, "检测到ALAC硬件解码器: " + info.getName());
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "检测ALAC解码器失败: " + e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * 使用系统 MediaPlayer 播放（兜底 ExoPlayer 不支持的格式）
+     */
+    private void startFallbackPlayback(Song song, String playUri, int position) {
+        releaseFallbackPlayer();
+        isFallbackMode = true;
+
+        // 暂停 ExoPlayer，避免两个播放器同时出声
+        if (exoPlayer != null) exoPlayer.pause();
+
+        fallbackPlayer = new android.media.MediaPlayer();
+        try {
+            // 优先使用文件路径（MediaPlayer 通过路径可直接访问文件，比 content URI 更兼容）
+            // content URI 在某些设备/模拟器上可能无法正确传递格式信息
+            String dataSource = song.filePath != null ? song.filePath : playUri;
+            if (dataSource.startsWith("content://")) {
+                fallbackPlayer.setDataSource(this, Uri.parse(dataSource));
+            } else {
+                fallbackPlayer.setDataSource(dataSource);
+            }
+            Log.d(TAG, "MediaPlayer兜底: dataSource=" + dataSource);
+            fallbackPlayer.setOnCompletionListener(mp -> {
+                Log.d(TAG, "MediaPlayer兜底播放结束，自动下一首");
+                playNext();
+            });
+            fallbackPlayer.setOnErrorListener((mp, what, extra) -> {
+                Log.e(TAG, "MediaPlayer兜底播放也失败: what=" + what + " extra=" + extra);
+                releaseFallbackPlayer();
+                isFallbackMode = false;
+                showToast("当前设备不支持播放此音频格式");
+                consecutiveErrors++;
+                if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+                    playNext();
+                }
+                return true;
+            });
+            fallbackPlayer.prepare();
+            fallbackPlayer.start();
+            Log.d(TAG, "MediaPlayer兜底播放: " + song.title + " uri=" + playUri);
+
+            // 播放成功，重置连续错误计数
+            consecutiveErrors = 0;
+
+            // 记录播放历史
+            new Thread(() -> {
+                File historyDir = new File(getExternalFilesDir(null), "history");
+                HistoryManager.addHistory(historyDir, song);
+            }, "HistoryLogger").start();
+
+            // 同步播放状态到UI（fallback模式下没有ExoPlayer回调，需手动发送）
+            sendPlayStateBroadcast();
+            updateNotification();
+            startPlaybackStateUpdater();
+            sendSongChangedBroadcast(song, position);
+        } catch (Exception e) {
+            Log.e(TAG, "MediaPlayer兜底播放初始化失败: " + e.getMessage());
+            releaseFallbackPlayer();
+            isFallbackMode = false;
+            showToast("当前设备不支持播放此音频格式");
+            consecutiveErrors++;
+            if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+                playNext();
+            }
+        }
+    }
+
+    /**
+     * 释放 MediaPlayer 兜底播放器
+     */
+    private void releaseFallbackPlayer() {
+        if (fallbackPlayer != null) {
+            try {
+                fallbackPlayer.stop();
+                fallbackPlayer.release();
+            } catch (Exception ignored) {}
+            fallbackPlayer = null;
+        }
+    }
+
+    /**
+     * 在主线程显示 Toast 提示
+     */
+    private void showToast(String message) {
+        handler.post(() -> android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show());
+    }
+
+    /**
+     * 根据文件扩展名推断音频MIME类型
+     * content://URI 无法传递格式信息时，ExoPlayer 可能选错解码器，明确指定 MIME 可避免此问题
+     * 注意：ALAC 编码的 m4a 已在 needsFallback() 中拦截走 MediaPlayer，此处只处理常规格式
+     */
+    private String inferMimeType(String filePath, String playUri) {
+        String path = filePath;
+        // WebDAV URL可能带查询参数，先去掉
+        if (path != null && path.startsWith("http")) {
+            int q = path.indexOf('?');
+            if (q > 0) path = path.substring(0, q);
+        }
+        // 如果filePath不可用，尝试从playUri提取
+        if (path == null || path.isEmpty()) path = playUri;
+        if (path == null) return null;
+
+        String lower = path.toLowerCase();
+        // MP4容器格式（含AAC/ALAC编码）—— 这是修复ALAC m4a的关键
+        if (lower.endsWith(".m4a") || lower.endsWith(".mp4") || lower.endsWith(".3gp")) {
+            return "audio/mp4";
+        }
+        // 其他常见格式明确指定，避免ExoPlayer猜测错误
+        if (lower.endsWith(".flac")) return "audio/flac";
+        if (lower.endsWith(".wav")) return "audio/wav";
+        if (lower.endsWith(".ogg") || lower.endsWith(".oga")) return "audio/ogg";
+        if (lower.endsWith(".aac")) return "audio/aac";
+        if (lower.endsWith(".mp3")) return "audio/mpeg";
+        // 未知格式不设置，让ExoPlayer自行推断
         return null;
     }
 

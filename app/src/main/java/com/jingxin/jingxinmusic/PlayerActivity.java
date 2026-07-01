@@ -184,6 +184,11 @@ public class PlayerActivity extends AppCompatActivity {
                 saveLastPlayed();
                 // 轮播模式切歌时滚动到新位置
                 syncCarouselPosition();
+                // MediaPlayer 兜底模式下切歌会产生新的 audioSessionId，需重建 Visualizer
+                if (bound && playerBinder != null && playerBinder.isFallbackMode()) {
+                    stopSpectrum();
+                    startSpectrumWithPermission();
+                }
                 Log.d(TAG, "UI 更新: " + newSong.title + " - " + newSong.artist);
             } else if (MusicPlayerService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);

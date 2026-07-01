@@ -154,6 +154,7 @@ public class MainActivity extends AppCompatActivity {
     // MediaStore ContentObserver：监听音乐文件变化（U盘索引完成、增删音乐等）
     private android.database.ContentObserver mediaStoreObserver;
     private boolean isScanning = false;
+    private static final int SELF_SCAN_IGNORE_MS = 3000;  // 自身扫描后3秒内忽略 ContentObserver
     private final Handler scanDebounceHandler = new Handler();
     private static final int SCAN_DEBOUNCE_MS = 500;
 
@@ -499,6 +500,11 @@ public class MainActivity extends AppCompatActivity {
         mediaStoreObserver = new android.database.ContentObserver(null) {
             @Override
             public void onChange(boolean selfChange) {
+                // 自身触发的媒体扫描引起的 onChange，忽略（防止循环扫描）
+                if (System.currentTimeMillis() - MusicScanner.lastMediaScanTime < SELF_SCAN_IGNORE_MS) {
+                    Log.d(TAG, "MediaStore onChange：自身扫描触发，忽略");
+                    return;
+                }
                 scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
                 scanDebounceHandler.postDelayed(scanDebounceRunnable, SCAN_DEBOUNCE_MS);
             }

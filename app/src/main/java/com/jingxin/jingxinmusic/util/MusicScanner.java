@@ -2,6 +2,7 @@ package com.jingxin.jingxinmusic.util;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -24,13 +25,20 @@ public class MusicScanner {
 
     private static final String TAG = "MusicScanner";
 
+    // 记录最近一次 triggerMediaScan 的时间，供 ContentObserver 判断是否忽略回环
+    public static volatile long lastMediaScanTime = 0;
+
     /**
      * 扫描手机上的所有音乐文件
+     * 0. 触发媒体扫描（让 MediaStore 索引新推入的文件）
      * 1. MediaStore 查询（覆盖内置存储已索引的歌曲）
      * 2. 文件遍历扫描（补充 U 盘/SD 卡等 MediaStore 未索引的歌曲）
      * 3. 合并去重
      */
     public static List<Song> scanMusic(Context context) {
+        // 第零步：触发媒体扫描，让新文件被 MediaStore 索引
+        triggerMediaScan(context);
+
         // 第一步：MediaStore 查询
         List<Song> mediaStoreSongs = scanByMediaStore(context);
         Log.d(TAG, "MediaStore 扫描: " + mediaStoreSongs.size() + " 首");
@@ -278,5 +286,52 @@ public class MusicScanner {
     private static String getAlbumArtUri(long albumId) {
         if (albumId <= 0) return null;
         return "content://media/external/audio/albumart/" + albumId;
+    }
+
+    /**
+     * 触发媒体扫描，让 MediaStore 索引新增的音乐文件
+     * 解决 adb push 或第三方下载的文件不会自动被 MediaStore 索引的问题
+     * 扫描内置存储的 Music、Download、Records 等常见音频目录
+     * @return 是否触发了扫描（有新文件需要索引时返回 true）
+     */
+    public static boolean triggerMediaScan(Context context) {
+        File storageRoot = Environment.getExternalStorageDirectory();
+        String[] musicDirs = {"Music", "Download", "Records", "Recordings", "Audio"};
+        boolean scanned = false;
+        for (String dirName : musicDirs) {
+            File dir = new File(storageRoot, dirName);
+            if (!dir.isDirectory()) continue;
+            File[] files = dir.listFiles();
+            if (files == null) continue;
+            // 收集音频文件路径
+            List<String> paths = new ArrayList<>();
+            collectAudioFiles(dir, paths);
+            if (!paths.isEmpty()) {
+                String[] pathsArray = paths.toArray(new String[0]);
+                // scanFile 是异步的，但会在查询 MediaStore 之前被处理
+                MediaScannerConnection.scanFile(context, pathsArray, null, null);
+                Log.d(TAG, "触发媒体扫描: " + dirName + "/ 下 " + pathsArray.length + " 个音频文件");
+                scanned = true;
+            }
+        }
+        if (scanned) {
+            lastMediaScanTime = System.currentTimeMillis();
+        }
+        return scanned;
+    }
+
+    /**
+     * 递归收集目录下的音频文件路径
+     */
+    private static void collectAudioFiles(File dir, List<String> paths) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                collectAudioFiles(file, paths);
+            } else if (file.isFile() && WebDavScanner.isMusicFile(file.getName())) {
+                paths.add(file.getAbsolutePath());
+            }
+        }
     }
 }

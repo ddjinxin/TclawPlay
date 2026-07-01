@@ -763,22 +763,21 @@ public class SpectrumView extends View {
                 break;
             }
             case STYLE_KUGOU: {
-                // KugouColumn静态：底部两排暖色小块
+                // KugouColumn静态：底部两排暖色小块（与动态绘制相同布局逻辑）
                 kugouPaint.setColor(Color.argb(80, 253, 178, 230));
                 float kTotalSpacing = (KUGOU_COUNT - 1) * kugouSpacing;
-                float kW = (getWidth() - kTotalSpacing) / KUGOU_COUNT;
+                float kAaa = getWidth() / 2f / 2f;
+                float kW = (getWidth() + 2 * kAaa - kTotalSpacing) / KUGOU_COUNT;
                 if (kW < 1f) kW = 1f;
                 float kBlockH = kW / 2f;
-                float kTotalW = KUGOU_COUNT * kW + (KUGOU_COUNT - 1) * kugouSpacing;
-                float kCompensate = (getWidth() - kTotalW) / 2f;
-                float aaa = getWidth() / 2f / 2f;
+                float kCompensate = -kAaa;
                 int halfCount = KUGOU_COUNT / 2;
                 for (int i = 0; i < halfCount; i++) {
-                    float x = kCompensate + i * (kW + kugouSpacing) + aaa;
+                    float x = kCompensate + i * (kW + kugouSpacing) + kAaa;
                     canvas.drawRect(x, getHeight() - kBlockH, x + kW, getHeight(), kugouPaint);
                 }
                 for (int i = 0; i < halfCount; i++) {
-                    float x = kCompensate + (i + halfCount - 1) * (kW + kugouSpacing) - aaa;
+                    float x = kCompensate + (i + halfCount - 1) * (kW + kugouSpacing) - kAaa;
                     canvas.drawRect(x, getHeight() - kBlockH, x + kW, getHeight(), kugouPaint);
                 }
                 break;
@@ -1084,16 +1083,16 @@ public class SpectrumView extends View {
         float viewHeight = getHeight();
         float minBarPx = getResources().getDisplayMetrics().density;
         
-        // 实时计算柱宽和居中补偿
+        // 实时计算柱宽和居中补偿（保留两组交汇效果，左右铺满屏幕）
         float totalSpacing = (currentCount - 1) * kugouSpacing;
-        float colWidth = (viewWidth - totalSpacing) / currentCount + 1.5f * minBarPx; // 原版+dp2px(1.5)
-        if (colWidth < 1f) colWidth = 1f;
-        float blockHeight = colWidth / 2f;
-        float totalWidth = currentCount * colWidth + (currentCount - 1) * kugouSpacing;
-        float compensate = (viewWidth - totalWidth) / 2f;
-        
         // aaa: 原版 getWidth() / 2 / drawListSize(2)
         float aaa = viewWidth / 2f / 2f;
+        // 总宽度需覆盖两组偏移(aaa)导致的两侧缩进：totalWidth = viewWidth + 2*aaa
+        float colWidth = (viewWidth + 2 * aaa - totalSpacing) / currentCount;
+        if (colWidth < 1f) colWidth = 1f;
+        float blockHeight = colWidth / 2f;
+        // compensate = -aaa：抵消第一组右移aaa，使最左柱从x=0开始
+        float compensate = -aaa;
         int halfCount = currentCount / 2;
         
         // 初始化能量块数组
