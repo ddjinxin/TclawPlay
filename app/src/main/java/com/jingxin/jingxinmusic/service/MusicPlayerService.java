@@ -148,7 +148,7 @@ public class MusicPlayerService extends Service {
         Intent intent = new Intent(this, MusicPlayerService.class);
         intent.setAction(action);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;
         }
         return PendingIntent.getService(this, requestCode, intent, flags);
@@ -393,20 +393,10 @@ public class MusicPlayerService extends Service {
 
         // 注册高德导航日夜模式广播（需 RECEIVER_EXPORTED，因为来自外部应用）
         IntentFilter amapFilter = new IntentFilter(ACTION_AUTONAVI);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(amapThemeReceiver, amapFilter, android.content.Context.RECEIVER_EXPORTED);
-        } else {
-            registerReceiver(amapThemeReceiver, amapFilter);
-        }
+        CompatUtil.safeRegisterReceiverExported(this, amapThemeReceiver, amapFilter);
 
         // 启动为前台服务
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Android 14+ 必须使用三参数形式，指定 foregroundServiceType
-            startForeground(NOTIFICATION_ID, buildNotification("静心音乐", "准备播放..."),
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-        } else {
-            startForeground(NOTIFICATION_ID, buildNotification("静心音乐", "准备播放..."));
-        }
+        CompatUtil.safeStartForeground(this, NOTIFICATION_ID, buildNotification("静心音乐", "准备播放..."));
     }
 
     @Override

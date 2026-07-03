@@ -148,38 +148,58 @@ public class Song {
             Log.e(TAG, "保存缓存封面失败: " + e.getMessage());
         }
 
-        // 写入公共目录（MediaStore API）
-        try {
-            ContentResolver resolver = ctx.getContentResolver();
-            ContentValues values = new ContentValues();
-            values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
-            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-            values.put(MediaStore.Images.Media.RELATIVE_PATH,
-                    Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER);
-            values.put(MediaStore.Images.Media.IS_PENDING, 1);
+        // 写入公共目录
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            // API 29+: MediaStore API（RELATIVE_PATH、IS_PENDING 是 API 29 常量）
+            try {
+                ContentResolver resolver = ctx.getContentResolver();
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
+                values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                values.put(MediaStore.Images.Media.RELATIVE_PATH,
+                        Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER);
+                values.put(MediaStore.Images.Media.IS_PENDING, 1);
 
-            Uri uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-            if (uri == null) {
-                Log.e(TAG, "MediaStore insert 失败: " + fileName);
+                Uri uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) {
+                    Log.e(TAG, "MediaStore insert 失败: " + fileName);
+                    return null;
+                }
+
+                try (OutputStream os = resolver.openOutputStream(uri)) {
+                    if (os != null) {
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, os);
+                        os.flush();
+                    }
+                }
+
+                values.clear();
+                values.put(MediaStore.Images.Media.IS_PENDING, 0);
+                resolver.update(uri, values, null, null);
+
+                Log.d(TAG, "封面已保存到公共目录: " + uri);
+                return uri;
+            } catch (Exception e) {
+                Log.e(TAG, "保存公共封面失败: " + e.getMessage());
                 return null;
             }
-
-            try (OutputStream os = resolver.openOutputStream(uri)) {
-                if (os != null) {
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, os);
-                    os.flush();
-                }
+        } else {
+            // API 21-28: File API 直接写入 Pictures 目录
+            try {
+                File picturesDir = Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_PICTURES);
+                File coverDir = new File(picturesDir, COVER_FOLDER);
+                if (!coverDir.exists()) coverDir.mkdirs();
+                File destFile = new File(coverDir, fileName);
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(destFile);
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+                fos.close();
+                Log.d(TAG, "封面已保存到公共目录: " + destFile.getAbsolutePath());
+                return Uri.fromFile(destFile);
+            } catch (Exception e) {
+                Log.e(TAG, "保存公共封面失败(File API): " + e.getMessage());
+                return null;
             }
-
-            values.clear();
-            values.put(MediaStore.Images.Media.IS_PENDING, 0);
-            resolver.update(uri, values, null, null);
-
-            Log.d(TAG, "封面已保存到公共目录: " + uri);
-            return uri;
-        } catch (Exception e) {
-            Log.e(TAG, "保存公共封面失败: " + e.getMessage());
-            return null;
         }
     }
 
@@ -334,27 +354,37 @@ public class Song {
      * @return 公共 content URI，不存在返回 null
      */
     public static Uri getCoverPublicUri(android.content.Context ctx, String fileName) {
-        try {
-            ContentResolver resolver = ctx.getContentResolver();
-            String selection = MediaStore.Images.Media.DISPLAY_NAME + " = ? AND " +
-                    MediaStore.Images.Media.RELATIVE_PATH + " LIKE ? ";
-            String[] selectionArgs = new String[]{fileName,
-                    "%" + Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER + "%"};
-            Uri queryUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-            java.io.File[] result = ctx.getExternalFilesDirs(null);
-            android.database.Cursor cursor = resolver.query(queryUri,
-                    new String[]{MediaStore.Images.Media._ID},
-                    selection, selectionArgs, null);
-            if (cursor != null && cursor.moveToFirst()) {
-                long id = cursor.getLong(0);
-                cursor.close();
-                return Uri.withAppendedPath(queryUri, String.valueOf(id));
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            // API 29+: MediaStore 查询（RELATIVE_PATH 是 API 29 常量）
+            try {
+                ContentResolver resolver = ctx.getContentResolver();
+                String selection = MediaStore.Images.Media.DISPLAY_NAME + " = ? AND " +
+                        MediaStore.Images.Media.RELATIVE_PATH + " LIKE ? ";
+                String[] selectionArgs = new String[]{fileName,
+                        "%" + Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER + "%"};
+                Uri queryUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                android.database.Cursor cursor = resolver.query(queryUri,
+                        new String[]{MediaStore.Images.Media._ID},
+                        selection, selectionArgs, null);
+                if (cursor != null && cursor.moveToFirst()) {
+                    long id = cursor.getLong(0);
+                    cursor.close();
+                    return Uri.withAppendedPath(queryUri, String.valueOf(id));
+                }
+                if (cursor != null) cursor.close();
+            } catch (Exception e) {
+                Log.e(TAG, "查询公共封面失败: " + e.getMessage());
             }
-            if (cursor != null) cursor.close();
-        } catch (Exception e) {
-            Log.e(TAG, "查询公共封面失败: " + e.getMessage());
+            return null;
+        } else {
+            // API 21-28: File 路径查询
+            File picturesDir = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_PICTURES);
+            File coverDir = new File(picturesDir, COVER_FOLDER);
+            File file = new File(coverDir, fileName);
+            if (file.exists()) return Uri.fromFile(file);
+            return null;
         }
-        return null;
     }
 
     /**

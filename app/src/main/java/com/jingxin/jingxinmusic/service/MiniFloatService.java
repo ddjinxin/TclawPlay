@@ -72,6 +72,8 @@ public class MiniFloatService extends Service {
     private ImageView btnPrev;
     private ImageView btnPlayPause;
     private ImageView btnNext;
+    private android.view.View sizeAdjustPanel; // 尺寸调节面板
+    private boolean isAdjustingSize = false;   // 是否正在调节尺寸
 
     // 播放服务
     private MusicPlayerService.MusicPlayerBinder playerBinder;
@@ -116,6 +118,11 @@ public class MiniFloatService extends Service {
     private float unit; // 比例因子 = floatWidthPx / 280.0f
     private boolean lastIsPortrait; // 上次的屏幕方向，用于检测变化
 
+    // 缩放比例范围
+    private static final float FLOAT_SIZE_MIN = 0.20f; // 最小20%
+    private static final float FLOAT_SIZE_MAX = 0.60f; // 最大60%
+    private static final float FLOAT_SIZE_STEP = 0.05f; // 每次步进5%
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -125,7 +132,7 @@ public class MiniFloatService extends Service {
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         createNotificationChannel();
-        startForeground(NOTIFICATION_ID, buildNotification());
+        CompatUtil.safeStartForeground(this, NOTIFICATION_ID, buildNotification());
 
         lastIsPortrait = isCurrentPortrait();
         floatView = buildFloatView();
@@ -194,8 +201,11 @@ public class MiniFloatService extends Service {
     private Notification buildNotification() {
         Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent pi = PendingIntent.getActivity(this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            piFlags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        PendingIntent pi = PendingIntent.getActivity(this, 0, intent, piFlags);
 
         Notification.Builder builder;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -219,8 +229,8 @@ public class MiniFloatService extends Service {
         android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
         windowManager.getDefaultDisplay().getMetrics(screenMetrics);
         boolean isPortrait = screenMetrics.widthPixels < screenMetrics.heightPixels;
-        // 竖屏：屏幕宽度的40%，横屏：屏幕宽度的30%
-        floatWidthPx = (int) (screenMetrics.widthPixels * (isPortrait ? 0.40f : 0.30f));
+        // 使用保存的缩放比例，默认竖屏40%、横屏30%
+        floatWidthPx = (int) (screenMetrics.widthPixels * getSavedFloatSizeRatio());
         unit = floatWidthPx / 280.0f; // 以280dp为基准的比例因子
 
         // 颜色
@@ -268,6 +278,8 @@ public class MiniFloatService extends Service {
         // 先不启动，等数据加载后再判断
 
         coverWrap.addView(coverImage);
+        // 点击封面弹出尺寸调节面板
+        coverWrap.setOnClickListener(v -> showSizeAdjustPanel());
         rootLayout.addView(coverWrap, coverWrapParams);
 
         // ===== 右侧：信息区域（垂直四行） =====
@@ -385,6 +397,11 @@ public class MiniFloatService extends Service {
         btnClose.setOnClickListener(v -> stopSelf());
         container.addView(btnClose);
 
+        // ===== 尺寸调节面板（默认隐藏，点击封面弹出） =====
+        sizeAdjustPanel = buildSizeAdjustPanel(textPrimary);
+        sizeAdjustPanel.setVisibility(android.view.View.GONE);
+        container.addView(sizeAdjustPanel);
+
         // ===== 单击回app / 双击关闭悬浮窗 =====
         rootLayout.setOnClickListener(v -> {
             // 点击逻辑移到 onTouch 的 ACTION_UP 中处理
@@ -392,7 +409,21 @@ public class MiniFloatService extends Service {
 
         // ===== 拖动 + 点击/双击 =====
         rootLayout.setOnTouchListener((v, event) -> {
-            switch (event.getAction()) {
+            int action = event.getAction() & MotionEvent.ACTION_MASK;
+
+            // 尺寸调节面板显示时，拦截所有触摸交给面板处理
+            if (sizeAdjustPanel != null && sizeAdjustPanel.getVisibility() == android.view.View.VISIBLE) {
+                return false; // 让面板自己处理
+            }
+
+            // 触摸点在封面上时，不拦截，让 coverWrap 的 onClick 触发
+            if (action == MotionEvent.ACTION_DOWN) {
+                if (isTouchOnCover(event)) {
+                    return false;
+                }
+            }
+
+            switch (action) {
                 case MotionEvent.ACTION_DOWN:
                     initialX = floatParams.x;
                     initialY = floatParams.y;
@@ -401,6 +432,7 @@ public class MiniFloatService extends Service {
                     isDragging = false;
                     return true;
                 case MotionEvent.ACTION_MOVE:
+                    // 单指拖动
                     float dx = event.getRawX() - initialTouchX;
                     float dy = event.getRawY() - initialTouchY;
                     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isDragging = true;
@@ -634,7 +666,7 @@ public class MiniFloatService extends Service {
         android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
         windowManager.getDefaultDisplay().getMetrics(screenMetrics);
         boolean isPortrait = screenMetrics.widthPixels < screenMetrics.heightPixels;
-        floatWidthPx = (int) (screenMetrics.widthPixels * (isPortrait ? 1.0f / 3 : 0.25));
+        floatWidthPx = (int) (screenMetrics.widthPixels * getSavedFloatSizeRatio());
         unit = floatWidthPx / 280.0f;
 
         floatView = buildFloatView();
@@ -757,6 +789,205 @@ public class MiniFloatService extends Service {
         String key = isCurrentPortrait() ? "portrait" : "landscape";
         SharedPreferences sp = getSharedPreferences("mini_float_pos", MODE_PRIVATE);
         return new int[]{sp.getInt("x_" + key, 16), sp.getInt("y_" + key, 100)};
+    }
+
+    // ========== 尺寸调节面板 ==========
+
+    /**
+     * 构建尺寸调节面板（覆盖在右侧信息区域上方）
+     */
+    private android.view.View buildSizeAdjustPanel(int textColor) {
+        // 半透明背景
+        FrameLayout panel = new FrameLayout(this);
+        GradientDrawable panelBg = new GradientDrawable();
+        panelBg.setColor(0xB3000000); // 70%不透明黑
+        panelBg.setCornerRadius((int)(10 * unit));
+        panel.setBackground(panelBg);
+        panel.setPadding((int)(10 * unit), (int)(10 * unit), (int)(10 * unit), (int)(10 * unit));
+
+        // 三个按钮水平均匀分布
+        LinearLayout btnRow = new LinearLayout(this);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+        btnRow.setGravity(Gravity.CENTER);
+        btnRow.setLayoutParams(new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        int btnSize = (int)(44 * unit); // 大按钮，方便触控
+        int btnSpacing = (int)(10 * unit); // 按钮间距，与左右边距相同
+
+        // + 按钮
+        TextView btnPlus = new TextView(this);
+        btnPlus.setText("+");
+        btnPlus.setTextColor(0xFF00FF88); // 青绿色LED
+        btnPlus.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 28 * unit);
+        btnPlus.setTypeface(null, android.graphics.Typeface.BOLD);
+        btnPlus.setGravity(Gravity.CENTER);
+        GradientDrawable plusBg = new GradientDrawable();
+        plusBg.setColor(0x33FFFFFF);
+        plusBg.setCornerRadius((int)(8 * unit));
+        btnPlus.setBackground(plusBg);
+        LinearLayout.LayoutParams plusParams = new LinearLayout.LayoutParams(0, btnSize, 1f);
+        plusParams.setMarginEnd(btnSpacing / 2);
+        btnPlus.setLayoutParams(plusParams);
+        btnPlus.setOnClickListener(v -> applyFloatScale(FLOAT_SIZE_STEP));
+
+        // - 按钮
+        TextView btnMinus = new TextView(this);
+        btnMinus.setText("−");
+        btnMinus.setTextColor(0xFF00FF88);
+        btnMinus.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 28 * unit);
+        btnMinus.setTypeface(null, android.graphics.Typeface.BOLD);
+        btnMinus.setGravity(Gravity.CENTER);
+        GradientDrawable minusBg = new GradientDrawable();
+        minusBg.setColor(0x33FFFFFF);
+        minusBg.setCornerRadius((int)(8 * unit));
+        btnMinus.setBackground(minusBg);
+        LinearLayout.LayoutParams minusParams = new LinearLayout.LayoutParams(0, btnSize, 1f);
+        minusParams.setMarginStart(btnSpacing / 2);
+        minusParams.setMarginEnd(btnSpacing / 2);
+        btnMinus.setLayoutParams(minusParams);
+        btnMinus.setOnClickListener(v -> applyFloatScale(-FLOAT_SIZE_STEP));
+
+        // 退出按钮（X图标）
+        TextView btnClose = new TextView(this);
+        btnClose.setText("✕");
+        btnClose.setTextColor(0xFF00FF88);
+        btnClose.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 22 * unit);
+        btnClose.setTypeface(null, android.graphics.Typeface.BOLD);
+        btnClose.setGravity(Gravity.CENTER);
+        GradientDrawable closeBg = new GradientDrawable();
+        closeBg.setColor(0x33FFFFFF);
+        closeBg.setCornerRadius((int)(8 * unit));
+        btnClose.setBackground(closeBg);
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(0, btnSize, 1f);
+        closeParams.setMarginStart(btnSpacing / 2);
+        btnClose.setLayoutParams(closeParams);
+        btnClose.setOnClickListener(v -> hideSizeAdjustPanel());
+
+        btnRow.addView(btnPlus);
+        btnRow.addView(btnMinus);
+        btnRow.addView(btnClose);
+        panel.addView(btnRow);
+
+        return panel;
+    }
+
+    /**
+     * 显示尺寸调节面板
+     * 面板定位：覆盖封面右侧信息区域，高度为悬浮窗80%，宽度为信息区域80%
+     */
+    private void showSizeAdjustPanel() {
+        if (sizeAdjustPanel == null || floatView == null) return;
+        isAdjustingSize = true;
+
+        floatView.post(() -> {
+            if (sizeAdjustPanel == null || floatView == null) return;
+            int floatHeight = floatView.getHeight();
+            int panelWidth = (int) (floatWidthPx * 0.8f);
+            int panelHeight = (int) (floatHeight * 0.8f);
+
+            FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(panelWidth, panelHeight);
+            panelParams.gravity = Gravity.CENTER;
+
+            sizeAdjustPanel.setLayoutParams(panelParams);
+            sizeAdjustPanel.setVisibility(android.view.View.VISIBLE);
+        });
+    }
+
+    /**
+     * 隐藏尺寸调节面板（保存尺寸并关闭）
+     */
+    private void hideSizeAdjustPanel() {
+        isAdjustingSize = false;
+        if (sizeAdjustPanel != null) {
+            sizeAdjustPanel.setVisibility(android.view.View.GONE);
+        }
+    }
+
+    /**
+     * 点击缩放悬浮窗（步进5%），立即重建视图
+     */
+    private void applyFloatScale(float deltaRatio) {
+        android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
+        windowManager.getDefaultDisplay().getMetrics(screenMetrics);
+        int screenWidth = screenMetrics.widthPixels;
+        int minWidth = (int) (screenWidth * FLOAT_SIZE_MIN);
+        int maxWidth = (int) (screenWidth * FLOAT_SIZE_MAX);
+        int step = (int) (screenWidth * FLOAT_SIZE_STEP);
+
+        int newWidth = floatWidthPx + (deltaRatio > 0 ? step : -step);
+        newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+        if (newWidth == floatWidthPx) return; // 已到边界，无需重建
+
+        floatWidthPx = newWidth;
+        unit = floatWidthPx / 280.0f;
+
+        // 每次缩放都保存，buildFloatView 会读取新值
+        saveFloatSize();
+        rebuildFloatViewWithSize();
+    }
+
+    /**
+     * 保存悬浮窗尺寸比例（按方向分别存储）
+     */
+    private void saveFloatSize() {
+        android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
+        windowManager.getDefaultDisplay().getMetrics(screenMetrics);
+        float ratio = (float) floatWidthPx / screenMetrics.widthPixels;
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .edit()
+                .putFloat("size_" + key, ratio)
+                .apply();
+    }
+
+    /**
+     * 读取悬浮窗尺寸比例（按方向），未缩放时返回默认值
+     */
+    private float getSavedFloatSizeRatio() {
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        SharedPreferences sp = getSharedPreferences("mini_float_pos", MODE_PRIVATE);
+        float defaultRatio = isCurrentPortrait() ? 0.40f : 0.30f;
+        return sp.getFloat("size_" + key, defaultRatio);
+    }
+
+    /**
+     * 用当前 floatWidthPx 重建悬浮窗
+     */
+    private void rebuildFloatViewWithSize() {
+        if (floatView != null && floatView.isAttachedToWindow()) {
+            try { windowManager.removeView(floatView); } catch (Exception ignored) {}
+        }
+        floatView = buildFloatView(); // getSavedFloatSizeRatio 会读到刚保存的新值
+        floatParams.width = floatWidthPx;
+        int[] pos = getSavedFloatPosition();
+        floatParams.x = pos[0];
+        floatParams.y = pos[1];
+        try {
+            windowManager.addView(floatView, floatParams);
+        } catch (Exception e) {
+            Log.e(TAG, "重建悬浮窗失败: " + e.getMessage());
+        }
+        loadCurrentSongInfo();
+
+        // 调节模式下重建后自动恢复面板
+        if (isAdjustingSize) {
+            showSizeAdjustPanel();
+        }
+    }
+
+    /**
+     * 判断触摸点是否落在封面区域
+     */
+    private boolean isTouchOnCover(MotionEvent event) {
+        if (coverImage == null) return false;
+        int[] location = new int[2];
+        coverImage.getLocationOnScreen(location);
+        float x = event.getRawX();
+        float y = event.getRawY();
+        return x >= location[0] && x <= location[0] + coverImage.getWidth()
+                && y >= location[1] && y <= location[1] + coverImage.getHeight();
     }
 
     /**

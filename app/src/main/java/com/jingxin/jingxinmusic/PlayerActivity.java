@@ -749,14 +749,14 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void startSpectrumWithPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                startSpectrum();
-            } else {
-                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 100);
-            }
-        } else {
+        // 使用 ContextCompat/ActivityCompat 避免直接调用 API 23+ 方法导致低版本 ART VerifyError
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startSpectrum();
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                androidx.core.app.ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 100);
+            }
+            // API < 23 安装时即授权，不会走此分支
         }
     }
 
