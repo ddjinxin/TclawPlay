@@ -690,6 +690,13 @@ public class MusicPlayerService extends Service {
      */
     private void startBiliPlayback(Song song, int position) {
         try {
+            // 释放MediaPlayer兜底播放器，避免两个播放器同时出声
+            releaseFallbackPlayer();
+            isFallbackMode = false;
+
+            // 停掉ExoPlayer当前播放，确保干净切换
+            exoPlayer.stop();
+
             BiliConfig config = new BiliConfig(this);
 
             // 构建带B站认证头的OkHttpDataSource，创建MediaSource

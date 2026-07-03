@@ -100,6 +100,7 @@ public class PlayerActivity extends AppCompatActivity {
     private ImageView btnNext;
     private ImageView btnHistory;
     private ImageView btnFavorite;
+    private ImageView btnDownload;
     private ImageView btnPlayOrder;
     private ImageView btnTheme;
     private ImageView btnBack;
@@ -181,6 +182,7 @@ public class PlayerActivity extends AppCompatActivity {
                 loadCover();
                 fetchLyrics();
                 checkFavoriteStatus();
+                updateDownloadButtonVisibility();
                 saveLastPlayed();
                 // 轮播模式切歌时滚动到新位置
                 syncCarouselPosition();
@@ -378,6 +380,7 @@ public class PlayerActivity extends AppCompatActivity {
         btnNext = findViewById(R.id.next_button);
         btnHistory = findViewById(R.id.history_button);
         btnFavorite = findViewById(R.id.mode_button);  // 复用 mode_button 位置
+        btnDownload = findViewById(R.id.download_button);
         btnPlayOrder = findViewById(R.id.play_order_button);
         btnTheme = findViewById(R.id.theme_button);
         btnBack = findViewById(R.id.back_button);
@@ -504,6 +507,7 @@ public class PlayerActivity extends AppCompatActivity {
         tvSongName.setText(song.title);
         tvArtist.setText(song.artist);
         tvTotalTime.setText(Song.formatDuration(song.duration));
+        updateDownloadButtonVisibility();
 
         // 进度条
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -534,6 +538,7 @@ public class PlayerActivity extends AppCompatActivity {
         btnNext.setOnClickListener(v -> playNext());
         btnHistory.setOnClickListener(v -> showHistoryDialog());
         btnFavorite.setOnClickListener(v -> toggleFavorite());
+        btnDownload.setOnClickListener(v -> saveBiliOffline());
         btnPlayOrder.setOnClickListener(v -> togglePlayOrder());
 
         // 歌词区域：单击切换模式
@@ -715,6 +720,7 @@ public class PlayerActivity extends AppCompatActivity {
                 loadCover();
                 fetchLyrics();
                 checkFavoriteStatus();
+                updateDownloadButtonVisibility();
                 saveLastPlayed();
                 if (currentScene.shouldRotateCover()) {
                     coverView.startRotation();
@@ -848,6 +854,86 @@ public class PlayerActivity extends AppCompatActivity {
         isFavorite = FavoriteManager.isFavorite(favDir, song.title, song.artist);
         btnFavorite.setImageResource(isFavorite ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
         applyButtonTheme(isNightMode);
+    }
+
+    /**
+     * 保存B站歌曲到本地（离线保存）
+     */
+    private void saveBiliOffline() {
+        if (song == null) return;
+
+        // 只对B站音源显示下载按钮，点击时校验
+        if (song.sourceType != Song.SOURCE_BILI &&
+                !(song.filePath != null && song.filePath.startsWith("bili://"))) {
+            android.widget.Toast.makeText(this, "仅支持B站音源离线保存",
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 检查是否已保存
+        if (com.jingxin.jingxinmusic.util.BiliOfflineSaver.isSaved(this, song)) {
+            android.widget.Toast.makeText(this, "已保存过，无需重复保存",
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 禁用按钮防止重复点击
+        btnDownload.setEnabled(false);
+        btnDownload.setAlpha(0.5f);
+        android.widget.Toast.makeText(this, "开始离线保存...",
+                android.widget.Toast.LENGTH_SHORT).show();
+
+        com.jingxin.jingxinmusic.util.BiliOfflineSaver.saveAsync(this, song,
+                new com.jingxin.jingxinmusic.util.BiliOfflineSaver.SaveCallback() {
+                    @Override
+                    public void onSuccess(java.io.File m4aFile) {
+                        runOnUiThread(() -> {
+                            btnDownload.setEnabled(true);
+                            btnDownload.setAlpha(1f);
+                            android.widget.Toast.makeText(PlayerActivity.this,
+                                    "已保存到 Download/music/",
+                                    android.widget.Toast.LENGTH_SHORT).show();
+                        });
+                    }
+
+                    @Override
+                    public void onSkipped(String reason) {
+                        runOnUiThread(() -> {
+                            btnDownload.setEnabled(true);
+                            btnDownload.setAlpha(1f);
+                            android.widget.Toast.makeText(PlayerActivity.this,
+                                    reason, android.widget.Toast.LENGTH_SHORT).show();
+                        });
+                    }
+
+                    @Override
+                    public void onFailed(String error) {
+                        runOnUiThread(() -> {
+                            btnDownload.setEnabled(true);
+                            btnDownload.setAlpha(1f);
+                            android.widget.Toast.makeText(PlayerActivity.this,
+                                    "保存失败: " + error,
+                                    android.widget.Toast.LENGTH_SHORT).show();
+                        });
+                    }
+
+                    @Override
+                    public void onProgress(int percent) {
+                        // 暂不显示进度
+                    }
+                });
+    }
+
+    /**
+     * 更新下载按钮可见性：仅B站音源显示
+     */
+    private void updateDownloadButtonVisibility() {
+        if (btnDownload == null) return;
+        if (song != null && song.sourceType == Song.SOURCE_BILI) {
+            btnDownload.setVisibility(View.VISIBLE);
+        } else {
+            btnDownload.setVisibility(View.GONE);
+        }
     }
 
     /**
@@ -1668,7 +1754,7 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void applyButtonTheme(boolean isNight) {
         ImageView[] buttons = {btnPlayPause, btnPrevious, btnNext,
-                btnHistory, btnPlayOrder, btnTheme, btnBack, btnSpectrum, btnOutfit};
+                btnHistory, btnPlayOrder, btnTheme, btnBack, btnSpectrum, btnOutfit, btnDownload};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
             // 收藏按钮：已收藏用红色，未收藏清除滤镜
