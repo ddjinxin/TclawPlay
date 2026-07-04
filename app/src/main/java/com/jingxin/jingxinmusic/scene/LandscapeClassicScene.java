@@ -6,8 +6,6 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-import com.jingxin.jingxinmusic.R;
-
 /**
  * 横屏经典模式
  * - 布局：左65%信息区 + 右35%封面区
@@ -52,9 +50,7 @@ public class LandscapeClassicScene implements CoverScene {
      * 设置封面裁剪样式，子类可覆盖（唱片机模式不裁剪）
      */
     protected void setupCoverStyle() {
-        h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        h.coverView.setForeground(null);
+        h.applyCircleCoverStyle();
     }
 
     @Override
@@ -94,10 +90,7 @@ public class LandscapeClassicScene implements CoverScene {
         // 经典模式无唱臂
     }
 
-    @Override
-    public void exit() {
-        // 横屏经典切走时，恢复竖屏经典相关设置
-    }
+
 
     @Override
     public void setCover(Bitmap bitmap) {
@@ -143,33 +136,13 @@ public class LandscapeClassicScene implements CoverScene {
         }
     }
 
-    @Override
-    public void onServiceResumed(boolean isPlaying) {
-        // 经典横屏无特殊恢复逻辑
-    }
 
-    @Override
-    public boolean shouldShowSpectrumButton(int spectrumStyle) {
-        return true;
-    }
 
-    @Override
-    public boolean shouldRotateCover() {
-        return true;
-    }
 
-    @Override
-    public boolean needsReloadCover() {
-        return false;
-    }
 
-    @Override
-    public void onStyleEnter() {
-        // 经典模式无额外初始化
-    }
 
-    @Override
-    public void onStyleExit() {
-        // 经典模式无额外清理
-    }
+
+
+
+
 }

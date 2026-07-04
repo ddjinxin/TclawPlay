@@ -1,14 +1,9 @@
 package com.jingxin.jingxinmusic.scene;
 
-import android.graphics.Bitmap;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-
-import com.jingxin.jingxinmusic.R;
-import com.jingxin.jingxinmusic.view.CoverCarouselAdapter;
-import com.jingxin.jingxinmusic.view.CoverCarouselView;
 
 /**
  * 竖屏多封面轮播模式
@@ -17,12 +12,10 @@ import com.jingxin.jingxinmusic.view.CoverCarouselView;
  * - 歌词：仅双行/多行，无全屏模式
  * - 频谱：仅底部柱状/波浪，禁用圆形频谱
  */
-public class PortraitCarouselScene implements CoverScene {
-
-    private final CoverSceneHelper h;
+public class PortraitCarouselScene extends AbstractCarouselScene {
 
     public PortraitCarouselScene(CoverSceneHelper helper) {
-        this.h = helper;
+        super(helper);
     }
 
     @Override
@@ -68,16 +61,8 @@ public class PortraitCarouselScene implements CoverScene {
         // 顶部/底部按钮间距
         h.applyButtonMargins(height, width, false);
         // info_panel 全宽（轮播模式横竖屏统一）
-        FrameLayout.LayoutParams infoParams =
-                (FrameLayout.LayoutParams) h.infoPanel.getLayoutParams();
-        infoParams.width = FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.height = FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.gravity = Gravity.START;
-        h.infoPanel.setLayoutParams(infoParams);
-        if (h.infoPanel instanceof LinearLayout) {
-            ((LinearLayout) h.infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
-        }
-        // 歌名 topMargin = 16dp
+        h.setLayoutInfoPanelFullWidth();
+        // 歌名 topMargin = 26dp
         LinearLayout.LayoutParams nameParams =
                 (LinearLayout.LayoutParams) h.tvSongName.getLayoutParams();
         nameParams.topMargin = (int) (h.density * 26);
@@ -124,22 +109,6 @@ public class PortraitCarouselScene implements CoverScene {
     }
 
     @Override
-    public void exit() {
-        // 隐藏轮播封面
-        if (h.carouselView != null) {
-            h.carouselView.stopSwayAnimation();
-            h.carouselView.setVisibility(View.GONE);
-        }
-        // 恢复裁剪（其他模式不需要溢出）
-        h.rootLayout.setClipChildren(true);
-    }
-
-    @Override
-    public void setCover(Bitmap bitmap) {
-        h.applyBlurBackground(bitmap);
-    }
-
-    @Override
     public void onLyricModeChanged(boolean isFullScreen) {
         // 轮播竖屏：不支持全屏歌词，只在双行和多行之间切换
         h.tvSongName.setVisibility(View.VISIBLE);
@@ -156,64 +125,7 @@ public class PortraitCarouselScene implements CoverScene {
     }
 
     @Override
-    public float getInfoPanelWidthRatio() {
-        return 1.0f;
-    }
-
-    @Override
-    public int getSongNameTopMarginDp() {
-        return 16;
-    }
-
-    @Override
     public float getSpectrumHeightRatio() {
         return 0.10f;
-    }
-
-    @Override
-    public void onPlayingStateChanged(boolean isPlaying) {
-        // 轮播模式：无封面旋转、无唱臂
-    }
-
-    @Override
-    public void onServiceResumed(boolean isPlaying) {
-        // 轮播模式无特殊恢复逻辑
-    }
-
-    @Override
-    public boolean shouldShowSpectrumButton(int spectrumStyle) {
-        // 禁用所有圆形频谱
-        return !com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(spectrumStyle);
-    }
-
-    @Override
-    public boolean shouldRotateCover() {
-        return false;
-    }
-
-    @Override
-    public boolean needsReloadCover() {
-        return true;
-    }
-
-    @Override
-    public void onStyleEnter() {
-        // 确保 carouselView 已创建并添加到 rootLayout
-        h.ensureCarouselView();
-        h.carouselView.setVisibility(View.VISIBLE);
-        // 如果当前是圆形频谱，切换到非圆形
-        if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
-            while (h.spectrumView.isCoverOverlayMode()) {
-                h.spectrumView.switchStyle();
-            }
-        }
-    }
-
-    @Override
-    public void onStyleExit() {
-        if (h.carouselView != null) {
-            h.carouselView.stopSwayAnimation();
-            h.carouselView.setVisibility(View.GONE);
-        }
     }
 }

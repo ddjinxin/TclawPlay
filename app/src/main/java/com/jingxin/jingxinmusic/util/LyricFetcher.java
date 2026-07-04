@@ -229,14 +229,11 @@ public class LyricFetcher {
     // ========== 文件名工具 ==========
 
     private static String buildFileName(String title, String artist) {
-        return sanitize(title);
+        return FileUtil.sanitizeFileName(title);
     }
 
     private static String sanitize(String name) {
-        // 去掉文件名不允许的字符
-        return name.replaceAll("[\\\\/:*?\"<>|]", "_")
-                  .replaceAll("\\s+", " ")
-                  .trim();
+        return FileUtil.sanitizeFileName(name);
     }
 
     /**

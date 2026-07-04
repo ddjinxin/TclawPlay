@@ -336,6 +336,30 @@ public class CoverSceneHelper {
         });
     }
 
+    /**
+     * 设置 infoPanel 全宽布局（轮播/竖屏模式统一调用）
+     */
+    public void setLayoutInfoPanelFullWidth() {
+        FrameLayout.LayoutParams infoParams =
+                (FrameLayout.LayoutParams) infoPanel.getLayoutParams();
+        infoParams.width = FrameLayout.LayoutParams.MATCH_PARENT;
+        infoParams.height = FrameLayout.LayoutParams.MATCH_PARENT;
+        infoParams.gravity = Gravity.START;
+        infoPanel.setLayoutParams(infoParams);
+        if (infoPanel instanceof LinearLayout) {
+            ((LinearLayout) infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
+        }
+    }
+
+    /**
+     * 设置封面为圆形裁剪样式（经典/沉浸恢复时统一调用）
+     */
+    public void applyCircleCoverStyle() {
+        coverView.setClipToOutline(true);
+        coverView.setBackgroundResource(R.drawable.circle_cover_background);
+        coverView.setForeground(null);
+    }
+
     // ========== 圆环频谱位置切换 ==========
 
     /**
@@ -497,12 +521,80 @@ public class CoverSceneHelper {
                     blurBackground.setImageBitmap(blurred);
                     blurBackground.setAlpha(0.5f);
                     blurBackground.setVisibility(View.VISIBLE);
-                    if (!isNightMode) {
-                        whiteOverlay.setVisibility(View.VISIBLE);
-                        whiteOverlay.setAlpha(0.4f);
-                    }
-                });
-            }
-        });
+                     if (!isNightMode) {
+                         whiteOverlay.setVisibility(View.VISIBLE);
+                         whiteOverlay.setAlpha(0.4f);
+                     }
+                 });
+             }
+         });
+     }
+
+    // ========== 唱片机模式辅助方法 ==========
+
+    /** 唱片机模式：设置封面样式（不裁剪，无圆形边框） */
+    public void recordSetupCoverStyle() {
+        coverView.setClipToOutline(false);
+        coverView.setBackground(null);
+        coverView.setForeground(null);
+    }
+
+    /** 唱片机模式：布局唱臂 */
+    public void recordLayoutTonearm() {
+        if (tonearmView != null) {
+            tonearmView.setLandscapeMode(isLandscapeMode);
+            callback.updateTonearmPosition();
+            tonearmView.refreshAngle();
+        }
+    }
+
+    /** 唱片机模式：退出时隐藏唱臂 */
+    public void recordExit() {
+        if (tonearmView != null) {
+            tonearmView.setVisibility(View.GONE);
+        }
+    }
+
+    /** 唱片机模式：播放状态变更（唱臂动画 + 封面旋转） */
+    public void recordOnPlayingStateChanged(boolean isPlaying) {
+        if (tonearmView != null) {
+            tonearmView.setPlaying(isPlaying);
+        }
+        if (isPlaying) {
+            coverView.startRotation();
+        } else {
+            coverView.stopRotation();
+        }
+    }
+
+    /** 唱片机模式：从 mini 播放条恢复时同步唱臂状态 */
+    public void recordOnServiceResumed(boolean isPlaying) {
+        if (tonearmView != null) {
+            tonearmView.setLandscapeMode(isLandscapeMode);
+            tonearmView.setPlaying(isPlaying);
+            tonearmView.refreshAngle();
+            callback.updateTonearmPosition();
+        }
+    }
+
+    /** 唱片机模式：进入时初始化黑胶 + 唱臂 */
+    public void recordOnStyleEnter() {
+        coverView.setVinylMode(true);
+        if (tonearmView != null) {
+            tonearmView.setVisibility(View.VISIBLE);
+            tonearmView.setLandscapeMode(isLandscapeMode);
+            tonearmView.setNightMode(isNightMode);
+            tonearmView.setPlaying(isPlaying);
+            tonearmView.refreshAngle();
+            callback.updateTonearmPosition();
+        }
+    }
+
+    /** 唱片机模式：退出时关闭黑胶 + 隐藏唱臂 */
+    public void recordOnStyleExit() {
+        coverView.setVinylMode(false);
+        if (tonearmView != null) {
+            tonearmView.setVisibility(View.GONE);
+        }
     }
 }

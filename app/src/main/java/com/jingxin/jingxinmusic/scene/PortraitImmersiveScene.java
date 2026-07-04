@@ -6,8 +6,6 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-import com.jingxin.jingxinmusic.R;
-
 /**
  * 竖屏沉浸模式
  * - 封面：原图铺背景（blurBackground 用 CENTER_CROP），旋转封面隐藏
@@ -41,9 +39,7 @@ public class PortraitImmersiveScene implements CoverScene {
         h.blurBackground.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
         // 旋转封面隐藏
         h.coverView.setVisibility(View.GONE);
-        h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        h.coverView.setForeground(null);
+        h.applyCircleCoverStyle();
         // 夜间暗层
         h.immersiveDarkOverlay.setVisibility(h.isNightMode ? View.VISIBLE : View.GONE);
         // 恢复层级（immersiveOverlay 在 blurBackground 之上）
@@ -65,15 +61,7 @@ public class PortraitImmersiveScene implements CoverScene {
         // 顶部/底部按钮间距按可用高度比例
         h.applyButtonMargins(height, width, false);
         // info_panel 全宽
-        FrameLayout.LayoutParams infoParams =
-                (FrameLayout.LayoutParams) h.infoPanel.getLayoutParams();
-        infoParams.width = FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.height = FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.gravity = Gravity.START;
-        h.infoPanel.setLayoutParams(infoParams);
-        if (h.infoPanel instanceof LinearLayout) {
-            ((LinearLayout) h.infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
-        }
+        h.setLayoutInfoPanelFullWidth();
         // immersiveOverlay 同步
         h.immersiveOverlay.setLandscapeMode(false);
         // 歌名歌手位置
@@ -104,9 +92,7 @@ public class PortraitImmersiveScene implements CoverScene {
         h.blurBackground.setVisibility(View.GONE);
         h.coverView.setVisibility(View.VISIBLE);
         // 恢复圆形裁剪
-        h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        h.coverView.setForeground(null);
+        h.applyCircleCoverStyle();
         // 恢复封面层级
         h.moveCoverAboveInfoPanel();
         // 恢复歌词 margin
@@ -175,38 +161,17 @@ public class PortraitImmersiveScene implements CoverScene {
     }
 
     @Override
-    public void onPlayingStateChanged(boolean isPlaying) {
-        // 竖屏沉浸：封面不可见，无需旋转控制
-    }
-
-    @Override
-    public void onServiceResumed(boolean isPlaying) {
-        // 沉浸竖屏无特殊恢复逻辑
-    }
-
-    @Override
     public boolean shouldShowSpectrumButton(int spectrumStyle) {
         // 沉浸模式下圆环/扩散圆环/波浪圆环不可用
         return !com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(spectrumStyle);
     }
 
-    @Override
-    public boolean shouldRotateCover() {
-        return true; // 竖屏沉浸封面隐藏，此值不影响
-    }
+
 
     @Override
     public boolean needsReloadCover() {
         return true;
     }
 
-    @Override
-    public void onStyleEnter() {
-        // 沉浸模式无额外初始化（enter()已处理全部逻辑）
-    }
 
-    @Override
-    public void onStyleExit() {
-        // 沉浸模式无额外清理（exit()已处理全部逻辑）
-    }
 }

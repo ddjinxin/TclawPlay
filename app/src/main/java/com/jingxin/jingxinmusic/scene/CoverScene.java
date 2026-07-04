@@ -26,7 +26,9 @@ public interface CoverScene {
      * 退出该模式：恢复 View 到默认状态（经典竖屏）
      * 由切走该模式时调用
      */
-    void exit();
+    default void exit() {
+        // 默认无额外退出逻辑
+    }
 
     /**
      * 设置封面图片
@@ -66,41 +68,55 @@ public interface CoverScene {
      * 唱片机：唱臂动画 + 封面旋转
      * @param isPlaying 当前是否正在播放
      */
-    void onPlayingStateChanged(boolean isPlaying);
+    default void onPlayingStateChanged(boolean isPlaying) {
+        // 默认无特殊处理
+    }
 
     /**
      * 从 mini 播放条恢复时的特殊处理
      * 唱片机需要同步唱臂状态和位置
      * @param isPlaying 当前是否正在播放
      */
-    void onServiceResumed(boolean isPlaying);
+    default void onServiceResumed(boolean isPlaying) {
+        // 默认无特殊恢复逻辑
+    }
 
     /**
      * 是否显示频谱切换按钮（沉浸模式下圆环类不可用）
      */
-    boolean shouldShowSpectrumButton(int spectrumStyle);
+    default boolean shouldShowSpectrumButton(int spectrumStyle) {
+        return true;
+    }
 
     /**
      * 是否旋转封面
      * 沉浸横屏=false，其他=true
      */
-    boolean shouldRotateCover();
+    default boolean shouldRotateCover() {
+        return true;
+    }
 
     /**
      * 切换到该模式时是否需要重新加载封面
      * 沉浸/唱片机=true，经典=false
      */
-    boolean needsReloadCover();
+    default boolean needsReloadCover() {
+        return false;
+    }
 
     /**
      * 进入该模式时的额外初始化（风格特有逻辑）
      * 在 enter() 之后调用
      */
-    void onStyleEnter();
+    default void onStyleEnter() {
+        // 默认无额外初始化
+    }
 
     /**
      * 退出该模式时的额外清理（风格特有逻辑）
      * 在 exit() 之前调用
      */
-    void onStyleExit();
+    default void onStyleExit() {
+        // 默认无额外清理
+    }
 }

@@ -65,4 +65,17 @@ public class FileUtil {
             Log.e(TAG, "写文件失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 清理文件名中的非法字符
+     * 替换 / \ : * ? " < > | 为 _，合并连续空格，去除首尾空白
+     * @param name 原始文件名
+     * @return 安全的文件名，null/空返回 "unknown"
+     */
+    public static String sanitizeFileName(String name) {
+        if (name == null || name.isEmpty()) return "unknown";
+        return name.replaceAll("[/\\\\:*?\"<>|]", "_")
+                   .replaceAll("\\s+", " ")
+                   .trim();
+    }
 }

@@ -6,8 +6,6 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-import com.jingxin.jingxinmusic.R;
-
 /**
  * 横屏沉浸模式
  * - 布局：左65%信息区 + 右35%封面区
@@ -101,9 +99,7 @@ public class LandscapeImmersiveScene implements CoverScene {
             h.rootLayout.removeView(h.landscapeGradientOverlay);
         }
         // 恢复封面为圆形裁剪
-        h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        h.coverView.setForeground(null);
+        h.applyCircleCoverStyle();
         // 恢复封面层级
         h.moveCoverAboveInfoPanel();
         // 恢复歌词 margin
@@ -161,15 +157,7 @@ public class LandscapeImmersiveScene implements CoverScene {
         return 0.10f;
     }
 
-    @Override
-    public void onPlayingStateChanged(boolean isPlaying) {
-        // 横屏沉浸：封面不旋转
-    }
 
-    @Override
-    public void onServiceResumed(boolean isPlaying) {
-        // 沉浸横屏无特殊恢复逻辑
-    }
 
     @Override
     public boolean shouldShowSpectrumButton(int spectrumStyle) {
@@ -187,15 +175,7 @@ public class LandscapeImmersiveScene implements CoverScene {
         return true;
     }
 
-    @Override
-    public void onStyleEnter() {
-        // 沉浸模式无额外初始化
-    }
 
-    @Override
-    public void onStyleExit() {
-        // 沉浸模式无额外清理
-    }
 
     /**
      * 横屏沉浸模式下设置封面：矩形铺满右侧，不旋转，带边缘渐变

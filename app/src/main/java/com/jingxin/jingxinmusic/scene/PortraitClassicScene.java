@@ -6,8 +6,6 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-import com.jingxin.jingxinmusic.R;
-
 /**
  * 竖屏经典模式
  * - 封面：顶部居中圆形旋转封面
@@ -63,9 +61,7 @@ public class PortraitClassicScene implements CoverScene {
      * 设置封面裁剪样式，子类可覆盖（唱片机模式不裁剪）
      */
     protected void setupCoverStyle() {
-        h.coverView.setClipToOutline(true);
-        h.coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        h.coverView.setForeground(null);
+        h.applyCircleCoverStyle();
     }
 
     @Override
@@ -73,15 +69,7 @@ public class PortraitClassicScene implements CoverScene {
         // 顶部/底部按钮间距按可用高度比例
         h.applyButtonMargins(height, width, false);
         // info_panel 全宽
-        FrameLayout.LayoutParams infoParams =
-                (FrameLayout.LayoutParams) h.infoPanel.getLayoutParams();
-        infoParams.width = FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.height = FrameLayout.LayoutParams.MATCH_PARENT;
-        infoParams.gravity = Gravity.START;
-        h.infoPanel.setLayoutParams(infoParams);
-        if (h.infoPanel instanceof LinearLayout) {
-            ((LinearLayout) h.infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
-        }
+        h.setLayoutInfoPanelFullWidth();
         // 歌名 topMargin = 16dp
         LinearLayout.LayoutParams nameParams =
                 (LinearLayout.LayoutParams) h.tvSongName.getLayoutParams();
@@ -125,10 +113,7 @@ public class PortraitClassicScene implements CoverScene {
         // 经典模式无唱臂
     }
 
-    @Override
-    public void exit() {
-        // 经典模式无额外退出逻辑
-    }
+
 
     @Override
     public void setCover(Bitmap bitmap) {
@@ -182,33 +167,13 @@ public class PortraitClassicScene implements CoverScene {
         }
     }
 
-    @Override
-    public void onServiceResumed(boolean isPlaying) {
-        // 经典竖屏无特殊恢复逻辑
-    }
 
-    @Override
-    public boolean shouldShowSpectrumButton(int spectrumStyle) {
-        return true;
-    }
 
-    @Override
-    public boolean shouldRotateCover() {
-        return true;
-    }
 
-    @Override
-    public boolean needsReloadCover() {
-        return false;
-    }
 
-    @Override
-    public void onStyleEnter() {
-        // 经典模式无额外初始化
-    }
 
-    @Override
-    public void onStyleExit() {
-        // 经典模式无额外清理
-    }
+
+
+
+
 }

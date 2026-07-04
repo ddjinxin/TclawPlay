@@ -289,7 +289,7 @@ public class BiliOfflineSaver {
                                 }
                             } else {
                                 // 纯LRC文件，直接读取
-                                return readFileText(lrcFile);
+                                return FileUtil.readFileWithNewlines(lrcFile);
                             }
                         }
                     }
@@ -314,44 +314,7 @@ public class BiliOfflineSaver {
      * 清理文件名中的非法字符
      */
     private static String sanitizeFileName(String name) {
-        if (name == null || name.isEmpty()) return "unknown";
-        // 替换文件系统非法字符
-        return name.replaceAll("[/\\\\:*?\"<>|]", "_").trim();
-    }
-
-    /**
-     * 读取文本文件
-     */
-    private static String readFileText(File file) {
-        try {
-            java.io.BufferedReader reader = new java.io.BufferedReader(
-                    new java.io.FileReader(file));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
-            reader.close();
-            return sb.toString();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * 复制文件
-     */
-    private static void copyFile(File src, File dst) throws Exception {
-        java.io.FileInputStream fis = new java.io.FileInputStream(src);
-        java.io.FileOutputStream fos = new java.io.FileOutputStream(dst);
-        byte[] buffer = new byte[64 * 1024];
-        int bytesRead;
-        while ((bytesRead = fis.read(buffer)) != -1) {
-            fos.write(buffer, 0, bytesRead);
-        }
-        fos.flush();
-        fos.close();
-        fis.close();
+        return FileUtil.sanitizeFileName(name);
     }
 
     /**

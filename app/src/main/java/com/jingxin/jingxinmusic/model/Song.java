@@ -82,8 +82,7 @@ public class Song {
         if (artist != null && !artist.isEmpty() && !"<unknown>".equals(artist)) {
             name = title + " - " + artist;
         }
-        // 去掉文件名不允许的字符: / \ : * ? " < > |
-        return name.replaceAll("[/\\\\:*?\"<>|]", "_");
+        return com.jingxin.jingxinmusic.util.FileUtil.sanitizeFileName(name);
     }
 
     /**
