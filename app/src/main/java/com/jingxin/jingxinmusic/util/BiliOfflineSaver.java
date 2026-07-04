@@ -111,45 +111,58 @@ public class BiliOfflineSaver {
             }
             Log.d(TAG, "音频已保存: " + m4aFile.getAbsolutePath());
 
-            // 7. 保存封面 → jpg（从应用缓存复制，即播放时获取的封面）
+            // 7. 读取封面字节（从应用缓存，不另存jpg）
             if (callback != null) callback.onProgress(85);
-            File jpgFile = new File(saveDir, baseName + ".jpg");
-            if (!jpgFile.exists()) {
-                File coverDir = context.getExternalFilesDir("covers");
-                if (coverDir != null && coverDir.isDirectory()) {
-                    String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(song.title, song.artist) + ".jpg";
-                    File cachedCover = new File(coverDir, coverName);
-                    if (cachedCover.exists() && cachedCover.length() > 0) {
-                        try {
-                            copyFile(cachedCover, jpgFile);
-                            Log.d(TAG, "封面已保存(缓存): " + jpgFile.getAbsolutePath());
-                        } catch (Exception e) {
-                            Log.w(TAG, "复制封面失败: " + e.getMessage());
-                        }
-                    } else {
-                        Log.d(TAG, "缓存封面不存在，跳过: " + coverName);
-                    }
-                }
-            }
-
-            // 8. 保存歌词 → lrc
-            if (callback != null) callback.onProgress(95);
-            File lrcFile = new File(saveDir, baseName + ".lrc");
-            if (!lrcFile.exists()) {
-                String lrcContent = buildLrcContent(context, song);
-                if (lrcContent != null && !lrcContent.isEmpty()) {
+            byte[] coverJpg = null;
+            File coverDir = context.getExternalFilesDir("covers");
+            if (coverDir != null && coverDir.isDirectory()) {
+                String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(song.title, song.artist) + ".jpg";
+                File cachedCover = new File(coverDir, coverName);
+                if (cachedCover.exists() && cachedCover.length() > 0) {
                     try {
-                        FileOutputStream fos = new FileOutputStream(lrcFile);
-                        fos.write(lrcContent.getBytes("UTF-8"));
-                        fos.close();
-                        Log.d(TAG, "歌词已保存: " + lrcFile.getAbsolutePath());
+                        java.io.FileInputStream fis = new java.io.FileInputStream(cachedCover);
+                        coverJpg = new byte[(int) cachedCover.length()];
+                        fis.read(coverJpg);
+                        fis.close();
+                        Log.d(TAG, "读取缓存封面: " + coverName);
                     } catch (Exception e) {
-                        Log.w(TAG, "保存歌词失败: " + e.getMessage());
+                        Log.w(TAG, "读取封面字节失败: " + e.getMessage());
                     }
                 }
             }
 
-            // 9. 触发媒体扫描
+            // 8. 获取歌词内容（不另存lrc）
+            if (callback != null) callback.onProgress(90);
+            String lrcContent = buildLrcContent(context, song);
+
+            // 9. 将封面和歌词内嵌到 m4a 文件
+            if (coverJpg != null || (lrcContent != null && !lrcContent.isEmpty())) {
+                boolean embedded = M4aMetadataWriter.embedMetadata(m4aFile, coverJpg, lrcContent);
+                if (embedded) {
+                    Log.d(TAG, "封面和歌词已内嵌到m4a");
+                } else {
+                    // 内嵌失败，保留外部文件作为兜底
+                    Log.w(TAG, "内嵌元数据失败，回退保存外部文件");
+                    if (coverJpg != null) {
+                        try {
+                            File jpgFile = new File(saveDir, baseName + ".jpg");
+                            FileOutputStream fos = new FileOutputStream(jpgFile);
+                            fos.write(coverJpg);
+                            fos.close();
+                        } catch (Exception ignored) {}
+                    }
+                    if (lrcContent != null && !lrcContent.isEmpty()) {
+                        try {
+                            File lrcFile = new File(saveDir, baseName + ".lrc");
+                            FileOutputStream fos = new FileOutputStream(lrcFile);
+                            fos.write(lrcContent.getBytes("UTF-8"));
+                            fos.close();
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+
+            // 10. 触发媒体扫描
             if (callback != null) callback.onProgress(100);
             triggerMediaScan(context, m4aFile);
 

@@ -680,6 +680,22 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void playSong() {
         if (bound && playerBinder != null && song != null) {
+            // 确保 position 与实际 playlist 匹配（position 可能来自 allSongs 索引，
+            // 但 setPlaylist 设置的播放列表可能更小，如 folder/收藏模式）
+            List<Song> playlist = playerBinder.getPlaylist();
+            if (playlist != null && position >= playlist.size()) {
+                // 在新播放列表中查找当前歌曲的实际位置
+                int realPos = -1;
+                for (int i = 0; i < playlist.size(); i++) {
+                    Song s = playlist.get(i);
+                    if ((s.filePath != null && s.filePath.equals(song.filePath)) ||
+                        (s.contentUri != null && s.contentUri.equals(song.contentUri))) {
+                        realPos = i;
+                        break;
+                    }
+                }
+                position = realPos >= 0 ? realPos : 0;
+            }
             playerBinder.playSong(song, position);
             btnPlayPause.setImageResource(R.drawable.ic_pause);
             coverView.startRotation();

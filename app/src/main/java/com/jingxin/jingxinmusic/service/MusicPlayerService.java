@@ -536,6 +536,26 @@ public class MusicPlayerService extends Service {
             return;
         }
 
+        // 边界保护：position 可能来自 allSongs 索引，超出 playlist 范围
+        if (position < 0 || position >= playlist.size()) {
+            // 在播放列表中查找该歌曲的实际位置
+            int realPos = -1;
+            for (int i = 0; i < playlist.size(); i++) {
+                Song s = playlist.get(i);
+                if ((s.filePath != null && s.filePath.equals(song.filePath)) ||
+                    (s.contentUri != null && s.contentUri.equals(song.contentUri))) {
+                    realPos = i;
+                    break;
+                }
+            }
+            if (realPos >= 0) {
+                position = realPos;
+                Log.d(TAG, "playSong: position越界修正 " + position + "->" + realPos);
+            } else {
+                position = 0;
+                Log.d(TAG, "playSong: 未在playlist中找到歌曲，position修正为0");
+            }
+        }
         this.currentIndex = position;
         Log.d(TAG, "playSong: " + song.title + ", position=" + position + ", playlist.size=" + playlist.size());
 

@@ -653,7 +653,7 @@ public class BiliApi {
             params.put("bvid", bvid);
             params.put("cid", String.valueOf(cid));
             params.put("fnver", "0");
-            params.put("fnval", "16");    // 请求DASH格式
+            params.put("fnval", "4048"); // 请求全部格式：DASH+HDR+4K+杜比+Hi-Res+AV1+8K
             params.put("fourk", "1");
             params.put("platform", "pc");
             params = signWbi(params, config);
@@ -678,32 +678,64 @@ public class BiliApi {
             info.quality = data.optInt("quality", 0);
 
             // 优先从DASH格式提取音频
+            // 音质优先级：杜比全景声 → Hi-Res无损FLAC → 最高bandwidth普通音频流
             JSONObject dash = data.optJSONObject("dash");
             if (dash != null) {
-                JSONArray audioArr = dash.optJSONArray("audio");
-                if (audioArr != null && audioArr.length() > 0) {
-                    // 选第一个音频流（通常是最高质量）
-                    // 30250=杜比全景声, 30251=Hi-Res无损, 30280=320kbps, 30232=132kbps, 30216=64kbps
-                    int bestBandwidth = -1;
-                    JSONObject bestAudio = null;
-                    for (int i = 0; i < audioArr.length(); i++) {
-                        JSONObject audio = audioArr.getJSONObject(i);
-                        int bandwidth = audio.optInt("bandwidth", 0);
-                        if (bandwidth > bestBandwidth) {
-                            bestBandwidth = bandwidth;
-                            bestAudio = audio;
+                // 1. 杜比全景声（dash.dolby.audio[0]）
+                JSONObject dolby = dash.optJSONObject("dolby");
+                if (dolby != null) {
+                    JSONArray dolbyAudio = dolby.optJSONArray("audio");
+                    if (dolbyAudio != null && dolbyAudio.length() > 0) {
+                        JSONObject dolbyItem = dolbyAudio.getJSONObject(0);
+                        String dolbyUrl = extractAudioUrl(dolbyItem);
+                        if (dolbyUrl != null && !dolbyUrl.isEmpty()) {
+                            info.audioUrl = dolbyUrl;
+                            info.audioQuality = 30250; // 杜比全景声
+                            info.audioQualityName = "杜比全景声";
+                            Log.d(TAG, "选择杜比全景声音频流");
                         }
                     }
-                    if (bestAudio != null) {
-                        info.audioUrl = bestAudio.getString("baseUrl");
-                        if (info.audioUrl == null || info.audioUrl.isEmpty()) {
-                            // 备用：从backupUrl取
-                            JSONArray backupUrls = bestAudio.optJSONArray("backupUrl");
-                            if (backupUrls != null && backupUrls.length() > 0) {
-                                info.audioUrl = backupUrls.getString(0);
+                }
+
+                // 2. Hi-Res无损FLAC（dash.flac.audio）
+                if (info.audioUrl == null || info.audioUrl.isEmpty()) {
+                    JSONObject flac = dash.optJSONObject("flac");
+                    if (flac != null) {
+                        JSONObject flacAudio = flac.optJSONObject("audio");
+                        if (flacAudio != null) {
+                            String flacUrl = extractAudioUrl(flacAudio);
+                            if (flacUrl != null && !flacUrl.isEmpty()) {
+                                info.audioUrl = flacUrl;
+                                info.audioQuality = 30251; // Hi-Res无损
+                                info.audioQualityName = "Hi-Res无损";
+                                Log.d(TAG, "选择Hi-Res无损音频流");
                             }
                         }
-                        info.audioQuality = bestAudio.optInt("id", 0);
+                    }
+                }
+
+                // 3. 普通音频流，选最高bandwidth
+                // 30280=320kbps, 30232=132kbps, 30216=64kbps
+                if (info.audioUrl == null || info.audioUrl.isEmpty()) {
+                    JSONArray audioArr = dash.optJSONArray("audio");
+                    if (audioArr != null && audioArr.length() > 0) {
+                        int bestBandwidth = -1;
+                        JSONObject bestAudio = null;
+                        for (int i = 0; i < audioArr.length(); i++) {
+                            JSONObject audio = audioArr.getJSONObject(i);
+                            int bandwidth = audio.optInt("bandwidth", 0);
+                            if (bandwidth > bestBandwidth) {
+                                bestBandwidth = bandwidth;
+                                bestAudio = audio;
+                            }
+                        }
+                        if (bestAudio != null) {
+                            info.audioUrl = extractAudioUrl(bestAudio);
+                            info.audioQuality = bestAudio.optInt("id", 0);
+                            info.audioQualityName = audioQualityName(info.audioQuality);
+                            Log.d(TAG, "选择普通音频流: quality=" + info.audioQuality
+                                    + " bandwidth=" + bestBandwidth);
+                        }
                     }
                 }
             }
@@ -764,12 +796,13 @@ public class BiliApi {
 
     /** 音频播放信息 */
     public static class AudioPlayInfo {
-        public String bvid;         // BV号
-        public long cid;            // 视频cid
-        public String audioUrl;     // 音频流URL
-        public int audioQuality;    // 音频质量ID
-        public int quality;         // 视频质量
-        public long expireTime;     // URL过期时间（毫秒时间戳）
+        public String bvid;              // BV号
+        public long cid;                 // 视频cid
+        public String audioUrl;          // 音频流URL
+        public int audioQuality;         // 音频质量ID（30250=杜比, 30251=Hi-Res, 30280=320kbps等）
+        public String audioQualityName;  // 音频质量名称（如"杜比全景声"、"Hi-Res无损"、"320kbps"）
+        public int quality;              // 视频质量
+        public long expireTime;          // URL过期时间（毫秒时间戳）
     }
 
     /** 视频分P信息 */
@@ -797,6 +830,40 @@ public class BiliApi {
         public long duration;       // 时长（秒）
         public String cover;        // 封面URL
         public int pageCount;       // 分P数量
+    }
+
+    // ========== 音频流工具方法 ==========
+
+    /**
+     * 从音频JSON对象中提取URL（优先baseUrl，fallback到backupUrl）
+     */
+    private static String extractAudioUrl(JSONObject audio) {
+        try {
+            String url = audio.optString("baseUrl", "");
+            if (url != null && !url.isEmpty()) return url;
+            // 备用：从backupUrl取
+            JSONArray backupUrls = audio.optJSONArray("backupUrl");
+            if (backupUrls != null && backupUrls.length() > 0) {
+                return backupUrls.getString(0);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "提取音频URL失败: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 音频质量ID转可读名称
+     */
+    private static String audioQualityName(int qualityId) {
+        switch (qualityId) {
+            case 30250: return "杜比全景声";
+            case 30251: return "Hi-Res无损";
+            case 30280: return "320kbps";
+            case 30232: return "132kbps";
+            case 30216: return "64kbps";
+            default: return "品质" + qualityId;
+        }
     }
 
     // ========== MD5工具类 ==========
