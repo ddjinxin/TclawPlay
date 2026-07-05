@@ -68,6 +68,33 @@ public class ThemeColors {
         return isNight ? nightColor : dayColor;
     }
 
+    // ========== 应用级通用色彩常量 ==========
+
+    /** 悬浮窗面板背景（70%不透明黑色） */
+    public static final int FLOAT_PANEL_BG = 0xB3000000;
+    /** 悬浮窗按钮背景（20%不透明白色） */
+    public static final int FLOAT_BUTTON_BG = 0x33FFFFFF;
+    /** 悬浮窗白天模式歌词未播放色 */
+    public static final int FLOAT_LYRIC_DAY_UNPLAYED = 0xFF555555;
+    /** 进度条背景色（夜间） */
+    public static final int PROGRESS_BG_NIGHT = 0x33FFFFFF;
+    /** 进度条背景色（白天） */
+    public static final int PROGRESS_BG_DAY = 0x33000000;
+    /** 沉浸模式默认主色调（无封面时用的深灰） */
+    public static final int DOMINANT_DEFAULT = 0xFF333333;
+    /** 沉浸模式白天偏移浅蓝色目标 */
+    public static final int OVERLAY_DAY_SHIFT = 0xFFADD8E6;
+    /** 白天歌词当前行未播放字色 */
+    public static final int DAY_LYRIC_CURRENT_UNPLAYED = 0xFF555555;
+    /** 收藏按钮红色 */
+    public static final int FAVORITE_RED = 0xFFFF5252;
+    /** 频谱选择弹窗禁用文字色 */
+    public static final int SPECTRUM_POPUP_DISABLED_TEXT = 0xFF666666;
+    /** 频谱选择弹窗选中文字色（深色） */
+    public static final int SPECTRUM_POPUP_SELECTED_TEXT = 0xFF003322;
+    /** 频谱选择弹窗普通文字色 */
+    public static final int SPECTRUM_POPUP_NORMAL_TEXT = 0xFFCCCCCC;
+
     // ========== 渐变 Drawable 工厂方法 ==========
 
     /** 主背景渐变 — 夜间从上到下微绿，白天左上奶白→右下柔青绿 */
@@ -164,6 +191,14 @@ public class ThemeColors {
     public static int lyricHighlight()          { return currentStyle.lyricHighlight; }
     public static int dominantColorFallback()   { return currentStyle.dominantColorFallback; }
     public static int emptyStateText()          { return currentStyle.emptyStateText; }
+
+    // LED/火花
+    public static int nightSparkColor()         { return currentStyle.nightSparkColor; }
+    public static int daySparkColor()           { return currentStyle.daySparkColor; }
+    public static int sparkColor(boolean night) { return night ? currentStyle.nightSparkColor : currentStyle.daySparkColor; }
+
+    // 便捷方法
+    public static int progressBg(boolean night) { return night ? PROGRESS_BG_NIGHT : PROGRESS_BG_DAY; }
 
     // ========== 文件夹卡片6色循环渐变 ==========
 

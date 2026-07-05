@@ -1,4 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 基础背景 -->
     <color name="background">#000000</color>
+
+    <!-- 播放页 -->
+    <color name="player_bg">#000000</color>
+    <color name="overlay_semi_black">#80000000</color>
+    <color name="overlay_dark_black">#AA000000</color>
+
+    <!-- 文字色 -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#AAAAAA</color>
+    <color name="text_light">#DDDDDD</color>
+
+    <!-- 进度条 -->
+    <color name="seekbar_gold">#FFD54F</color>
+    <color name="seekbar_track">#FFFFFF</color>
+
+    <!-- 涟漪 -->
+    <color name="ripple_white">#40FFFFFF</color>
+
+    <!-- 封面装饰 -->
+    <color name="circle_cover_ring">#333333</color>
+    <color name="pink_accent">#FF4081</color>
+
+    <!-- 卡片封面 -->
+    <color name="card_dark_bg">#2A2A2A</color>
+    <color name="card_icon_gray">#666666</color>
+
+    <!-- WebDAV -->
+    <color name="webdav_item_bg">#1C1D22</color>
+
+    <!-- 文件夹封面 -->
+    <color name="folder_cover_bg">#2a2a2a</color>
+    <color name="folder_cover_icon">#555555</color>
 </resources>

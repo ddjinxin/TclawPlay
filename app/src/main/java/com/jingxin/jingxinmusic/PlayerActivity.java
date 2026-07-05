@@ -388,7 +388,7 @@ public class PlayerActivity extends AppCompatActivity {
         btnOutfit = findViewById(R.id.outfit_button);
         overlayView = findViewById(R.id.overlay_view);
         whiteOverlay = findViewById(R.id.white_overlay);
-        // 初始化白天模式渐变遮罩：浅绿(#A5D6A4)→白(#FFFFFF)，从上到下
+        // 初始化白天模式渐变遮罩：浅绿(0xFFA5D6A4)→白(0xFFFFFFFF)，从上到下
         whiteGradientDrawable = new android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{0xFFA5D6A4, 0xFFFFFFFF}
@@ -1597,7 +1597,7 @@ public class PlayerActivity extends AppCompatActivity {
         // 标题
         android.widget.TextView title = new android.widget.TextView(this);
         title.setText("频谱选择");
-        title.setTextColor(Color.parseColor("#00FFB0"));
+        title.setTextColor(ThemeColors.sparkColor(isNightMode));
         title.setTextSize(18);
         title.setGravity(android.view.Gravity.CENTER);
         title.setPadding(0, 0, 0, (int)(12 * density));
@@ -1635,14 +1635,14 @@ public class PlayerActivity extends AppCompatActivity {
             boolean disabled = !currentScene.shouldShowSpectrumButton(style);
 
             if (disabled) {
-                item.setTextColor(Color.parseColor("#666666"));
+                item.setTextColor(ThemeColors.SPECTRUM_POPUP_DISABLED_TEXT);
                 item.setBackgroundColor(Color.argb(153, 42, 42, 42));    // 透明度60%
             } else if (i == currentStyle) {
                 // 当前选中：青色发光
-                item.setTextColor(Color.parseColor("#003322"));
+                item.setTextColor(ThemeColors.SPECTRUM_POPUP_SELECTED_TEXT);
                 item.setBackgroundColor(Color.argb(153, 0, 230, 180));  // 透明度60%
             } else {
-                item.setTextColor(Color.parseColor("#CCCCCC"));
+                item.setTextColor(ThemeColors.SPECTRUM_POPUP_NORMAL_TEXT);
                 item.setBackgroundColor(Color.argb(153, 68, 68, 68));   // 透明度60%
             }
 
@@ -1775,7 +1775,7 @@ public class PlayerActivity extends AppCompatActivity {
             for (ImageView btn : buttons) btn.clearColorFilter();
             // 收藏按钮：已收藏用红色，未收藏清除滤镜
             if (isFavorite) {
-                btnFavorite.setColorFilter(Color.parseColor("#FF5252"), PorterDuff.Mode.SRC_IN);
+                btnFavorite.setColorFilter(ThemeColors.FAVORITE_RED, PorterDuff.Mode.SRC_IN);
             } else {
                 btnFavorite.clearColorFilter();
             }
@@ -1785,7 +1785,7 @@ public class PlayerActivity extends AppCompatActivity {
             for (ImageView btn : buttons) btn.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
             // 收藏按钮：已收藏用红色，未收藏用通用色
             if (isFavorite) {
-                btnFavorite.setColorFilter(Color.parseColor("#FF5252"), PorterDuff.Mode.SRC_IN);
+                btnFavorite.setColorFilter(ThemeColors.FAVORITE_RED, PorterDuff.Mode.SRC_IN);
             } else {
                 btnFavorite.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
             }

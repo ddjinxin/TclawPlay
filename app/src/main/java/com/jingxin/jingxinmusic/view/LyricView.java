@@ -2,7 +2,6 @@ package com.jingxin.jingxinmusic.view;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
@@ -57,7 +56,7 @@ public class LyricView extends View {
     private ThemeMode currentTheme = ThemeMode.NIGHT;
     
     // 当前行未播放字颜色：白天模式下用比灰色更深的颜色，避免在深色背景上看不见
-    private static final int TEXT_COLOR_UNPLAYED_CURRENT_DAY = Color.parseColor("#555555");
+    private static final int TEXT_COLOR_UNPLAYED_CURRENT_DAY = ThemeColors.DAY_LYRIC_CURRENT_UNPLAYED;
     
     // 当前使用的颜色（根据主题切换）
     private int textColorNormal = ThemeColors.nightLyricNormal();

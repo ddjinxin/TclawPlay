@@ -62,6 +62,10 @@ public class ThemeStyle {
     public final int dayCoverTint;
     public final int dayFolderBorder;
 
+    // LED/火花发光色（唱臂针尖、悬浮窗按钮文字等）
+    public final int nightSparkColor;
+    public final int daySparkColor;
+
     // 通用
     public final int lyricHighlight;
     public final int dominantColorFallback;
@@ -92,6 +96,7 @@ public class ThemeStyle {
         dayCoverTint = b.dayCoverTint; dayFolderBorder = b.dayFolderBorder;
         lyricHighlight = b.lyricHighlight; dominantColorFallback = b.dominantColorFallback;
         emptyStateText = b.emptyStateText;
+        nightSparkColor = b.nightSparkColor; daySparkColor = b.daySparkColor;
     }
 
     // ========== 预定义3种风格 ==========
@@ -123,6 +128,7 @@ public class ThemeStyle {
         .dayCoverTint("#8CBF94").dayFolderBorder("#A8D4B0")
         // 通用
         .lyricHighlight("#FFEB3B").dominantColorFallback("#CCF5F5F5").emptyStateText("#666666")
+        .nightSparkColor("#00FF88").daySparkColor("#00DDCC")
         .build();
 
     /** 方案二：蔚蓝天地 — 夜间极黑+深蓝氛围+霓虹蓝点缀，白天暖白+清澈温蓝+靛蓝指示 */
@@ -152,6 +158,7 @@ public class ThemeStyle {
         .dayCoverTint("#4A6698").dayFolderBorder("#6888BB")
         // 通用
         .lyricHighlight("#FFEB3B").dominantColorFallback("#CCD8ECF8").emptyStateText("#666666")
+        .nightSparkColor("#00FF88").daySparkColor("#00DDCC")
         .build();
 
     /** 方案三：万紫千红 — 夜间极黑+深紫氛围+品红点缀，白天暖白+薰衣草紫+玫红指示 */
@@ -181,6 +188,7 @@ public class ThemeStyle {
         .dayCoverTint("#583898").dayFolderBorder("#7858B8")
         // 通用
         .lyricHighlight("#FFEB3B").dominantColorFallback("#CCF2ECFA").emptyStateText("#666666")
+        .nightSparkColor("#00FF88").daySparkColor("#00DDCC")
         .build();
 
     /** 方案四：高级灰 — 夜间深灰底+银白点缀，白天浅灰白底+炭黑点缀，灰的质感 */
@@ -210,6 +218,7 @@ public class ThemeStyle {
         .dayCoverTint("#6A6A80").dayFolderBorder("#8888A0")
         // 通用
         .lyricHighlight("#FFEB3B").dominantColorFallback("#CCF4F4F6").emptyStateText("#666666")
+        .nightSparkColor("#00FF88").daySparkColor("#00DDCC")
         .build();
 
     // ========== Builder ==========
@@ -234,6 +243,7 @@ public class ThemeStyle {
         int dayLyricNormal, dayLyricCurrent, dayLyricFaded;
         int dayCoverTint, dayFolderBorder;
         int lyricHighlight, dominantColorFallback, emptyStateText;
+        int nightSparkColor, daySparkColor;
 
         Builder(String name) { this.name = name; }
 
@@ -291,6 +301,8 @@ public class ThemeStyle {
         Builder lyricHighlight(String c) { lyricHighlight = Color.parseColor(c); return this; }
         Builder dominantColorFallback(String c) { dominantColorFallback = Color.parseColor(c); return this; }
         Builder emptyStateText(String c) { emptyStateText = Color.parseColor(c); return this; }
+        Builder nightSparkColor(String c) { nightSparkColor = Color.parseColor(c); return this; }
+        Builder daySparkColor(String c) { daySparkColor = Color.parseColor(c); return this; }
 
         ThemeStyle build() { return new ThemeStyle(this); }
     }

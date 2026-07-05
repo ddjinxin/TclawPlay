@@ -145,28 +145,28 @@ public class SpectrumView extends View {
     
     // 竖条模式金黄色（从下到上：深金 → 亮金）
     private int[] gradientColors = {
-        Color.parseColor("#E6A817"),  // 深金
-        Color.parseColor("#FFD54F")   // 亮金
+        0xFFE6A817,  // 深金
+        0xFFFFD54F   // 亮金
     };
     
     // 夜间模式金黄色
     private int[] nightGradientColors = {
-        Color.parseColor("#D4960F"),  // 深金（夜间稍暗）
-        Color.parseColor("#FFCA28")   // 亮金
+        0xFFD4960F,  // 深金（夜间稍暗）
+        0xFFFFCA28   // 亮金
     };
     
     // 圆点/波浪线渐变颜色（蓝 -> 紫 -> 红）
     private int[] dotWaveColors = {
-        Color.parseColor("#4FC3F7"),
-        Color.parseColor("#AB47BC"),
-        Color.parseColor("#FF5252")
+        0xFF4FC3F7,
+        0xFFAB47BC,
+        0xFFFF5252
     };
     
     // 圆点/波浪线夜间颜色
     private int[] dotWaveNightColors = {
-        Color.parseColor("#4DD0E1"),
-        Color.parseColor("#7E57C2"),
-        Color.parseColor("#EF5350")
+        0xFF4DD0E1,
+        0xFF7E57C2,
+        0xFFEF5350
     };
     
     // 夜间模式
@@ -328,7 +328,7 @@ public class SpectrumView extends View {
         waveColumnPaint.setAntiAlias(true);
         waveColumnPaint.setStyle(Paint.Style.FILL);
         waveColumnPaint.setStrokeWidth(3f); // 原版setWaveData中设置
-        waveColumnMainColor = Color.parseColor("#F53F3F"); // 原版默认主色调
+        waveColumnMainColor = 0xFFF53F3F; // 原版默认主色调
         waveColumnSpacingOffset = 0;
         waveColumnCenterHolder = 20;
         
@@ -880,7 +880,7 @@ public class SpectrumView extends View {
         float centerIndex = (DOT_COUNT - 1) / 2f;
         int[] colors = isNightMode ? nightGradientColors : gradientColors;
         
-        int peakDotColor = isNightMode ? Color.parseColor("#FFCA28") : Color.parseColor("#FFD54F");
+        int peakDotColor = isNightMode ? 0xFFFFCA28 : 0xFFFFD54F;
         peakPaint.setColor(peakDotColor);
         
         for (int i = 0; i < currentCount; i++) {
@@ -901,7 +901,7 @@ public class SpectrumView extends View {
             if (heightRatio < 0.5f) {
                 color = interpolateColor(colors[0], colors[1], heightRatio * 2);
             } else {
-                color = interpolateColor(colors[1], Color.parseColor("#FF5252"), (heightRatio - 0.5f) * 2);
+                color = interpolateColor(colors[1], 0xFFFF5252, (heightRatio - 0.5f) * 2);
             }
             barPaint.setColor(color);
             
@@ -987,7 +987,7 @@ public class SpectrumView extends View {
         canvas.drawPath(strokePath, waveStrokePaint);
         
         // 波浪线峰值点：在波峰上方画小亮点
-        int peakDotColor = isNightMode ? Color.parseColor("#FFCA28") : Color.parseColor("#FFD54F");
+        int peakDotColor = isNightMode ? 0xFFFFCA28 : 0xFFFFD54F;
         peakPaint.setColor(peakDotColor);
         for (int i = 0; i < currentCount; i++) {
             if (peakHeights[i] > 10f) {

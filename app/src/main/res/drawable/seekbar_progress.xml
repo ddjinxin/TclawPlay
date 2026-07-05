@@ -3,7 +3,7 @@
     <!-- 背景轨道 -->
     <item android:id="@android:id/background">
         <shape>
-            <solid android:color="#FFFFFF" />
+            <solid android:color="@color/seekbar_track" />
             <corners android:radius="1dp" />
             <size android:height="1dp" />
         </shape>
@@ -13,7 +13,7 @@
     <item android:id="@android:id/progress">
         <clip>
             <shape>
-                <solid android:color="#FFD54F" />
+                <solid android:color="@color/seekbar_gold" />
                 <corners android:radius="1dp" />
                 <size android:height="1dp" />
             </shape>

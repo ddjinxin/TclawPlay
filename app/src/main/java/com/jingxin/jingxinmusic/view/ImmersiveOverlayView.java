@@ -2,12 +2,13 @@ package com.jingxin.jingxinmusic.view;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Shader;
 import android.util.AttributeSet;
 import android.view.View;
+
+import com.jingxin.jingxinmusic.util.ThemeColors;
 
 /**
  * 沉浸封面模式的渐变遮罩层
@@ -27,7 +28,7 @@ public class ImmersiveOverlayView extends View {
     private Paint paintDominant;   // 主色调填充
 
     // 封面主色调（从封面提取）
-    private int dominantColor = Color.parseColor("#333333");
+    private int dominantColor = ThemeColors.DOMINANT_DEFAULT;
 
     // 是否白天模式
     private boolean isNight = true;
@@ -105,8 +106,11 @@ public class ImmersiveOverlayView extends View {
         if (isNight) {
             return 0xFF000000 | (dominantColor & 0x00FFFFFF);
         } else {
-            // 白天模式：封面主色向浅蓝色(#ADD8E6)偏移50%
-            int blueR = 0xAD, blueG = 0xD8, blueB = 0xE6; // #ADD8E6 浅蓝色
+            // 白天模式：封面主色向浅蓝色偏移50%
+            int shiftTarget = ThemeColors.OVERLAY_DAY_SHIFT;
+            int blueR = (shiftTarget >> 16) & 0xFF;
+            int blueG = (shiftTarget >> 8) & 0xFF;
+            int blueB = shiftTarget & 0xFF;
             int r = (int) ((dominantColor >> 16 & 0xFF) * 0.5f + blueR * 0.5f);
             int g = (int) ((dominantColor >> 8 & 0xFF) * 0.5f + blueG * 0.5f);
             int b = (int) ((dominantColor & 0xFF) * 0.5f + blueB * 0.5f);
@@ -115,7 +119,7 @@ public class ImmersiveOverlayView extends View {
     }
 
     private int getTransparentColor() {
-        return isNight ? 0x00000000 : 0x00ADD8E6; // 白天：透明浅蓝
+        return isNight ? 0x00000000 : (0x00000000 | (ThemeColors.OVERLAY_DAY_SHIFT & 0x00FFFFFF)); // 白天：透明浅蓝
     }
 
     /**

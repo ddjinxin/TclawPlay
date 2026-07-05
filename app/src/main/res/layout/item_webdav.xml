@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:scaleType="centerCrop"
-        android:background="#1C1D22" />
+        android:background="@color/webdav_item_bg" />
 
     <!-- 文件夹封面区域（目录） -->
     <com.jingxin.jingxinmusic.ui.FolderCoverView
@@ -26,7 +26,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:textColor="#DDDDDD"
+        android:textColor="@color/text_light"
         android:textSize="12sp"
         android:maxLines="2"
         android:ellipsize="end"

@@ -3,7 +3,7 @@
     android:id="@+id/root_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="@color/player_bg">
 
     <!-- 沉浸封面背景（封面原图铺满） -->
     <ImageView
@@ -26,7 +26,7 @@
         android:id="@+id/immersive_dark_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#80000000"
+        android:background="@color/overlay_semi_black"
         android:visibility="gone" />
 
     <!-- 白色遮罩层（白天模式非沉浸时使用，渐变由代码设置） -->
@@ -41,7 +41,7 @@
         android:id="@+id/overlay_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#AA000000" />
+        android:background="@color/overlay_dark_black" />
 
     <!-- 主内容：左侧信息区 -->
     <LinearLayout
@@ -68,7 +68,7 @@
             android:layout_marginEnd="24dp"
             android:layout_marginTop="16dp"
             android:text="未知歌曲"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/text_primary"
             android:textSize="24sp"
             android:textStyle="bold"
             android:maxLines="2"
@@ -84,7 +84,7 @@
             android:layout_marginEnd="24dp"
             android:layout_marginTop="8dp"
             android:text="未知歌手"
-            android:textColor="#AAAAAA"
+            android:textColor="@color/text_secondary"
             android:textSize="18sp"
             android:textStyle="bold"
             android:maxLines="2"
@@ -127,7 +127,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
                 android:text="00:00"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_primary"
                 android:textSize="12sp" />
 
             <SeekBar
@@ -148,8 +148,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:text="00:00"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_primary"
                 android:textSize="12sp" />
+
 
         </LinearLayout>
 

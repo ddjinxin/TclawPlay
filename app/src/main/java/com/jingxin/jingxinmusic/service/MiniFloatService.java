@@ -318,7 +318,7 @@ public class MiniFloatService extends Service {
 
         // 第二行：当前歌词
         tvLyric = new TextView(this);
-        tvLyric.setTextColor(isNightMode ? ThemeColors.nightLyricCurrent() : 0xFF555555);
+        tvLyric.setTextColor(isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED);
         tvLyric.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 13 * unit);
         tvLyric.setTypeface(null, android.graphics.Typeface.BOLD);
         tvLyric.setMaxLines(1);
@@ -477,7 +477,7 @@ public class MiniFloatService extends Service {
 
     private android.graphics.drawable.Drawable buildProgressDrawable(boolean night) {
         int progressColor = night ? ThemeColors.nightTabIndicator() : ThemeColors.dayTabIndicator();
-        int bgColor = night ? 0x33FFFFFF : 0x33000000;
+        int bgColor = night ? ThemeColors.PROGRESS_BG_NIGHT : ThemeColors.PROGRESS_BG_DAY;
 
         // 背景
         GradientDrawable background = new GradientDrawable();
@@ -726,7 +726,7 @@ public class MiniFloatService extends Service {
         // KRC 逐字高亮
         if (currentLine.words != null && !currentLine.words.isEmpty()) {
             int playedColor = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
-            int unplayedColor = isNightMode ? ThemeColors.nightLyricNormal() : 0xFF555555;
+            int unplayedColor = isNightMode ? ThemeColors.nightLyricNormal() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED;
 
             android.text.SpannableStringBuilder ssb = new android.text.SpannableStringBuilder(currentLine.text);
             int start = 0;
@@ -800,7 +800,7 @@ public class MiniFloatService extends Service {
         // 半透明背景
         FrameLayout panel = new FrameLayout(this);
         GradientDrawable panelBg = new GradientDrawable();
-        panelBg.setColor(0xB3000000); // 70%不透明黑
+        panelBg.setColor(ThemeColors.FLOAT_PANEL_BG); // 70%不透明黑
         panelBg.setCornerRadius((int)(10 * unit));
         panel.setBackground(panelBg);
         panel.setPadding((int)(10 * unit), (int)(10 * unit), (int)(10 * unit), (int)(10 * unit));
@@ -818,12 +818,12 @@ public class MiniFloatService extends Service {
         // + 按钮
         TextView btnPlus = new TextView(this);
         btnPlus.setText("+");
-        btnPlus.setTextColor(0xFF00FF88); // 青绿色LED
+        btnPlus.setTextColor(ThemeColors.sparkColor(isNightMode)); // LED发光色
         btnPlus.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 28 * unit);
         btnPlus.setTypeface(null, android.graphics.Typeface.BOLD);
         btnPlus.setGravity(Gravity.CENTER);
         GradientDrawable plusBg = new GradientDrawable();
-        plusBg.setColor(0x33FFFFFF);
+        plusBg.setColor(ThemeColors.FLOAT_BUTTON_BG);
         plusBg.setCornerRadius((int)(8 * unit));
         btnPlus.setBackground(plusBg);
         LinearLayout.LayoutParams plusParams = new LinearLayout.LayoutParams(0, btnSize, 1f);
@@ -834,12 +834,12 @@ public class MiniFloatService extends Service {
         // - 按钮
         TextView btnMinus = new TextView(this);
         btnMinus.setText("−");
-        btnMinus.setTextColor(0xFF00FF88);
+        btnMinus.setTextColor(ThemeColors.sparkColor(isNightMode));
         btnMinus.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 28 * unit);
         btnMinus.setTypeface(null, android.graphics.Typeface.BOLD);
         btnMinus.setGravity(Gravity.CENTER);
         GradientDrawable minusBg = new GradientDrawable();
-        minusBg.setColor(0x33FFFFFF);
+        minusBg.setColor(ThemeColors.FLOAT_BUTTON_BG);
         minusBg.setCornerRadius((int)(8 * unit));
         btnMinus.setBackground(minusBg);
         LinearLayout.LayoutParams minusParams = new LinearLayout.LayoutParams(0, btnSize, 1f);
@@ -851,12 +851,12 @@ public class MiniFloatService extends Service {
         // 退出按钮（X图标）
         TextView btnClose = new TextView(this);
         btnClose.setText("✕");
-        btnClose.setTextColor(0xFF00FF88);
+        btnClose.setTextColor(ThemeColors.sparkColor(isNightMode));
         btnClose.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 22 * unit);
         btnClose.setTypeface(null, android.graphics.Typeface.BOLD);
         btnClose.setGravity(Gravity.CENTER);
         GradientDrawable closeBg = new GradientDrawable();
-        closeBg.setColor(0x33FFFFFF);
+        closeBg.setColor(ThemeColors.FLOAT_BUTTON_BG);
         closeBg.setCornerRadius((int)(8 * unit));
         btnClose.setBackground(closeBg);
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(0, btnSize, 1f);

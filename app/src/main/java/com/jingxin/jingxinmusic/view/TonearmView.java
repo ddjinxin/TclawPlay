@@ -3,7 +3,6 @@ package com.jingxin.jingxinmusic.view;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
@@ -11,6 +10,8 @@ import android.graphics.Shader;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.animation.OvershootInterpolator;
+
+import com.jingxin.jingxinmusic.util.ThemeColors;
 
 import java.util.Random;
 
@@ -32,6 +33,53 @@ public class TonearmView extends View {
     private static final float ANGLE_PLAY_PORTRAIT = 45f;  // 竖屏播放旋转角度
     private static final float ANGLE_PLAY_LANDSCAPE = 60f; // 横屏停止旋转角度
     private static final float ANGLE_STOP = 0f;
+
+    // ===== 金属色常量（固有视觉属性，不随风格变化） =====
+    // 夜间金属色
+    private static final int NIGHT_BASE          = 0xFF8A8A8A;
+    private static final int NIGHT_ARM           = 0xFFC0C0C0;
+    private static final int NIGHT_ARM_HIGHLIGHT = 0xFFE0E0E0;
+    private static final int NIGHT_JOINT         = 0xFFA0A0A0;
+    private static final int NIGHT_HEAD_SHELL    = 0xFFB0B0B0;
+    private static final int NIGHT_STYLUS        = 0xFFCCCCCC;
+    private static final int NIGHT_CW            = 0xFF707070;
+    private static final int NIGHT_CW_RING       = 0xFF555555;
+    private static final int NIGHT_SHADOW        = 0x20000000;
+    private static final int NIGHT_ARM_LINK      = 0xFFC0C0C0;
+    private static final int NIGHT_ARM_GRAD_S    = 0xFFD0D0D0;
+    private static final int NIGHT_ARM_GRAD_E    = 0xFFA0A0A0;
+    private static final int NIGHT_JOINT_DOT     = 0xFFD0D0D0;
+    private static final int NIGHT_BEND_ARM      = 0xFFB0B0B0;
+    private static final int NIGHT_HEAD_GRAD_S   = 0xFFC8C8C8;
+    private static final int NIGHT_HEAD_GRAD_E   = 0xFFA0A0A0;
+    private static final int NIGHT_HEAD_MARK     = 0xFF888888;
+    private static final int NIGHT_BASE_SHADOW   = 0x30000000;
+    private static final int NIGHT_BASE_GRAD_S   = 0xFFB0B0B0;
+    private static final int NIGHT_BASE_GRAD_E   = 0xFF808080;
+    private static final int NIGHT_CENTER_DOT    = 0xFF606060;
+    private static final int NIGHT_BASE_RING     = 0xFF909090;
+    // 白天金属色
+    private static final int DAY_BASE            = 0xFF606060;
+    private static final int DAY_ARM             = 0xFF888888;
+    private static final int DAY_ARM_HIGHLIGHT   = 0xFFAAAAAA;
+    private static final int DAY_JOINT           = 0xFF707070;
+    private static final int DAY_HEAD_SHELL      = 0xFF808080;
+    private static final int DAY_STYLUS          = 0xFF666666;
+    private static final int DAY_CW              = 0xFF505050;
+    private static final int DAY_CW_RING         = 0xFF404040;
+    private static final int DAY_SHADOW          = 0x15000000;
+    private static final int DAY_ARM_LINK        = 0xFF888888;
+    private static final int DAY_ARM_GRAD_S      = 0xFF999999;
+    private static final int DAY_ARM_GRAD_E      = 0xFF777777;
+    private static final int DAY_JOINT_DOT       = 0xFFAAAAAA;
+    private static final int DAY_BEND_ARM        = 0xFF888888;
+    private static final int DAY_HEAD_GRAD_S     = 0xFF909090;
+    private static final int DAY_HEAD_GRAD_E     = 0xFF707070;
+    private static final int DAY_HEAD_MARK       = 0xFF666666;
+    private static final int DAY_BASE_GRAD_S     = 0xFF808080;
+    private static final int DAY_BASE_GRAD_E     = 0xFF505050;
+    private static final int DAY_CENTER_DOT      = 0xFF404040;
+    private static final int DAY_BASE_RING       = 0xFF606060;
 
     private float currentAngle = ANGLE_STOP;
     private float targetAngle = ANGLE_STOP;
@@ -111,29 +159,29 @@ public class TonearmView extends View {
 
     private void applyTheme() {
         if (isNightMode) {
-            basePaint.setColor(Color.parseColor("#8A8A8A"));
-            armPaint.setColor(Color.parseColor("#C0C0C0"));
-            armHighlightPaint.setColor(Color.parseColor("#E0E0E0"));
-            jointPaint.setColor(Color.parseColor("#A0A0A0"));
-            headShellPaint.setColor(Color.parseColor("#B0B0B0"));
-            stylusPaint.setColor(Color.parseColor("#CCCCCC"));
-            counterWeightPaint.setColor(Color.parseColor("#707070"));
-            counterRingPaint.setColor(Color.parseColor("#555555"));
-            shadowPaint.setColor(Color.parseColor("#20000000"));
-            sparkGlowPaint.setColor(Color.parseColor("#00FF88"));
-            sparkDotPaint.setColor(Color.parseColor("#00FF88"));
+            basePaint.setColor(NIGHT_BASE);
+            armPaint.setColor(NIGHT_ARM);
+            armHighlightPaint.setColor(NIGHT_ARM_HIGHLIGHT);
+            jointPaint.setColor(NIGHT_JOINT);
+            headShellPaint.setColor(NIGHT_HEAD_SHELL);
+            stylusPaint.setColor(NIGHT_STYLUS);
+            counterWeightPaint.setColor(NIGHT_CW);
+            counterRingPaint.setColor(NIGHT_CW_RING);
+            shadowPaint.setColor(NIGHT_SHADOW);
+            sparkGlowPaint.setColor(ThemeColors.nightSparkColor());
+            sparkDotPaint.setColor(ThemeColors.nightSparkColor());
         } else {
-            basePaint.setColor(Color.parseColor("#606060"));
-            armPaint.setColor(Color.parseColor("#888888"));
-            armHighlightPaint.setColor(Color.parseColor("#AAAAAA"));
-            jointPaint.setColor(Color.parseColor("#707070"));
-            headShellPaint.setColor(Color.parseColor("#808080"));
-            stylusPaint.setColor(Color.parseColor("#666666"));
-            counterWeightPaint.setColor(Color.parseColor("#505050"));
-            counterRingPaint.setColor(Color.parseColor("#404040"));
-            shadowPaint.setColor(Color.parseColor("#15000000"));
-            sparkGlowPaint.setColor(Color.parseColor("#00DDCC"));
-            sparkDotPaint.setColor(Color.parseColor("#00DDCC"));
+            basePaint.setColor(DAY_BASE);
+            armPaint.setColor(DAY_ARM);
+            armHighlightPaint.setColor(DAY_ARM_HIGHLIGHT);
+            jointPaint.setColor(DAY_JOINT);
+            headShellPaint.setColor(DAY_HEAD_SHELL);
+            stylusPaint.setColor(DAY_STYLUS);
+            counterWeightPaint.setColor(DAY_CW);
+            counterRingPaint.setColor(DAY_CW_RING);
+            shadowPaint.setColor(DAY_SHADOW);
+            sparkGlowPaint.setColor(ThemeColors.daySparkColor());
+            sparkDotPaint.setColor(ThemeColors.daySparkColor());
         }
     }
 
@@ -277,7 +325,7 @@ public class TonearmView extends View {
         // 配重连接杆
         armPaint.setStrokeWidth(armWidth * 0.7f);
         armPaint.setShader(null);
-        armPaint.setColor(isNightMode ? Color.parseColor("#C0C0C0") : Color.parseColor("#888888"));
+        armPaint.setColor(isNightMode ? NIGHT_ARM_LINK : DAY_ARM_LINK);
         canvas.drawLine(pivotX, pivotY, cwX, cwY + cwRadius, armPaint);
 
         // 主臂杆
@@ -286,8 +334,8 @@ public class TonearmView extends View {
 
         LinearGradient armGradient = new LinearGradient(
                 pivotX, pivotY, armEndX, armEndY,
-                isNightMode ? Color.parseColor("#D0D0D0") : Color.parseColor("#999999"),
-                isNightMode ? Color.parseColor("#A0A0A0") : Color.parseColor("#777777"),
+                isNightMode ? NIGHT_ARM_GRAD_S : DAY_ARM_GRAD_S,
+                isNightMode ? NIGHT_ARM_GRAD_E : DAY_ARM_GRAD_E,
                 Shader.TileMode.CLAMP);
         armPaint.setShader(armGradient);
         armPaint.setStrokeWidth(armWidth);
@@ -303,7 +351,7 @@ public class TonearmView extends View {
         // 关节圆
         canvas.drawCircle(armEndX, armEndY, jointRadius, jointPaint);
         Paint jointDot = new Paint(Paint.ANTI_ALIAS_FLAG);
-        jointDot.setColor(isNightMode ? Color.parseColor("#D0D0D0") : Color.parseColor("#AAAAAA"));
+        jointDot.setColor(isNightMode ? NIGHT_JOINT_DOT : DAY_JOINT_DOT);
         canvas.drawCircle(armEndX, armEndY, jointRadius * 0.35f, jointDot);
 
         // 弯折段
@@ -312,7 +360,7 @@ public class TonearmView extends View {
         float bendEndY = armEndY + (float) Math.cos(bendRad) * bendLength;
         armPaint.setStrokeWidth(armWidth * 0.85f);
         armPaint.setShader(null);
-        armPaint.setColor(isNightMode ? Color.parseColor("#B0B0B0") : Color.parseColor("#888888"));
+        armPaint.setColor(isNightMode ? NIGHT_BEND_ARM : DAY_BEND_ARM);
         canvas.drawLine(armEndX, armEndY, bendEndX, bendEndY, armPaint);
 
         // 唱头壳
@@ -322,8 +370,8 @@ public class TonearmView extends View {
         RectF headRect = new RectF(-headWidth / 2, 0, headWidth / 2, headHeight);
         LinearGradient headGradient = new LinearGradient(
                 -headWidth / 2, 0, headWidth / 2, 0,
-                isNightMode ? Color.parseColor("#C8C8C8") : Color.parseColor("#909090"),
-                isNightMode ? Color.parseColor("#A0A0A0") : Color.parseColor("#707070"),
+                isNightMode ? NIGHT_HEAD_GRAD_S : DAY_HEAD_GRAD_S,
+                isNightMode ? NIGHT_HEAD_GRAD_E : DAY_HEAD_GRAD_E,
                 Shader.TileMode.CLAMP);
         headShellPaint.setShader(headGradient);
         canvas.drawRoundRect(headRect, 0.15f * unit, 0.15f * unit, headShellPaint);
@@ -331,7 +379,7 @@ public class TonearmView extends View {
 
         // 唱头壳标记线
         Paint markPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        markPaint.setColor(isNightMode ? Color.parseColor("#888888") : Color.parseColor("#666666"));
+        markPaint.setColor(isNightMode ? NIGHT_HEAD_MARK : DAY_HEAD_MARK);
         markPaint.setStrokeWidth(0.08f * unit);
         canvas.drawLine(-headWidth / 4, headHeight * 0.3f, headWidth / 4, headHeight * 0.3f, markPaint);
         canvas.drawLine(-headWidth / 4, headHeight * 0.6f, headWidth / 4, headHeight * 0.6f, markPaint);
@@ -370,25 +418,25 @@ public class TonearmView extends View {
 
         // 底座（最顶层）
         Paint baseShadow = new Paint(Paint.ANTI_ALIAS_FLAG);
-        baseShadow.setColor(Color.parseColor("#30000000"));
+        baseShadow.setColor(NIGHT_BASE_SHADOW);
         canvas.drawCircle(pivotX + 0.15f * unit, pivotY + 0.15f * unit, baseRadius + 0.15f * unit, baseShadow);
 
         LinearGradient baseGradient = new LinearGradient(
                 pivotX - baseRadius, pivotY - baseRadius,
                 pivotX + baseRadius, pivotY + baseRadius,
-                isNightMode ? Color.parseColor("#B0B0B0") : Color.parseColor("#808080"),
-                isNightMode ? Color.parseColor("#808080") : Color.parseColor("#505050"),
+                isNightMode ? NIGHT_BASE_GRAD_S : DAY_BASE_GRAD_S,
+                isNightMode ? NIGHT_BASE_GRAD_E : DAY_BASE_GRAD_E,
                 Shader.TileMode.CLAMP);
         basePaint.setShader(baseGradient);
         canvas.drawCircle(pivotX, pivotY, baseRadius, basePaint);
         basePaint.setShader(null);
 
         Paint centerDot = new Paint(Paint.ANTI_ALIAS_FLAG);
-        centerDot.setColor(isNightMode ? Color.parseColor("#606060") : Color.parseColor("#404040"));
+        centerDot.setColor(isNightMode ? NIGHT_CENTER_DOT : DAY_CENTER_DOT);
         canvas.drawCircle(pivotX, pivotY, baseRadius * 0.35f, centerDot);
 
         Paint baseRing = new Paint(Paint.ANTI_ALIAS_FLAG);
-        baseRing.setColor(isNightMode ? Color.parseColor("#909090") : Color.parseColor("#606060"));
+        baseRing.setColor(isNightMode ? NIGHT_BASE_RING : DAY_BASE_RING);
         baseRing.setStyle(Paint.Style.STROKE);
         baseRing.setStrokeWidth(0.08f * unit);
         canvas.drawCircle(pivotX, pivotY, baseRadius * 0.65f, baseRing);
