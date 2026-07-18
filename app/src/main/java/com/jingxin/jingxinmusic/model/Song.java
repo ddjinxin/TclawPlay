@@ -152,17 +152,27 @@ public class Song {
             // API 29+: MediaStore API（RELATIVE_PATH、IS_PENDING 是 API 29 常量）
             try {
                 ContentResolver resolver = ctx.getContentResolver();
-                ContentValues values = new ContentValues();
-                values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
-                values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                values.put(MediaStore.Images.Media.RELATIVE_PATH,
-                        Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER);
-                values.put(MediaStore.Images.Media.IS_PENDING, 1);
 
-                Uri uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-                if (uri == null) {
-                    Log.e(TAG, "MediaStore insert 失败: " + fileName);
-                    return null;
+                // 先查询是否已有同名封面，有则覆盖写入，避免产生重复文件
+                Uri existingUri = getCoverPublicUri(ctx, fileName);
+                Uri uri;
+                if (existingUri != null) {
+                    // 复用已有记录，覆盖写入
+                    uri = existingUri;
+                } else {
+                    // 不存在，新建
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
+                    values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                    values.put(MediaStore.Images.Media.RELATIVE_PATH,
+                            Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER);
+                    values.put(MediaStore.Images.Media.IS_PENDING, 1);
+
+                    uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                    if (uri == null) {
+                        Log.e(TAG, "MediaStore insert 失败: " + fileName);
+                        return null;
+                    }
                 }
 
                 try (OutputStream os = resolver.openOutputStream(uri)) {
@@ -171,10 +181,6 @@ public class Song {
                         os.flush();
                     }
                 }
-
-                values.clear();
-                values.put(MediaStore.Images.Media.IS_PENDING, 0);
-                resolver.update(uri, values, null, null);
 
                 Log.d(TAG, "封面已保存到公共目录: " + uri);
                 return uri;

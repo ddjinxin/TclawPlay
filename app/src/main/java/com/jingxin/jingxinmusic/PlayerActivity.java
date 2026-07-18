@@ -1098,6 +1098,24 @@ public class PlayerActivity extends AppCompatActivity {
 
         // 默认竖屏经典
         currentScene = portraitClassic;
+
+        // 监听系统窗口 insets，获取状态栏实际高度（车机全屏时为0）
+        rootLayout.setOnApplyWindowInsetsListener((v, insets) -> {
+            int topInset;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                // API 30+：使用新 API，Android 16 edge-to-edge 模式下更可靠
+                topInset = insets.getInsets(android.view.WindowInsets.Type.systemBars()).top;
+            } else {
+                // API 21-29：使用兼容 API
+                topInset = insets.getSystemWindowInsetTop();
+            }
+            if (sceneHelper.systemTopInset != topInset) {
+                sceneHelper.systemTopInset = topInset;
+                // inset 变化时重新布局，让 applyButtonMargins 生效
+                v.requestLayout();
+            }
+            return insets;
+        });
     }
 
     /**

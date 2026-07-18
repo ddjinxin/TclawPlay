@@ -136,6 +136,9 @@ public class MusicPlayerService extends Service {
     private int consecutiveErrors = 0;
     private static final int MAX_CONSECUTIVE_ERRORS = 3;
 
+    // B站异步获取音频流URL期间设为true，阻止自动切歌避免竞态
+    private volatile boolean biliFetching = false;
+
     // MediaSession PlaybackState 定时更新（其他应用依赖此获取实时播放进度）
     private Runnable playbackStateUpdater;
     private static final long PLAYBACK_STATE_UPDATE_INTERVAL = 1000; // 1秒更新一次
@@ -266,6 +269,12 @@ public class MusicPlayerService extends Service {
                 sendPlayStateBroadcast();
                 if (playbackState == Player.STATE_ENDED) {
                     Log.d(TAG, "歌曲播放结束，自动下一首");
+                    // B站异步获取URL期间不自动切歌，避免旧播放器结束后
+                    // 还在等待fetch的竞态导致播放与显示不一致
+                    if (biliFetching) {
+                        Log.d(TAG, "B站音频流获取中，跳过本次自动切歌");
+                        return;
+                    }
                     playNext();
                 }
             }
@@ -675,6 +684,7 @@ public class MusicPlayerService extends Service {
         }
 
         // 异步获取音频流URL
+        biliFetching = true;
         new Thread(() -> {
             BiliConfig config = new BiliConfig(this);
             // 优先使用已知的cid（分P场景），否则自动获取第一P
@@ -687,6 +697,7 @@ public class MusicPlayerService extends Service {
             if (playInfo == null || playInfo.audioUrl == null || playInfo.audioUrl.isEmpty()) {
                 Log.e(TAG, "获取B站音频流失败: " + song.bvid);
                 handler.post(() -> {
+                    biliFetching = false;
                     consecutiveErrors++;
                     if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
                         playNext();
@@ -701,7 +712,10 @@ public class MusicPlayerService extends Service {
             song.cid = playInfo.cid;
 
             Log.d(TAG, "B站音频流就绪");
-            handler.post(() -> startBiliPlayback(song, position));
+            handler.post(() -> {
+                biliFetching = false;
+                startBiliPlayback(song, position);
+            });
         }, "BiliAudioFetcher").start();
     }
 
@@ -1111,6 +1125,7 @@ public class MusicPlayerService extends Service {
         if (lyricPaths[1] != null) intent.putExtra(EXTRA_KRC_FILE_PATH, lyricPaths[1]);
 
         // 始终立即发广播（PlayerActivity UI更新不延迟）
+        intent.setPackage(getPackageName());
         sendBroadcast(intent);
 
         if (lyricPaths[0] != null || lyricPaths[1] != null) {

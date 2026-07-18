@@ -76,6 +76,9 @@ public class CoverSceneHelper {
     public ExecutorService executor;
     public final float density;
 
+    // 系统状态栏实际高度（车机全屏时为0，手机有状态栏时为实际像素高度）
+    public int systemTopInset = 0;
+
     // --- 回调接口 ---
     public interface Callback {
         void loadCover();
@@ -163,7 +166,8 @@ public class CoverSceneHelper {
      * 横屏：返回按钮左对齐底部第一个按钮，右3按钮占35%宽度，右边距=左边距（对称）
      */
     public void applyButtonMargins(int height, int width, boolean isLandscape) {
-        int topMargin = Math.max(4, (int) (height * 0.01f));
+        // 顶部 marginTop = 状态栏实际高度 + height × 1%（车机全屏无状态栏时 inset=0，不影响）
+        int topMargin = systemTopInset + Math.max(4, (int) (height * 0.01f));
         int bottomMargin = Math.max(8, (int) (height * 0.01f));
         int sidePadding = (int) (density * 8); // 与底部按钮区 marginStart/End 一致
 

@@ -80,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
     private View rootLayout;
     private View tabBar;
     private View titleBar;
+    private int systemTopInset = 0; // 系统状态栏实际高度（车机全屏时为0）
     private View tabDivider1;
     private View tabDivider2;
     private View indicatorLocal;
@@ -244,6 +245,21 @@ public class MainActivity extends AppCompatActivity {
         rootLayout = findViewById(R.id.root_layout);
         tabBar = findViewById(R.id.tab_bar);
         titleBar = findViewById(R.id.title_bar);
+
+        // 监听系统窗口 insets，获取状态栏实际高度并设为 titleBar 的 topMargin
+        rootLayout.setOnApplyWindowInsetsListener((v, insets) -> {
+            int topInset;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                topInset = insets.getInsets(android.view.WindowInsets.Type.systemBars()).top;
+            } else {
+                topInset = insets.getSystemWindowInsetTop();
+            }
+            if (systemTopInset != topInset) {
+                systemTopInset = topInset;
+                applyTitleBarTopMargin();
+            }
+            return insets;
+        });
         tabDivider1 = findViewById(R.id.tab_divider_1);
         tabDivider2 = findViewById(R.id.tab_divider_2);
         indicatorLocal = findViewById(R.id.indicator_local);
@@ -1633,6 +1649,17 @@ public class MainActivity extends AppCompatActivity {
     // ===== 横屏比例布局 =====
 
     /** 横屏时按比例分配各区域高度，竖屏时恢复 XML 默认值 */
+    /**
+     * 将状态栏高度设为 titleBar 的 topMargin（车机全屏时 systemTopInset=0，不影响）
+     */
+    private void applyTitleBarTopMargin() {
+        if (titleBar != null) {
+            android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
+            lp.topMargin = systemTopInset;
+            titleBar.setLayoutParams(lp);
+        }
+    }
+
     private void applyLandscapeProportionalLayout() {
         boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
         View rootView = findViewById(android.R.id.content);
@@ -1646,6 +1673,7 @@ public class MainActivity extends AppCompatActivity {
             if (titleBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
                 lp.height = titleBarH;
+                lp.topMargin = systemTopInset;
                 titleBar.setLayoutParams(lp);
             }
             // Tab栏：H×10%
@@ -1750,6 +1778,7 @@ public class MainActivity extends AppCompatActivity {
             if (titleBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
                 lp.height = (int) (56 * density);
+                lp.topMargin = systemTopInset;
                 titleBar.setLayoutParams(lp);
             }
             if (tabBar != null) {

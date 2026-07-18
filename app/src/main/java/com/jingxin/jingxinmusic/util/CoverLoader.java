@@ -157,7 +157,13 @@ public class CoverLoader {
                 public void onCoverFetched(Bitmap coverBitmap) {
                     if (saveCache) {
                         String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
-                        Song.saveCoverToPublic(context, coverName, coverBitmap);
+                        File cacheDir = context.getExternalFilesDir("covers");
+                        if (cacheDir != null) {
+                            File f = new File(cacheDir, coverName);
+                            if (!f.exists()) {
+                                Song.saveCoverToPublic(context, coverName, coverBitmap);
+                            }
+                        }
                     }
                     uiHandler.post(() -> callback.onCoverLoaded(coverBitmap));
                 }

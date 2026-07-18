@@ -458,6 +458,7 @@ public class LyricFetcher {
         intent.putExtra(com.jingxin.jingxinmusic.service.MusicPlayerService.EXTRA_SONG_ARTIST, songArtist != null ? songArtist : "");
         if (lrcPath != null) intent.putExtra(com.jingxin.jingxinmusic.service.MusicPlayerService.EXTRA_LRC_FILE_PATH, lrcPath);
         if (krcPath != null) intent.putExtra(com.jingxin.jingxinmusic.service.MusicPlayerService.EXTRA_KRC_FILE_PATH, krcPath);
+        intent.setPackage(context.getPackageName());
         context.sendBroadcast(intent);
 
         Log.d(TAG, "歌词就绪广播: " + safeName + " lrc=" + (lrcPath != null) + " krc=" + (krcPath != null));
