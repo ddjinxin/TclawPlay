@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '82061bb2-36ee-4d5b-8a23-63f5b2e1663f'
-  PropagateID: '82061bb2-36ee-4d5b-8a23-63f5b2e1663f'
-  ReservedCode1: '1084dfbe-eaa7-4854-b402-25c1d176373c'
-  ReservedCode2: '1084dfbe-eaa7-4854-b402-25c1d176373c'
+  ProduceID: '478e80c4-fece-4894-bec0-80873f32e67b'
+  PropagateID: '478e80c4-fece-4894-bec0-80873f32e67b'
+  ReservedCode1: '6d20ac6a-5c3e-45a6-b9ea-c0045a491476'
+  ReservedCode2: '6d20ac6a-5c3e-45a6-b9ea-c0045a491476'
 ---
 
 # 静心音乐 / TclawPlay
@@ -21,6 +21,36 @@ AIGC:
 <p align="center">
   完全通过 AI 对话生成，作者不看代码，只对话。
 </p>
+
+---
+
+## 📢 最新版本 (v1.0.2)
+
+### 新功能
+- **在线更新** — 首页标题栏新增更新按钮，GitHub Release 自动检查+4镜像测速下载+三层校验+一键安装，启动时静默检查+手动检查
+
+### Bug 修复
+- **封面 IS_PENDING 修复** — saveCoverToPublic 新建 MediaStore 记录后 IS_PENDING 未清零，封面文件对其他应用不可见，已修复
+
+### 优化
+- 封面公共目录从 `Pictures/静心音乐/` 改为 `Download/jingxinmusic/cover/`
+- 横屏路径栏比例从 6% 调整为 8%
+
+<!--EN-->
+
+## 📢 Latest Version (v1.0.2)
+
+### New Features
+- **Online Update** — New update button in title bar, GitHub Release auto-check + 4-mirror speed test download + triple validation + one-tap install, silent check on launch + manual check
+
+### Bug Fixes
+- **Cover IS_PENDING Fix** — saveCoverToPublic did not clear IS_PENDING after creating MediaStore record, covers invisible to other apps, fixed
+
+### Optimizations
+- Cover public directory changed from `Pictures/静心音乐/` to `Download/jingxinmusic/cover/`
+- Landscape path bar ratio adjusted from 6% to 8%
+
+<!--END-->
 
 ---
 
