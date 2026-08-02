@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '75e9eefc-61b9-4779-af7f-34979bfe26fe'
-  PropagateID: '75e9eefc-61b9-4779-af7f-34979bfe26fe'
-  ReservedCode1: 'a43f9f9b-2961-4ccd-bac3-6a200aa5120b'
-  ReservedCode2: 'a43f9f9b-2961-4ccd-bac3-6a200aa5120b'
+  ProduceID: 'b4c8fee0-4bf5-41a0-8f1b-96ba63408b95'
+  PropagateID: 'b4c8fee0-4bf5-41a0-8f1b-96ba63408b95'
+  ReservedCode1: 'ebcf566a-9f71-4361-9613-e814f14d8925'
+  ReservedCode2: 'ebcf566a-9f71-4361-9613-e814f14d8925'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,31 +24,17 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.2)
+## 📢 最新版本 (v1.0.3)
 
 ### 新功能
-- **在线更新** — 首页标题栏新增更新按钮，GitHub Release 自动检查+4镜像测速下载+三层校验+一键安装，启动时静默检查+手动检查
-
-### Bug 修复
-- **封面 IS_PENDING 修复** — saveCoverToPublic 新建 MediaStore 记录后 IS_PENDING 未清零，封面文件对其他应用不可见，已修复
-
-### 优化
-- 封面公共目录从 `Pictures/静心音乐/` 改为 `Download/jingxinmusic/cover/`
-- 横屏路径栏比例从 6% 调整为 8%
+- **悬浮窗透明度调节** — 点击悬浮窗封面弹出调节面板，新增透明度滑条（左=全透明，右=全不透明），拖动实时预览，关闭后自动记忆设置
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.2)
+## 📢 Latest Version (v1.0.3)
 
 ### New Features
-- **Online Update** — New update button in title bar, GitHub Release auto-check + 4-mirror speed test download + triple validation + one-tap install, silent check on launch + manual check
-
-### Bug Fixes
-- **Cover IS_PENDING Fix** — saveCoverToPublic did not clear IS_PENDING after creating MediaStore record, covers invisible to other apps, fixed
-
-### Optimizations
-- Cover public directory changed from `Pictures/静心音乐/` to `Download/jingxinmusic/cover/`
-- Landscape path bar ratio adjusted from 6% to 8%
+- **Float window opacity control** — Tap the cover in the floating window to open the adjustment panel, now with an opacity slider (left = fully transparent, right = fully opaque). Real-time preview with automatic persistence.
 
 <!--END-->
 
@@ -294,6 +280,9 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.3 (2026-08)
+- 悬浮窗透明度调节滑条（点击封面弹出面板，0-255实时调节，自动记忆）
 
 ### v1.0.2 (2026-08)
 - 在线更新功能（GitHub Release检查+镜像测速下载+三层校验+安装）
@@ -609,6 +598,9 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.3 (2026-08)
+- Float window opacity slider (tap cover to open panel, 0-255 real-time control, auto-persist)
 
 ### v1.0.2 (2026-08)
 - Online update feature (GitHub Release check + mirror speed test + triple validation + install)
