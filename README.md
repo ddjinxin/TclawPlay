@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '9d5ce96d-a4d1-4ac8-9827-ce8ead97890f'
-  PropagateID: '9d5ce96d-a4d1-4ac8-9827-ce8ead97890f'
-  ReservedCode1: 'a2141b2e-5e7f-4786-b393-a7fde4d9de77'
-  ReservedCode2: 'a2141b2e-5e7f-4786-b393-a7fde4d9de77'
+  ProduceID: '82061bb2-36ee-4d5b-8a23-63f5b2e1663f'
+  PropagateID: '82061bb2-36ee-4d5b-8a23-63f5b2e1663f'
+  ReservedCode1: '1084dfbe-eaa7-4854-b402-25c1d176373c'
+  ReservedCode2: '1084dfbe-eaa7-4854-b402-25c1d176373c'
 ---
 
 # 静心音乐 / TclawPlay
@@ -78,6 +78,7 @@ AIGC:
 - **WebDAV 配置备份** — 自动备份到 Download 目录，换设备一键恢复
 
 ### ✨ 其他
+- **在线更新** — GitHub Release 自动检查更新，4镜像测速下载，三层校验，启动静默检查+手动检查
 - **收藏与历史** — 一键收藏，播放历史快速回听
 - **自动恢复** — 记忆上次播放歌曲，重启后自动跳转播放页
 - **目录播放** — 目录视图中点击歌曲，播放队列自动限定在该目录内
@@ -264,6 +265,18 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 更新日志
 
+### v1.0.2 (2026-08)
+- 在线更新功能（GitHub Release检查+镜像测速下载+三层校验+安装）
+- 封面公共目录从 Pictures/静心音乐/ 改为 Download/jingxinmusic/cover/
+- 修复封面 saveCoverToPublic IS_PENDING 未清零导致对其他应用不可见的 bug
+- 横屏路径栏比例从 6% 调整为 8%
+
+### v1.0.1 (2026-07)
+- 状态栏 inset 适配（MainActivity/PlayerActivity）
+- B站异步竞态修复（biliFetching 标志位）
+- 封面缓存去重（CoverLoader 检查缓存避免重复写入）
+- 歌词广播修复（setPackage 解决 Android 16 广播丢弃）
+
 ### v1.0 (2026-06)
 - 本地音乐扫描 + WebDAV 云端播放 + B站音源
 - KRC/LRC 歌词系统（逐字高亮+在线获取+缓存）
@@ -366,6 +379,7 @@ MIT License
 - **WebDAV Config Backup** — Auto-backup to Download directory, one-tap restore on new devices
 
 ### ✨ Others
+- **Online Update** — GitHub Release auto-check, 4-mirror speed test download, triple validation, silent check on launch + manual check
 - **Favorites & History** — One-tap favorite, quick replay from history
 - **Auto Resume** — Remembers last played song, auto-navigates to player on restart
 - **Folder Playback** — Tapping a song in folder view limits the play queue to that folder
@@ -551,6 +565,18 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.2 (2026-08)
+- Online update feature (GitHub Release check + mirror speed test + triple validation + install)
+- Cover public directory changed from Pictures/静心音乐/ to Download/jingxinmusic/cover/
+- Fixed saveCoverToPublic IS_PENDING not cleared bug (covers invisible to other apps)
+- Landscape path bar ratio adjusted from 6% to 8%
+
+### v1.0.1 (2026-07)
+- Status bar inset adaptation (MainActivity/PlayerActivity)
+- Bilibili async race condition fix (biliFetching flag)
+- Cover cache deduplication (CoverLoader checks cache before writing)
+- Lyrics broadcast fix (setPackage for Android 16 broadcast)
 
 ### v1.0 (2026-06)
 - Local music scan + WebDAV cloud playback + Bilibili audio source
