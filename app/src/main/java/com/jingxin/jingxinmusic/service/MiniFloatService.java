@@ -28,6 +28,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
@@ -74,6 +75,8 @@ public class MiniFloatService extends Service {
     private ImageView btnNext;
     private android.view.View sizeAdjustPanel; // 尺寸调节面板
     private boolean isAdjustingSize = false;   // 是否正在调节尺寸
+    private LinearLayout rootLayout;           // 悬浮窗根布局（用于更新透明度）
+    private int currentBgAlpha;                // 当前背景透明度 (0-255)
 
     // 播放服务
     private MusicPlayerService.MusicPlayerBinder playerBinder;
@@ -122,6 +125,7 @@ public class MiniFloatService extends Service {
     private static final float FLOAT_SIZE_MIN = 0.20f; // 最小20%
     private static final float FLOAT_SIZE_MAX = 0.60f; // 最大60%
     private static final float FLOAT_SIZE_STEP = 0.05f; // 每次步进5%
+    private static final int DEFAULT_BG_ALPHA = 204; // 0xCC，默认80%不透明度
 
     @Override
     public void onCreate() {
@@ -242,20 +246,14 @@ public class MiniFloatService extends Service {
         int iconColor = isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
 
         // 外层圆角卡片（水平布局：左封面 + 右信息）
-        LinearLayout rootLayout = new LinearLayout(this);
+        rootLayout = new LinearLayout(this);
         rootLayout.setOrientation(LinearLayout.HORIZONTAL);
         rootLayout.setPadding((int)(12 * unit), (int)(10 * unit), (int)(12 * unit), (int)(10 * unit));
         rootLayout.setGravity(Gravity.CENTER_VERTICAL);
 
-        // 圆角半透明渐变背景
-        int bgAlpha = 0xCC; // 80%不透明度（半透明）
-        int bgColorAlpha = (bgAlpha << 24) | (bgColor & 0x00FFFFFF);
-        int bgEndColorAlpha = (bgAlpha << 24) | (bgEndColor & 0x00FFFFFF);
-        GradientDrawable bgDrawable = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                new int[]{bgColorAlpha, bgEndColorAlpha});
-        bgDrawable.setCornerRadius((int)(16 * unit));
-        rootLayout.setBackground(bgDrawable);
+        // 圆角半透明渐变背景（透明度从持久化读取）
+        currentBgAlpha = getSavedBgAlpha();
+        applyRootBackground(bgColor, bgEndColor, currentBgAlpha, rootLayout);
 
         // ===== 左侧：旋转封面 =====
         int coverSize = (int)(65 * unit);
@@ -791,6 +789,39 @@ public class MiniFloatService extends Service {
         return new int[]{sp.getInt("x_" + key, 16), sp.getInt("y_" + key, 100)};
     }
 
+    // ========== 透明度管理 ==========
+
+    private int getSavedBgAlpha() {
+        return getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .getInt("bg_alpha", DEFAULT_BG_ALPHA);
+    }
+
+    private void saveBgAlpha(int alpha) {
+        getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .edit()
+                .putInt("bg_alpha", alpha)
+                .apply();
+    }
+
+    private void applyRootBackground(int bgColor, int bgEndColor, int alpha, View target) {
+        int c1 = (alpha << 24) | (bgColor & 0x00FFFFFF);
+        int c2 = (alpha << 24) | (bgEndColor & 0x00FFFFFF);
+        GradientDrawable d = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR, new int[]{c1, c2});
+        d.setCornerRadius((int)(16 * unit));
+        target.setBackground(d);
+    }
+
+    private void updateFloatBgAlpha(int alpha) {
+        currentBgAlpha = alpha;
+        if (rootLayout != null) {
+            int bgColor = isNightMode ? ThemeColors.nightCardBg() : ThemeColors.dayCardBg();
+            int bgEndColor = isNightMode ? ThemeColors.nightCardBgEnd() : ThemeColors.dayCardBgEnd();
+            applyRootBackground(bgColor, bgEndColor, alpha, rootLayout);
+        }
+        saveBgAlpha(alpha);
+    }
+
     // ========== 尺寸调节面板 ==========
 
     /**
@@ -805,20 +836,24 @@ public class MiniFloatService extends Service {
         panel.setBackground(panelBg);
         panel.setPadding((int)(10 * unit), (int)(10 * unit), (int)(10 * unit), (int)(10 * unit));
 
-        // 三个按钮水平均匀分布
+        // 垂直布局：按钮行 + 透明度滑条
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setLayoutParams(new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        // ===== 按钮行 =====
         LinearLayout btnRow = new LinearLayout(this);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
         btnRow.setGravity(Gravity.CENTER);
-        btnRow.setLayoutParams(new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
         int btnSize = (int)(44 * unit); // 大按钮，方便触控
-        int btnSpacing = (int)(10 * unit); // 按钮间距，与左右边距相同
+        int btnSpacing = (int)(10 * unit); // 按钮间距
 
         // + 按钮
         TextView btnPlus = new TextView(this);
         btnPlus.setText("+");
-        btnPlus.setTextColor(ThemeColors.sparkColor(isNightMode)); // LED发光色
+        btnPlus.setTextColor(ThemeColors.sparkColor(isNightMode));
         btnPlus.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 28 * unit);
         btnPlus.setTypeface(null, android.graphics.Typeface.BOLD);
         btnPlus.setGravity(Gravity.CENTER);
@@ -848,7 +883,7 @@ public class MiniFloatService extends Service {
         btnMinus.setLayoutParams(minusParams);
         btnMinus.setOnClickListener(v -> applyFloatScale(-FLOAT_SIZE_STEP));
 
-        // 退出按钮（X图标）
+        // 退出按钮
         TextView btnClose = new TextView(this);
         btnClose.setText("✕");
         btnClose.setTextColor(ThemeColors.sparkColor(isNightMode));
@@ -867,7 +902,59 @@ public class MiniFloatService extends Service {
         btnRow.addView(btnPlus);
         btnRow.addView(btnMinus);
         btnRow.addView(btnClose);
-        panel.addView(btnRow);
+
+        // ===== 透明度滑条行 =====
+        LinearLayout alphaRow = new LinearLayout(this);
+        alphaRow.setOrientation(LinearLayout.HORIZONTAL);
+        alphaRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams alphaRowParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        alphaRowParams.topMargin = (int)(8 * unit);
+
+        // 透明标签
+        TextView tvAlpha = new TextView(this);
+        tvAlpha.setText("透");
+        tvAlpha.setTextColor(textColor);
+        tvAlpha.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 11 * unit);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        labelParams.setMarginEnd((int)(6 * unit));
+
+        // SeekBar
+        SeekBar alphaSeek = new SeekBar(this);
+        alphaSeek.setMax(255);
+        alphaSeek.setProgress(currentBgAlpha);
+        LinearLayout.LayoutParams seekParams = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        alphaSeek.setLayoutParams(seekParams);
+        // 拖动时实时更新背景透明度
+        alphaSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) updateFloatBgAlpha(progress);
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        // 不透明标签
+        TextView tvOpaque = new TextView(this);
+        tvOpaque.setText("实");
+        tvOpaque.setTextColor(textColor);
+        tvOpaque.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 11 * unit);
+        LinearLayout.LayoutParams labelParams2 = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        labelParams2.setMarginStart((int)(6 * unit));
+
+        alphaRow.addView(tvAlpha, labelParams);
+        alphaRow.addView(alphaSeek);
+        alphaRow.addView(tvOpaque, labelParams2);
+
+        column.addView(btnRow);
+        column.addView(alphaRow, alphaRowParams);
+        panel.addView(column);
 
         return panel;
     }
@@ -883,8 +970,13 @@ public class MiniFloatService extends Service {
         floatView.post(() -> {
             if (sizeAdjustPanel == null || floatView == null) return;
             int floatHeight = floatView.getHeight();
-            int panelWidth = (int) (floatWidthPx * 0.8f);
-            int panelHeight = (int) (floatHeight * 0.8f);
+            int panelWidth = (int) (floatWidthPx * 0.85f);
+            // 高度 = 按钮行高度 + 间距 + 滑条高度 + 上下padding
+            int btnRowHeight = (int)(44 * unit);
+            int alphaRowHeight = (int)(36 * unit);
+            int padding = (int)(20 * unit);
+            int gap = (int)(8 * unit);
+            int panelHeight = Math.min(floatHeight - (int)(8 * unit), btnRowHeight + gap + alphaRowHeight + padding);
 
             FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(panelWidth, panelHeight);
             panelParams.gravity = Gravity.CENTER;
