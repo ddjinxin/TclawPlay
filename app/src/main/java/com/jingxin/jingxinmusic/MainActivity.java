@@ -49,6 +49,7 @@ import com.jingxin.jingxinmusic.util.FavoriteManager;
 import com.jingxin.jingxinmusic.util.LocalDirectoryScanner;
 import com.jingxin.jingxinmusic.util.MusicScanner;
 import com.jingxin.jingxinmusic.util.ThemeColors;
+import com.jingxin.jingxinmusic.util.UpdateHelper;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
 import com.jingxin.jingxinmusic.util.WebDavScanner;
 
@@ -77,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageView btnTheme;
     private ImageView btnStyle;
     private ImageView btnClose;
+    private ImageView btnUpdate;
     private View rootLayout;
     private View tabBar;
     private View titleBar;
@@ -314,6 +316,13 @@ public class MainActivity extends AppCompatActivity {
             System.exit(0);
         });
 
+        // 更新按钮
+        btnUpdate = findViewById(R.id.update_button);
+        btnUpdate.setOnClickListener(v -> {
+            android.widget.Toast.makeText(this, "正在检查更新...", android.widget.Toast.LENGTH_SHORT).show();
+            UpdateHelper.getInstance(this).checkManually(this);
+        });
+
         // Tab
         tabLocal = findViewById(R.id.tab_local);
         tabCloud = findViewById(R.id.tab_cloud);
@@ -537,6 +546,9 @@ public class MainActivity extends AppCompatActivity {
         };
         getContentResolver().registerContentObserver(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver);
+
+        // 启动时自动检查更新（静默，遵守忽略列表）
+        UpdateHelper.getInstance(this).checkOnLaunch(this);
     }
 
     @Override
@@ -1737,8 +1749,8 @@ public class MainActivity extends AppCompatActivity {
             if (miniSongArtist != null) {
                 miniSongArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, miniH * 0.2f));
             }
-            // 路径栏：H×6%
-            int pathBarH = Math.max(28, (int) (height * 0.06f));
+            // 路径栏：H×8%
+            int pathBarH = Math.max(28, (int) (height * 0.08f));
             if (pathBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) pathBar.getLayoutParams();
                 lp.height = pathBarH;

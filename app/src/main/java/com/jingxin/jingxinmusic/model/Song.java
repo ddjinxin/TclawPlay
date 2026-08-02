@@ -20,7 +20,7 @@ import java.io.OutputStream;
  */
 public class Song {
     private static final String TAG = "Song";
-    private static final String COVER_FOLDER = "静心音乐";
+    private static final String COVER_FOLDER = "jingxinmusic/cover";
 
     // Intent / SharedPreferences 序列化 key（公开供跨类引用）
     public static final String KEY_ID             = "song_id";
@@ -165,7 +165,7 @@ public class Song {
                     values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
                     values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
                     values.put(MediaStore.Images.Media.RELATIVE_PATH,
-                            Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER);
+                            Environment.DIRECTORY_DOWNLOADS + "/" + COVER_FOLDER);
                     values.put(MediaStore.Images.Media.IS_PENDING, 1);
 
                     uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
@@ -181,6 +181,11 @@ public class Song {
                         os.flush();
                     }
                 }
+
+                // 写完后清除 IS_PENDING，让文件对其他应用可见
+                ContentValues clearPending = new ContentValues();
+                clearPending.put(MediaStore.Images.Media.IS_PENDING, 0);
+                resolver.update(uri, clearPending, null, null);
 
                 Log.d(TAG, "封面已保存到公共目录: " + uri);
                 return uri;
@@ -366,7 +371,7 @@ public class Song {
                 String selection = MediaStore.Images.Media.DISPLAY_NAME + " = ? AND " +
                         MediaStore.Images.Media.RELATIVE_PATH + " LIKE ? ";
                 String[] selectionArgs = new String[]{fileName,
-                        "%" + Environment.DIRECTORY_PICTURES + "/" + COVER_FOLDER + "%"};
+                        "%" + Environment.DIRECTORY_DOWNLOADS + "/" + COVER_FOLDER + "%"};
                 Uri queryUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
                 android.database.Cursor cursor = resolver.query(queryUri,
                         new String[]{MediaStore.Images.Media._ID},
@@ -384,7 +389,7 @@ public class Song {
         } else {
             // API 21-28: File 路径查询
             File picturesDir = Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_PICTURES);
+                    Environment.DIRECTORY_DOWNLOADS);
             File coverDir = new File(picturesDir, COVER_FOLDER);
             File file = new File(coverDir, fileName);
             if (file.exists()) return Uri.fromFile(file);
