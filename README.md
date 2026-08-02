@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '478e80c4-fece-4894-bec0-80873f32e67b'
-  PropagateID: '478e80c4-fece-4894-bec0-80873f32e67b'
-  ReservedCode1: '6d20ac6a-5c3e-45a6-b9ea-c0045a491476'
-  ReservedCode2: '6d20ac6a-5c3e-45a6-b9ea-c0045a491476'
+  ProduceID: '75e9eefc-61b9-4779-af7f-34979bfe26fe'
+  PropagateID: '75e9eefc-61b9-4779-af7f-34979bfe26fe'
+  ReservedCode1: 'a43f9f9b-2961-4ccd-bac3-6a200aa5120b'
+  ReservedCode2: 'a43f9f9b-2961-4ccd-bac3-6a200aa5120b'
 ---
 
 # 静心音乐 / TclawPlay
@@ -352,6 +352,20 @@ MIT License
 <p align="center">
   Entirely generated through AI conversations. The author never reads the code, only converses with AI.
 </p>
+
+---
+
+## 📢 Latest Version (v1.0.2)
+
+### New Features
+- **Online Update** — New update button in title bar, GitHub Release auto-check + 4-mirror speed test download + triple validation + one-tap install, silent check on launch + manual check
+
+### Bug Fixes
+- **Cover IS_PENDING Fix** — saveCoverToPublic did not clear IS_PENDING after creating MediaStore record, covers invisible to other apps, fixed
+
+### Optimizations
+- Cover public directory changed from `Pictures/静心音乐/` to `Download/jingxinmusic/cover/`
+- Landscape path bar ratio adjusted from 6% to 8%
 
 ---
 
