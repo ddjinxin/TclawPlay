@@ -406,6 +406,19 @@ public class MusicPlayerService extends Service {
         });
         mediaSession.setActive(true);
 
+        // 预填充上一次播放的歌曲信息，避免其他应用（如乐酷桌面）首次进入时读到空 metadata
+        Song lastSong = Song.fromPrefs(getSharedPreferences("last_played", MODE_PRIVATE));
+        if (lastSong != null) {
+            MediaMetadataCompat.Builder initBuilder = new MediaMetadataCompat.Builder()
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, lastSong.title)
+                    .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, lastSong.title)
+                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, lastSong.artist)
+                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, lastSong.album)
+                    .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, lastSong.duration);
+            mediaSession.setMetadata(initBuilder.build());
+            Log.d(TAG, "onCreate: 预填充 MediaSession metadata: " + lastSong.title + " - " + lastSong.artist);
+        }
+
         // 注册通知按钮动作
         IntentFilter filter = new IntentFilter();
         filter.addAction("ACTION_PLAY_PAUSE");
@@ -923,14 +936,29 @@ public class MusicPlayerService extends Service {
     }
 
     private void doUpdateMediaSessionMetadata() {
+        doUpdateMediaSessionMetadata(false);
+    }
+
+    /**
+     * @param forceRefresh true=加时间戳字段强制触发 onMetadataChanged（乐酷桌面不主动读 metadata，只能靠回调）
+     */
+    private void doUpdateMediaSessionMetadata(boolean forceRefresh) {
         Song currentSong = getCurrentSong();
         if (currentSong == null || mediaSession == null) return;
 
+        // artist 为空时填充默认值，否则乐酷桌面 a51.i() 检查 TextUtils.isEmpty(artist) 会跳过不显示
+        String artist = (currentSong.artist != null && !currentSong.artist.isEmpty()) ? currentSong.artist : "未知歌手";
         MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, currentSong.title)
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentSong.artist)
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, currentSong.album)
+                .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, currentSong.title)
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, currentSong.album != null ? currentSong.album : "")
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, currentSong.duration);
+
+        // 强制刷新时加一个每次变化的值，确保 onMetadataChanged 被触发
+        if (forceRefresh) {
+            builder.putLong(MediaMetadataCompat.METADATA_KEY_NUM_TRACKS, System.currentTimeMillis());
+        }
 
         String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(currentSong.title, currentSong.artist) + ".jpg";
         File cacheCoverFile = new File(com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this), coverName);
@@ -954,6 +982,7 @@ public class MusicPlayerService extends Service {
             builder.putString(MediaMetadataCompat.METADATA_KEY_ART_URI, currentSong.albumArt);
         }
 
+        Log.d(TAG, "setMetadata: forceRefresh=" + forceRefresh + " title=" + currentSong.title + " artist=" + artist);
         mediaSession.setMetadata(builder.build());
     }
 
@@ -966,8 +995,9 @@ public class MusicPlayerService extends Service {
     }
 
     /**
-     * 启动定时器，每秒更新 MediaSession PlaybackState
+     * 启动定时器，每秒更新 MediaSession PlaybackState + 强制刷新 metadata
      * 其他应用通过 MediaController.getPlaybackState() 获取实时播放进度
+     * 同时强制刷新 metadata 触发 onMetadataChanged，让乐酷桌面首次进入也能收到歌名歌手
      */
     private void startPlaybackStateUpdater() {
         stopPlaybackStateUpdater();
@@ -976,6 +1006,11 @@ public class MusicPlayerService extends Service {
             public void run() {
                 if (isPlaying()) {
                     updateMediaSessionPlaybackState();
+                    // 强制刷新 metadata，触发 onMetadataChanged 回调
+                    // 乐酷桌面不主动读已有 metadata，只靠被动回调
+                    if (!deferMediaSessionUpdate) {
+                        doUpdateMediaSessionMetadata(true);
+                    }
                     handler.postDelayed(this, PLAYBACK_STATE_UPDATE_INTERVAL);
                 }
             }
