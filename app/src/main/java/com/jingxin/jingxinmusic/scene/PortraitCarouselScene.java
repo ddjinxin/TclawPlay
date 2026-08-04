@@ -25,7 +25,7 @@ public class PortraitCarouselScene extends AbstractCarouselScene {
         // 非沉浸遮罩
         h.overlayView.setVisibility(View.GONE);
         h.whiteOverlay.setVisibility(View.VISIBLE);
-        h.whiteOverlay.setAlpha(0.4f);
+        h.whiteOverlay.setAlpha(0.7f);
         // 关键：rootLayout 不裁剪子View，叠加溢出可见
         h.rootLayout.setClipChildren(false);
         h.rootLayout.setClipToPadding(false);

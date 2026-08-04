@@ -388,13 +388,13 @@ public class PlayerActivity extends AppCompatActivity {
         btnOutfit = findViewById(R.id.outfit_button);
         overlayView = findViewById(R.id.overlay_view);
         whiteOverlay = findViewById(R.id.white_overlay);
-        // 初始化白天模式渐变遮罩：浅绿(0xFFA5D6A4)→白(0xFFFFFFFF)，从上到下
+        // 初始化白天模式渐变遮罩：浅蓝(0xFFADD8E6)→白(0xFFFFFFFF)，左上到右下
         whiteGradientDrawable = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0xFFA5D6A4, 0xFFFFFFFF}
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFFADD8E6, 0xFFFFFFFF}
         );
         whiteOverlay.setBackground(whiteGradientDrawable);
-        whiteOverlay.setAlpha(0.4f);
+        whiteOverlay.setAlpha(0.7f);
         immersiveDarkOverlay = findViewById(R.id.immersive_dark_overlay);
         immersiveOverlay = findViewById(R.id.immersive_overlay);
         infoPanel = findViewById(R.id.info_panel);
@@ -1758,7 +1758,7 @@ public class PlayerActivity extends AppCompatActivity {
                 blurBackground.setAlpha(0.5f);
                 blurBackground.setVisibility(View.VISIBLE);
                 whiteOverlay.setVisibility(View.VISIBLE);
-                whiteOverlay.setAlpha(0.4f);
+                whiteOverlay.setAlpha(0.7f);
                 overlayView.setVisibility(View.GONE);
                 applyTextTheme(false);
                 applyButtonTheme(false);

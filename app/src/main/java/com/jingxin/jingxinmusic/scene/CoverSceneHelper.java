@@ -333,7 +333,7 @@ public class CoverSceneHelper {
                     blurBackground.setVisibility(android.view.View.VISIBLE);
                     if (!isNightMode) {
                         whiteOverlay.setVisibility(android.view.View.VISIBLE);
-                        whiteOverlay.setAlpha(0.4f);
+                        whiteOverlay.setAlpha(0.7f);
                     }
                 });
             }
@@ -527,7 +527,7 @@ public class CoverSceneHelper {
                     blurBackground.setVisibility(View.VISIBLE);
                      if (!isNightMode) {
                          whiteOverlay.setVisibility(View.VISIBLE);
-                         whiteOverlay.setAlpha(0.4f);
+                         whiteOverlay.setAlpha(0.7f);
                      }
                  });
              }

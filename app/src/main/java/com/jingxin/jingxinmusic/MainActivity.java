@@ -1165,6 +1165,7 @@ public class MainActivity extends AppCompatActivity {
             btnTheme.clearColorFilter();
             btnStyle.clearColorFilter();
             btnClose.clearColorFilter();
+            btnUpdate.clearColorFilter();
             // Browse area
             browseArea.setBackground(ThemeColors.bgGradient(true));
             pathBar.setBackground(ThemeColors.barGradient(true));
@@ -1193,6 +1194,7 @@ public class MainActivity extends AppCompatActivity {
             btnStyle.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             btnTheme.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             btnClose.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+            btnUpdate.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             // Browse area
             browseArea.setBackground(ThemeColors.bgGradient(false));
             pathBar.setBackground(ThemeColors.barGradient(false));

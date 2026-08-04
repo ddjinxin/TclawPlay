@@ -124,6 +124,7 @@ public class MusicPlayerService extends Service {
     private int playOrder = PLAY_ORDER_SEQUENTIAL;  // 默认顺序播放
     private final Random random = new Random();
     private boolean deferMediaSessionUpdate = false;  // 延迟MediaSession更新标志（等歌词下载完成后更新）
+    private Runnable mediaSessionFallback;  // 5秒兜底，防止歌词搜索失败时MediaSession永不更新
 
     private NotificationManager notificationManager;
 
@@ -221,6 +222,18 @@ public class MusicPlayerService extends Service {
             themeIntent.setPackage(getPackageName());
             themeIntent.putExtra(EXTRA_IS_NIGHT, isNight);
             sendBroadcast(themeIntent);
+        }
+    };
+
+    // 歌词就绪广播接收器（LyricFetcher 写入成功后触发，重新更新 MediaSession）
+    private BroadcastReceiver lyricAvailableReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!ACTION_LYRIC_AVAILABLE.equals(intent.getAction())) return;
+            Log.d(TAG, "收到歌词就绪广播，重新更新 MediaSession");
+            if (mediaSessionFallback != null) handler.removeCallbacks(mediaSessionFallback);
+            deferMediaSessionUpdate = false;
+            doUpdateMediaSessionMetadata();
         }
     };
 
@@ -400,6 +413,10 @@ public class MusicPlayerService extends Service {
         filter.addAction("ACTION_NEXT");
         CompatUtil.safeRegisterReceiver(this, notificationActionReceiver, filter);
 
+        // 注册歌词就绪广播（内部，LyricFetcher 歌词写入完成后触发）
+        IntentFilter lyricFilter = new IntentFilter(ACTION_LYRIC_AVAILABLE);
+        CompatUtil.safeRegisterReceiver(this, lyricAvailableReceiver, lyricFilter);
+
         // 注册高德导航日夜模式广播（需 RECEIVER_EXPORTED，因为来自外部应用）
         IntentFilter amapFilter = new IntentFilter(ACTION_AUTONAVI);
         CompatUtil.safeRegisterReceiverExported(this, amapThemeReceiver, amapFilter);
@@ -449,6 +466,9 @@ public class MusicPlayerService extends Service {
         stopForeground(true);
         try {
             unregisterReceiver(notificationActionReceiver);
+        } catch (Exception ignored) {}
+        try {
+            unregisterReceiver(lyricAvailableReceiver);
         } catch (Exception ignored) {}
         try {
             unregisterReceiver(amapThemeReceiver);
@@ -757,7 +777,7 @@ public class MusicPlayerService extends Service {
                 HistoryManager.addHistory(historyDir, song);
             }, "HistoryLogger").start();
 
-            updateMediaSessionMetadata();
+            // MediaSession metadata 延迟到 sendSongChangedBroadcast 中根据歌词就绪时机更新
             updateNotification();
             sendSongChangedBroadcast(song, position);
 
@@ -1133,15 +1153,19 @@ public class MusicPlayerService extends Service {
             deferMediaSessionUpdate = false;
             doUpdateMediaSessionMetadata();
         } else {
-            // 本地无缓存，设置延迟标志，等歌词下载后再更新 MediaSession
-            // 歌词下载由 PlayerActivity.fetchLyrics() 触发，无需在此重复调用
+            // 本地无缓存，延迟更新 MediaSession，等歌词下载完成（lyricAvailableReceiver 触发）
+            // 5秒兜底：歌词搜索失败时也要更新 MediaSession
             deferMediaSessionUpdate = true;
-            Song delayedSong = song;
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                syncLyricToPublicDir(delayedSong);
-                deferMediaSessionUpdate = false;
-                doUpdateMediaSessionMetadata();
-            }, 1000);
+            if (mediaSessionFallback != null) handler.removeCallbacks(mediaSessionFallback);
+            mediaSessionFallback = () -> {
+                if (deferMediaSessionUpdate) {
+                    Log.d(TAG, "5秒兜底：歌词未就绪，强制更新 MediaSession");
+                    syncLyricToPublicDir(song);
+                    deferMediaSessionUpdate = false;
+                    doUpdateMediaSessionMetadata();
+                }
+            };
+            handler.postDelayed(mediaSessionFallback, 5000);
         }
 
         Log.d(TAG, "歌曲切换: " + song.title + " - " + song.artist);

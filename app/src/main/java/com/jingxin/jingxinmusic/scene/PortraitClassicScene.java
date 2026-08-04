@@ -31,7 +31,7 @@ public class PortraitClassicScene implements CoverScene {
         // 显示非沉浸遮罩
         h.overlayView.setVisibility(View.GONE);
         h.whiteOverlay.setVisibility(View.VISIBLE);
-        h.whiteOverlay.setAlpha(0.4f);
+        h.whiteOverlay.setAlpha(0.7f);
         // 封面
         h.coverView.setVisibility(View.VISIBLE);
         setupCoverStyle();
