@@ -61,6 +61,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 音乐播放服务
@@ -143,6 +145,9 @@ public class MusicPlayerService extends Service {
     // MediaSession PlaybackState 定时更新（其他应用依赖此获取实时播放进度）
     private Runnable playbackStateUpdater;
     private static final long PLAYBACK_STATE_UPDATE_INTERVAL = 1000; // 1秒更新一次
+
+    // Service 自己的封面加载线程池（PlayerActivity 不在前台时保证封面也能加载）
+    private ExecutorService coverExecutor;
 
     private Player.Listener playerListener;
 
@@ -436,6 +441,9 @@ public class MusicPlayerService extends Service {
 
         // 启动为前台服务
         CompatUtil.safeStartForeground(this, NOTIFICATION_ID, buildNotification("静心音乐", "准备播放..."));
+
+        // 初始化封面加载线程池
+        coverExecutor = Executors.newSingleThreadExecutor();
     }
 
     @Override
@@ -476,6 +484,10 @@ public class MusicPlayerService extends Service {
             mediaSession = null;
         }
         handler.removeCallbacksAndMessages(null);
+        if (coverExecutor != null) {
+            coverExecutor.shutdownNow();
+            coverExecutor = null;
+        }
         stopForeground(true);
         try {
             unregisterReceiver(notificationActionReceiver);
@@ -1204,6 +1216,41 @@ public class MusicPlayerService extends Service {
         }
 
         Log.d(TAG, "歌曲切换: " + song.title + " - " + song.artist);
+
+        // Service 自己也加载封面（PlayerActivity 不在前台时保证封面也能加载到缓存）
+        ensureCoverCached(song);
+    }
+
+    /**
+     * 确保封面缓存文件存在：如果不存在则异步加载并保存到缓存目录
+     * 加载完成后刷新 MediaSession metadata，让乐酷桌面等外部应用能获取到封面
+     */
+    private void ensureCoverCached(Song song) {
+        if (song == null || song.title == null || coverExecutor == null) return;
+
+        String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
+        File cacheCoverFile = new File(com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this), coverName);
+        if (cacheCoverFile.exists() && cacheCoverFile.length() > 0) return; // 已有缓存无需加载
+
+        Log.d(TAG, "封面缓存不存在，Service 异步加载: " + coverName);
+        // CoverLoader.load 内部通过 executor 异步加载，回调在主线程
+        com.jingxin.jingxinmusic.util.CoverLoader.load(this, song, 200, 200, true,
+                coverExecutor,
+                new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
+                    @Override
+                    public void onCoverLoaded(Bitmap bitmap) {
+                        Log.d(TAG, "Service 封面加载成功，刷新 metadata: " + coverName);
+                        // 封面已写入缓存文件，立即刷新 metadata
+                        if (!deferMediaSessionUpdate) {
+                            doUpdateMediaSessionMetadata(true);
+                        }
+                    }
+
+                    @Override
+                    public void onCoverFailed() {
+                        Log.d(TAG, "Service 封面加载失败: " + coverName);
+                    }
+                });
     }
 
     /**
