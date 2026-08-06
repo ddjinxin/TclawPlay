@@ -1772,12 +1772,12 @@ public class PlayerActivity extends AppCompatActivity {
     private void applyTextTheme(boolean isNight) {
         if (isNight) {
             tvSongName.setTextColor(ThemeColors.nightTextPrimary());
-            tvArtist.setTextColor(ThemeColors.nightTextSecondary());
+            tvArtist.setTextColor(ThemeColors.nightTextPrimary());
             tvCurrentTime.setTextColor(ThemeColors.nightTextPrimary());
             tvTotalTime.setTextColor(ThemeColors.nightTextPrimary());
         } else {
             tvSongName.setTextColor(ThemeColors.dayTextPrimary());
-            tvArtist.setTextColor(ThemeColors.dayTextTertiary());
+            tvArtist.setTextColor(ThemeColors.dayTextPrimary());
             tvCurrentTime.setTextColor(ThemeColors.dayTextPrimary());
             tvTotalTime.setTextColor(ThemeColors.dayTextPrimary());
         }
