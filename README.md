@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '360f4903-6790-471c-82f8-06bd3b0e8794'
-  PropagateID: '360f4903-6790-471c-82f8-06bd3b0e8794'
-  ReservedCode1: 'e28b14a2-4da4-42d8-ae62-3782260414e1'
-  ReservedCode2: 'e28b14a2-4da4-42d8-ae62-3782260414e1'
+  ProduceID: '3b841bc0-3c72-45fe-90ec-3d64524ad73a'
+  PropagateID: '3b841bc0-3c72-45fe-90ec-3d64524ad73a'
+  ReservedCode1: '155bf988-674b-4532-ad98-fd4237e47f8a'
+  ReservedCode2: '155bf988-674b-4532-ad98-fd4237e47f8a'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,19 +24,19 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.4)
+## 📢 最新版本 (v1.0.4.1)
 
-### Bug 修复
-- **乐酷桌面首次启动无法获取封面** — MusicPlayerService 新增封面自主加载能力（内嵌→缓存→在线三层），不再依赖 PlayerActivity 前台运行
-- **播放页歌手颜色统一** — 歌手颜色从 TextSecondary/Tertiary 统一为与歌名一致的 TextPrimary
+### 优化
+- **歌词文件命名规则调整** — 歌词文件（.krc/.lrc）改用未清洗的原始标题命名，搜索逻辑不变（仍用 cleanSongTitle 清洗后的纯歌名搜索酷狗/网易云）
+- 兼容旧格式歌词文件回退匹配
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.4)
+## 📢 Latest Version (v1.0.4.1)
 
-### Bug Fixes
-- **Leco desktop cover not available on first launch** — MusicPlayerService now loads covers independently (embedded → cache → online), no longer depends on PlayerActivity being in foreground
-- **Artist color unified** — Artist text color unified to match song title (TextPrimary) across all themes
+### Improvements
+- **Lyrics file naming adjusted** — Lyric files (.krc/.lrc) now use raw unprocessed title for naming; search logic unchanged (still uses cleanSongTitle for Kugou/Netease search)
+- Backward compatible with legacy filename formats
 
 <!--END-->
 
@@ -283,9 +283,9 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 更新日志
 
-### v1.0.4 (2026-08)
-- 乐酷桌面首次启动无法获取封面修复（Service 自主加载封面，不依赖 PlayerActivity 前台）
-- 播放页歌手颜色统一为与歌名一致（TextPrimary）
+### v1.0.4.1 (2026-08)
+- 歌词文件命名改用原始标题（sanitizeFileName），搜索逻辑不变
+- 兼容旧格式歌词文件回退匹配
 
 ### v1.0.4 (2026-08)
 - 乐酷桌面首次启动无法获取封面修复（Service 自主加载封面，不依赖 PlayerActivity 前台）
@@ -608,6 +608,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.4.1 (2026-08)
+- Lyric file naming changed to raw title (sanitizeFileName), search logic unchanged
+- Backward compatible with legacy filename formats
 
 ### v1.0.4 (2026-08)
 - Fixed Leco desktop cover not available on first launch (Service loads covers independently, no longer depends on PlayerActivity foreground)
