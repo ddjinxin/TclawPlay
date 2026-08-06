@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'b4c8fee0-4bf5-41a0-8f1b-96ba63408b95'
-  PropagateID: 'b4c8fee0-4bf5-41a0-8f1b-96ba63408b95'
-  ReservedCode1: 'ebcf566a-9f71-4361-9613-e814f14d8925'
-  ReservedCode2: 'ebcf566a-9f71-4361-9613-e814f14d8925'
+  ProduceID: '360f4903-6790-471c-82f8-06bd3b0e8794'
+  PropagateID: '360f4903-6790-471c-82f8-06bd3b0e8794'
+  ReservedCode1: 'e28b14a2-4da4-42d8-ae62-3782260414e1'
+  ReservedCode2: 'e28b14a2-4da4-42d8-ae62-3782260414e1'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,17 +24,19 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.3)
+## 📢 最新版本 (v1.0.4)
 
-### 新功能
-- **悬浮窗透明度调节** — 点击悬浮窗封面弹出调节面板，新增透明度滑条（左=全透明，右=全不透明），拖动实时预览，关闭后自动记忆设置
+### Bug 修复
+- **乐酷桌面首次启动无法获取封面** — MusicPlayerService 新增封面自主加载能力（内嵌→缓存→在线三层），不再依赖 PlayerActivity 前台运行
+- **播放页歌手颜色统一** — 歌手颜色从 TextSecondary/Tertiary 统一为与歌名一致的 TextPrimary
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.3)
+## 📢 Latest Version (v1.0.4)
 
-### New Features
-- **Float window opacity control** — Tap the cover in the floating window to open the adjustment panel, now with an opacity slider (left = fully transparent, right = fully opaque). Real-time preview with automatic persistence.
+### Bug Fixes
+- **Leco desktop cover not available on first launch** — MusicPlayerService now loads covers independently (embedded → cache → online), no longer depends on PlayerActivity being in foreground
+- **Artist color unified** — Artist text color unified to match song title (TextPrimary) across all themes
 
 <!--END-->
 
@@ -280,6 +282,14 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.4 (2026-08)
+- 乐酷桌面首次启动无法获取封面修复（Service 自主加载封面，不依赖 PlayerActivity 前台）
+- 播放页歌手颜色统一为与歌名一致（TextPrimary）
+
+### v1.0.4 (2026-08)
+- 乐酷桌面首次启动无法获取封面修复（Service 自主加载封面，不依赖 PlayerActivity 前台）
+- 播放页歌手颜色统一为与歌名一致（TextPrimary）
 
 ### v1.0.3 (2026-08)
 - 悬浮窗透明度调节滑条（点击封面弹出面板，0-255实时调节，自动记忆）
@@ -598,6 +608,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.4 (2026-08)
+- Fixed Leco desktop cover not available on first launch (Service loads covers independently, no longer depends on PlayerActivity foreground)
+- Unified artist text color to match song title (TextPrimary)
 
 ### v1.0.3 (2026-08)
 - Float window opacity slider (tap cover to open panel, 0-255 real-time control, auto-persist)
