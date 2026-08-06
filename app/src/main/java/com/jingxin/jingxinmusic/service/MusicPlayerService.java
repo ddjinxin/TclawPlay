@@ -1259,8 +1259,8 @@ public class MusicPlayerService extends Service {
      */
     private String[] syncLyricToPublicDir(Song song) {
         String[] result = new String[]{null, null};
-        String cleanTitle = Song.cleanSongTitle(song.title, song.artist);
-        String safeName = cleanTitle.replaceAll("[\\\\/:*?\"<>|]", "_").replaceAll("\\s+", " ").trim();
+        // 文件命名用原始标题（sanitizeFileName），搜索用清洗后的标题
+        String safeName = FileUtil.sanitizeFileName(song.title);
         File lyricsDir = new File(getExternalFilesDir(null), "lyrics");
 
         File lrcPublicFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
@@ -1273,7 +1273,7 @@ public class MusicPlayerService extends Service {
         if (krcPublicFile.exists()) result[1] = krcPublicFile.getAbsolutePath();
         if (result[0] != null && result[1] != null) return result;
 
-        // 检查本地缓存（兼容新旧文件名格式），有则同步复制
+        // 检查本地缓存（兼容旧文件名格式），有则同步复制
         File krcCache = findLyricFile(lyricsDir, safeName, song.artist, ".krc");
         File lrcCache = findLyricFile(lyricsDir, safeName, song.artist, ".lrc");
 
@@ -1286,7 +1286,7 @@ public class MusicPlayerService extends Service {
             if (lrcPublicFile.exists()) result[0] = lrcPublicFile.getAbsolutePath();
         }
 
-        // 本地有KRC但没有LRC，从KRC生成LRC（用新格式文件名）
+        // 本地有KRC但没有LRC，从KRC生成LRC
         if (krcCache.exists() && !lrcCache.exists() && !lrcPublicFile.exists()) {
             KrcParser.LyricData data = KrcParser.parseKrcFile(krcCache);
             if (data != null && data.lines != null && !data.lines.isEmpty()) {
@@ -1304,26 +1304,26 @@ public class MusicPlayerService extends Service {
     }
 
     /**
-     * 查找本地歌词文件，兼容新旧文件名格式
-     * 优先匹配新格式（不含歌手），回退旧格式（含歌手）
+     * 查找本地歌词文件，兼容旧文件名格式
      */
     private File findLyricFile(File lyricsDir, String safeName, String artist, String ext) {
-        // 1. 精确匹配新格式
+        // 1. 精确匹配
         File file = new File(lyricsDir, safeName + ext);
         if (file.exists()) return file;
 
-        // 2. 尝试旧格式
+        // 2. 尝试旧格式（清洗后的歌名 + 歌手）
         if (artist != null && !artist.isEmpty() && !"<unknown>".equals(artist)) {
             String safeArtist = artist.replaceAll("[\\\\/:*?\"<>|]", "_").replaceAll("\\s+", " ").trim();
-            File legacy1 = new File(lyricsDir, safeName + " - " + safeArtist + ext);
+            String cleanName = Song.cleanSongTitle(safeName, artist);
+            File legacy1 = new File(lyricsDir, cleanName + " - " + safeArtist + ext);
             if (legacy1.exists()) return legacy1;
-            File legacy2 = new File(lyricsDir, safeArtist + " - " + safeName + ext);
+            File legacy2 = new File(lyricsDir, safeArtist + " - " + cleanName + ext);
             if (legacy2.exists()) return legacy2;
-            File legacy3 = new File(lyricsDir, safeArtist + "-" + safeName + ext);
+            File legacy3 = new File(lyricsDir, safeArtist + "-" + cleanName + ext);
             if (legacy3.exists()) return legacy3;
         }
 
-        // 3. 都没找到，返回新格式路径
+        // 3. 都没找到，返回标准路径
         return file;
     }
 

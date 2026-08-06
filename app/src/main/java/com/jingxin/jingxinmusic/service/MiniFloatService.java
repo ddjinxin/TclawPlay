@@ -611,7 +611,7 @@ public class MiniFloatService extends Service {
                     public void onError(String errorMessage) {
                         lyricData = null;
                     }
-                }, this);
+                }, this, song.title);
     }
 
     private void loadCover(Song song) {

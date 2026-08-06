@@ -1253,7 +1253,7 @@ public class PlayerActivity extends AppCompatActivity {
             public void onError(String errorMessage) {
                 Log.d(TAG, "歌词获取失败: " + errorMessage);
             }
-        }, this);
+        }, this, song.title);
     }
 
     /**
