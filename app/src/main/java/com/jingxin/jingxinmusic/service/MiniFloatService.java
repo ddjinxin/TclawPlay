@@ -65,6 +65,7 @@ public class MiniFloatService extends Service {
     // 悬浮窗样式模式
     private static final int MODE_CLASSIC = 0;  // 经典模式
     private static final int MODE_CAPSULE = 1;  // 胶囊（灵动岛）模式
+    private static final int MODE_KARAOKE = 2;  // 卡拉OK双行歌词模式
     private static final String PREF_STYLE_MODE = "float_style_mode";
 
     // 胶囊模式尺寸常量（以 280 为基准，与经典模式一致）
@@ -85,6 +86,7 @@ public class MiniFloatService extends Service {
 
     // 视图引用
     private ImageView coverImage;
+    private ImageView coverReflection; // 卡拉OK模式封面倒影
     private TextView tvTitle;
     private TextView tvArtist;
     private TextView tvLyric;
@@ -154,6 +156,18 @@ public class MiniFloatService extends Service {
     private boolean visualizerEnabled = false;
     private FrameLayout capsuleCenterLayout; // 歌词+频谱中间区域
 
+    // ========== 卡拉OK模式字段 ==========
+    private static final float KARAOKE_UNIT_RATIO = 0.95f;   // 卡拉OK默认宽度比例（屏宽×95%）
+    private static final float KARAOKE_UNIT_MIN = 0.40f;     // 卡拉OK最小宽度比例
+    private static final float KARAOKE_UNIT_MAX = 0.95f;     // 卡拉OK最大宽度比例
+    private static final float KARAOKE_LYRIC_SPAN_MIN = 0.20f; // 歌词区最小占比（悬浮窗宽度的比例）
+    private static final float KARAOKE_LYRIC_SPAN_MAX = 0.45f; // 歌词区最大占比
+    private static final float KARAOKE_LYRIC_SPAN_DEFAULT = 0.35f; // 默认歌词区占比
+    private float karaokeLyricRatio = KARAOKE_LYRIC_SPAN_DEFAULT; // 歌词区宽度比例
+    private TextView tvKaraokeLine1;  // 卡拉OK第一行歌词（当前句，居左）
+    private TextView tvKaraokeLine2;  // 卡拉OK第二行歌词（下一句，居右）
+    private SpectrumView karaokeSpectrum; // 卡拉OK频谱
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -170,6 +184,8 @@ public class MiniFloatService extends Service {
                 .getInt(PREF_STYLE_MODE, MODE_CLASSIC);
         if (floatMode == MODE_CAPSULE) {
             floatView = buildCapsuleView();
+        } else if (floatMode == MODE_KARAOKE) {
+            floatView = buildKaraokeView();
         } else {
             floatView = buildFloatView();
         }
@@ -317,6 +333,9 @@ public class MiniFloatService extends Service {
             switchFloatMode(MODE_CAPSULE);
             return true;
         });
+        // 注意：经典模式封面长按 → 胶囊；
+        // 胶囊模式封面长按 → 卡拉OK；
+        // 卡拉OK模式封面长按 → 经典（循环）
         rootLayout.addView(coverWrap, coverWrapParams);
 
         // ===== 右侧：信息区域（垂直四行） =====
@@ -556,8 +575,10 @@ public class MiniFloatService extends Service {
         }
 
         floatParams = new WindowManager.LayoutParams(
-                floatMode == MODE_CAPSULE ? getCapsuleWidth() : floatWidthPx,
-                floatMode == MODE_CAPSULE ? getCapsuleHeight() : WindowManager.LayoutParams.WRAP_CONTENT,
+                (floatMode == MODE_CAPSULE) ? getCapsuleWidth()
+                    : (floatMode == MODE_KARAOKE) ? getKaraokeWidth() : floatWidthPx,
+                (floatMode == MODE_CAPSULE) ? getCapsuleHeight()
+                    : (floatMode == MODE_KARAOKE) ? WindowManager.LayoutParams.WRAP_CONTENT : WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -605,8 +626,8 @@ public class MiniFloatService extends Service {
             updatePlayPauseButton(playerBinder.isPlaying());
             updateCoverRotation(playerBinder.isPlaying());
         }
-        // 胶囊模式：启动频谱
-        if (floatMode == MODE_CAPSULE) {
+        // 胶囊/卡拉OK模式：启动频谱
+        if (floatMode == MODE_CAPSULE || floatMode == MODE_KARAOKE) {
             initVisualizer();
         }
     }
@@ -641,7 +662,9 @@ public class MiniFloatService extends Service {
         currentLyricTitle = cleanTitle;
         currentLyricArtist = cleanArtist;
         lyricData = null;
-        tvLyric.setText("");
+        if (tvLyric != null) tvLyric.setText("");
+        if (tvKaraokeLine1 != null) tvKaraokeLine1.setText("");
+        if (tvKaraokeLine2 != null) tvKaraokeLine2.setText("");
 
         File lyricsDir = new File(getExternalFilesDir(null), "lyrics");
         LyricFetcher.loadLyric(cleanTitle, cleanArtist, song.filePath, lyricsDir,
@@ -688,6 +711,9 @@ public class MiniFloatService extends Service {
         if (capsuleSpectrum != null) {
             capsuleSpectrum.setPlaying(playing);
         }
+        if (karaokeSpectrum != null) {
+            karaokeSpectrum.setPlaying(playing);
+        }
         if (visualizer != null && visualizerEnabled) {
             try {
                 visualizer.setEnabled(playing);
@@ -723,16 +749,25 @@ public class MiniFloatService extends Service {
         windowManager.getDefaultDisplay().getMetrics(screenMetrics);
         
         if (floatMode == MODE_CAPSULE) {
+            karaokeSpectrum = null;
             computeCapsuleMetrics();
             floatView = buildCapsuleView();
             floatParams.width = getCapsuleWidth();
             floatParams.height = getCapsuleHeight();
+        } else if (floatMode == MODE_KARAOKE) {
+            capsuleSpectrum = null;
+            computeKaraokeMetrics();
+            floatView = buildKaraokeView();
+            floatParams.width = getKaraokeWidth();
+            floatParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
         } else {
+            capsuleSpectrum = null;
+            karaokeSpectrum = null;
             floatView = buildFloatView();
             floatParams.width = floatWidthPx;
             floatParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
         }
-        
+
         int[] pos = getSavedFloatPosition();
         floatParams.x = pos[0];
         floatParams.y = pos[1];
@@ -763,7 +798,11 @@ public class MiniFloatService extends Service {
 
         // 更新当前歌词行（KRC 逐字高亮，LRC 整行高亮）
         if (lyricData != null && lyricData.lines != null && !lyricData.lines.isEmpty()) {
-            updateLyricText(pos);
+            if (floatMode == MODE_KARAOKE) {
+                updateKaraokeLyric(pos);
+            } else {
+                updateLyricText(pos);
+            }
         }
     }
 
@@ -782,7 +821,9 @@ public class MiniFloatService extends Service {
             }
         }
         if (currentLine == null || currentLine.text == null || currentLine.text.isEmpty()) {
-            tvLyric.setText("");
+        if (tvLyric != null) tvLyric.setText("");
+        if (tvKaraokeLine1 != null) tvKaraokeLine1.setText("");
+        if (tvKaraokeLine2 != null) tvKaraokeLine2.setText("");
             return;
         }
 
@@ -828,6 +869,10 @@ public class MiniFloatService extends Service {
         Bitmap circular = com.jingxin.jingxinmusic.util.BitmapUtil.createScaledCircularBitmap(bitmap, size);
         if (circular != null) {
             coverImage.setImageBitmap(circular);
+            // 同步更新倒影
+            if (coverReflection != null) {
+                updateReflection(coverImage, coverReflection);
+            }
         }
     }
 
@@ -884,6 +929,14 @@ public class MiniFloatService extends Service {
             int bgEndColor = isNightMode ? ThemeColors.nightCardBgEnd() : ThemeColors.dayCardBgEnd();
             if (floatMode == MODE_CAPSULE) {
                 applyCapsuleBackground(bgColor, bgEndColor, alpha, rootLayout, getCapsuleHeight());
+            } else if (floatMode == MODE_KARAOKE) {
+                // 卡拉OK模式：圆角矩形背景
+                int kc1 = (alpha << 24) | (bgColor & 0x00FFFFFF);
+                int kc2 = (alpha << 24) | (bgEndColor & 0x00FFFFFF);
+                GradientDrawable kbg = new GradientDrawable(
+                        GradientDrawable.Orientation.TL_BR, new int[]{kc1, kc2});
+                kbg.setCornerRadius(24 * getResources().getDisplayMetrics().density);
+                rootLayout.setBackground(kbg);
             } else {
                 applyRootBackground(bgColor, bgEndColor, alpha, rootLayout);
             }
@@ -981,7 +1034,11 @@ public class MiniFloatService extends Service {
         btnRow.addView(btnMinus);
         btnRow.addView(btnClose);
 
-        // ===== 透明度滑条行 =====
+        column.addView(btnRow);
+
+        // ===== 透明度滑条行（卡拉OK模式不需要，背景固定透明） =====
+        if (floatMode != MODE_KARAOKE) {
+        // 透明度滑条行
         LinearLayout alphaRow = new LinearLayout(this);
         alphaRow.setOrientation(LinearLayout.HORIZONTAL);
         alphaRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -1030,8 +1087,8 @@ public class MiniFloatService extends Service {
         alphaRow.addView(alphaSeek);
         alphaRow.addView(tvOpaque, labelParams2);
 
-        column.addView(btnRow);
         column.addView(alphaRow, alphaRowParams);
+        }
 
         // ===== 胶囊模式：宽度滑条行 =====
         if (floatMode == MODE_CAPSULE) {
@@ -1043,34 +1100,59 @@ public class MiniFloatService extends Service {
             widthRowParams.topMargin = (int)(6 * unit);
 
             TextView tvWidth = new TextView(this);
-            tvWidth.setText("宽");
+            tvWidth.setText("窄");
             tvWidth.setTextColor(textColor);
             tvWidth.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 11 * unit);
-            widthRow.addView(tvWidth);
+            LinearLayout.LayoutParams widthLabelParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            widthLabelParams.setMarginEnd((int)(6 * unit));
+            widthRow.addView(tvWidth, widthLabelParams);
 
             SeekBar widthSeek = new SeekBar(this);
-            widthSeek.setMax((int)(CAPSULE_LYRIC_SPAN_MAX - CAPSULE_LYRIC_SPAN_MIN));
-            float savedSpan = getSavedCapsuleLyricSpan();
-            widthSeek.setProgress((int)(savedSpan - CAPSULE_LYRIC_SPAN_MIN));
             LinearLayout.LayoutParams widthSeekParams = new LinearLayout.LayoutParams(
                     0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-            widthSeekParams.setMarginStart((int)(6 * unit));
             widthSeekParams.setMarginEnd((int)(6 * unit));
             widthSeek.setLayoutParams(widthSeekParams);
-            widthSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    if (fromUser) {
-                        capsuleLyricSpan = (CAPSULE_LYRIC_SPAN_MIN + progress) * unit;
-                        saveCapsuleLyricSpan(CAPSULE_LYRIC_SPAN_MIN + progress);
-                        applyCapsuleWidth();
+
+            if (floatMode == MODE_CAPSULE) {
+                widthSeek.setMax((int)(CAPSULE_LYRIC_SPAN_MAX - CAPSULE_LYRIC_SPAN_MIN));
+                float savedSpan = getSavedCapsuleLyricSpan();
+                widthSeek.setProgress((int)(savedSpan - CAPSULE_LYRIC_SPAN_MIN));
+                widthSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                    @Override
+                    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                        if (fromUser) {
+                            capsuleLyricSpan = (CAPSULE_LYRIC_SPAN_MIN + progress) * unit;
+                            saveCapsuleLyricSpan(CAPSULE_LYRIC_SPAN_MIN + progress);
+                            applyCapsuleWidth();
+                        }
                     }
-                }
-                @Override
-                public void onStartTrackingTouch(SeekBar seekBar) {}
-                @Override
-                public void onStopTrackingTouch(SeekBar seekBar) {}
-            });
+                    @Override
+                    public void onStartTrackingTouch(SeekBar seekBar) {}
+                    @Override
+                    public void onStopTrackingTouch(SeekBar seekBar) {}
+                });
+            } else {
+                // 卡拉OK模式
+                int maxProgress = (int)((KARAOKE_LYRIC_SPAN_MAX - KARAOKE_LYRIC_SPAN_MIN) * 100);
+                widthSeek.setMax(maxProgress);
+                float savedRatio = getSavedKaraokeLyricRatio();
+                widthSeek.setProgress((int)((savedRatio - KARAOKE_LYRIC_SPAN_MIN) * 100));
+                widthSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                    @Override
+                    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                        if (fromUser) {
+                            karaokeLyricRatio = KARAOKE_LYRIC_SPAN_MIN + progress / 100f;
+                            saveKaraokeLyricRatio(karaokeLyricRatio);
+                            applyKaraokeWidth();
+                        }
+                    }
+                    @Override
+                    public void onStartTrackingTouch(SeekBar seekBar) {}
+                    @Override
+                    public void onStopTrackingTouch(SeekBar seekBar) {}
+                });
+            }
 
             TextView tvWide = new TextView(this);
             tvWide.setText("宽");
@@ -1099,22 +1181,26 @@ public class MiniFloatService extends Service {
         floatView.post(() -> {
             if (sizeAdjustPanel == null || floatView == null) return;
 
-            // 胶囊模式：临时把窗口高度改为WRAP_CONTENT，让面板不被截断
-            if (floatMode == MODE_CAPSULE) {
+            float density = getResources().getDisplayMetrics().density;
+
+            // 胶囊/卡拉OK模式：临时把窗口高度改为WRAP_CONTENT，让面板不被截断
+            if (floatMode == MODE_CAPSULE || floatMode == MODE_KARAOKE) {
                 floatParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
                 try { windowManager.updateViewLayout(floatView, floatParams); } catch (Exception ignored) {}
             }
 
             int panelWidth = (int) (floatWidthPx * 0.85f);
-            // 胶囊模式面板宽度：取胶囊宽度*1.2和200px的较大值，确保按钮不挤
+            // 胶囊/卡拉OK模式面板宽度
             if (floatMode == MODE_CAPSULE) {
                 panelWidth = (int) Math.max(getCapsuleWidth() * 1.2f, 200 * unit);
+            } else if (floatMode == MODE_KARAOKE) {
+                panelWidth = (int) Math.max(getKaraokeWidth() * 0.5f, 180 * density);
             }
 
             // 面板最大不超过屏幕宽度
             android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
             windowManager.getDefaultDisplay().getMetrics(screenMetrics);
-            panelWidth = Math.min(panelWidth, screenMetrics.widthPixels - (int)(16 * unit));
+            panelWidth = Math.min(panelWidth, screenMetrics.widthPixels - (int)(16 * density));
 
             // 面板高度：WRAP_CONTENT，让内容自己撑开
             FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(panelWidth,
@@ -1134,9 +1220,12 @@ public class MiniFloatService extends Service {
         if (sizeAdjustPanel != null) {
             sizeAdjustPanel.setVisibility(android.view.View.GONE);
         }
-        // 胶囊模式：恢复窗口高度
+        // 胶囊/卡拉OK模式：恢复窗口高度
         if (floatMode == MODE_CAPSULE && floatView != null) {
             floatParams.height = getCapsuleHeight();
+            try { windowManager.updateViewLayout(floatView, floatParams); } catch (Exception ignored) {}
+        } else if (floatMode == MODE_KARAOKE && floatView != null) {
+            floatParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
             try { windowManager.updateViewLayout(floatView, floatParams); } catch (Exception ignored) {}
         }
     }
@@ -1156,6 +1245,14 @@ public class MiniFloatService extends Service {
             newRatio = Math.max(CAPSULE_UNIT_MIN, Math.min(CAPSULE_UNIT_MAX, newRatio));
             if (newRatio == currentRatio) return;
             saveCapsuleUnitRatio(newRatio);
+            rebuildFloatViewWithSize();
+        } else if (floatMode == MODE_KARAOKE) {
+            // 卡拉OK模式：调整宽度比例（整体等比缩放）
+            float currentRatio = getKaraokeUnitRatio();
+            float newRatio = currentRatio + (deltaRatio > 0 ? 0.03f : -0.03f);
+            newRatio = Math.max(KARAOKE_UNIT_MIN, Math.min(KARAOKE_UNIT_MAX, newRatio));
+            if (newRatio == currentRatio) return;
+            saveKaraokeUnitRatio(newRatio);
             rebuildFloatViewWithSize();
         } else {
             // 经典模式：原有逻辑
@@ -1210,16 +1307,25 @@ public class MiniFloatService extends Service {
         releaseVisualizer();
         
         if (floatMode == MODE_CAPSULE) {
+            karaokeSpectrum = null; // 清理旧引用
             computeCapsuleMetrics();
             floatView = buildCapsuleView();
             floatParams.width = getCapsuleWidth();
             floatParams.height = getCapsuleHeight();
+        } else if (floatMode == MODE_KARAOKE) {
+            capsuleSpectrum = null; // 清理旧引用
+            computeKaraokeMetrics();
+            floatView = buildKaraokeView();
+            floatParams.width = getKaraokeWidth();
+            floatParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
         } else {
+            capsuleSpectrum = null;
+            karaokeSpectrum = null;
             floatView = buildFloatView();
             floatParams.width = floatWidthPx;
             floatParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
         }
-        
+
         int[] pos = getSavedFloatPosition();
         floatParams.x = pos[0];
         floatParams.y = pos[1];
@@ -1349,7 +1455,7 @@ public class MiniFloatService extends Service {
         // 点击封面弹出尺寸调节面板，长按封面切换模式
         coverWrap.setOnClickListener(v -> showSizeAdjustPanel());
         coverWrap.setOnLongClickListener(v -> {
-            switchFloatMode(MODE_CLASSIC);
+            switchFloatMode(MODE_KARAOKE);
             return true;
         });
         rootLayout.addView(coverWrap, coverWrapParams);
@@ -1586,8 +1692,10 @@ public class MiniFloatService extends Service {
 
                 @Override
                 public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
-                    if (capsuleSpectrum == null) return;
-                    int count = capsuleSpectrum.getBarInputCount();
+                    // 取当前活跃的频谱View作为基准
+                    SpectrumView activeSpectrum = capsuleSpectrum != null ? capsuleSpectrum : karaokeSpectrum;
+                    if (activeSpectrum == null) return;
+                    int count = activeSpectrum.getBarInputCount();
                     float[] magnitudes = new float[count];
                     float maxMag = 0;
                     for (int i = 0; i < count; i++) {
@@ -1601,9 +1709,12 @@ public class MiniFloatService extends Service {
                         }
                     }
                     float finalMax = maxMag;
-                    capsuleSpectrum.post(() -> {
+                    activeSpectrum.post(() -> {
                         if (capsuleSpectrum != null) {
                             capsuleSpectrum.updateDTFMagnitudes(magnitudes, finalMax);
+                        }
+                        if (karaokeSpectrum != null) {
+                            karaokeSpectrum.updateDTFMagnitudes(magnitudes, finalMax);
                         }
                     });
                 }
@@ -1614,6 +1725,9 @@ public class MiniFloatService extends Service {
             visualizerEnabled = true;
             if (capsuleSpectrum != null) {
                 capsuleSpectrum.setPlaying(playing);
+            }
+            if (karaokeSpectrum != null) {
+                karaokeSpectrum.setPlaying(playing);
             }
         } catch (Exception e) {
             Log.w(TAG, "悬浮窗 Visualizer 初始化失败: " + e.getMessage());
@@ -1663,5 +1777,433 @@ public class MiniFloatService extends Service {
         String key = isCurrentPortrait() ? "portrait" : "landscape";
         getSharedPreferences("mini_float_pos", MODE_PRIVATE)
                 .edit().putFloat("capsule_span_" + key, span).apply();
+    }
+
+    // ========== 卡拉OK模式 ==========
+
+    private void computeKaraokeMetrics() {
+        android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
+        windowManager.getDefaultDisplay().getMetrics(screenMetrics);
+        float ratio = getKaraokeUnitRatio();
+        floatWidthPx = (int)(screenMetrics.widthPixels * ratio);
+        unit = floatWidthPx / 280.0f;
+        karaokeLyricRatio = getSavedKaraokeLyricRatio();
+    }
+
+    /**
+     * 卡拉OK宽度 = 屏幕宽度 × 比例
+     */
+    private int getKaraokeWidth() {
+        android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
+        windowManager.getDefaultDisplay().getMetrics(screenMetrics);
+        return (int)(screenMetrics.widthPixels * getKaraokeUnitRatio());
+    }
+
+    /**
+     * 卡拉OK高度 = 两行歌词高度 × 2 (歌词区+频谱) + 上下边距
+     * 频谱高度 = 两行歌词总高度
+     */
+    private int getKaraokeHeight() {
+        float density = getResources().getDisplayMetrics().density;
+        float sf = getKaraokeScaleFactor();
+        int lyricRowH = (int)(40 * density * sf);
+        int twoRowsH = lyricRowH * 2;
+        int pad = (int)(6 * density * sf);
+        return twoRowsH * 2 + pad * 2; // 歌词区(两行) + 频谱(=两行高度) + 上下边距
+    }
+
+    /**
+     * 缩放因子：以默认比例为1.0，当前比例相对默认比例的倍数
+     */
+    private float getKaraokeScaleFactor() {
+        return getKaraokeUnitRatio() / KARAOKE_UNIT_RATIO;
+    }
+
+    /**
+     * 构建卡拉OK风格悬浮窗视图
+     * 布局：三行竖向排列
+     *   第1行：当前歌词（居左，左margin 30dp）
+     *   第2行：下一句歌词（居右，右margin 30dp）
+     *   封面居中跨两行，大小≈两行歌词总高度
+     *   第3行：全宽柱状频谱，高度=两行歌词总高度
+     */
+    private View buildKaraokeView() {
+        computeKaraokeMetrics();
+
+        float density = getResources().getDisplayMetrics().density;
+        float sf = getKaraokeScaleFactor();
+        float lyricSizePx = 30 * density * sf;       // 歌词字号
+        int pad = (int)(6 * density * sf);            // 上下边距
+        int sideMargin = (int)(30 * density);          // 歌词左右margin（固定30dp）
+        int lyricRowH = (int)(42 * density * sf);      // 单行歌词高度（字号30dp+上下余量）
+        int twoRowsH = lyricRowH * 2;                   // 两行歌词总高度
+        int coverSize = twoRowsH - (int)(8 * density * sf); // 封面直径≈两行高度减边距
+        if (coverSize < (int)(24 * density)) coverSize = (int)(24 * density);
+        int spectrumH = twoRowsH / 2;                    // 频谱高度 = 两行歌词总高度的一半
+        int gap = (int)(6 * density * sf);             // 封面与歌词间距
+        int capsuleW = getKaraokeWidth();
+
+        // 颜色
+        int bgColor = isNightMode ? ThemeColors.nightCardBg() : ThemeColors.dayCardBg();
+        int bgEndColor = isNightMode ? ThemeColors.nightCardBgEnd() : ThemeColors.dayCardBgEnd();
+        int textPrimary = isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
+
+        // 根布局：垂直排列
+        rootLayout = new LinearLayout(this);
+        rootLayout.setOrientation(LinearLayout.VERTICAL);
+
+        // 圆角矩形背景
+        // 卡拉OK模式背景固定全透明
+        currentBgAlpha = 0;
+        rootLayout.setBackground(null);
+
+        // ===== 歌词区+封面：FrameLayout =====
+        FrameLayout lyricArea = new FrameLayout(this);
+        lyricArea.setPadding(0, pad, 0, 0);
+
+        // 歌词可用宽度 = 总宽 - 封面宽 - 两侧gap - 左右30dp margin
+        int coverSpace = coverSize + gap * 2;
+        int lyricWidth = (capsuleW - coverSpace - sideMargin * 2) / 2;
+        if (lyricWidth < (int)(40 * density)) lyricWidth = (int)(40 * density);
+
+        // 第1行：当前歌词（居左）
+        tvKaraokeLine1 = new TextView(this);
+        tvKaraokeLine1.setTextColor(isNightMode ? ThemeColors.nightLyricNormal() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED);
+        tvKaraokeLine1.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, lyricSizePx);
+        tvKaraokeLine1.setTypeface(null, android.graphics.Typeface.BOLD);
+        tvKaraokeLine1.setMaxLines(1);
+        tvKaraokeLine1.setEllipsize(TextUtils.TruncateAt.END);
+        tvKaraokeLine1.setSingleLine(true);
+        tvKaraokeLine1.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        tvKaraokeLine1.setHorizontalFadingEdgeEnabled(true);
+        tvKaraokeLine1.setFadingEdgeLength((int)(10 * density));
+        FrameLayout.LayoutParams line1Params = new FrameLayout.LayoutParams(lyricWidth, lyricRowH);
+        line1Params.gravity = Gravity.TOP | Gravity.START;
+        line1Params.leftMargin = sideMargin;
+
+        // 第2行：下一句歌词（居右）
+        tvKaraokeLine2 = new TextView(this);
+        tvKaraokeLine2.setTextColor(isNightMode ? ThemeColors.nightLyricNormal() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED);
+        tvKaraokeLine2.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, lyricSizePx);
+        tvKaraokeLine2.setTypeface(null, android.graphics.Typeface.BOLD);
+        tvKaraokeLine2.setMaxLines(1);
+        tvKaraokeLine2.setEllipsize(TextUtils.TruncateAt.END);
+        tvKaraokeLine2.setSingleLine(true);
+        tvKaraokeLine2.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        tvKaraokeLine2.setHorizontalFadingEdgeEnabled(true);
+        tvKaraokeLine2.setFadingEdgeLength((int)(10 * density));
+        FrameLayout.LayoutParams line2Params = new FrameLayout.LayoutParams(lyricWidth, lyricRowH);
+        line2Params.gravity = Gravity.TOP | Gravity.END;
+        line2Params.topMargin = lyricRowH;
+        line2Params.rightMargin = sideMargin;
+
+        // 封面层：居中垂直，跨两行
+        LinearLayout coverWrap = new LinearLayout(this);
+        coverWrap.setOrientation(LinearLayout.VERTICAL);
+        coverWrap.setGravity(Gravity.CENTER);
+        coverImage = new ImageView(this);
+        coverImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        GradientDrawable coverBg = new GradientDrawable();
+        coverBg.setShape(GradientDrawable.OVAL);
+        coverBg.setColor(0x22FFFFFF);
+        coverImage.setBackground(coverBg);
+        // 封面阴影
+        coverImage.setElevation(8 * density);
+        coverImage.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setOval(0, 0, view.getWidth(), view.getHeight());
+            }
+        });
+        coverImage.setClipToOutline(true);
+        LinearLayout.LayoutParams coverImgParams = new LinearLayout.LayoutParams(coverSize, coverSize);
+        coverWrap.addView(coverImage, coverImgParams);
+
+        // 封面旋转
+        coverRotationHelper.attach(coverImage);
+
+        coverWrap.setOnClickListener(v -> showSizeAdjustPanel());
+        coverWrap.setOnLongClickListener(v -> {
+            switchFloatMode(MODE_CLASSIC);
+            return true;
+        });
+        FrameLayout.LayoutParams coverParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, twoRowsH);
+        coverParams.gravity = Gravity.CENTER;
+
+        lyricArea.addView(tvKaraokeLine1, line1Params);
+        lyricArea.addView(tvKaraokeLine2, line2Params);
+        lyricArea.addView(coverWrap, coverParams);
+
+        rootLayout.addView(lyricArea, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, twoRowsH));
+
+        // ===== 第3行：全宽柱状频谱，高度=两行歌词总高度 =====
+        karaokeSpectrum = new SpectrumView(this);
+        karaokeSpectrum.setStyle(SpectrumView.STYLE_BAR);
+        karaokeSpectrum.setNightMode(isNightMode);
+        // 频谱颜色与歌词保持一致：未播放色（深）→ 播放高亮色（亮）
+        int spectrumDark = isNightMode ? ThemeColors.nightLyricNormal() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED;
+        int spectrumLight = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+        karaokeSpectrum.setBarColors(spectrumDark, spectrumLight);
+        LinearLayout.LayoutParams spectrumParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, spectrumH);
+        rootLayout.addView(karaokeSpectrum, spectrumParams);
+
+        // ===== 外层 FrameLayout =====
+        FrameLayout container = new FrameLayout(this);
+        container.addView(rootLayout, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+        // 关闭按钮
+        ImageView btnClose = new ImageView(this);
+        btnClose.setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
+        btnClose.setColorFilter(textPrimary);
+        int closeSize = (int)(16 * density * sf);
+        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(closeSize, closeSize);
+        closeParams.gravity = Gravity.END | Gravity.TOP;
+        closeParams.setMargins(0, 0, (int)(2 * density), 0);
+        btnClose.setLayoutParams(closeParams);
+        btnClose.setOnClickListener(v -> stopSelf());
+        container.addView(btnClose);
+
+        // 尺寸调节面板（卡拉OK模式用density作为unit，避免面板元素过大）
+        tvTitle = null;
+        tvArtist = null;
+        progressBar = null;
+        btnPrev = null;
+        btnNext = null;
+        float savedUnit = unit;
+        unit = density; // 面板用标准density
+        sizeAdjustPanel = buildSizeAdjustPanel(textPrimary);
+        unit = savedUnit; // 恢复
+        sizeAdjustPanel.setVisibility(android.view.View.GONE);
+        container.addView(sizeAdjustPanel);
+
+        // 拖动 + 点击/双击
+        rootLayout.setOnTouchListener((v, event) -> {
+            int action = event.getAction() & MotionEvent.ACTION_MASK;
+            if (sizeAdjustPanel != null && sizeAdjustPanel.getVisibility() == android.view.View.VISIBLE) {
+                return false;
+            }
+            if (action == MotionEvent.ACTION_DOWN) {
+                if (isTouchOnCover(event)) {
+                    return false;
+                }
+            }
+            switch (action) {
+                case MotionEvent.ACTION_DOWN:
+                    initialX = floatParams.x;
+                    initialY = floatParams.y;
+                    initialTouchX = event.getRawX();
+                    initialTouchY = event.getRawY();
+                    isDragging = false;
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    float dx = event.getRawX() - initialTouchX;
+                    float dy = event.getRawY() - initialTouchY;
+                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isDragging = true;
+                    floatParams.x = initialX + (int) dx;
+                    floatParams.y = initialY + (int) dy;
+                    windowManager.updateViewLayout(floatView, floatParams);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    if (!isDragging) {
+                        long now = System.currentTimeMillis();
+                        if (now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
+                            if (pendingSingleClick != null) {
+                                uiHandler.removeCallbacks(pendingSingleClick);
+                                pendingSingleClick = null;
+                            }
+                            lastClickTime = 0;
+                            stopSelf();
+                        } else {
+                            lastClickTime = now;
+                            pendingSingleClick = () -> {
+                                Intent mainIntent = new Intent(MiniFloatService.this, MainActivity.class);
+                                mainIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                                startActivity(mainIntent);
+                                pendingSingleClick = null;
+                            };
+                            uiHandler.postDelayed(pendingSingleClick, DOUBLE_CLICK_INTERVAL);
+                        }
+                        v.performClick();
+                    } else {
+                        saveFloatPosition();
+                    }
+                    return true;
+            }
+            return false;
+        });
+
+        return container;
+    }
+
+    /**
+     * 更新卡拉OK双行歌词
+     * 顺序播放模式：
+     *   第一行 = 当前播放句（逐字高亮）
+     *   第二行 = 下一句（暗色预告）
+     *   第一行唱完后，第二行开始逐字高亮
+     *   第二行唱完后，翻页：第二行变第一行，新下一句变第二行
+     */
+    private int karaokeBaseLineIndex = 0; // 当前第一行对应的歌词索引
+
+    private void updateKaraokeLyric(long pos) {
+        if (lyricData == null || lyricData.lines == null || lyricData.lines.isEmpty()) return;
+        if (tvKaraokeLine1 == null || tvKaraokeLine2 == null) return;
+
+        // 找当前播放行
+        int currentIndex = -1;
+        for (int i = 0; i < lyricData.lines.size(); i++) {
+            KrcParser.LyricLine line = lyricData.lines.get(i);
+            KrcParser.LyricLine nextLine = (i + 1 < lyricData.lines.size()) ? lyricData.lines.get(i + 1) : null;
+            if (pos >= line.startTime && (nextLine == null || pos < nextLine.startTime)) {
+                currentIndex = i;
+                break;
+            }
+        }
+        if (currentIndex < 0) return;
+
+        // 翻页逻辑：baseLine 应使得 currentIndex 是 baseLine 或 baseLine+1
+        if (currentIndex == karaokeBaseLineIndex + 2) {
+            // 第二行唱完，翻页
+            karaokeBaseLineIndex = currentIndex;
+        } else if (currentIndex < karaokeBaseLineIndex || currentIndex > karaokeBaseLineIndex + 1) {
+            // 跳跃（拖动进度等），重置 baseLine
+            karaokeBaseLineIndex = currentIndex;
+        }
+
+        int playedColor = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+        int unplayedColor = isNightMode ? ThemeColors.nightLyricNormal() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED;
+
+        // 第一行：baseLine 句
+        renderKaraokeLine(tvKaraokeLine1, karaokeBaseLineIndex, pos, playedColor, unplayedColor);
+
+        // 第二行：baseLine+1 句
+        renderKaraokeLine(tvKaraokeLine2, karaokeBaseLineIndex + 1, pos, playedColor, unplayedColor);
+    }
+
+    /**
+     * 渲染单行卡拉OK歌词
+     * 如果是该行播放时间段内 → 逐字高亮
+     * 否则 → 暗色显示（预告）或亮色（已唱完）
+     */
+    private void renderKaraokeLine(TextView tv, int lineIndex, long pos, int playedColor, int unplayedColor) {
+        if (lyricData == null || lineIndex < 0 || lineIndex >= lyricData.lines.size()) {
+            tv.setText("");
+            return;
+        }
+        KrcParser.LyricLine line = lyricData.lines.get(lineIndex);
+        if (line == null || line.text == null || line.text.isEmpty()) {
+            tv.setText("");
+            return;
+        }
+
+        // 判断这行是否正在播放
+        long lineEnd = line.startTime + line.duration;
+        boolean isPlaying = (pos >= line.startTime && pos < lineEnd);
+        boolean isPlayed = (pos >= lineEnd);
+
+        if (isPlaying && line.words != null && !line.words.isEmpty()) {
+            // 逐字高亮
+            android.text.SpannableStringBuilder ssb = new android.text.SpannableStringBuilder(line.text);
+            int start = 0;
+            for (KrcParser.LyricWord word : line.words) {
+                int end = start + word.text.length();
+                if (end > line.text.length()) end = line.text.length();
+                if (start >= line.text.length()) break;
+
+                int color;
+                boolean wordPlayed = (pos >= word.startTime + word.duration);
+                boolean wordPlaying = (pos >= word.startTime && pos < word.startTime + word.duration);
+                if (wordPlayed) {
+                    color = playedColor;
+                } else if (wordPlaying) {
+                    float progress = (pos - word.startTime) / (float) word.duration;
+                    color = com.jingxin.jingxinmusic.util.ColorUtil.blendColor(playedColor, unplayedColor, progress);
+                } else {
+                    color = unplayedColor;
+                }
+                ssb.setSpan(new android.text.style.ForegroundColorSpan(color), start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                start = end;
+            }
+            tv.setText(ssb);
+        } else if (isPlayed) {
+            // 已唱完，全亮
+            tv.setTextColor(playedColor);
+            tv.setText(line.text);
+        } else {
+            // 未开始，暗色预告
+            tv.setTextColor(unplayedColor);
+            tv.setText(line.text);
+        }
+    }
+
+    /**
+     * 卡拉OK模式独立调整宽度（只改歌词区比例，不重建视图）
+     */
+    private void applyKaraokeWidth() {
+        // 卡拉OK模式宽度通过 karaokeLyricRatio 控制左右歌词区的 weight 比例
+        // 歌词区实际宽度 = capsuleW * karaokeLyricRatio
+        // 但两侧歌词都是 weight=1，所以宽度调节通过重建实现
+        rebuildFloatViewWithSize();
+    }
+
+    // ========== 卡拉OK模式持久化 ==========
+
+    private float getKaraokeUnitRatio() {
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        return getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .getFloat("karaoke_unit_v3_" + key, KARAOKE_UNIT_RATIO);
+    }
+
+    private void saveKaraokeUnitRatio(float ratio) {
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .edit().putFloat("karaoke_unit_v3_" + key, ratio).apply();
+    }
+
+    private float getSavedKaraokeLyricRatio() {
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        return getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .getFloat("karaoke_lyric_" + key, KARAOKE_LYRIC_SPAN_DEFAULT);
+    }
+
+    private void saveKaraokeLyricRatio(float ratio) {
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .edit().putFloat("karaoke_lyric_" + key, ratio).apply();
+    }
+
+    /**
+     * 更新封面倒影：取封面bitmap → 翻转 → 底部渐变透明
+     */
+    private void updateReflection(ImageView src, ImageView reflection) {
+        if (src == null || reflection == null) return;
+        android.graphics.drawable.Drawable d = src.getDrawable();
+        if (d == null) return;
+        android.graphics.Bitmap srcBmp = ((android.graphics.drawable.BitmapDrawable) d).getBitmap();
+        if (srcBmp == null) return;
+
+        // 创建翻转后的bitmap
+        android.graphics.Matrix matrix = new android.graphics.Matrix();
+        matrix.preScale(1, -1); // 垂直翻转
+        Bitmap flipped = Bitmap.createBitmap(srcBmp, 0, 0, srcBmp.getWidth(), srcBmp.getHeight(), matrix, true);
+
+        // 用LinearGradient实现渐变透明
+        int w = flipped.getWidth();
+        int h = flipped.getHeight();
+        Bitmap reflectionBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(reflectionBmp);
+        android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        android.graphics.LinearGradient shader = new android.graphics.LinearGradient(
+                0, 0, 0, h,
+                0x99000000, 0x00000000,
+                android.graphics.Shader.TileMode.CLAMP);
+        paint.setShader(shader);
+        canvas.drawBitmap(flipped, 0, 0, paint);
+
+        reflection.setImageBitmap(reflectionBmp);
     }
 }

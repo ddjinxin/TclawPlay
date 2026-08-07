@@ -143,6 +143,9 @@ public class SpectrumView extends View {
     private Paint waveFillPaint;  // 波浪线填充画笔
     private Paint waveStrokePaint; // 波浪线描边画笔
     
+    // 自定义颜色覆盖（null时用默认金色渐变）
+    private int[] customBarColors = null;
+    
     // 竖条模式金黄色（从下到上：深金 → 亮金）
     private int[] gradientColors = {
         0xFFE6A817,  // 深金
@@ -425,6 +428,24 @@ public class SpectrumView extends View {
             setLayerType(LAYER_TYPE_NONE, null);
         }
         requestLayout();
+        postInvalidate();
+    }
+
+    /**
+     * 设置自定义竖条颜色（覆盖默认金色渐变）
+     * @param colorDark 底部深色
+     * @param colorLight 顶部亮色
+     */
+    public void setBarColors(int colorDark, int colorLight) {
+        customBarColors = new int[]{colorDark, colorLight};
+        postInvalidate();
+    }
+
+    /**
+     * 清除自定义颜色，恢复默认
+     */
+    public void clearBarColors() {
+        customBarColors = null;
         postInvalidate();
     }
     
@@ -836,7 +857,8 @@ public class SpectrumView extends View {
                 break;
             }
             default: {
-                barPaint.setColor(staticColor);
+                int staticClr = customBarColors != null ? customBarColors[0] : staticColor;
+                barPaint.setColor(staticClr);
                 for (int i = 0; i < currentCount; i++) {
                     float x = i * (barWidth + barSpacing);
                     canvas.drawRect(x, getHeight() - 8f, x + barWidth, getHeight(), barPaint);
@@ -850,7 +872,8 @@ public class SpectrumView extends View {
      * 绘制竖条频谱（金黄色）
      */
     private void drawBars(Canvas canvas) {
-        int[] colors = isNightMode ? nightGradientColors : gradientColors;
+        int[] colors = customBarColors != null ? customBarColors :
+                (isNightMode ? nightGradientColors : gradientColors);
         
         for (int i = 0; i < currentCount; i++) {
             barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
