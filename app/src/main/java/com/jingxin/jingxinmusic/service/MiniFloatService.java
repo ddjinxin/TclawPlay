@@ -14,11 +14,16 @@ import android.content.SharedPreferences;
 import android.content.ServiceConnection;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Rect;
+import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
+import android.media.audiofx.Visualizer;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -41,6 +46,7 @@ import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.util.LyricFetcher;
 import com.jingxin.jingxinmusic.util.ThemeColors;
+import com.jingxin.jingxinmusic.view.SpectrumView;
 
 import java.io.File;
 import java.util.List;
@@ -55,6 +61,19 @@ public class MiniFloatService extends Service {
     private static final String CHANNEL_ID = "mini_float_channel";
     private static final int NOTIFICATION_ID = 2001;
     private static final int PROGRESS_UPDATE_INTERVAL = 200; // ms，与播放页一致
+
+    // 悬浮窗样式模式
+    private static final int MODE_CLASSIC = 0;  // 经典模式
+    private static final int MODE_CAPSULE = 1;  // 胶囊（灵动岛）模式
+    private static final String PREF_STYLE_MODE = "float_style_mode";
+
+    // 胶囊模式尺寸常量（以 280 为基准，与经典模式一致）
+    private static final float CAPSULE_UNIT_RATIO = 0.35f;  // 胶囊默认 unit 比例（屏宽 × 35% / 280）
+    private static final float CAPSULE_UNIT_MIN = 0.15f;    // 胶囊最小 unit 比例
+    private static final float CAPSULE_UNIT_MAX = 0.40f;    // 胶囊最大 unit 比例
+    private static final float CAPSULE_LYRIC_SPAN_MIN = 80f;   // 歌词区最小宽度（×unit）
+    private static final float CAPSULE_LYRIC_SPAN_MAX = 400f;  // 歌词区最大宽度（×unit）
+    private static final float CAPSULE_LYRIC_SPAN_DEFAULT = 172f; // 默认歌词区宽度
 
     private WindowManager windowManager;
     private View floatView;
@@ -127,6 +146,14 @@ public class MiniFloatService extends Service {
     private static final float FLOAT_SIZE_STEP = 0.05f; // 每次步进5%
     private static final int DEFAULT_BG_ALPHA = 204; // 0xCC，默认80%不透明度
 
+    // ========== 胶囊模式字段 ==========
+    private int floatMode = MODE_CLASSIC;     // 当前样式模式
+    private float capsuleLyricSpan;           // 歌词/频谱区域宽度（像素）
+    private SpectrumView capsuleSpectrum;     // 胶囊内频谱视图
+    private Visualizer visualizer;            // 音频可视化器
+    private boolean visualizerEnabled = false;
+    private FrameLayout capsuleCenterLayout; // 歌词+频谱中间区域
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -139,7 +166,13 @@ public class MiniFloatService extends Service {
         CompatUtil.safeStartForeground(this, NOTIFICATION_ID, buildNotification());
 
         lastIsPortrait = isCurrentPortrait();
-        floatView = buildFloatView();
+        floatMode = getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .getInt(PREF_STYLE_MODE, MODE_CLASSIC);
+        if (floatMode == MODE_CAPSULE) {
+            floatView = buildCapsuleView();
+        } else {
+            floatView = buildFloatView();
+        }
         addFloatView();
 
         // 绑定播放服务
@@ -157,6 +190,7 @@ public class MiniFloatService extends Service {
                     boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
                     updatePlayPauseButton(playing);
                     updateCoverRotation(playing);
+                    updateSpectrumPlaying(playing);
                 }
             }
         };
@@ -178,6 +212,7 @@ public class MiniFloatService extends Service {
     public void onDestroy() {
         super.onDestroy();
         uiHandler.removeCallbacks(progressRunnable);
+        releaseVisualizer();
         coverRotationHelper.release();
         if (bound) {
             unbindService(serviceConnection);
@@ -276,8 +311,12 @@ public class MiniFloatService extends Service {
         // 先不启动，等数据加载后再判断
 
         coverWrap.addView(coverImage);
-        // 点击封面弹出尺寸调节面板
+        // 点击封面弹出尺寸调节面板，长按封面切换模式
         coverWrap.setOnClickListener(v -> showSizeAdjustPanel());
+        coverWrap.setOnLongClickListener(v -> {
+            switchFloatMode(MODE_CAPSULE);
+            return true;
+        });
         rootLayout.addView(coverWrap, coverWrapParams);
 
         // ===== 右侧：信息区域（垂直四行） =====
@@ -317,7 +356,7 @@ public class MiniFloatService extends Service {
         // 第二行：当前歌词
         tvLyric = new TextView(this);
         tvLyric.setTextColor(isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED);
-        tvLyric.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 13 * unit);
+        tvLyric.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 16 * unit);
         tvLyric.setTypeface(null, android.graphics.Typeface.BOLD);
         tvLyric.setMaxLines(1);
         tvLyric.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -517,8 +556,8 @@ public class MiniFloatService extends Service {
         }
 
         floatParams = new WindowManager.LayoutParams(
-                floatWidthPx,  // 屏幕宽度20%
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                floatMode == MODE_CAPSULE ? getCapsuleWidth() : floatWidthPx,
+                floatMode == MODE_CAPSULE ? getCapsuleHeight() : WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -566,6 +605,10 @@ public class MiniFloatService extends Service {
             updatePlayPauseButton(playerBinder.isPlaying());
             updateCoverRotation(playerBinder.isPlaying());
         }
+        // 胶囊模式：启动频谱
+        if (floatMode == MODE_CAPSULE) {
+            initVisualizer();
+        }
     }
 
     private void onSongChanged(Intent intent) {
@@ -582,8 +625,8 @@ public class MiniFloatService extends Service {
     }
 
     private void updateSongUI(Song song) {
-        tvTitle.setText(song.title != null ? song.title : "");
-        tvArtist.setText(song.artist != null ? song.artist : "");
+        if (tvTitle != null) tvTitle.setText(song.title != null ? song.title : "");
+        if (tvArtist != null) tvArtist.setText(song.artist != null ? song.artist : "");
     }
 
     private void loadLyric(Song song) {
@@ -638,6 +681,20 @@ public class MiniFloatService extends Service {
         }
     }
 
+    /**
+     * 更新频谱播放状态（胶囊模式）
+     */
+    private void updateSpectrumPlaying(boolean playing) {
+        if (capsuleSpectrum != null) {
+            capsuleSpectrum.setPlaying(playing);
+        }
+        if (visualizer != null && visualizerEnabled) {
+            try {
+                visualizer.setEnabled(playing);
+            } catch (Exception ignored) {}
+        }
+    }
+
     private void updateCoverRotation(boolean playing) {
         coverRotationHelper.update(playing);
     }
@@ -660,16 +717,22 @@ public class MiniFloatService extends Service {
         if (floatView != null && floatView.isAttachedToWindow()) {
             try { windowManager.removeView(floatView); } catch (Exception ignored) {}
         }
+        releaseVisualizer();
         // 重新计算尺寸
         android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
         windowManager.getDefaultDisplay().getMetrics(screenMetrics);
-        boolean isPortrait = screenMetrics.widthPixels < screenMetrics.heightPixels;
-        floatWidthPx = (int) (screenMetrics.widthPixels * getSavedFloatSizeRatio());
-        unit = floatWidthPx / 280.0f;
-
-        floatView = buildFloatView();
-        floatParams.width = floatWidthPx;
-        // 恢复当前方向对应的位置
+        
+        if (floatMode == MODE_CAPSULE) {
+            computeCapsuleMetrics();
+            floatView = buildCapsuleView();
+            floatParams.width = getCapsuleWidth();
+            floatParams.height = getCapsuleHeight();
+        } else {
+            floatView = buildFloatView();
+            floatParams.width = floatWidthPx;
+            floatParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
+        }
+        
         int[] pos = getSavedFloatPosition();
         floatParams.x = pos[0];
         floatParams.y = pos[1];
@@ -688,11 +751,12 @@ public class MiniFloatService extends Service {
         // 检测屏幕方向变化，刷新悬浮窗布局
         checkOrientationChange();
 
-        if (!bound || playerBinder == null || progressBar == null) return;
+        if (!bound || playerBinder == null) return;
         int pos = playerBinder.getCurrentPosition();
         int dur = playerBinder.getDuration();
-        if (dur > 0) {
-            // 使用0-1000范围，避免大数值dur和ClipDrawable的level计算精度问题
+        
+        // 经典模式更新进度条
+        if (progressBar != null && dur > 0) {
             progressBar.setMax(1000);
             progressBar.setProgress((int) ((long) pos * 1000 / dur));
         }
@@ -707,6 +771,7 @@ public class MiniFloatService extends Service {
      * 更新悬浮窗歌词文本（KRC 逐字高亮，LRC 整行高亮）
      */
     private void updateLyricText(long pos) {
+        if (tvLyric == null) return;
         KrcParser.LyricLine currentLine = null;
         for (int i = 0; i < lyricData.lines.size(); i++) {
             KrcParser.LyricLine line = lyricData.lines.get(i);
@@ -817,7 +882,11 @@ public class MiniFloatService extends Service {
         if (rootLayout != null) {
             int bgColor = isNightMode ? ThemeColors.nightCardBg() : ThemeColors.dayCardBg();
             int bgEndColor = isNightMode ? ThemeColors.nightCardBgEnd() : ThemeColors.dayCardBgEnd();
-            applyRootBackground(bgColor, bgEndColor, alpha, rootLayout);
+            if (floatMode == MODE_CAPSULE) {
+                applyCapsuleBackground(bgColor, bgEndColor, alpha, rootLayout, getCapsuleHeight());
+            } else {
+                applyRootBackground(bgColor, bgEndColor, alpha, rootLayout);
+            }
         }
         saveBgAlpha(alpha);
     }
@@ -830,13 +899,22 @@ public class MiniFloatService extends Service {
     private android.view.View buildSizeAdjustPanel(int textColor) {
         // 半透明背景
         FrameLayout panel = new FrameLayout(this);
+        float cornerRadius = 24 * getResources().getDisplayMetrics().density;
         GradientDrawable panelBg = new GradientDrawable();
         panelBg.setColor(ThemeColors.FLOAT_PANEL_BG); // 70%不透明黑
-        panelBg.setCornerRadius((int)(10 * unit));
+        panelBg.setCornerRadius(cornerRadius);
         panel.setBackground(panelBg);
+        panel.setClipToOutline(true);
+        // 强制按圆角裁剪
+        panel.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), cornerRadius);
+            }
+        });
         panel.setPadding((int)(10 * unit), (int)(10 * unit), (int)(10 * unit), (int)(10 * unit));
 
-        // 垂直布局：按钮行 + 透明度滑条
+        // 垂直布局：按钮行 + 透明度滑条 + (胶囊模式)宽度滑条 + 样式切换行
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setLayoutParams(new FrameLayout.LayoutParams(
@@ -864,7 +942,7 @@ public class MiniFloatService extends Service {
         LinearLayout.LayoutParams plusParams = new LinearLayout.LayoutParams(0, btnSize, 1f);
         plusParams.setMarginEnd(btnSpacing / 2);
         btnPlus.setLayoutParams(plusParams);
-        btnPlus.setOnClickListener(v -> applyFloatScale(FLOAT_SIZE_STEP));
+        btnPlus.setOnClickListener(v -> applyFloatScale(1));
 
         // - 按钮
         TextView btnMinus = new TextView(this);
@@ -881,7 +959,7 @@ public class MiniFloatService extends Service {
         minusParams.setMarginStart(btnSpacing / 2);
         minusParams.setMarginEnd(btnSpacing / 2);
         btnMinus.setLayoutParams(minusParams);
-        btnMinus.setOnClickListener(v -> applyFloatScale(-FLOAT_SIZE_STEP));
+        btnMinus.setOnClickListener(v -> applyFloatScale(-1));
 
         // 退出按钮
         TextView btnClose = new TextView(this);
@@ -954,6 +1032,57 @@ public class MiniFloatService extends Service {
 
         column.addView(btnRow);
         column.addView(alphaRow, alphaRowParams);
+
+        // ===== 胶囊模式：宽度滑条行 =====
+        if (floatMode == MODE_CAPSULE) {
+            LinearLayout widthRow = new LinearLayout(this);
+            widthRow.setOrientation(LinearLayout.HORIZONTAL);
+            widthRow.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout.LayoutParams widthRowParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            widthRowParams.topMargin = (int)(6 * unit);
+
+            TextView tvWidth = new TextView(this);
+            tvWidth.setText("宽");
+            tvWidth.setTextColor(textColor);
+            tvWidth.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 11 * unit);
+            widthRow.addView(tvWidth);
+
+            SeekBar widthSeek = new SeekBar(this);
+            widthSeek.setMax((int)(CAPSULE_LYRIC_SPAN_MAX - CAPSULE_LYRIC_SPAN_MIN));
+            float savedSpan = getSavedCapsuleLyricSpan();
+            widthSeek.setProgress((int)(savedSpan - CAPSULE_LYRIC_SPAN_MIN));
+            LinearLayout.LayoutParams widthSeekParams = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            widthSeekParams.setMarginStart((int)(6 * unit));
+            widthSeekParams.setMarginEnd((int)(6 * unit));
+            widthSeek.setLayoutParams(widthSeekParams);
+            widthSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                    if (fromUser) {
+                        capsuleLyricSpan = (CAPSULE_LYRIC_SPAN_MIN + progress) * unit;
+                        saveCapsuleLyricSpan(CAPSULE_LYRIC_SPAN_MIN + progress);
+                        applyCapsuleWidth();
+                    }
+                }
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {}
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {}
+            });
+
+            TextView tvWide = new TextView(this);
+            tvWide.setText("宽");
+            tvWide.setTextColor(textColor);
+            tvWide.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 11 * unit);
+            widthRow.addView(tvWide);
+
+            widthRow.addView(widthSeek, 1, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+            column.addView(widthRow, widthRowParams);
+        }
+
         panel.addView(column);
 
         return panel;
@@ -969,16 +1098,27 @@ public class MiniFloatService extends Service {
 
         floatView.post(() -> {
             if (sizeAdjustPanel == null || floatView == null) return;
-            int floatHeight = floatView.getHeight();
-            int panelWidth = (int) (floatWidthPx * 0.85f);
-            // 高度 = 按钮行高度 + 间距 + 滑条高度 + 上下padding
-            int btnRowHeight = (int)(44 * unit);
-            int alphaRowHeight = (int)(36 * unit);
-            int padding = (int)(20 * unit);
-            int gap = (int)(8 * unit);
-            int panelHeight = Math.min(floatHeight - (int)(8 * unit), btnRowHeight + gap + alphaRowHeight + padding);
 
-            FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(panelWidth, panelHeight);
+            // 胶囊模式：临时把窗口高度改为WRAP_CONTENT，让面板不被截断
+            if (floatMode == MODE_CAPSULE) {
+                floatParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                try { windowManager.updateViewLayout(floatView, floatParams); } catch (Exception ignored) {}
+            }
+
+            int panelWidth = (int) (floatWidthPx * 0.85f);
+            // 胶囊模式面板宽度：取胶囊宽度*1.2和200px的较大值，确保按钮不挤
+            if (floatMode == MODE_CAPSULE) {
+                panelWidth = (int) Math.max(getCapsuleWidth() * 1.2f, 200 * unit);
+            }
+
+            // 面板最大不超过屏幕宽度
+            android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
+            windowManager.getDefaultDisplay().getMetrics(screenMetrics);
+            panelWidth = Math.min(panelWidth, screenMetrics.widthPixels - (int)(16 * unit));
+
+            // 面板高度：WRAP_CONTENT，让内容自己撑开
+            FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(panelWidth,
+                    FrameLayout.LayoutParams.WRAP_CONTENT);
             panelParams.gravity = Gravity.CENTER;
 
             sizeAdjustPanel.setLayoutParams(panelParams);
@@ -994,6 +1134,11 @@ public class MiniFloatService extends Service {
         if (sizeAdjustPanel != null) {
             sizeAdjustPanel.setVisibility(android.view.View.GONE);
         }
+        // 胶囊模式：恢复窗口高度
+        if (floatMode == MODE_CAPSULE && floatView != null) {
+            floatParams.height = getCapsuleHeight();
+            try { windowManager.updateViewLayout(floatView, floatParams); } catch (Exception ignored) {}
+        }
     }
 
     /**
@@ -1003,21 +1148,32 @@ public class MiniFloatService extends Service {
         android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
         windowManager.getDefaultDisplay().getMetrics(screenMetrics);
         int screenWidth = screenMetrics.widthPixels;
-        int minWidth = (int) (screenWidth * FLOAT_SIZE_MIN);
-        int maxWidth = (int) (screenWidth * FLOAT_SIZE_MAX);
-        int step = (int) (screenWidth * FLOAT_SIZE_STEP);
 
-        int newWidth = floatWidthPx + (deltaRatio > 0 ? step : -step);
-        newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+        if (floatMode == MODE_CAPSULE) {
+            // 胶囊模式：调整 unit（整体等比缩放）
+            float currentRatio = getCapsuleUnitRatio();
+            float newRatio = currentRatio + (deltaRatio > 0 ? 0.03f : -0.03f);
+            newRatio = Math.max(CAPSULE_UNIT_MIN, Math.min(CAPSULE_UNIT_MAX, newRatio));
+            if (newRatio == currentRatio) return;
+            saveCapsuleUnitRatio(newRatio);
+            rebuildFloatViewWithSize();
+        } else {
+            // 经典模式：原有逻辑
+            int minWidth = (int) (screenWidth * FLOAT_SIZE_MIN);
+            int maxWidth = (int) (screenWidth * FLOAT_SIZE_MAX);
+            int step = (int) (screenWidth * FLOAT_SIZE_STEP);
 
-        if (newWidth == floatWidthPx) return; // 已到边界，无需重建
+            int newWidth = floatWidthPx + (deltaRatio > 0 ? step : -step);
+            newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
 
-        floatWidthPx = newWidth;
-        unit = floatWidthPx / 280.0f;
+            if (newWidth == floatWidthPx) return; // 已到边界，无需重建
 
-        // 每次缩放都保存，buildFloatView 会读取新值
-        saveFloatSize();
-        rebuildFloatViewWithSize();
+            floatWidthPx = newWidth;
+            unit = floatWidthPx / 280.0f;
+
+            saveFloatSize();
+            rebuildFloatViewWithSize();
+        }
     }
 
     /**
@@ -1045,14 +1201,25 @@ public class MiniFloatService extends Service {
     }
 
     /**
-     * 用当前 floatWidthPx 重建悬浮窗
+     * 用当前尺寸重建悬浮窗
      */
     private void rebuildFloatViewWithSize() {
         if (floatView != null && floatView.isAttachedToWindow()) {
             try { windowManager.removeView(floatView); } catch (Exception ignored) {}
         }
-        floatView = buildFloatView(); // getSavedFloatSizeRatio 会读到刚保存的新值
-        floatParams.width = floatWidthPx;
+        releaseVisualizer();
+        
+        if (floatMode == MODE_CAPSULE) {
+            computeCapsuleMetrics();
+            floatView = buildCapsuleView();
+            floatParams.width = getCapsuleWidth();
+            floatParams.height = getCapsuleHeight();
+        } else {
+            floatView = buildFloatView();
+            floatParams.width = floatWidthPx;
+            floatParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
+        }
+        
         int[] pos = getSavedFloatPosition();
         floatParams.x = pos[0];
         floatParams.y = pos[1];
@@ -1089,5 +1256,412 @@ public class MiniFloatService extends Service {
         android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
         windowManager.getDefaultDisplay().getMetrics(metrics);
         return metrics.widthPixels < metrics.heightPixels;
+    }
+
+    // ========== 胶囊模式 ==========
+
+    /**
+     * 计算胶囊模式的尺寸参数（unit 和 capsuleLyricSpan）
+     */
+    private void computeCapsuleMetrics() {
+        android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
+        windowManager.getDefaultDisplay().getMetrics(screenMetrics);
+        int screenWidth = screenMetrics.widthPixels;
+        float ratio = getCapsuleUnitRatio();
+        floatWidthPx = (int)(screenWidth * ratio);
+        unit = floatWidthPx / 280.0f;
+        capsuleLyricSpan = getSavedCapsuleLyricSpan() * unit;
+    }
+
+    /**
+     * 获取胶囊总宽度（像素）
+     * capsuleW = pad*2 + coverSize + gap*2 + lyricSpan + btnSize = 132*unit + lyricSpan
+     */
+    private int getCapsuleWidth() {
+        // capsuleW = pad + coverSize + gap + lyricSpan + gap + btnSize + pad
+        //         = 6+48+6+lyricSpan+6+48+6 = 120*unit + lyricSpan
+        return (int)(120 * unit + capsuleLyricSpan);
+    }
+
+    /**
+     * 获取胶囊高度（像素）= 80 * unit
+     */
+    private int getCapsuleHeight() {
+        // 胶囊高度 = 封面直径 + 2倍内边距
+        return (int)(48 * unit + 2 * 6 * unit);
+    }
+
+    /**
+     * 构建胶囊风格悬浮窗视图
+     * 布局：[封面] [歌词+频谱] [播放按钮]  横向胶囊，药丸形圆角
+     */
+    private View buildCapsuleView() {
+        computeCapsuleMetrics();
+
+        int coverSize = (int)(48 * unit);
+        int btnSize = (int)(48 * unit);
+        int pad = (int)(6 * unit);
+        int gap = (int)(6 * unit);
+        int capsuleH = getCapsuleHeight();
+        int capsuleW = getCapsuleWidth();
+
+        // 颜色
+        int bgColor = isNightMode ? ThemeColors.nightCardBg() : ThemeColors.dayCardBg();
+        int bgEndColor = isNightMode ? ThemeColors.nightCardBgEnd() : ThemeColors.dayCardBgEnd();
+        int textPrimary = isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
+        int iconColor = isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
+        int sparkColor = ThemeColors.sparkColor(isNightMode);
+
+        // 胶囊根布局
+        rootLayout = new LinearLayout(this);
+        rootLayout.setOrientation(LinearLayout.HORIZONTAL);
+        rootLayout.setGravity(Gravity.CENTER_VERTICAL);
+        rootLayout.setPadding(pad, pad, pad, pad);
+
+        // 药丸形背景
+        currentBgAlpha = getSavedBgAlpha();
+        applyCapsuleBackground(bgColor, bgEndColor, currentBgAlpha, rootLayout, capsuleH);
+
+        // ===== 左侧：圆形旋转封面 =====
+        LinearLayout coverWrap = new LinearLayout(this);
+        coverWrap.setOrientation(LinearLayout.VERTICAL);
+        coverWrap.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams coverWrapParams = new LinearLayout.LayoutParams(coverSize, coverSize);
+        coverWrapParams.setMarginEnd(gap);
+
+        coverImage = new ImageView(this);
+        LinearLayout.LayoutParams coverParams = new LinearLayout.LayoutParams(coverSize, coverSize);
+        coverImage.setLayoutParams(coverParams);
+        coverImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        setCircularCover(BitmapFactory.decodeResource(getResources(), R.drawable.ic_music_icon));
+
+        // 圆形裁剪
+        coverImage.setClipToOutline(true);
+        coverImage.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, android.graphics.Outline outline) {
+                outline.setOval(0, 0, view.getWidth(), view.getHeight());
+            }
+        });
+
+        coverRotationHelper.attach(coverImage);
+        coverWrap.addView(coverImage);
+        // 点击封面弹出尺寸调节面板，长按封面切换模式
+        coverWrap.setOnClickListener(v -> showSizeAdjustPanel());
+        coverWrap.setOnLongClickListener(v -> {
+            switchFloatMode(MODE_CLASSIC);
+            return true;
+        });
+        rootLayout.addView(coverWrap, coverWrapParams);
+
+        // ===== 中间：歌词 + 频谱（FrameLayout，歌词居中，频谱底部对齐） =====
+        capsuleCenterLayout = new FrameLayout(this);
+        LinearLayout.LayoutParams centerParams = new LinearLayout.LayoutParams(
+                (int) capsuleLyricSpan, LinearLayout.LayoutParams.MATCH_PARENT);
+
+        // 上层：单行逐字歌词（水平+垂直居中）
+        tvLyric = new TextView(this);
+        tvLyric.setTextColor(isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED);
+        tvLyric.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 16 * unit);
+        tvLyric.setTypeface(null, android.graphics.Typeface.BOLD);
+        tvLyric.setMaxLines(1);
+        tvLyric.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+        tvLyric.setMarqueeRepeatLimit(-1);
+        tvLyric.setHorizontalFadingEdgeEnabled(true);
+        tvLyric.setFadingEdgeLength((int)(10 * unit));
+        tvLyric.setSingleLine(true);
+        tvLyric.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams lyricParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        lyricParams.gravity = Gravity.CENTER;
+
+        capsuleCenterLayout.addView(tvLyric, lyricParams);
+
+        // 下层：迷你柱状频谱（底部对齐，与封面底部齐平）
+        capsuleSpectrum = new SpectrumView(this);
+        capsuleSpectrum.setStyle(SpectrumView.STYLE_COLUMNAR);
+        capsuleSpectrum.setNightMode(isNightMode);
+        FrameLayout.LayoutParams spectrumParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, (int)(42 * unit));
+        spectrumParams.gravity = Gravity.BOTTOM;
+        capsuleCenterLayout.addView(capsuleSpectrum, spectrumParams);
+
+        rootLayout.addView(capsuleCenterLayout, centerParams);
+
+        // ===== 右侧：圆形播放/暂停按钮 =====
+        FrameLayout btnContainer = new FrameLayout(this);
+        LinearLayout.LayoutParams btnContainerParams = new LinearLayout.LayoutParams(btnSize, btnSize);
+        btnContainerParams.setMarginStart(gap);
+
+        // 圆形背景
+        GradientDrawable btnBg = new GradientDrawable();
+        btnBg.setShape(GradientDrawable.OVAL);
+        btnBg.setColor(isNightMode ? 0x33FFFFFF : 0x33000000);
+        btnContainer.setBackground(btnBg);
+
+        btnPlayPause = new ImageView(this);
+        FrameLayout.LayoutParams btnPpParams = new FrameLayout.LayoutParams(
+                (int)(28 * unit), (int)(28 * unit));
+        btnPpParams.gravity = Gravity.CENTER;
+        btnPlayPause.setLayoutParams(btnPpParams);
+        btnPlayPause.setImageResource(R.drawable.ic_pause);
+        btnPlayPause.setColorFilter(iconColor);
+        btnPlayPause.setOnClickListener(v -> {
+            if (bound && playerBinder != null) playerBinder.togglePlayPause();
+        });
+        btnContainer.addView(btnPlayPause);
+
+        rootLayout.addView(btnContainer, btnContainerParams);
+
+        // ===== 外层 FrameLayout =====
+        FrameLayout container = new FrameLayout(this);
+        container.addView(rootLayout, new FrameLayout.LayoutParams(capsuleW, capsuleH));
+
+        // 右上角关闭按钮
+        ImageView btnClose = new ImageView(this);
+        btnClose.setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
+        btnClose.setColorFilter(textPrimary);
+        int closeSize = (int)(16 * unit);
+        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(closeSize, closeSize);
+        closeParams.gravity = Gravity.END | Gravity.TOP;
+        closeParams.setMargins(0, 0, (int)(2 * unit), 0);
+        btnClose.setLayoutParams(closeParams);
+        btnClose.setOnClickListener(v -> stopSelf());
+        container.addView(btnClose);
+
+        // 尺寸调节面板
+        // 清空旧引用，重新构建
+        tvTitle = null;
+        tvArtist = null;
+        progressBar = null;
+        btnPrev = null;
+        btnNext = null;
+        sizeAdjustPanel = buildSizeAdjustPanel(textPrimary);
+        sizeAdjustPanel.setVisibility(android.view.View.GONE);
+        container.addView(sizeAdjustPanel);
+
+        // ===== 拖动 + 点击/双击 =====
+        rootLayout.setOnTouchListener((v, event) -> {
+            int action = event.getAction() & MotionEvent.ACTION_MASK;
+
+            if (sizeAdjustPanel != null && sizeAdjustPanel.getVisibility() == android.view.View.VISIBLE) {
+                return false;
+            }
+
+            if (action == MotionEvent.ACTION_DOWN) {
+                if (isTouchOnCover(event)) {
+                    return false;
+                }
+            }
+
+            switch (action) {
+                case MotionEvent.ACTION_DOWN:
+                    initialX = floatParams.x;
+                    initialY = floatParams.y;
+                    initialTouchX = event.getRawX();
+                    initialTouchY = event.getRawY();
+                    isDragging = false;
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    float dx = event.getRawX() - initialTouchX;
+                    float dy = event.getRawY() - initialTouchY;
+                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isDragging = true;
+                    floatParams.x = initialX + (int) dx;
+                    floatParams.y = initialY + (int) dy;
+                    windowManager.updateViewLayout(floatView, floatParams);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    if (!isDragging) {
+                        long now = System.currentTimeMillis();
+                        if (now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
+                            if (pendingSingleClick != null) {
+                                uiHandler.removeCallbacks(pendingSingleClick);
+                                pendingSingleClick = null;
+                            }
+                            lastClickTime = 0;
+                            stopSelf();
+                        } else {
+                            lastClickTime = now;
+                            pendingSingleClick = () -> {
+                                Intent mainIntent = new Intent(MiniFloatService.this, MainActivity.class);
+                                mainIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                                startActivity(mainIntent);
+                                pendingSingleClick = null;
+                            };
+                            uiHandler.postDelayed(pendingSingleClick, DOUBLE_CLICK_INTERVAL);
+                        }
+                        v.performClick();
+                    } else {
+                        saveFloatPosition();
+                    }
+                    return true;
+            }
+            return false;
+        });
+
+        return container;
+    }
+
+    /**
+     * 胶囊背景（药丸形圆角 = 高度/2）
+     */
+    private void applyCapsuleBackground(int bgColor, int bgEndColor, int alpha, View target, int capsuleH) {
+        int c1 = (alpha << 24) | (bgColor & 0x00FFFFFF);
+        int c2 = (alpha << 24) | (bgEndColor & 0x00FFFFFF);
+        GradientDrawable d = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR, new int[]{c1, c2});
+        d.setCornerRadius(capsuleH / 2f);
+        target.setBackground(d);
+    }
+
+    /**
+     * 胶囊模式独立调整宽度（不重建视图，只更新 LayoutParams）
+     */
+    private void applyCapsuleWidth() {
+        if (capsuleCenterLayout == null || floatParams == null) return;
+        int newWidth = getCapsuleWidth();
+        int capH = getCapsuleHeight();
+
+        // 更新中间区域宽度
+        LinearLayout.LayoutParams centerLp = (LinearLayout.LayoutParams) capsuleCenterLayout.getLayoutParams();
+        centerLp.width = (int) capsuleLyricSpan;
+        capsuleCenterLayout.setLayoutParams(centerLp);
+
+        // 更新根布局宽度和容器宽度
+        FrameLayout.LayoutParams rootLp = (FrameLayout.LayoutParams) rootLayout.getLayoutParams();
+        rootLp.width = newWidth;
+        rootLp.height = capH;
+        rootLayout.setLayoutParams(rootLp);
+
+        // 重新设置药丸形背景，确保圆角 = 高度/2 保持胶囊形状
+        int bgColor = isNightMode ? ThemeColors.nightCardBg() : ThemeColors.dayCardBg();
+        int bgEndColor = isNightMode ? ThemeColors.nightCardBgEnd() : ThemeColors.dayCardBgEnd();
+        applyCapsuleBackground(bgColor, bgEndColor, currentBgAlpha, rootLayout, capH);
+
+        // 更新 WindowManager 宽度（高度不变）
+        floatParams.width = newWidth;
+        floatParams.height = capH;
+        try {
+            windowManager.updateViewLayout(floatView, floatParams);
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * 切换悬浮窗模式（经典 ↔ 胶囊）
+     */
+    private void switchFloatMode(int newMode) {
+        if (newMode == floatMode) {
+            hideSizeAdjustPanel();
+            return;
+        }
+        floatMode = newMode;
+        getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .edit().putInt(PREF_STYLE_MODE, newMode).apply();
+
+        // 隐藏面板，重建视图
+        hideSizeAdjustPanel();
+        rebuildFloatViewWithSize();
+    }
+
+    // ========== Visualizer 频谱接入 ==========
+
+    /**
+     * 初始化 Visualizer（从 PlayerActivity 移植，精简版）
+     */
+    private void initVisualizer() {
+        if (visualizer != null || !bound || playerBinder == null) return;
+        try {
+            int sessionId = playerBinder.getAudioSessionId();
+            if (sessionId == -1 || sessionId == 0) return;
+
+            visualizer = new Visualizer(sessionId);
+            visualizer.setEnabled(false);
+            int[] range = visualizer.getCaptureSizeRange();
+            visualizer.setCaptureSize(range[1]);
+            visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
+
+            visualizer.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
+                @Override
+                public void onWaveFormDataCapture(Visualizer v, byte[] waveform, int samplingRate) {}
+
+                @Override
+                public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
+                    if (capsuleSpectrum == null) return;
+                    int count = capsuleSpectrum.getBarInputCount();
+                    float[] magnitudes = new float[count];
+                    float maxMag = 0;
+                    for (int i = 0; i < count; i++) {
+                        int idx = (i + 1) * 2;
+                        if (idx + 1 < fft.length) {
+                            byte real = fft[idx];
+                            byte imaginary = fft[idx + 1];
+                            float mag = (float) Math.sqrt(real * real + imaginary * imaginary);
+                            magnitudes[i] = mag;
+                            if (mag > maxMag) maxMag = mag;
+                        }
+                    }
+                    float finalMax = maxMag;
+                    capsuleSpectrum.post(() -> {
+                        if (capsuleSpectrum != null) {
+                            capsuleSpectrum.updateDTFMagnitudes(magnitudes, finalMax);
+                        }
+                    });
+                }
+            }, Visualizer.getMaxCaptureRate(), false, true);
+
+            boolean playing = (playerBinder != null && playerBinder.isPlaying());
+            visualizer.setEnabled(playing);
+            visualizerEnabled = true;
+            if (capsuleSpectrum != null) {
+                capsuleSpectrum.setPlaying(playing);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "悬浮窗 Visualizer 初始化失败: " + e.getMessage());
+            if (visualizer != null) {
+                try { visualizer.release(); } catch (Exception ignored) {}
+                visualizer = null;
+            }
+        }
+    }
+
+    /**
+     * 释放 Visualizer
+     */
+    private void releaseVisualizer() {
+        if (visualizer != null) {
+            try {
+                visualizer.setEnabled(false);
+                visualizer.setDataCaptureListener(null, 0, false, false);
+                visualizer.release();
+            } catch (Exception ignored) {}
+            visualizer = null;
+        }
+        visualizerEnabled = false;
+    }
+
+    // ========== 胶囊模式持久化 ==========
+
+    private float getCapsuleUnitRatio() {
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        return getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .getFloat("capsule_unit_" + key, CAPSULE_UNIT_RATIO);
+    }
+
+    private void saveCapsuleUnitRatio(float ratio) {
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .edit().putFloat("capsule_unit_" + key, ratio).apply();
+    }
+
+    private float getSavedCapsuleLyricSpan() {
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        return getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .getFloat("capsule_span_" + key, CAPSULE_LYRIC_SPAN_DEFAULT);
+    }
+
+    private void saveCapsuleLyricSpan(float span) {
+        String key = isCurrentPortrait() ? "portrait" : "landscape";
+        getSharedPreferences("mini_float_pos", MODE_PRIVATE)
+                .edit().putFloat("capsule_span_" + key, span).apply();
     }
 }
