@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'ab2c7627-693b-48de-868a-159aaa57207c'
-  PropagateID: 'ab2c7627-693b-48de-868a-159aaa57207c'
-  ReservedCode1: '58fad1f0-49d7-4805-9976-f63a40439203'
-  ReservedCode2: '58fad1f0-49d7-4805-9976-f63a40439203'
+  ProduceID: '53192c4f-c865-4650-b18a-997590e93124'
+  PropagateID: '53192c4f-c865-4650-b18a-997590e93124'
+  ReservedCode1: '9e455b14-1b49-4757-98f5-c148cb1a1c3c'
+  ReservedCode2: '9e455b14-1b49-4757-98f5-c148cb1a1c3c'
 ---
 
 # 静心音乐 / TclawPlay
@@ -27,6 +27,7 @@ AIGC:
 ## 📢 最新版本 (v1.0.5)
 
 ### 新功能
+- **悬浮窗新模式** — 新增胶囊模式（灵动岛风格）和卡拉OK模式（双行歌词+封面+频谱），长按封面循环切换三种模式
 - **帮助页** — 新增帮助页面，含10种频谱样式详细参数说明、联系我们弹窗（作者静心、乐酷桌面群812753974/651547480）、检查更新按钮
 - **帮助图标** — 单色镂空信息泡风格，自动适配昼夜模式
 
@@ -42,6 +43,7 @@ AIGC:
 ## 📢 Latest Version (v1.0.5)
 
 ### New Features
+- **New Float Window Modes** — Added capsule mode (Dynamic Island style) and Karaoke mode (dual-line lyrics + cover + spectrum), long-press cover to cycle through three modes
 - **Help Page** — New help screen with 10 spectrum style details, contact us dialog (author Jingxin, Leco Desktop groups 812753974/651547480), check update button
 - **Help Icon** — Monochrome hollow info-bubble style, auto day/night adaptation
 
@@ -298,6 +300,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ## 更新日志
 
 ### v1.0.5 (2026-08)
+- 新增胶囊模式（灵动岛风格）和卡拉OK模式（双行歌词+封面+频谱）悬浮窗
 - 卡拉OK悬浮窗歌词超宽时自动缩小字号以完全显示
 - 新增帮助页（10种频谱样式参数说明、联系我们弹窗、检查更新按钮）
 - 帮助图标单色镂空信息泡风格，适配昼夜模式
@@ -632,6 +635,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ## Changelog
 
 ### v1.0.5 (2026-08)
+- Added capsule mode (Dynamic Island style) and Karaoke mode (dual-line lyrics + cover + spectrum) float window
 - Karaoke float lyrics auto-shrink font size when text exceeds width
 - New help page (10 spectrum style details, contact dialog, check update button)
 - Help icon monochrome hollow info-bubble style, day/night adaptation
