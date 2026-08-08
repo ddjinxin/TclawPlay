@@ -1879,6 +1879,7 @@ public class MiniFloatService extends Service {
         if (lyricWidth < (int)(40 * density)) lyricWidth = (int)(40 * density);
 
         // 第1行：当前歌词（居左）
+        // 第1行：当前句歌词（居左）
         tvKaraokeLine1 = new TextView(this);
         tvKaraokeLine1.setTextColor(isNightMode ? ThemeColors.nightLyricNormal() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED);
         tvKaraokeLine1.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, lyricSizePx);
@@ -2142,6 +2143,8 @@ public class MiniFloatService extends Service {
         boolean isPlaying = (pos >= line.startTime && pos < lineEnd);
         boolean isPlayed = (pos >= lineEnd);
 
+        float originalSize = 30 * getResources().getDisplayMetrics().density * getKaraokeScaleFactor();
+
         if (isPlaying && line.words != null && !line.words.isEmpty()) {
             // 逐字高亮
             android.text.SpannableStringBuilder ssb = new android.text.SpannableStringBuilder(line.text);
@@ -2171,9 +2174,20 @@ public class MiniFloatService extends Service {
             tv.setTextColor(playedColor);
             tv.setText(line.text);
         } else {
-            // 未开始，暗色预告
+            // 未开始，暗色通告
             tv.setTextColor(unplayedColor);
             tv.setText(line.text);
+        }
+
+        // 自动缩小字号：文字超宽时按比例缩小以完全显示
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, originalSize);
+        tv.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        float textWidth = tv.getPaint().measureText(line.text);
+        int available = tv.getWidth() - tv.getPaddingLeft() - tv.getPaddingRight();
+        if (available <= 0) available = tv.getLayoutParams().width;
+        if (available > 0 && textWidth > available) {
+            float fitSize = originalSize * (available / textWidth);
+            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, fitSize);
         }
     }
 
