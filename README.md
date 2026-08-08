@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '3b841bc0-3c72-45fe-90ec-3d64524ad73a'
-  PropagateID: '3b841bc0-3c72-45fe-90ec-3d64524ad73a'
-  ReservedCode1: '155bf988-674b-4532-ad98-fd4237e47f8a'
-  ReservedCode2: '155bf988-674b-4532-ad98-fd4237e47f8a'
+  ProduceID: 'ab2c7627-693b-48de-868a-159aaa57207c'
+  PropagateID: 'ab2c7627-693b-48de-868a-159aaa57207c'
+  ReservedCode1: '58fad1f0-49d7-4805-9976-f63a40439203'
+  ReservedCode2: '58fad1f0-49d7-4805-9976-f63a40439203'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,19 +24,33 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.4.1)
+## 📢 最新版本 (v1.0.5)
+
+### 新功能
+- **帮助页** — 新增帮助页面，含10种频谱样式详细参数说明、联系我们弹窗（作者静心、乐酷桌面群812753974/651547480）、检查更新按钮
+- **帮助图标** — 单色镂空信息泡风格，自动适配昼夜模式
 
 ### 优化
-- **歌词文件命名规则调整** — 歌词文件（.krc/.lrc）改用未清洗的原始标题命名，搜索逻辑不变（仍用 cleanSongTitle 清洗后的纯歌名搜索酷狗/网易云）
-- 兼容旧格式歌词文件回退匹配
+- **卡拉OK悬浮窗歌词自适应** — 歌词文字超宽时自动缩小字号以完全显示，短歌词保持原始大小
+- **音乐扫描缓存** — 新增JSON缓存机制（10分钟有效期），启动先读缓存秒开，triggerMediaScan仅缓存过期时触发，PlayerActivity改读缓存不再全量扫描
+- **悬浮窗缩放限制调整** — 经典模式最大缩放60%→80%，胶囊模式最大40%→60%
+- **悬浮窗面板修复** — 胶囊模式宽度滑条拖动时面板被裁剪问题修复，调整面板文字颜色固定浅色
+- 帮助页返回箭头支持日夜模式，底部三按钮（联系我们/检查更新/返回）同行排列
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.4.1)
+## 📢 Latest Version (v1.0.5)
+
+### New Features
+- **Help Page** — New help screen with 10 spectrum style details, contact us dialog (author Jingxin, Leco Desktop groups 812753974/651547480), check update button
+- **Help Icon** — Monochrome hollow info-bubble style, auto day/night adaptation
 
 ### Improvements
-- **Lyrics file naming adjusted** — Lyric files (.krc/.lrc) now use raw unprocessed title for naming; search logic unchanged (still uses cleanSongTitle for Kugou/Netease search)
-- Backward compatible with legacy filename formats
+- **Karaoke Float Lyrics Auto-fit** — Lyrics text auto-shrinks font size when exceeding width to display fully; short lyrics keep original size
+- **Music Scan Cache** — JSON cache (10-min TTL), instant load on startup, triggerMediaScan only when cache expires, PlayerActivity reads cache instead of full scan
+- **Float Window Zoom Limits** — Classic mode max 60%→80%, capsule mode max 40%→60%
+- **Float Panel Fixes** — Fixed capsule width slider panel clipping issue, panel text color fixed to light
+- Help page back arrow supports day/night mode, bottom buttons (Contact/Check Update/Back) in same row
 
 <!--END-->
 
@@ -282,6 +296,14 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.5 (2026-08)
+- 卡拉OK悬浮窗歌词超宽时自动缩小字号以完全显示
+- 新增帮助页（10种频谱样式参数说明、联系我们弹窗、检查更新按钮）
+- 帮助图标单色镂空信息泡风格，适配昼夜模式
+- 音乐扫描JSON缓存机制（10分钟有效期，启动秒开）
+- 悬浮窗缩放限制调整（经典60%→80%，胶囊40%→60%）
+- 悬浮窗面板修复（胶囊宽度滑条裁剪问题、面板文字颜色固定浅色）
 
 ### v1.0.4.1 (2026-08)
 - 歌词文件命名改用原始标题（sanitizeFileName），搜索逻辑不变
@@ -608,6 +630,14 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.5 (2026-08)
+- Karaoke float lyrics auto-shrink font size when text exceeds width
+- New help page (10 spectrum style details, contact dialog, check update button)
+- Help icon monochrome hollow info-bubble style, day/night adaptation
+- Music scan JSON cache (10-min TTL, instant startup)
+- Float window zoom limits adjusted (classic 60%→80%, capsule 40%→60%)
+- Float panel fixes (capsule width slider clipping, panel text color fixed to light)
 
 ### v1.0.4.1 (2026-08)
 - Lyric file naming changed to raw title (sanitizeFileName), search logic unchanged
