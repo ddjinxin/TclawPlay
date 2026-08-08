@@ -46,6 +46,7 @@ import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.util.LyricFetcher;
 import com.jingxin.jingxinmusic.util.ThemeColors;
+import com.jingxin.jingxinmusic.util.ThemeStyle;
 import com.jingxin.jingxinmusic.view.SpectrumView;
 
 import java.io.File;
@@ -71,7 +72,7 @@ public class MiniFloatService extends Service {
     // 胶囊模式尺寸常量（以 280 为基准，与经典模式一致）
     private static final float CAPSULE_UNIT_RATIO = 0.35f;  // 胶囊默认 unit 比例（屏宽 × 35% / 280）
     private static final float CAPSULE_UNIT_MIN = 0.15f;    // 胶囊最小 unit 比例
-    private static final float CAPSULE_UNIT_MAX = 0.40f;    // 胶囊最大 unit 比例
+    private static final float CAPSULE_UNIT_MAX = 0.60f;    // 胶囊最大 unit 比例
     private static final float CAPSULE_LYRIC_SPAN_MIN = 80f;   // 歌词区最小宽度（×unit）
     private static final float CAPSULE_LYRIC_SPAN_MAX = 400f;  // 歌词区最大宽度（×unit）
     private static final float CAPSULE_LYRIC_SPAN_DEFAULT = 172f; // 默认歌词区宽度
@@ -144,7 +145,7 @@ public class MiniFloatService extends Service {
 
     // 缩放比例范围
     private static final float FLOAT_SIZE_MIN = 0.20f; // 最小20%
-    private static final float FLOAT_SIZE_MAX = 0.60f; // 最大60%
+    private static final float FLOAT_SIZE_MAX = 0.80f; // 最大80%
     private static final float FLOAT_SIZE_STEP = 0.05f; // 每次步进5%
     private static final int DEFAULT_BG_ALPHA = 204; // 0xCC，默认80%不透明度
 
@@ -454,7 +455,7 @@ public class MiniFloatService extends Service {
         container.addView(btnClose);
 
         // ===== 尺寸调节面板（默认隐藏，点击封面弹出） =====
-        sizeAdjustPanel = buildSizeAdjustPanel(textPrimary);
+        sizeAdjustPanel = buildSizeAdjustPanel(0xFFFFFFFF);
         sizeAdjustPanel.setVisibility(android.view.View.GONE);
         container.addView(sizeAdjustPanel);
 
@@ -829,7 +830,12 @@ public class MiniFloatService extends Service {
 
         // KRC 逐字高亮
         if (currentLine.words != null && !currentLine.words.isEmpty()) {
-            int playedColor = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+            int playedColor;
+            if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
+                playedColor = 0xFFE53935;  // 高级灰日间用红色
+            } else {
+                playedColor = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+            }
             int unplayedColor = isNightMode ? ThemeColors.nightLyricNormal() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED;
 
             android.text.SpannableStringBuilder ssb = new android.text.SpannableStringBuilder(currentLine.text);
@@ -1192,7 +1198,7 @@ public class MiniFloatService extends Service {
             int panelWidth = (int) (floatWidthPx * 0.85f);
             // 胶囊/卡拉OK模式面板宽度
             if (floatMode == MODE_CAPSULE) {
-                panelWidth = (int) Math.max(getCapsuleWidth() * 1.2f, 200 * unit);
+                panelWidth = (int) (getCapsuleWidth() * 0.9f);
             } else if (floatMode == MODE_KARAOKE) {
                 panelWidth = (int) Math.max(getKaraokeWidth() * 0.5f, 180 * density);
             }
@@ -1535,14 +1541,17 @@ public class MiniFloatService extends Service {
         btnClose.setOnClickListener(v -> stopSelf());
         container.addView(btnClose);
 
-        // 尺寸调节面板
-        // 清空旧引用，重新构建
+        // 尺寸调节面板（胶囊模式用density作为unit，避免面板元素过大）
         tvTitle = null;
         tvArtist = null;
         progressBar = null;
         btnPrev = null;
         btnNext = null;
-        sizeAdjustPanel = buildSizeAdjustPanel(textPrimary);
+        float density = getResources().getDisplayMetrics().density;
+        float savedUnit = unit;
+        unit = density; // 面板用标准density
+        sizeAdjustPanel = buildSizeAdjustPanel(0xFFFFFFFF);
+        unit = savedUnit; // 恢复
         sizeAdjustPanel.setVisibility(android.view.View.GONE);
         container.addView(sizeAdjustPanel);
 
@@ -1644,9 +1653,12 @@ public class MiniFloatService extends Service {
         int bgEndColor = isNightMode ? ThemeColors.nightCardBgEnd() : ThemeColors.dayCardBgEnd();
         applyCapsuleBackground(bgColor, bgEndColor, currentBgAlpha, rootLayout, capH);
 
-        // 更新 WindowManager 宽度（高度不变）
+        // 更新 WindowManager 宽度
         floatParams.width = newWidth;
-        floatParams.height = capH;
+        // 面板显示期间保持 WRAP_CONTENT 高度，避免面板被裁剪
+        if (!isAdjustingSize) {
+            floatParams.height = capH;
+        }
         try {
             windowManager.updateViewLayout(floatView, floatParams);
         } catch (Exception ignored) {}
@@ -1936,18 +1948,38 @@ public class MiniFloatService extends Service {
         lyricArea.addView(coverWrap, coverParams);
 
         rootLayout.addView(lyricArea, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, twoRowsH));
+                LinearLayout.LayoutParams.MATCH_PARENT, twoRowsH + pad));
 
         // ===== 第3行：全宽柱状频谱，高度=两行歌词总高度 =====
         karaokeSpectrum = new SpectrumView(this);
         karaokeSpectrum.setStyle(SpectrumView.STYLE_BAR);
         karaokeSpectrum.setNightMode(isNightMode);
-        // 频谱颜色与歌词保持一致：未播放色（深）→ 播放高亮色（亮）
-        int spectrumDark = isNightMode ? ThemeColors.nightLyricNormal() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED;
-        int spectrumLight = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+        // 频谱渐变：黄色 → 歌词播放高亮色（高级灰日间用红色）
+        int spectrumDark = 0xFFFFD54F;  // 亮黄
+        int spectrumLight;
+        if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
+            spectrumLight = 0xFFE53935;  // 红色
+        } else {
+            spectrumLight = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+        }
         karaokeSpectrum.setBarColors(spectrumDark, spectrumLight);
         LinearLayout.LayoutParams spectrumParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, spectrumH);
+
+        // 双击频谱关闭
+        karaokeSpectrum.setOnTouchListener((v, ev) -> {
+            if (ev.getAction() == MotionEvent.ACTION_UP) {
+                long now = System.currentTimeMillis();
+                if (now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
+                    karaokeSpectrum.setVisibility(View.GONE);
+                    lastClickTime = 0;
+                } else {
+                    lastClickTime = now;
+                }
+            }
+            return true;
+        });
+
         rootLayout.addView(karaokeSpectrum, spectrumParams);
 
         // ===== 外层 FrameLayout =====
@@ -1975,7 +2007,7 @@ public class MiniFloatService extends Service {
         btnNext = null;
         float savedUnit = unit;
         unit = density; // 面板用标准density
-        sizeAdjustPanel = buildSizeAdjustPanel(textPrimary);
+        sizeAdjustPanel = buildSizeAdjustPanel(0xFFFFFFFF);
         unit = savedUnit; // 恢复
         sizeAdjustPanel.setVisibility(android.view.View.GONE);
         container.addView(sizeAdjustPanel);
@@ -2074,7 +2106,12 @@ public class MiniFloatService extends Service {
             karaokeBaseLineIndex = currentIndex;
         }
 
-        int playedColor = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+        int playedColor;
+        if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
+            playedColor = 0xFFE53935;  // 高级灰日间用红色
+        } else {
+            playedColor = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+        }
         int unplayedColor = isNightMode ? ThemeColors.nightLyricNormal() : ThemeColors.FLOAT_LYRIC_DAY_UNPLAYED;
 
         // 第一行：baseLine 句

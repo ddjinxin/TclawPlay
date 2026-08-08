@@ -10,7 +10,14 @@ import android.util.Log;
 
 import com.jingxin.jingxinmusic.model.Song;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -20,6 +27,8 @@ import java.util.Set;
  * 本地音乐扫描器
  * 通过 MediaStore 查询 + 文件系统遍历扫描手机上的所有音乐文件
  * MediaStore 覆盖内置存储，文件遍历补充 U 盘/SD 卡等可移动存储
+ *
+ * 缓存机制：扫描结果持久化为 JSON 文件，启动时先读缓存秒开，后台异步刷新
  */
 public class MusicScanner {
 
@@ -28,17 +37,21 @@ public class MusicScanner {
     // 记录最近一次 triggerMediaScan 的时间，供 ContentObserver 判断是否忽略回环
     public static volatile long lastMediaScanTime = 0;
 
+    // 缓存文件名
+    private static final String CACHE_FILE = "music_cache.json";
+    // 缓存有效期（10分钟），超时后才真正扫描
+    private static final long CACHE_VALID_MS = 10 * 60 * 1000;
+
     /**
-     * 扫描手机上的所有音乐文件
-     * 0. 触发媒体扫描（让 MediaStore 索引新推入的文件）
+     * 扫描手机上的所有音乐文件（带缓存）
      * 1. MediaStore 查询（覆盖内置存储已索引的歌曲）
      * 2. 文件遍历扫描（补充 U 盘/SD 卡等 MediaStore 未索引的歌曲）
      * 3. 合并去重
+     * 4. 保存缓存
+     *
+     * 注意：triggerMediaScan 不在此方法中调用，由调用方按需触发
      */
     public static List<Song> scanMusic(Context context) {
-        // 第零步：触发媒体扫描，让新文件被 MediaStore 索引
-        triggerMediaScan(context);
-
         // 第一步：MediaStore 查询
         List<Song> mediaStoreSongs = scanByMediaStore(context);
         Log.d(TAG, "MediaStore 扫描: " + mediaStoreSongs.size() + " 首");
@@ -64,7 +77,81 @@ public class MusicScanner {
         }
 
         Log.d(TAG, "合并去重后: " + merged.size() + " 首");
+
+        // 保存缓存
+        saveCache(context, merged);
         return merged;
+    }
+
+    // ========== 缓存机制 ==========
+
+    /**
+     * 加载缓存的歌曲列表
+     * @return 缓存列表，无缓存或已过期返回 null
+     */
+    public static List<Song> loadCache(Context context) {
+        File cacheFile = new File(context.getCacheDir(), CACHE_FILE);
+        if (!cacheFile.exists()) {
+            Log.d(TAG, "无缓存文件");
+            return null;
+        }
+        // 检查缓存是否过期
+        long age = System.currentTimeMillis() - cacheFile.lastModified();
+        if (age > CACHE_VALID_MS) {
+            Log.d(TAG, "缓存已过期（" + (age / 1000) + "秒）");
+            return null;
+        }
+        try {
+            FileInputStream fis = new FileInputStream(cacheFile);
+            byte[] data = new byte[(int) cacheFile.length()];
+            fis.read(data);
+            fis.close();
+            String json = new String(data, "UTF-8");
+            JSONObject root = new JSONObject(json);
+            JSONArray arr = root.getJSONArray("songs");
+            List<Song> songs = new ArrayList<>();
+            for (int i = 0; i < arr.length(); i++) {
+                songs.add(Song.fromJson(arr.getJSONObject(i)));
+            }
+            Log.d(TAG, "从缓存加载 " + songs.size() + " 首歌曲");
+            return songs;
+        } catch (Exception e) {
+            Log.e(TAG, "读取缓存失败: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 保存歌曲列表到缓存文件
+     */
+    private static void saveCache(Context context, List<Song> songs) {
+        try {
+            JSONObject root = new JSONObject();
+            JSONArray arr = new JSONArray();
+            for (Song song : songs) {
+                arr.put(song.toJson());
+            }
+            root.put("songs", arr);
+            root.put("timestamp", System.currentTimeMillis());
+
+            File cacheFile = new File(context.getCacheDir(), CACHE_FILE);
+            FileOutputStream fos = new FileOutputStream(cacheFile);
+            fos.write(root.toString().getBytes("UTF-8"));
+            fos.close();
+            Log.d(TAG, "缓存已保存: " + songs.size() + " 首歌曲");
+        } catch (Exception e) {
+            Log.e(TAG, "保存缓存失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 判断是否有有效缓存（用于决定是否跳过 triggerMediaScan）
+     */
+    public static boolean hasValidCache(Context context) {
+        File cacheFile = new File(context.getCacheDir(), CACHE_FILE);
+        if (!cacheFile.exists()) return false;
+        long age = System.currentTimeMillis() - cacheFile.lastModified();
+        return age <= CACHE_VALID_MS;
     }
 
     /**

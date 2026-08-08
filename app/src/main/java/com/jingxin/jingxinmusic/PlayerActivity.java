@@ -228,9 +228,12 @@ public class PlayerActivity extends AppCompatActivity {
             bound = true;
             Log.d(TAG, "播放服务已连接");
 
-            // 先扫描并设置播放列表，再播放
+            // 读缓存或扫描歌曲列表（不触发 triggerMediaScan）
             executor.execute(() -> {
-                allSongs = MusicScanner.scanMusic(PlayerActivity.this);
+                allSongs = MusicScanner.loadCache(PlayerActivity.this);
+                if (allSongs == null || allSongs.isEmpty()) {
+                    allSongs = MusicScanner.scanMusic(PlayerActivity.this);
+                }
                 uiHandler.post(() -> {
                     if (bound && playerBinder != null && allSongs != null) {
                         if (resumePlay && playerBinder.isPlaying()) {

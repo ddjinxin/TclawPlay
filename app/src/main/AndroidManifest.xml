@@ -72,6 +72,13 @@
             android:exported="false"
             android:theme="@style/Theme.JingxinMusic" />
         
+        <!-- 帮助页面 -->
+        <activity
+            android:name=".ui.HelpActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:theme="@style/Theme.JingxinMusic" />
+        
         <!-- 播放服务 -->
         <service
             android:name=".service.MusicPlayerService"

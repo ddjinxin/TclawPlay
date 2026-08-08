@@ -52,6 +52,7 @@ import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.UpdateHelper;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
 import com.jingxin.jingxinmusic.util.WebDavScanner;
+import com.jingxin.jingxinmusic.ui.HelpActivity;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -78,7 +79,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageView btnTheme;
     private ImageView btnStyle;
     private ImageView btnClose;
-    private ImageView btnUpdate;
+    private ImageView btnHelp;
     private View rootLayout;
     private View tabBar;
     private View titleBar;
@@ -316,11 +317,10 @@ public class MainActivity extends AppCompatActivity {
             System.exit(0);
         });
 
-        // 更新按钮
-        btnUpdate = findViewById(R.id.update_button);
-        btnUpdate.setOnClickListener(v -> {
-            android.widget.Toast.makeText(this, "正在检查更新...", android.widget.Toast.LENGTH_SHORT).show();
-            UpdateHelper.getInstance(this).checkManually(this);
+        // 帮助按钮
+        btnHelp = findViewById(R.id.help_button);
+        btnHelp.setOnClickListener(v -> {
+            startActivity(new Intent(this, HelpActivity.class));
         });
 
         // Tab
@@ -1165,7 +1165,7 @@ public class MainActivity extends AppCompatActivity {
             btnTheme.clearColorFilter();
             btnStyle.clearColorFilter();
             btnClose.clearColorFilter();
-            btnUpdate.clearColorFilter();
+            btnHelp.clearColorFilter();
             // Browse area
             browseArea.setBackground(ThemeColors.bgGradient(true));
             pathBar.setBackground(ThemeColors.barGradient(true));
@@ -1194,7 +1194,7 @@ public class MainActivity extends AppCompatActivity {
             btnStyle.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             btnTheme.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             btnClose.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
-            btnUpdate.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+            btnHelp.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             // Browse area
             browseArea.setBackground(ThemeColors.bgGradient(false));
             pathBar.setBackground(ThemeColors.barGradient(false));
@@ -1397,13 +1397,53 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         isScanning = true;
+
+        // 先尝试读缓存，秒开
+        List<Song> cached = MusicScanner.loadCache(this);
+        if (cached != null && !cached.isEmpty()) {
+            Log.d(TAG, "使用缓存立即显示 " + cached.size() + " 首歌曲");
+            allSongs = cached;
+            songAdapter.setAllSongs(cached);
+            tvLoading.setVisibility(View.GONE);
+            browseLoading.setVisibility(View.GONE);
+            rootLayout.setVisibility(View.VISIBLE);
+            refreshFavorites();
+            loadCurrentTabContent();
+            updateCountText();
+            applyThemeToRecyclerViewItems();
+            // 用缓存立即恢复上次播放
+            if (tryAutoResume) {
+                autoResumeLastPlayed(cached);
+            }
+            // 后台异步刷新（不阻塞 UI）
+            executor.execute(() -> {
+                // 仅在没有有效缓存时才触发媒体扫描
+                if (!MusicScanner.hasValidCache(this)) {
+                    MusicScanner.triggerMediaScan(this);
+                }
+                List<Song> songs = MusicScanner.scanMusic(this);
+                runOnUiThread(() -> {
+                    isScanning = false;
+                    allSongs = songs;
+                    songAdapter.setAllSongs(songs);
+                    refreshFavorites();
+                    loadCurrentTabContent();
+                    updateCountText();
+                    applyThemeToRecyclerViewItems();
+                });
+            });
+            return;
+        }
+
+        // 无缓存，正常扫描（首次安装/缓存过期）
         tvLoading.setVisibility(View.VISIBLE);
         tvSongCount.setText("正在扫描音乐...");
-        // 浏览区显示加载中
         rvBrowse.setVisibility(View.GONE);
         browseLoading.setVisibility(View.VISIBLE);
 
         executor.execute(() -> {
+            // 首次扫描触发媒体扫描，让新文件被索引
+            MusicScanner.triggerMediaScan(this);
             List<Song> songs = MusicScanner.scanMusic(this);
             runOnUiThread(() -> {
                 isScanning = false;
@@ -1413,11 +1453,9 @@ public class MainActivity extends AppCompatActivity {
                 browseLoading.setVisibility(View.GONE);
                 rootLayout.setVisibility(View.VISIBLE);
                 refreshFavorites();
-                // 加载当前tab内容
                 loadCurrentTabContent();
                 updateCountText();
                 applyThemeToRecyclerViewItems();
-                // autoResume 不再阻止内容加载，放最后执行
                 if (tryAutoResume) {
                     autoResumeLastPlayed(songs);
                 }
