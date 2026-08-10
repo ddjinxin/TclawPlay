@@ -437,24 +437,12 @@ public class MiniFloatService extends Service {
 
         rootLayout.addView(infoLayout, infoParams);
 
-        // ===== 外层 FrameLayout 包裹（用于放置右上角关闭按钮） =====
-        FrameLayout container = new FrameLayout(this);
-        container.addView(rootLayout, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+         // ===== 外层 FrameLayout 包裹 =====
+         FrameLayout container = new FrameLayout(this);
+         container.addView(rootLayout, new FrameLayout.LayoutParams(
+                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
 
-        // 右上角关闭按钮
-        ImageView btnClose = new ImageView(this);
-        btnClose.setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
-        btnClose.setColorFilter(textSecondary);
-        int closeSize = (int)(20 * unit);
-        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(closeSize, closeSize);
-        closeParams.gravity = Gravity.END | Gravity.TOP;
-        closeParams.setMargins((int)(4 * unit), (int)(4 * unit), (int)(4 * unit), 0);
-        btnClose.setLayoutParams(closeParams);
-        btnClose.setOnClickListener(v -> stopSelf());
-        container.addView(btnClose);
-
-        // ===== 尺寸调节面板（默认隐藏，点击封面弹出） =====
+         // ===== 尺寸调节面板（默认隐藏，点击封面弹出） =====
         sizeAdjustPanel = buildSizeAdjustPanel(0xFFFFFFFF);
         sizeAdjustPanel.setVisibility(android.view.View.GONE);
         container.addView(sizeAdjustPanel);
@@ -1525,23 +1513,11 @@ public class MiniFloatService extends Service {
 
         rootLayout.addView(btnContainer, btnContainerParams);
 
-        // ===== 外层 FrameLayout =====
-        FrameLayout container = new FrameLayout(this);
-        container.addView(rootLayout, new FrameLayout.LayoutParams(capsuleW, capsuleH));
+         // ===== 外层 FrameLayout =====
+         FrameLayout container = new FrameLayout(this);
+         container.addView(rootLayout, new FrameLayout.LayoutParams(capsuleW, capsuleH));
 
-        // 右上角关闭按钮
-        ImageView btnClose = new ImageView(this);
-        btnClose.setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
-        btnClose.setColorFilter(textPrimary);
-        int closeSize = (int)(16 * unit);
-        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(closeSize, closeSize);
-        closeParams.gravity = Gravity.END | Gravity.TOP;
-        closeParams.setMargins(0, 0, (int)(2 * unit), 0);
-        btnClose.setLayoutParams(closeParams);
-        btnClose.setOnClickListener(v -> stopSelf());
-        container.addView(btnClose);
-
-        // 尺寸调节面板（胶囊模式用density作为unit，避免面板元素过大）
+         // 尺寸调节面板（胶囊模式用density作为unit，避免面板元素过大）
         tvTitle = null;
         tvArtist = null;
         progressBar = null;
@@ -1984,23 +1960,11 @@ public class MiniFloatService extends Service {
         rootLayout.addView(karaokeSpectrum, spectrumParams);
 
         // ===== 外层 FrameLayout =====
-        FrameLayout container = new FrameLayout(this);
-        container.addView(rootLayout, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+         FrameLayout container = new FrameLayout(this);
+         container.addView(rootLayout, new FrameLayout.LayoutParams(
+                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
 
-        // 关闭按钮
-        ImageView btnClose = new ImageView(this);
-        btnClose.setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
-        btnClose.setColorFilter(textPrimary);
-        int closeSize = (int)(16 * density * sf);
-        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(closeSize, closeSize);
-        closeParams.gravity = Gravity.END | Gravity.TOP;
-        closeParams.setMargins(0, 0, (int)(2 * density), 0);
-        btnClose.setLayoutParams(closeParams);
-        btnClose.setOnClickListener(v -> stopSelf());
-        container.addView(btnClose);
-
-        // 尺寸调节面板（卡拉OK模式用density作为unit，避免面板元素过大）
+         // 尺寸调节面板（卡拉OK模式用density作为unit，避免面板元素过大）
         tvTitle = null;
         tvArtist = null;
         progressBar = null;
