@@ -53,14 +53,24 @@ public class MusicApiUtil {
     }
 
     /**
-     * 网易云歌曲搜索
+     * 网易云歌曲搜索（默认5条）
      * @param keyword 搜索关键词（通常为歌名）
      * @return 搜索结果 songs 数组（JSON对象数组），失败返回 null
      */
     public static JSONArray searchNetease(String keyword) {
+        return searchNetease(keyword, 5);
+    }
+
+    /**
+     * 网易云歌曲搜索
+     * @param keyword 搜索关键词（通常为歌名）
+     * @param pageSize 返回结果数量
+     * @return 搜索结果 songs 数组（JSON对象数组），失败返回 null
+     */
+    public static JSONArray searchNetease(String keyword, int pageSize) {
         try {
             String apiUrl = NETEASE_SEARCH_API + "?s=" +
-                    URLEncoder.encode(keyword, "UTF-8") + "&limit=5&type=1&offset=0";
+                    URLEncoder.encode(keyword, "UTF-8") + "&limit=" + pageSize + "&type=1&offset=0";
 
             String response = HttpUtil.get(apiUrl);
             if (response == null) return null;

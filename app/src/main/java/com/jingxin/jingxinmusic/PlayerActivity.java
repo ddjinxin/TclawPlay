@@ -1786,11 +1786,12 @@ public class PlayerActivity extends AppCompatActivity {
         lyricSearchPopup.showAtLocation(btnLyricSearch,
                 android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL, 0, 0);
 
-        // 异步搜索
+        // 异步搜索（传入当前歌曲时长用于排序）
         final String searchTitle = cleanTitle;
+        final long songDuration = song != null ? song.duration : 0;
         new Thread(() -> {
             java.util.List<LyricFetcher.LyricCandidate> candidates =
-                    LyricFetcher.searchLyricCandidates(searchTitle);
+                    LyricFetcher.searchLyricCandidates(searchTitle, songDuration);
             uiHandler.post(() -> {
                 if (lyricSearchPopup == null || !lyricSearchPopup.isShowing()) return;
 
@@ -1805,16 +1806,42 @@ public class PlayerActivity extends AppCompatActivity {
 
                 scroll.setVisibility(android.view.View.VISIBLE);
 
-                for (LyricFetcher.LyricCandidate cand : candidates) {
+                // 找到时长最接近的候选索引（已排序，第一项即最接近）
+                long bestDiff = Long.MAX_VALUE;
+                int bestIdx = -1;
+                if (songDuration > 0) {
+                    for (int i = 0; i < candidates.size(); i++) {
+                        long dur = candidates.get(i).durationMs;
+                        if (dur > 0) {
+                            bestDiff = Math.abs(dur - songDuration);
+                            bestIdx = i;
+                            break;
+                        }
+                    }
+                }
+
+                for (int idx = 0; idx < candidates.size(); idx++) {
+                    final LyricFetcher.LyricCandidate cand = candidates.get(idx);
                     android.widget.TextView item = new android.widget.TextView(this);
                     String displayName = cand.title;
                     if (cand.artist != null && !cand.artist.isEmpty()) {
                         displayName += " - " + cand.artist;
                     }
                     String sourceTag = "kugou".equals(cand.source) ? "酷狗" : "网易云";
-                    item.setText(displayName + "  [" + sourceTag + "]");
+                    // 拼接时长
+                    String durationStr = "";
+                    if (cand.durationMs > 0) {
+                        int totalSec = (int)(cand.durationMs / 1000);
+                        durationStr = String.format("%d:%02d", totalSec / 60, totalSec % 60);
+                    }
+                    // 第一项且时长差<5秒，标记“最佳”
+                    boolean isBestMatch = (idx == bestIdx && bestDiff < 5000);
+                    String suffix = "  [" + sourceTag + "]";
+                    if (!durationStr.isEmpty()) suffix += "  " + durationStr;
+                    if (isBestMatch) suffix += "  ★";
+                    item.setText(displayName + suffix);
                     item.setTextSize(13);
-                    item.setTextColor(0xFFDDDDDD);
+                    item.setTextColor(isBestMatch ? ThemeColors.sparkColor(isNightMode) : 0xFFDDDDDD);
                     item.setSingleLine(true);
                     item.setEllipsize(android.text.TextUtils.TruncateAt.END);
                     item.setPadding(
@@ -1822,7 +1849,11 @@ public class PlayerActivity extends AppCompatActivity {
                             (int)(12 * density), (int)(10 * density));
 
                     android.graphics.drawable.GradientDrawable itemBg = new android.graphics.drawable.GradientDrawable();
-                    itemBg.setColor(Color.argb(30, 68, 68, 68));
+                    if (isBestMatch) {
+                        itemBg.setColor(Color.argb(51, 0, 230, 180));  // 最佳匹配背景高亮
+                    } else {
+                        itemBg.setColor(Color.argb(30, 68, 68, 68));
+                    }
                     itemBg.setCornerRadius(8 * density);
                     item.setBackground(itemBg);
                     android.widget.LinearLayout.LayoutParams itemLp = new android.widget.LinearLayout.LayoutParams(

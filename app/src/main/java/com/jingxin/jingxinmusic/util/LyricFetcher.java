@@ -48,13 +48,15 @@ public class LyricFetcher {
         public final String source;    // "kugou" 或 "netease"
         public final String hash;      // 酷狗hash
         public final long songId;      // 网易云songId
+        public final long durationMs;  // 歌曲时长（毫秒），0表示未知
 
-        public LyricCandidate(String title, String artist, String source, String hash, long songId) {
+        public LyricCandidate(String title, String artist, String source, String hash, long songId, long durationMs) {
             this.title = title;
             this.artist = artist;
             this.source = source;
             this.hash = hash;
             this.songId = songId;
+            this.durationMs = durationMs;
         }
 
         @Override
@@ -64,24 +66,26 @@ public class LyricFetcher {
     }
 
     /**
-     * 搜索歌词候选结果（同时搜酷狗和网易云，合并返回多结果）
-     * @param songTitle 清洗后的纯歌名
-     * @return 候选列表（酷狗 + 网易云），空列表表示无结果
+     * 搜索歌词候选结果（同时搜酷狗和网易云，合并返回多结果，按时长差值排序）
+     * @param songTitle  清洗后的纯歌名
+     * @param durationMs 当前歌曲时长（毫秒），用于排序，<=0 不排序
+     * @return 候选列表（酷狗 + 网易云），按与当前歌曲时长差值升序排列
      */
-    public static java.util.List<LyricCandidate> searchLyricCandidates(String songTitle) {
+    public static java.util.List<LyricCandidate> searchLyricCandidates(String songTitle, long durationMs) {
         java.util.List<LyricCandidate> list = new java.util.ArrayList<>();
 
-        // 酷狗搜索
+        // 酷狗搜索（duration单位：秒，需转毫秒）
         try {
-            JSONArray kugouResults = MusicApiUtil.searchKugou(songTitle, 10);
+            JSONArray kugouResults = MusicApiUtil.searchKugou(songTitle, 20);
             if (kugouResults != null) {
                 for (int i = 0; i < kugouResults.length(); i++) {
                     JSONObject song = kugouResults.getJSONObject(i);
                     String name = song.optString("songname", "");
                     String singer = song.optString("singername", "");
                     String hash = song.optString("hash", "");
+                    long durSec = song.optLong("duration", 0);
                     if (!hash.isEmpty()) {
-                        list.add(new LyricCandidate(name, singer, "kugou", hash, 0));
+                        list.add(new LyricCandidate(name, singer, "kugou", hash, 0, durSec * 1000));
                     }
                 }
             }
@@ -89,9 +93,9 @@ public class LyricFetcher {
             Log.e(TAG, "酷狗候选搜索失败: " + e.getMessage());
         }
 
-        // 网易云搜索
+        // 网易云搜索（duration单位：毫秒）
         try {
-            JSONArray neteaseResults = MusicApiUtil.searchNetease(songTitle);
+            JSONArray neteaseResults = MusicApiUtil.searchNetease(songTitle, 10);
             if (neteaseResults != null) {
                 for (int i = 0; i < neteaseResults.length(); i++) {
                     JSONObject song = neteaseResults.getJSONObject(i);
@@ -102,8 +106,9 @@ public class LyricFetcher {
                         singer = artists.getJSONObject(0).optString("name", "");
                     }
                     long id = song.optLong("id", 0);
+                    long dur = song.optLong("duration", 0);
                     if (id > 0) {
-                        list.add(new LyricCandidate(name, singer, "netease", null, id));
+                        list.add(new LyricCandidate(name, singer, "netease", null, id, dur));
                     }
                 }
             }
@@ -111,7 +116,17 @@ public class LyricFetcher {
             Log.e(TAG, "网易云候选搜索失败: " + e.getMessage());
         }
 
-        Log.d(TAG, "搜索到 " + list.size() + " 个歌词候选");
+        // 按与当前歌曲时长差值升序排序（时长未知则排末尾）
+        if (durationMs > 0) {
+            final long targetDuration = durationMs;
+            java.util.Collections.sort(list, (a, b) -> {
+                long diffA = a.durationMs > 0 ? Math.abs(a.durationMs - targetDuration) : Long.MAX_VALUE;
+                long diffB = b.durationMs > 0 ? Math.abs(b.durationMs - targetDuration) : Long.MAX_VALUE;
+                return Long.compare(diffA, diffB);
+            });
+        }
+
+        Log.d(TAG, "搜索到 " + list.size() + " 个歌词候选，已按时长排序");
         return list;
     }
 
