@@ -273,6 +273,16 @@
             android:focusable="true"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
+        <ImageView
+            android:id="@+id/lyric_search_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_lyric_search"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
         <!-- 中间弹性空间 -->
         <View
             android:id="@+id/top_spacer"

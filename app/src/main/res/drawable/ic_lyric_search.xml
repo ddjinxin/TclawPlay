@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 歌词搜索图标：放大镜+音符 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9,3 C12.866,3 16,6.134 16,10 C16,11.963 15.221,13.745 13.955,15.062 L17.414,18.521 C17.805,18.911 17.805,19.545 17.414,19.936 C17.024,20.326 16.39,20.326 16,19.936 L12.541,16.477 C11.024,17.444 9.115,18 9,18 C5.134,18 2,14.866 2,11 C2,7.134 5.134,4 9,4 Z M9,5 C5.686,5 3,7.686 3,11 C3,14.314 5.686,17 9,17 C12.314,17 15,14.314 15,11 C15,7.686 12.314,5 9,5 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,3 L18.5,3.4 L18.5,10.5 L17,10.5 L17,5.0 L16.0,5.3 L16.0,4.3 L20,3 Z" />
+</vector>

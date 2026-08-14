@@ -39,6 +39,191 @@ public class LyricFetcher {
         void onError(String errorMessage);
     }
 
+    /**
+     * 歌词搜索候选项（用户手动搜索用）
+     */
+    public static class LyricCandidate {
+        public final String title;     // 歌名
+        public final String artist;    // 歌手
+        public final String source;    // "kugou" 或 "netease"
+        public final String hash;      // 酷狗hash
+        public final long songId;      // 网易云songId
+
+        public LyricCandidate(String title, String artist, String source, String hash, long songId) {
+            this.title = title;
+            this.artist = artist;
+            this.source = source;
+            this.hash = hash;
+            this.songId = songId;
+        }
+
+        @Override
+        public String toString() {
+            return title + " - " + artist + " [" + source + "]";
+        }
+    }
+
+    /**
+     * 搜索歌词候选结果（同时搜酷狗和网易云，合并返回多结果）
+     * @param songTitle 清洗后的纯歌名
+     * @return 候选列表（酷狗 + 网易云），空列表表示无结果
+     */
+    public static java.util.List<LyricCandidate> searchLyricCandidates(String songTitle) {
+        java.util.List<LyricCandidate> list = new java.util.ArrayList<>();
+
+        // 酷狗搜索
+        try {
+            JSONArray kugouResults = MusicApiUtil.searchKugou(songTitle, 10);
+            if (kugouResults != null) {
+                for (int i = 0; i < kugouResults.length(); i++) {
+                    JSONObject song = kugouResults.getJSONObject(i);
+                    String name = song.optString("songname", "");
+                    String singer = song.optString("singername", "");
+                    String hash = song.optString("hash", "");
+                    if (!hash.isEmpty()) {
+                        list.add(new LyricCandidate(name, singer, "kugou", hash, 0));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "酷狗候选搜索失败: " + e.getMessage());
+        }
+
+        // 网易云搜索
+        try {
+            JSONArray neteaseResults = MusicApiUtil.searchNetease(songTitle);
+            if (neteaseResults != null) {
+                for (int i = 0; i < neteaseResults.length(); i++) {
+                    JSONObject song = neteaseResults.getJSONObject(i);
+                    String name = song.optString("name", "");
+                    String singer = "";
+                    JSONArray artists = song.optJSONArray("artists");
+                    if (artists != null && artists.length() > 0) {
+                        singer = artists.getJSONObject(0).optString("name", "");
+                    }
+                    long id = song.optLong("id", 0);
+                    if (id > 0) {
+                        list.add(new LyricCandidate(name, singer, "netease", null, id));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "网易云候选搜索失败: " + e.getMessage());
+        }
+
+        Log.d(TAG, "搜索到 " + list.size() + " 个歌词候选");
+        return list;
+    }
+
+    /**
+     * 下载指定候选的歌词，覆盖本地缓存
+     * @param candidate  用户选中的候选
+     * @param lyricsDir  歌词缓存目录
+     * @param rawTitle   原始标题（文件命名用）
+     * @param callback   回调
+     * @param context    上下文
+     */
+    public static void downloadLyricByCandidate(LyricCandidate candidate, File lyricsDir,
+                                                 String rawTitle, LyricCallback callback, Context context) {
+        new Thread(() -> {
+            try {
+                String fileBaseName = buildFileName(rawTitle != null ? rawTitle : candidate.title, candidate.artist);
+
+                if ("kugou".equals(candidate.source)) {
+                    // 酷狗链路：hash → searchKugouLyric获取[id,accesskey] → downloadKugouLyric(KRC) + downloadKugouLrc(LRC)
+                    String[] idAndKey = searchKugouLyric(candidate.hash);
+                    if (idAndKey == null) {
+                        callback.onError("酷狗未找到歌词信息");
+                        return;
+                    }
+                    String id = idAndKey[0];
+                    String accesskey = idAndKey[1];
+
+                    // 下载KRC
+                    String base64Content = downloadKugouLyric(id, accesskey);
+                    if (base64Content != null) {
+                        File krcFile = new File(lyricsDir, fileBaseName + ".krc");
+                        KrcParser.saveKrcFromBase64(base64Content, krcFile);
+                        Log.d(TAG, "手动选择 KRC 已保存: " + krcFile.getName());
+                        if (context != null) LyricPublicUtil.copyToPublicDir(context, krcFile);
+
+                        // 同时下载LRC
+                        String lrcText = downloadKugouLrc(id, accesskey);
+                        if (lrcText != null && !lrcText.isEmpty()) {
+                            File lrcFile = new File(lyricsDir, fileBaseName + ".lrc");
+                            FileUtil.writeFile(lrcFile, lrcText);
+                            if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcFile);
+                        }
+
+                        KrcParser.LyricData data = KrcParser.parseKrcFromBase64(base64Content);
+                        if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                            // 删除.tried标记
+                            new File(lyricsDir, fileBaseName + ".tried").delete();
+                            notifyLyricAvailable(context, fileBaseName, candidate.title, candidate.artist);
+                            callback.onLyricFetched(data);
+                            return;
+                        }
+                    }
+                    callback.onError("酷狗歌词下载失败");
+                    return;
+
+                } else if ("netease".equals(candidate.source)) {
+                    // 网易云链路：songId → 获取LRC
+                    String apiUrl = NETEASE_LYRIC_API + "?id=" + candidate.songId + "&lv=1";
+                    String response = HttpUtil.get(apiUrl);
+                    if (response == null) {
+                        callback.onError("网易云歌词请求失败");
+                        return;
+                    }
+                    JSONObject json = new JSONObject(response);
+                    if (json.optInt("code") != 200) {
+                        callback.onError("网易云歌词返回错误");
+                        return;
+                    }
+                    JSONObject lrcObj = json.optJSONObject("lrc");
+                    if (lrcObj == null) {
+                        callback.onError("网易云无歌词内容");
+                        return;
+                    }
+                    String lrcText = lrcObj.optString("lyric", "");
+                    if (lrcText == null || lrcText.isEmpty()) {
+                        callback.onError("网易云歌词内容为空");
+                        return;
+                    }
+                    lrcText = lrcText.replace("\r\n", "\n");
+
+                    // 保存LRC
+                    File lrcFile = new File(lyricsDir, fileBaseName + ".lrc");
+                    FileUtil.writeFile(lrcFile, lrcText);
+                    Log.d(TAG, "手动选择 LRC 已保存: " + lrcFile.getName());
+                    if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcFile);
+
+                    // 删除旧KRC（避免使用旧歌词）和.tried标记
+                    File krcFile = new File(lyricsDir, fileBaseName + ".krc");
+                    if (krcFile.exists()) {
+                        krcFile.delete();
+                        Log.d(TAG, "已删除旧 KRC: " + krcFile.getName());
+                    }
+                    new File(lyricsDir, fileBaseName + ".tried").delete();
+
+                    KrcParser.LyricData data = LrcParser.parse(lrcText);
+                    if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                        notifyLyricAvailable(context, fileBaseName, candidate.title, candidate.artist);
+                        callback.onLyricFetched(data);
+                        return;
+                    }
+                    callback.onError("网易云歌词解析失败");
+                    return;
+                }
+
+                callback.onError("未知歌词来源");
+            } catch (Exception e) {
+                Log.e(TAG, "手动下载歌词异常: " + e.getMessage(), e);
+                callback.onError("下载歌词异常: " + e.getMessage());
+            }
+        }, "LyricManualDL").start();
+    }
+
     public static void loadLyric(String songTitle, String artistName, String filePath, File lyricsDir, LyricCallback callback) {
         loadLyric(songTitle, artistName, filePath, lyricsDir, callback, null, songTitle);
     }

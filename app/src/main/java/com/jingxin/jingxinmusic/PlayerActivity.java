@@ -106,6 +106,7 @@ public class PlayerActivity extends AppCompatActivity {
     private ImageView btnBack;
     private ImageView btnSpectrum;
     private ImageView btnOutfit;
+    private ImageView btnLyricSearch;
     private View overlayView;
     private View whiteOverlay;
     private View immersiveDarkOverlay;
@@ -129,6 +130,7 @@ public class PlayerActivity extends AppCompatActivity {
     private TonearmView tonearmView;
     private com.jingxin.jingxinmusic.view.ImmersiveOverlayView immersiveOverlay;
     private android.widget.PopupWindow spectrumPickerPopup; // 频谱选择浮窗
+    private android.widget.PopupWindow lyricSearchPopup; // 歌词搜索浮窗
 
     // 横屏模式
     private boolean isLandscapeMode = false; // 宽>高*1.2 时为横屏
@@ -389,6 +391,7 @@ public class PlayerActivity extends AppCompatActivity {
         btnBack = findViewById(R.id.back_button);
         btnSpectrum = findViewById(R.id.spectrum_button);
         btnOutfit = findViewById(R.id.outfit_button);
+        btnLyricSearch = findViewById(R.id.lyric_search_button);
         overlayView = findViewById(R.id.overlay_view);
         whiteOverlay = findViewById(R.id.white_overlay);
         // 初始化白天模式渐变遮罩：浅蓝(0xFFADD8E6)→白(0xFFFFFFFF)，左上到右下
@@ -597,6 +600,7 @@ public class PlayerActivity extends AppCompatActivity {
             stopSpectrum();
             finish();
         });
+        btnLyricSearch.setOnClickListener(v -> showLyricSearchPopup());
 
         // 注册广播接收器（监听切歌和播放状态）
             IntentFilter filter = new IntentFilter();
@@ -668,6 +672,9 @@ public class PlayerActivity extends AppCompatActivity {
         // 横竖屏切换时关闭频谱选择弹窗
         if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
             spectrumPickerPopup.dismiss();
+        }
+        if (lyricSearchPopup != null && lyricSearchPopup.isShowing()) {
+            lyricSearchPopup.dismiss();
         }
         // 延迟一帧再检测，确保 DisplayMetrics 已更新
         uiHandler.post(() -> {
@@ -1695,6 +1702,171 @@ public class PlayerActivity extends AppCompatActivity {
                 0, 0);
     }
 
+    /**
+     * 弹出歌词搜索浮窗：加载状态 → 候选列表 → 点击下载
+     */
+    private void showLyricSearchPopup() {
+        if (lyricSearchPopup != null && lyricSearchPopup.isShowing()) {
+            lyricSearchPopup.dismiss();
+            return;
+        }
+        if (song == null) {
+            android.widget.Toast.makeText(this, "无歌曲信息", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        float density = getResources().getDisplayMetrics().density;
+
+        // 外层容器
+        android.widget.LinearLayout container = new android.widget.LinearLayout(this);
+        container.setOrientation(android.widget.LinearLayout.VERTICAL);
+        container.setPadding(
+                (int)(12 * density), (int)(12 * density),
+                (int)(12 * density), (int)(12 * density));
+        // 半透明深色背景，左直角右圆角
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        float r = 16 * density;
+        bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
+        bg.setColor(Color.argb(51, 30, 30, 30));
+        container.setBackground(bg);
+
+        // 标题
+        android.widget.TextView title = new android.widget.TextView(this);
+        String cleanTitle = Song.cleanSongTitle(song.title, song.artist);
+        title.setText("搜索「" + (cleanTitle.length() > 12 ? cleanTitle.substring(0, 12) + "…" : cleanTitle) + "」歌词");
+        title.setTextColor(ThemeColors.sparkColor(isNightMode));
+        title.setTextSize(16);
+        title.setGravity(android.view.Gravity.CENTER);
+        title.setPadding(0, 0, 0, (int)(10 * density));
+        container.addView(title);
+
+        // 加载提示
+        android.widget.ProgressBar loading = new android.widget.ProgressBar(this);
+        android.widget.LinearLayout loadingRow = new android.widget.LinearLayout(this);
+        loadingRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        loadingRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        android.widget.TextView loadingText = new android.widget.TextView(this);
+        loadingText.setText("搜索中…");
+        loadingText.setTextColor(0xFFCCCCCC);
+        loadingText.setTextSize(14);
+        loadingText.setPadding((int)(8 * density), 0, 0, 0);
+        loadingRow.addView(loading);
+        loadingRow.addView(loadingText);
+        android.widget.LinearLayout.LayoutParams loadingLp = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        loadingLp.gravity = android.view.Gravity.CENTER;
+        loadingRow.setLayoutParams(loadingLp);
+        container.addView(loadingRow);
+
+        // 候选列表容器（ScrollView + LinearLayout）
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        android.widget.LinearLayout listContainer = new android.widget.LinearLayout(this);
+        listContainer.setOrientation(android.widget.LinearLayout.VERTICAL);
+        scroll.addView(listContainer);
+        container.addView(scroll);
+
+        // 空结果提示（默认隐藏）
+        android.widget.TextView emptyText = new android.widget.TextView(this);
+        emptyText.setText("未找到歌词候选");
+        emptyText.setTextColor(0xFFCCCCCC);
+        emptyText.setTextSize(14);
+        emptyText.setGravity(android.view.Gravity.CENTER);
+        emptyText.setPadding(0, (int)(16 * density), 0, (int)(16 * density));
+        emptyText.setVisibility(android.view.View.GONE);
+        container.addView(emptyText);
+
+        // 创建弹窗
+        lyricSearchPopup = new android.widget.PopupWindow(container,
+                (int)(280 * density),
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                true);
+        lyricSearchPopup.setOutsideTouchable(true);
+        lyricSearchPopup.setElevation(8 * density);
+        lyricSearchPopup.showAtLocation(btnLyricSearch,
+                android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL, 0, 0);
+
+        // 异步搜索
+        final String searchTitle = cleanTitle;
+        new Thread(() -> {
+            java.util.List<LyricFetcher.LyricCandidate> candidates =
+                    LyricFetcher.searchLyricCandidates(searchTitle);
+            uiHandler.post(() -> {
+                if (lyricSearchPopup == null || !lyricSearchPopup.isShowing()) return;
+
+                // 移除加载提示
+                container.removeView(loadingRow);
+
+                if (candidates.isEmpty()) {
+                    emptyText.setVisibility(android.view.View.VISIBLE);
+                    scroll.setVisibility(android.view.View.GONE);
+                    return;
+                }
+
+                scroll.setVisibility(android.view.View.VISIBLE);
+
+                for (LyricFetcher.LyricCandidate cand : candidates) {
+                    android.widget.TextView item = new android.widget.TextView(this);
+                    String displayName = cand.title;
+                    if (cand.artist != null && !cand.artist.isEmpty()) {
+                        displayName += " - " + cand.artist;
+                    }
+                    String sourceTag = "kugou".equals(cand.source) ? "酷狗" : "网易云";
+                    item.setText(displayName + "  [" + sourceTag + "]");
+                    item.setTextSize(13);
+                    item.setTextColor(0xFFDDDDDD);
+                    item.setSingleLine(true);
+                    item.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    item.setPadding(
+                            (int)(12 * density), (int)(10 * density),
+                            (int)(12 * density), (int)(10 * density));
+
+                    android.graphics.drawable.GradientDrawable itemBg = new android.graphics.drawable.GradientDrawable();
+                    itemBg.setColor(Color.argb(30, 68, 68, 68));
+                    itemBg.setCornerRadius(8 * density);
+                    item.setBackground(itemBg);
+                    android.widget.LinearLayout.LayoutParams itemLp = new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+                    itemLp.setMargins(0, (int)(3 * density), 0, (int)(3 * density));
+                    item.setLayoutParams(itemLp);
+
+                    item.setOnClickListener(v -> {
+                        lyricSearchPopup.dismiss();
+                        android.widget.Toast.makeText(this,
+                                "下载歌词中…", android.widget.Toast.LENGTH_SHORT).show();
+
+                        File lyricsDir = new File(getExternalFilesDir(null), "lyrics");
+                        LyricFetcher.downloadLyricByCandidate(cand, lyricsDir, song.title,
+                            new LyricFetcher.LyricCallback() {
+                                @Override
+                                public void onLyricFetched(KrcParser.LyricData lyricData) {
+                                    uiHandler.post(() -> {
+                                        if (lyricView != null && lyricData != null
+                                                && lyricData.lines != null && !lyricData.lines.isEmpty()) {
+                                            lyricView.setLyricData(lyricData);
+                                            android.widget.Toast.makeText(PlayerActivity.this,
+                                                    "歌词已更新", android.widget.Toast.LENGTH_SHORT).show();
+                                            Log.d(TAG, "手动选择歌词加载成功，共 " + lyricData.lines.size() + " 行");
+                                        }
+                                    });
+                                }
+                                @Override
+                                public void onError(String errorMessage) {
+                                    uiHandler.post(() ->
+                                        android.widget.Toast.makeText(PlayerActivity.this,
+                                                "歌词下载失败: " + errorMessage,
+                                                android.widget.Toast.LENGTH_SHORT).show());
+                                }
+                            }, PlayerActivity.this);
+                    });
+
+                    listContainer.addView(item);
+                }
+            });
+        }, "LyricSearch").start();
+    }
+
     private void toggleTheme() {
         isNightMode = !isNightMode;
         getSharedPreferences("theme", MODE_PRIVATE).edit()
@@ -1791,7 +1963,7 @@ public class PlayerActivity extends AppCompatActivity {
      */
     private void applyButtonTheme(boolean isNight) {
         ImageView[] buttons = {btnPlayPause, btnPrevious, btnNext,
-                btnHistory, btnPlayOrder, btnTheme, btnBack, btnSpectrum, btnOutfit, btnDownload};
+                btnHistory, btnPlayOrder, btnTheme, btnBack, btnSpectrum, btnOutfit, btnDownload, btnLyricSearch};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
             // 收藏按钮：已收藏用红色，未收藏清除滤镜
