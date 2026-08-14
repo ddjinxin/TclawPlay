@@ -1723,11 +1723,15 @@ public class PlayerActivity extends AppCompatActivity {
         container.setPadding(
                 (int)(12 * density), (int)(12 * density),
                 (int)(12 * density), (int)(12 * density));
-        // 半透明深色背景，左直角右圆角
+        // 半透明深色背景，竖屏四角圆角，横屏左直角右圆角
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
         float r = 16 * density;
-        bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
-        bg.setColor(Color.argb(51, 30, 30, 30));
+        if (isLandscapeMode) {
+            bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
+        } else {
+            bg.setCornerRadius(r);
+        }
+        bg.setColor(Color.argb(102, 30, 30, 30));  // 透明度40%
         container.setBackground(bg);
 
         // 标题
@@ -1776,15 +1780,32 @@ public class PlayerActivity extends AppCompatActivity {
         emptyText.setVisibility(android.view.View.GONE);
         container.addView(emptyText);
 
-        // 创建弹窗
+        // 创建弹窗：竖屏宽度80%水平居中，横屏宽度65%左对齐
+        int[] songNameLoc = new int[2];
+        tvSongName.getLocationOnScreen(songNameLoc);
+        int[] spectrumLoc = new int[2];
+        spectrumView.getLocationOnScreen(spectrumLoc);
+        int popupTop = songNameLoc[1];
+        int spectrumBottom = spectrumLoc[1] + spectrumView.getHeight();
+        int popupHeight = spectrumBottom - popupTop;
+        if (popupHeight < (int)(200 * density)) popupHeight = (int)(200 * density);
+        int screenWidth = findViewById(android.R.id.content).getWidth();
+        float widthRatio = isLandscapeMode ? 0.65f : 0.8f;
+        int popupWidth = (int)(screenWidth * widthRatio);
+
         lyricSearchPopup = new android.widget.PopupWindow(container,
-                (int)(280 * density),
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                popupWidth,
+                popupHeight,
                 true);
         lyricSearchPopup.setOutsideTouchable(true);
         lyricSearchPopup.setElevation(8 * density);
-        lyricSearchPopup.showAtLocation(btnLyricSearch,
-                android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL, 0, 0);
+        if (isLandscapeMode) {
+            lyricSearchPopup.showAtLocation(btnLyricSearch,
+                    android.view.Gravity.TOP | android.view.Gravity.START, 0, popupTop);
+        } else {
+            lyricSearchPopup.showAtLocation(btnLyricSearch,
+                    android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL, 0, popupTop);
+        }
 
         // 异步搜索（传入当前歌曲时长用于排序，优先用ExoPlayer真实时长）
         final String searchTitle = cleanTitle;
