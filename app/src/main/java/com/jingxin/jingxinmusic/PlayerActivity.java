@@ -1786,9 +1786,15 @@ public class PlayerActivity extends AppCompatActivity {
         lyricSearchPopup.showAtLocation(btnLyricSearch,
                 android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL, 0, 0);
 
-        // 异步搜索（传入当前歌曲时长用于排序）
+        // 异步搜索（传入当前歌曲时长用于排序，优先用ExoPlayer真实时长）
         final String searchTitle = cleanTitle;
-        final long songDuration = song != null ? song.duration : 0;
+        long realDuration = 0;
+        if (bound && playerBinder != null) {
+            int dur = playerBinder.getDuration();
+            if (dur > 0) realDuration = dur;
+        }
+        if (realDuration == 0 && song != null) realDuration = song.duration;
+        final long songDuration = realDuration;
         new Thread(() -> {
             java.util.List<LyricFetcher.LyricCandidate> candidates =
                     LyricFetcher.searchLyricCandidates(searchTitle, songDuration);

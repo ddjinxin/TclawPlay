@@ -459,7 +459,12 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                songAdapter.filter(s.toString());
+                if (currentTab == 3) {
+                    // 收藏Tab：过滤browseAdapter显示的卡片
+                    filterFavoriteBrowseItems(s.toString());
+                } else {
+                    songAdapter.filter(s.toString());
+                }
                 updateCountText();
             }
 
@@ -692,6 +697,22 @@ public class MainActivity extends AppCompatActivity {
         List<BrowseItem> items = new ArrayList<>();
         for (Song song : songAdapter.getFavoriteSongs()) {
             items.add(BrowseItem.localSong(song));
+        }
+        browseAdapter.setItems(items);
+    }
+
+    /**
+     * 按关键字过滤收藏卡片
+     */
+    private void filterFavoriteBrowseItems(String query) {
+        String q = query != null ? query.trim().toLowerCase() : "";
+        List<BrowseItem> items = new ArrayList<>();
+        for (Song song : songAdapter.getFavoriteSongs()) {
+            if (q.isEmpty() ||
+                (song.title != null && song.title.toLowerCase().contains(q)) ||
+                (song.artist != null && song.artist.toLowerCase().contains(q))) {
+                items.add(BrowseItem.localSong(song));
+            }
         }
         browseAdapter.setItems(items);
     }
@@ -1144,7 +1165,7 @@ public class MainActivity extends AppCompatActivity {
             }
             tvSongCount.setText(songCount + " 首歌曲");
         } else {
-            tvSongCount.setText(songAdapter.getSongCount() + " 首收藏");
+            tvSongCount.setText(songAdapter.getFavoriteSongs().size() + " 首收藏");
         }
     }
 

@@ -180,9 +180,9 @@
 
         <!-- 路径栏（本地子目录/云端共用） -->
         <LinearLayout
-            android:id="@+id/path_bar"
-            android:layout_width="match_parent"
-            android:layout_height="36dp"
+        android:id="@+id/path_bar"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="8dp"
@@ -313,28 +313,34 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-        <!-- 搜索栏 -->
-        <EditText
-            android:id="@+id/et_search"
+        <!-- 搜索栏 + 数量 同一行 -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="40dp"
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginTop="4dp"
-            android:background="@android:color/transparent"
-            android:hint="搜索歌曲或歌手..."
-            android:textSize="14sp"
-            android:inputType="text" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <!-- 歌曲数量 -->
-        <TextView
-            android:id="@+id/tv_song_count"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginTop="8dp"
-            android:text="0 首收藏"
-            android:textSize="12sp" />
+            <EditText
+                android:id="@+id/et_search"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:hint="搜索歌曲或歌手..."
+                android:textSize="14sp"
+                android:inputType="text" />
+
+            <TextView
+                android:id="@+id/tv_song_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="0 首收藏"
+                android:textSize="12sp" />
+        </LinearLayout>
 
         <!-- 收藏歌曲列表 -->
         <androidx.recyclerview.widget.RecyclerView
