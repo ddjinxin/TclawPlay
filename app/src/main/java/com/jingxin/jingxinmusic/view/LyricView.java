@@ -226,8 +226,8 @@ public class LyricView extends View {
             textColorCurrent = ThemeColors.lyricHighlight();
         } else {
             textColorNormal = ThemeColors.dayLyricNormal();
-            textColorPlayed = ThemeColors.lyricHighlight();
-            textColorCurrent = ThemeColors.lyricHighlight();
+            textColorPlayed = 0xFFE53935;   // 白天高亮改为红色
+            textColorCurrent = 0xFFE53935;
         }
         
         paintHint.setColor(textColorNormal);
