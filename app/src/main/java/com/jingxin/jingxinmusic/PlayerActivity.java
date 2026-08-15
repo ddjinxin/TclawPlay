@@ -31,8 +31,7 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import androidx.appcompat.app.AppCompatActivity;
-
+import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.scene.CoverScene;
 import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
@@ -73,7 +72,7 @@ import android.content.res.Configuration;
  * 播放页面
  * 旋转封面 + 歌词 + 频谱 + 进度条 + 控制按钮
  */
-public class PlayerActivity extends AppCompatActivity {
+public class PlayerActivity extends BaseFloatActivity {
 
     private static final String TAG = "PlayerActivity";
     private static final int PROGRESS_UPDATE_INTERVAL = 200;

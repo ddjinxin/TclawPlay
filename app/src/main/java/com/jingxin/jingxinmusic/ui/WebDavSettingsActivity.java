@@ -19,9 +19,8 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.WebDavCacheManager;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
@@ -32,7 +31,7 @@ import com.jingxin.jingxinmusic.util.WebDavScanner;
  * 配置服务器地址、账号、缓存大小等
  * 配色跟随首页风格系统（4种风格+昼夜模式）
  */
-public class WebDavSettingsActivity extends AppCompatActivity {
+public class WebDavSettingsActivity extends BaseFloatActivity {
 
     private static final String TAG = "WebDavSettings";
 

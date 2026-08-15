@@ -11,6 +11,7 @@ import android.util.Log;
 
 import android.os.Environment;
 
+import com.jingxin.jingxinmusic.floatwindow.LecoFloatManager;
 import com.jingxin.jingxinmusic.service.MiniFloatService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 
@@ -30,6 +31,9 @@ public class App extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        // 初始化乐酷桌面悬浮窗管理器
+        LecoFloatManager.getInstance().init(this);
 
         // 确保公共歌词目录存在（Download/lyrics/）
         ensureLyricsDir();
@@ -54,6 +58,12 @@ public class App extends Application {
             public void onActivityStopped(Activity activity) {
                 activityCount--;
                 if (isForeground && activityCount <= 0) {
+                    // 乐酷悬浮模式：应用通过覆盖窗口在悬浮区域内显示，不启动独立悬浮窗
+                    if (LecoFloatManager.getInstance().isFloating()) {
+                        isForeground = false;
+                        Log.d(TAG, "Leco float active, skip MiniFloatService");
+                        return;
+                    }
                     // 延迟300ms确认是否真的进后台，避免Activity切换时序问题导致误判
                     pendingStartFloat = () -> {
                         if (activityCount <= 0 && isForeground) {

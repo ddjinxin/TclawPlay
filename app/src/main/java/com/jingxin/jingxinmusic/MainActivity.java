@@ -29,7 +29,6 @@ import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -37,6 +36,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.jingxin.jingxinmusic.adapter.BrowseAdapter;
 import com.jingxin.jingxinmusic.adapter.SongAdapter;
+import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.model.BrowseItem;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
@@ -65,7 +65,7 @@ import java.util.concurrent.Executors;
  * 歌曲列表页面
  * 三种模式：本地、云端、收藏
  */
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseFloatActivity {
 
     private static final String TAG = "MainActivity";
 

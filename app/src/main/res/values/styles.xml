@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     
-    <!-- 应用主题 -->
+    <!-- 应用主题：正常模式不透明，悬浮时通过 windowAlpha=0 动态设透明 -->
     <style name="Theme.JingxinMusic" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowBackground">@color/background</item>
         <item name="android:statusBarColor">@color/background</item>

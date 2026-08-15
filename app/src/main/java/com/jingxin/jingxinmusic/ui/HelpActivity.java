@@ -15,13 +15,12 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.UpdateHelper;
 
-public class HelpActivity extends AppCompatActivity {
+public class HelpActivity extends BaseFloatActivity {
 
     private boolean isNightMode;
     private LinearLayout helpContent;

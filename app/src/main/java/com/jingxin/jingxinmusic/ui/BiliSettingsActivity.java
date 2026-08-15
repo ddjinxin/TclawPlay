@@ -19,10 +19,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import com.jingxin.jingxinmusic.MainActivity;
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.util.BiliApi;
 import com.jingxin.jingxinmusic.util.BiliConfig;
 import com.jingxin.jingxinmusic.util.HttpUtil;
@@ -35,7 +34,7 @@ import java.util.concurrent.Executors;
  * B站音源设置页面
  * 扫码登录 + 用户信息 + 去播放
  */
-public class BiliSettingsActivity extends AppCompatActivity {
+public class BiliSettingsActivity extends BaseFloatActivity {
 
     private static final String TAG = "BiliSettings";
     /** 二维码轮询间隔（毫秒） */
