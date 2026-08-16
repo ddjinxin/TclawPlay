@@ -1,50 +1,54 @@
-package com.jingxin.jingxinmusic;
+package com.jingxin.jingxinmusic.fragment;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.net.Uri;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
-import android.graphics.Color;
 import android.graphics.PorterDuff;
-import android.os.Build;
+import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.graphics.Typeface;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.jingxin.jingxinmusic.HostActivity;
+import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.adapter.BrowseAdapter;
 import com.jingxin.jingxinmusic.adapter.SongAdapter;
-import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.model.BrowseItem;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService.MusicPlayerBinder;
-import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.BitmapUtil;
 import com.jingxin.jingxinmusic.util.BiliApi;
 import com.jingxin.jingxinmusic.util.BiliConfig;
+import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.FavoriteManager;
 import com.jingxin.jingxinmusic.util.LocalDirectoryScanner;
 import com.jingxin.jingxinmusic.util.MusicScanner;
@@ -52,7 +56,6 @@ import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.UpdateHelper;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
 import com.jingxin.jingxinmusic.util.WebDavScanner;
-import com.jingxin.jingxinmusic.ui.HelpActivity;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -62,12 +65,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 歌曲列表页面
+ * 歌曲列表页面 Fragment
  * 三种模式：本地、云端、收藏
  */
-public class MainActivity extends BaseFloatActivity {
+public class MainFragment extends BaseFloatFragment {
 
-    private static final String TAG = "MainActivity";
+    private static final String TAG = "MainFragment";
+
+    private View mRootView;
 
     // 收藏列表适配器
     private SongAdapter songAdapter;
@@ -83,17 +88,17 @@ public class MainActivity extends BaseFloatActivity {
     private View rootLayout;
     private View tabBar;
     private View titleBar;
-    private int systemTopInset = 0; // 系统状态栏实际高度（车机全屏时为0）
+    private int systemTopInset = 0;
     private View tabDivider1;
     private View tabDivider2;
     private View indicatorLocal;
     private View indicatorCloud;
     private View indicatorBili;
     private View indicatorFavorite;
-    private View titleAccentLine;       // 标题栏霓虹绿渐变线
-    private View miniShimmerLine;       // 迷你播放条流光线
-    private View miniPlayerWrap;        // 迷你播放条外框
-    private android.animation.ObjectAnimator tabBreathAnimator;  // Tab指示线呼吸动画
+    private View titleAccentLine;
+    private View miniShimmerLine;
+    private View miniPlayerWrap;
+    private android.animation.ObjectAnimator tabBreathAnimator;
     private RecyclerView rvList;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -117,8 +122,7 @@ public class MainActivity extends BaseFloatActivity {
     private TextView btnGoWebDavSettings;
     private TextView tvSetupMsg;
 
-
-    // Browse adapter (shared for local & cloud)
+    // Browse adapter
     private BrowseAdapter browseAdapter;
 
     // Local browse state
@@ -131,13 +135,12 @@ public class MainActivity extends BaseFloatActivity {
     private WebDavScanner webDavScanner;
     private Stack<String> cloudNavStack = new Stack<>();
     private Stack<String> biliNavStack = new Stack<>();
-    private String biliCurrentUrl = null;  // B站当前路径，如 "bili://folder/12345"
+    private String biliCurrentUrl = null;
     private String cloudCurrentUrl = null;
 
-    // Current tab: 0=local, 1=cloud, 2=favorite
+    // Current tab: 0=local, 1=cloud, 2=bili, 3=favorite
     private int currentTab = 0;
 
-    // 从mini播放条进入PlayerActivity后返回时，需要恢复到歌曲对应的来源页面
     private boolean returningFromPlayer = false;
 
     // 主题
@@ -146,19 +149,21 @@ public class MainActivity extends BaseFloatActivity {
 
     private File favDir;
 
-    // 是否已从列表页跳转过播放页（防止返回时重复跳转）
     private boolean hasAutoResumed = false;
+
+    /** 标记已自动恢复过，防止悬浮返回时 new MainFragment 又自动跳到播放页 */
+    public void setAutoResumed(boolean value) {
+        hasAutoResumed = value;
+    }
 
     private ActivityResultLauncher<String> permissionLauncher;
     private ActivityResultLauncher<String[]> multiPermissionLauncher;
 
-    // 记录当前正在请求的权限类型，用于区分回调逻辑
     private String currentPermissionRequest;
 
-    // MediaStore ContentObserver：监听音乐文件变化（U盘索引完成、增删音乐等）
     private android.database.ContentObserver mediaStoreObserver;
     private boolean isScanning = false;
-    private static final int SELF_SCAN_IGNORE_MS = 3000;  // 自身扫描后3秒内忽略 ContentObserver
+    private static final int SELF_SCAN_IGNORE_MS = 3000;
     private final Handler scanDebounceHandler = new Handler();
     private static final int SCAN_DEBOUNCE_MS = 500;
 
@@ -186,14 +191,11 @@ public class MainActivity extends BaseFloatActivity {
                 miniSongArtist.setText(artist);
                 miniPlayerWrap.setVisibility(View.VISIBLE);
                 if (shimmerAnimator != null && !shimmerAnimator.isRunning()) shimmerAnimator.start();
-                // 更新迷你封面
                 loadMiniCover(title, artist);
-                // 新歌开始，启动旋转
                 startCoverRotation();
             } else if (MusicPlayerService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
                 miniPlayPause.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play);
-                // 播放/暂停控制旋转
                 if (playing) {
                     startCoverRotation();
                 } else {
@@ -226,253 +228,12 @@ public class MainActivity extends BaseFloatActivity {
         }
     };
 
+    // ==================== 生命周期 ====================
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
-        favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(this);
-
-        // 读取主题
-        themePrefs = getSharedPreferences("theme", MODE_PRIVATE);
-        isNightMode = themePrefs.getBoolean("isNight", true);
-        ThemeColors.init(this);
-
-        // 初始化视图
-        tvSongCount = findViewById(R.id.tv_song_count);
-        tvLoading = findViewById(R.id.tv_loading);
-        ivAppIcon = findViewById(R.id.iv_app_icon);
-        etSearch = findViewById(R.id.et_search);
-        btnTheme = findViewById(R.id.theme_button);
-        btnStyle = findViewById(R.id.style_button);
-        rootLayout = findViewById(R.id.root_layout);
-        tabBar = findViewById(R.id.tab_bar);
-        titleBar = findViewById(R.id.title_bar);
-
-        // 监听系统窗口 insets，获取状态栏实际高度并设为 titleBar 的 topMargin
-        rootLayout.setOnApplyWindowInsetsListener((v, insets) -> {
-            int topInset;
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                topInset = insets.getInsets(android.view.WindowInsets.Type.systemBars()).top;
-            } else {
-                topInset = insets.getSystemWindowInsetTop();
-            }
-            if (systemTopInset != topInset) {
-                systemTopInset = topInset;
-                applyTitleBarTopMargin();
-            }
-            return insets;
-        });
-        tabDivider1 = findViewById(R.id.tab_divider_1);
-        tabDivider2 = findViewById(R.id.tab_divider_2);
-        indicatorLocal = findViewById(R.id.indicator_local);
-        indicatorCloud = findViewById(R.id.indicator_cloud);
-        indicatorBili = findViewById(R.id.indicator_bili);
-        indicatorFavorite = findViewById(R.id.indicator_favorite);
-        titleAccentLine = findViewById(R.id.title_accent_line);
-        miniShimmerLine = findViewById(R.id.mini_shimmer_line);
-        miniPlayerWrap = findViewById(R.id.mini_player_wrap);
-        tvCopyright = findViewById(R.id.tv_copyright);
-        rvList = findViewById(R.id.rv_song_list);
-
-        // Browse area
-        browseArea = findViewById(R.id.browse_area);
-        favoriteArea = findViewById(R.id.favorite_area);
-        pathBar = findViewById(R.id.path_bar);
-        btnNavigateBack = findViewById(R.id.btn_navigate_back);
-        tvBrowsePath = findViewById(R.id.tv_browse_path);
-        btnWebDavSettings = findViewById(R.id.btn_webdav_settings);
-        btnBiliSettings = findViewById(R.id.btn_bili_settings);
-        rvBrowse = findViewById(R.id.rv_browse);
-        webdavSetupArea = findViewById(R.id.webdav_setup_area);
-        browseLoading = findViewById(R.id.loading_layout);
-        btnGoWebDavSettings = findViewById(R.id.btn_go_webdav_settings);
-        tvSetupMsg = findViewById(R.id.tv_webdav_setup_msg);
-
-
-        // Mini 播放条
-        miniPlayer = findViewById(R.id.mini_player);
-        miniSongTitle = findViewById(R.id.mini_song_title);
-        miniSongArtist = findViewById(R.id.mini_song_artist);
-        miniPlayPause = findViewById(R.id.mini_play_pause);
-        miniCover = findViewById(R.id.mini_cover);
-
-        // 封面圆形裁剪 + 旋转动画
-        miniCover.setClipToOutline(true);
-        miniCover.setOutlineProvider(new android.view.ViewOutlineProvider() {
-            @Override
-            public void getOutline(View view, android.graphics.Outline outline) {
-                int size = Math.min(view.getWidth(), view.getHeight());
-                if (size <= 0) size = 42; // 默认大小
-                outline.setRoundRect(0, 0, size, size, size / 2f);
-            }
-        });
-        coverRotationHelper.attach(miniCover);
-
-        // 关闭按钮
-        btnClose = findViewById(R.id.close_button);
-        btnClose.setOnClickListener(v -> {
-            stopService(new Intent(MainActivity.this, com.jingxin.jingxinmusic.service.MusicPlayerService.class));
-            finishAffinity();
-            System.exit(0);
-        });
-
-        // 帮助按钮
-        btnHelp = findViewById(R.id.help_button);
-        btnHelp.setOnClickListener(v -> {
-            startActivity(new Intent(this, HelpActivity.class));
-        });
-
-        // Tab
-        tabLocal = findViewById(R.id.tab_local);
-        tabCloud = findViewById(R.id.tab_cloud);
-        tabBili = findViewById(R.id.tab_bili);
-        tabFavorite = findViewById(R.id.tab_favorite);
-
-        // WebDAV config
-        webDavConfig = new WebDavConfig(this);
-
-        // 设置收藏列表 RecyclerView
-        rvList.setLayoutManager(new LinearLayoutManager(this));
-        songAdapter = new SongAdapter(this);
-        songAdapter.setOnSongClickListener(this::onFavoriteSongClick);
-        rvList.setAdapter(songAdapter);
-
-        // 设置浏览 RecyclerView（本地/云端/收藏共用）
-        browseAdapter = new BrowseAdapter();
-        int spanCount = calcSpanCount();
-        rvBrowse.setLayoutManager(new GridLayoutManager(this, spanCount));
-        rvBrowse.setAdapter(browseAdapter);
-
-        browseAdapter.setOnItemClickListener((item, position) -> {
-            if (item.isDirectory) {
-                if (currentTab == 0) {
-                    navigateLocalTo(item.path);
-                } else if (currentTab == 1) {
-                    navigateCloudTo(item.url);
-                } else if (currentTab == 2) {
-                    // B站目录项：收藏夹文件夹 或 视频目录（统一用item.url导航）
-                    navigateBiliTo(item.url);
-                }
-            } else {
-                playFromBrowse(item);
-            }
-        });
-
-        // 监听窗口尺寸变化（横竖屏切换时触发比例布局）
-        View rootView = findViewById(android.R.id.content);
-        if (rootView != null) {
-            rootView.addOnLayoutChangeListener(
-                    (View v, int left, int top, int right, int bottom,
-                     int oldLeft, int oldTop, int oldRight, int oldBottom) -> {
-                        if (isFinishing() || isDestroyed()) return;
-                        int newWidth = right - left;
-                        int newHeight = bottom - top;
-                        int oldWidth = oldRight - oldLeft;
-                        int oldHeight = oldBottom - oldTop;
-                        if (oldWidth > 0 && (newWidth != oldWidth || newHeight != oldHeight)) {
-                            if (rvBrowse != null) {
-                                rvBrowse.post(() -> {
-                                    if (isFinishing() || isDestroyed()) return;
-                                    applyLandscapeProportionalLayout();
-                                    int newSpan = calcSpanCount();
-                                    rvBrowse.setLayoutManager(new GridLayoutManager(MainActivity.this, newSpan));
-                                    if (browseAdapter != null) {
-                                        browseAdapter.notifyDataSetChanged();
-                                    }
-                                });
-                            }
-                        }
-                    });
-        }
-
-        // 风格切换按钮
-        btnStyle.setOnClickListener(v -> {
-            int newIndex = ThemeColors.cycleStyle(this);
-            updateThemeUI();
-            android.widget.Toast.makeText(this, ThemeColors.getStyle().name, android.widget.Toast.LENGTH_SHORT).show();
-        });
-
-        // 主题按钮
-        btnTheme.setOnClickListener(v -> {
-            isNightMode = !isNightMode;
-            themePrefs.edit().putBoolean("isNight", isNightMode)
-                    .putBoolean("amapTriggered", false)
-                    .apply();
-            updateThemeUI();
-            android.widget.Toast.makeText(this, isNightMode ? "夜间模式" : "白天模式", android.widget.Toast.LENGTH_SHORT).show();
-        });
-
-        // 应用主题
-        updateThemeUI();
-
-        // 首次进入时如果横屏，立即应用比例布局
-        rootView.post(() -> {
-            if (!isFinishing() && !isDestroyed()) {
-                applyLandscapeProportionalLayout();
-            }
-        });
-
-        // 根布局初始不可见
-        rootLayout.setVisibility(View.INVISIBLE);
-
-        // Tab 切换
-        tabLocal.setOnClickListener(v -> switchTab(0));
-        tabCloud.setOnClickListener(v -> switchTab(1));
-        tabBili.setOnClickListener(v -> switchTab(2));
-        tabFavorite.setOnClickListener(v -> switchTab(3));
-
-        // 返回按钮（路径栏）
-        btnNavigateBack.setOnClickListener(v -> {
-            if (currentTab == 0) {
-                navigateLocalBack();
-            } else if (currentTab == 1) {
-                navigateCloudBack();
-            } else if (currentTab == 2) {
-                navigateBiliBack();
-            }
-        });
-
-        // 云端设置按钮
-        btnWebDavSettings.setOnClickListener(v -> {
-            startActivity(new Intent(MainActivity.this, com.jingxin.jingxinmusic.ui.WebDavSettingsActivity.class));
-        });
-
-        // B站设置按钮
-        btnBiliSettings.setOnClickListener(v -> {
-            startActivity(new Intent(MainActivity.this, com.jingxin.jingxinmusic.ui.BiliSettingsActivity.class));
-        });
-
-        // 去配置按钮（根据当前tab动态切换目标Activity）
-        btnGoWebDavSettings.setOnClickListener(v -> {
-            if (currentTab == 2) {
-                startActivity(new Intent(MainActivity.this, com.jingxin.jingxinmusic.ui.BiliSettingsActivity.class));
-            } else {
-                startActivity(new Intent(MainActivity.this, com.jingxin.jingxinmusic.ui.WebDavSettingsActivity.class));
-            }
-        });
-
-        // 搜索功能
-        etSearch.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (currentTab == 3) {
-                    // 收藏Tab：过滤browseAdapter显示的卡片
-                    filterFavoriteBrowseItems(s.toString());
-                } else {
-                    songAdapter.filter(s.toString());
-                }
-                updateCountText();
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {}
-        });
-
-        // 权限请求
         permissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
                 isGranted -> {
@@ -484,8 +245,8 @@ public class MainActivity extends BaseFloatActivity {
                         if (isGranted) {
                             scanMusic();
                         } else {
-                            tvLoading.setVisibility(View.GONE);
-                            tvSongCount.setText("需要存储权限才能扫描音乐");
+                            if (tvLoading != null) tvLoading.setVisibility(View.GONE);
+                            if (tvSongCount != null) tvSongCount.setText("需要存储权限才能扫描音乐");
                         }
                     }
                     currentPermissionRequest = null;
@@ -505,21 +266,264 @@ public class MainActivity extends BaseFloatActivity {
                         }
                         requestNotificationPermissionIfNeeded();
                     } else {
-                        tvLoading.setVisibility(View.GONE);
-                        tvSongCount.setText("需要存储权限才能扫描音乐");
+                        if (tvLoading != null) tvLoading.setVisibility(View.GONE);
+                        if (tvSongCount != null) tvSongCount.setText("需要存储权限才能扫描音乐");
+                    }
+                });
+    }
+
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.activity_main, container, false);
+        mRootView = view;
+
+        Context ctx = requireContext();
+
+        favDir = FavoriteManager.getFavoriteDir(ctx);
+
+        themePrefs = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE);
+        isNightMode = themePrefs.getBoolean("isNight", true);
+        ThemeColors.init(ctx);
+
+        // 初始化视图
+        tvSongCount = view.findViewById(R.id.tv_song_count);
+        tvLoading = view.findViewById(R.id.tv_loading);
+        ivAppIcon = view.findViewById(R.id.iv_app_icon);
+        etSearch = view.findViewById(R.id.et_search);
+        btnTheme = view.findViewById(R.id.theme_button);
+        btnStyle = view.findViewById(R.id.style_button);
+        rootLayout = view.findViewById(R.id.root_layout);
+        tabBar = view.findViewById(R.id.tab_bar);
+        titleBar = view.findViewById(R.id.title_bar);
+
+        rootLayout.setOnApplyWindowInsetsListener((v, insets) -> {
+            int topInset;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                topInset = insets.getInsets(android.view.WindowInsets.Type.systemBars()).top;
+            } else {
+                topInset = insets.getSystemWindowInsetTop();
+            }
+            if (systemTopInset != topInset) {
+                systemTopInset = topInset;
+                applyTitleBarTopMargin();
+            }
+            return insets;
+        });
+        tabDivider1 = view.findViewById(R.id.tab_divider_1);
+        tabDivider2 = view.findViewById(R.id.tab_divider_2);
+        indicatorLocal = view.findViewById(R.id.indicator_local);
+        indicatorCloud = view.findViewById(R.id.indicator_cloud);
+        indicatorBili = view.findViewById(R.id.indicator_bili);
+        indicatorFavorite = view.findViewById(R.id.indicator_favorite);
+        titleAccentLine = view.findViewById(R.id.title_accent_line);
+        miniShimmerLine = view.findViewById(R.id.mini_shimmer_line);
+        miniPlayerWrap = view.findViewById(R.id.mini_player_wrap);
+        tvCopyright = view.findViewById(R.id.tv_copyright);
+        rvList = view.findViewById(R.id.rv_song_list);
+
+        browseArea = view.findViewById(R.id.browse_area);
+        favoriteArea = view.findViewById(R.id.favorite_area);
+        pathBar = view.findViewById(R.id.path_bar);
+        btnNavigateBack = view.findViewById(R.id.btn_navigate_back);
+        tvBrowsePath = view.findViewById(R.id.tv_browse_path);
+        btnWebDavSettings = view.findViewById(R.id.btn_webdav_settings);
+        btnBiliSettings = view.findViewById(R.id.btn_bili_settings);
+        rvBrowse = view.findViewById(R.id.rv_browse);
+        webdavSetupArea = view.findViewById(R.id.webdav_setup_area);
+        browseLoading = view.findViewById(R.id.loading_layout);
+        btnGoWebDavSettings = view.findViewById(R.id.btn_go_webdav_settings);
+        tvSetupMsg = view.findViewById(R.id.tv_webdav_setup_msg);
+
+        miniPlayer = view.findViewById(R.id.mini_player);
+        miniSongTitle = view.findViewById(R.id.mini_song_title);
+        miniSongArtist = view.findViewById(R.id.mini_song_artist);
+        miniPlayPause = view.findViewById(R.id.mini_play_pause);
+        miniCover = view.findViewById(R.id.mini_cover);
+
+        miniCover.setClipToOutline(true);
+        miniCover.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, android.graphics.Outline outline) {
+                int size = Math.min(v.getWidth(), v.getHeight());
+                if (size <= 0) size = 42;
+                outline.setRoundRect(0, 0, size, size, size / 2f);
+            }
+        });
+        coverRotationHelper.attach(miniCover);
+
+        // 关闭按钮
+        btnClose = view.findViewById(R.id.close_button);
+        btnClose.setOnClickListener(v -> {
+            ctx.stopService(new Intent(ctx, MusicPlayerService.class));
+            requireActivity().finishAffinity();
+            System.exit(0);
+        });
+
+        // 帮助按钮
+        btnHelp = view.findViewById(R.id.help_button);
+        btnHelp.setOnClickListener(v -> {
+            ((HostActivity) requireActivity()).navigateTo(new HelpFragment(), true);
+        });
+
+        // Tab
+        tabLocal = view.findViewById(R.id.tab_local);
+        tabCloud = view.findViewById(R.id.tab_cloud);
+        tabBili = view.findViewById(R.id.tab_bili);
+        tabFavorite = view.findViewById(R.id.tab_favorite);
+
+        webDavConfig = new WebDavConfig(ctx);
+
+        // 收藏列表 RecyclerView
+        rvList.setLayoutManager(new LinearLayoutManager(ctx));
+        songAdapter = new SongAdapter(ctx);
+        songAdapter.setOnSongClickListener(this::onFavoriteSongClick);
+        rvList.setAdapter(songAdapter);
+
+        // 浏览 RecyclerView
+        browseAdapter = new BrowseAdapter();
+        int spanCount = calcSpanCount();
+        rvBrowse.setLayoutManager(new GridLayoutManager(ctx, spanCount));
+        rvBrowse.setAdapter(browseAdapter);
+
+        browseAdapter.setOnItemClickListener((item, position) -> {
+            if (item.isDirectory) {
+                if (currentTab == 0) {
+                    navigateLocalTo(item.path);
+                } else if (currentTab == 1) {
+                    navigateCloudTo(item.url);
+                } else if (currentTab == 2) {
+                    navigateBiliTo(item.url);
+                }
+            } else {
+                playFromBrowse(item);
+            }
+        });
+
+        // 监听窗口尺寸变化
+        view.addOnLayoutChangeListener(
+                (View v, int left, int top, int right, int bottom,
+                 int oldLeft, int oldTop, int oldRight, int oldBottom) -> {
+                    if (isActivityGone()) return;
+                    int newWidth = right - left;
+                    int newHeight = bottom - top;
+                    int oldWidth = oldRight - oldLeft;
+                    int oldHeight = oldBottom - oldTop;
+                    if (oldWidth > 0 && (newWidth != oldWidth || newHeight != oldHeight)) {
+                        if (rvBrowse != null) {
+                            rvBrowse.post(() -> {
+                                if (isActivityGone()) return;
+                                applyLandscapeProportionalLayout();
+                                int newSpan = calcSpanCount();
+                                rvBrowse.setLayoutManager(new GridLayoutManager(ctx, newSpan));
+                                if (browseAdapter != null) {
+                                    browseAdapter.notifyDataSetChanged();
+                                }
+                            });
+                        }
                     }
                 });
 
+        // 风格切换按钮
+        btnStyle.setOnClickListener(v -> {
+            int newIndex = ThemeColors.cycleStyle(ctx);
+            updateThemeUI();
+            android.widget.Toast.makeText(ctx, ThemeColors.getStyle().name, android.widget.Toast.LENGTH_SHORT).show();
+        });
+
+        // 主题按钮
+        btnTheme.setOnClickListener(v -> {
+            isNightMode = !isNightMode;
+            themePrefs.edit().putBoolean("isNight", isNightMode)
+                    .putBoolean("amapTriggered", false)
+                    .apply();
+            updateThemeUI();
+            android.widget.Toast.makeText(ctx, isNightMode ? "夜间模式" : "白天模式", android.widget.Toast.LENGTH_SHORT).show();
+        });
+
+        updateThemeUI();
+
+        // 首次进入时如果横屏，立即应用比例布局
+        view.post(() -> {
+            if (!isActivityGone()) {
+                applyLandscapeProportionalLayout();
+            }
+        });
+
+        rootLayout.setVisibility(View.INVISIBLE);
+
+        // Tab 切换
+        tabLocal.setOnClickListener(v -> switchTab(0));
+        tabCloud.setOnClickListener(v -> switchTab(1));
+        tabBili.setOnClickListener(v -> switchTab(2));
+        tabFavorite.setOnClickListener(v -> switchTab(3));
+
+        // 返回按钮
+        btnNavigateBack.setOnClickListener(v -> {
+            if (currentTab == 0) {
+                navigateLocalBack();
+            } else if (currentTab == 1) {
+                navigateCloudBack();
+            } else if (currentTab == 2) {
+                navigateBiliBack();
+            }
+        });
+
+        // 云端设置按钮
+        btnWebDavSettings.setOnClickListener(v -> {
+            ((HostActivity) requireActivity()).navigateTo(new WebDavSettingsFragment(), true);
+        });
+
+        // B站设置按钮
+        btnBiliSettings.setOnClickListener(v -> {
+            ((HostActivity) requireActivity()).navigateTo(new BiliSettingsFragment(), true);
+        });
+
+        // 去配置按钮
+        btnGoWebDavSettings.setOnClickListener(v -> {
+            if (currentTab == 2) {
+                ((HostActivity) requireActivity()).navigateTo(new BiliSettingsFragment(), true);
+            } else {
+                ((HostActivity) requireActivity()).navigateTo(new WebDavSettingsFragment(), true);
+            }
+        });
+
+        // 搜索功能
+        etSearch.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (currentTab == 3) {
+                    filterFavoriteBrowseItems(s.toString());
+                } else {
+                    songAdapter.filter(s.toString());
+                }
+                updateCountText();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
         checkPermissionAndScan();
 
-        // 初始化首页Tab（检查是否从WebDAV设置页跳来）
-        int selectTab = getIntent().getIntExtra("select_tab", 0);
-        switchTab(selectTab);
+        // 初始 tab（从 HostActivity pendingTab 读取）
+        int initialTab = 0;
+        if (getActivity() instanceof HostActivity) {
+            HostActivity host = (HostActivity) getActivity();
+            if (host.pendingTab >= 0) {
+                initialTab = host.pendingTab;
+                host.pendingTab = -1;
+            }
+        }
+        switchTab(initialTab);
 
-        // 点击 mini 播放条整体 → 跳转播放页
+        // 点击 mini 播放条
         miniPlayer.setOnClickListener(v -> openPlayerFromMini());
 
-        // 点击播放/暂停
+        // 播放/暂停
         miniPlayPause.setOnClickListener(v -> {
             if (bound && playerBinder != null) {
                 playerBinder.togglePlayPause();
@@ -527,20 +531,19 @@ public class MainActivity extends BaseFloatActivity {
         });
 
         // 绑定播放服务
-        Intent serviceIntent = new Intent(this, MusicPlayerService.class);
-        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+        Intent serviceIntent = new Intent(ctx, MusicPlayerService.class);
+        ctx.bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
 
         // 注册广播接收器
         IntentFilter filter = new IntentFilter();
         filter.addAction(MusicPlayerService.ACTION_SONG_CHANGED);
         filter.addAction(MusicPlayerService.ACTION_PLAY_STATE_CHANGED);
-        CompatUtil.safeRegisterReceiver(this, playStateReceiver, filter);
+        CompatUtil.safeRegisterReceiver(ctx, playStateReceiver, filter);
 
         // 注册 MediaStore ContentObserver
         mediaStoreObserver = new android.database.ContentObserver(null) {
             @Override
             public void onChange(boolean selfChange) {
-                // 自身触发的媒体扫描引起的 onChange，忽略（防止循环扫描）
                 if (System.currentTimeMillis() - MusicScanner.lastMediaScanTime < SELF_SCAN_IGNORE_MS) {
                     Log.d(TAG, "MediaStore onChange：自身扫描触发，忽略");
                     return;
@@ -549,44 +552,28 @@ public class MainActivity extends BaseFloatActivity {
                 scanDebounceHandler.postDelayed(scanDebounceRunnable, SCAN_DEBOUNCE_MS);
             }
         };
-        getContentResolver().registerContentObserver(
+        ctx.getContentResolver().registerContentObserver(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver);
 
-        // 启动时自动检查更新（静默，遵守忽略列表）
-        UpdateHelper.getInstance(this).checkOnLaunch(this);
+        // 检查更新
+        UpdateHelper.getInstance(ctx).checkOnLaunch(requireActivity());
+
+        return view;
     }
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        View rootView = findViewById(android.R.id.content);
-        if (rootView != null) {
-            rootView.post(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                applyLandscapeProportionalLayout();
-                if (rvBrowse != null) {
-                    rvBrowse.requestLayout();
-                }
-                if (browseAdapter != null) {
-                    browseAdapter.notifyDataSetChanged();
-                }
-            });
-        }
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        int selectTab = intent.getIntExtra("select_tab", -1);
-        if (selectTab >= 0) {
-            switchTab(selectTab);
-        }
-    }
-
-    @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
+
+        // 处理来自 HostActivity 的新 tab 请求
+        if (getActivity() instanceof HostActivity) {
+            HostActivity host = (HostActivity) getActivity();
+            if (host.pendingTab >= 0) {
+                switchTab(host.pendingTab);
+                host.pendingTab = -1;
+            }
+        }
+
         rootLayout.setVisibility(View.VISIBLE);
         boolean savedNight = themePrefs.getBoolean("isNight", true);
         if (savedNight != isNightMode) {
@@ -594,14 +581,12 @@ public class MainActivity extends BaseFloatActivity {
             updateThemeUI();
         }
 
-        // 从mini播放条进入PlayerActivity后返回：恢复到歌曲来源对应的tab和导航层级
         if (returningFromPlayer) {
             returningFromPlayer = false;
-            android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
+            SharedPreferences prefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
             String savedPlaylistMode = prefs.getString("playlist_mode", "all");
             if ("bili".equals(savedPlaylistMode) && currentTab != 2) {
                 currentTab = 2;
-                // 恢复B站导航到歌曲所在的列表页
                 String biliNavUrl = prefs.getString("bili_nav_url", "");
                 if (!biliNavUrl.isEmpty()) {
                     biliCurrentUrl = biliNavUrl;
@@ -611,20 +596,95 @@ public class MainActivity extends BaseFloatActivity {
             }
         }
 
-        // 确保 tab UI 与 currentTab 一致（autoResume 可能改了 currentTab 但没走 switchTab）
         updateTabUI();
-        // 刷新收藏
         refreshFavorites();
-        // 刷新当前Tab的浏览内容
-        webDavConfig = new WebDavConfig(this);
+        webDavConfig = new WebDavConfig(requireContext());
         loadCurrentTabContent();
-        // 更新 mini 播放条
         updateMiniPlayerFromService();
     }
 
-    // ========== Tab 切换 ==========
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (mRootView != null) {
+            mRootView.post(() -> {
+                if (isActivityGone()) return;
+                applyLandscapeProportionalLayout();
+                if (rvBrowse != null) rvBrowse.requestLayout();
+                if (browseAdapter != null) browseAdapter.notifyDataSetChanged();
+            });
+        }
+    }
 
-    /** 轻量级刷新 tab 样式（不触发内容加载），用于 onResume 同步 UI */
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (coverRotationHelper != null) coverRotationHelper.release();
+        if (tabBreathAnimator != null) { tabBreathAnimator.cancel(); tabBreathAnimator = null; }
+        if (shimmerAnimator != null) { shimmerAnimator.cancel(); shimmerAnimator = null; }
+        try {
+            if (getContext() != null) getContext().unregisterReceiver(playStateReceiver);
+        } catch (Exception ignored) {}
+        if (mediaStoreObserver != null && getContext() != null) {
+            getContext().getContentResolver().unregisterContentObserver(mediaStoreObserver);
+        }
+        scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
+        if (bound && getContext() != null) {
+            try {
+                getContext().unbindService(serviceConnection);
+            } catch (Exception ignored) {}
+            bound = false;
+        }
+        mRootView = null;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        executor.shutdownNow();
+    }
+
+    // ==================== 辅助方法 ====================
+
+    private boolean isActivityGone() {
+        Activity a = getActivity();
+        return a == null || a.isFinishing() || a.isDestroyed();
+    }
+
+    private void runOnUi(Runnable r) {
+        Activity a = getActivity();
+        if (a != null) a.runOnUiThread(r);
+    }
+
+    // ==================== 导航到播放页 ====================
+
+    private void navigateToPlayer(Bundle args) {
+        if (getActivity() == null || !isAdded() || mRootView == null) return;
+        mRootView.post(() -> {
+            if (getActivity() == null || !isAdded()) return;
+            PlayerFragment fragment = new PlayerFragment();
+            fragment.setArguments(args);
+            ((HostActivity) requireActivity()).navigateTo(fragment, true);
+        });
+    }
+
+    private Bundle buildPlayerArgs(Song song, int position, String playlistMode) {
+        Bundle args = new Bundle();
+        Intent temp = new Intent();
+        song.toIntent(temp);
+        if (temp.getExtras() != null) args.putAll(temp.getExtras());
+        args.putInt("position", position);
+        args.putString("playlist_mode", playlistMode);
+        args.putBoolean("resume_play", true);
+        if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
+            args.putBoolean("from_webdav", true);
+            args.putInt("song_index", position);
+        }
+        return args;
+    }
+
+    // ==================== Tab 切换 ====================
+
     private void updateTabUI() {
         int mode = currentTab;
         int activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
@@ -645,7 +705,6 @@ public class MainActivity extends BaseFloatActivity {
         indicatorBili.setBackgroundColor(mode == 2 ? indicatorActive : indicatorInactive);
         indicatorFavorite.setBackgroundColor(mode == 3 ? indicatorActive : indicatorInactive);
 
-        // 确保正确的区域可见
         if (mode == 3) {
             browseArea.setVisibility(View.GONE);
             favoriteArea.setVisibility(View.VISIBLE);
@@ -657,42 +716,32 @@ public class MainActivity extends BaseFloatActivity {
 
     private void switchTab(int mode) {
         currentTab = mode;
-
         updateTabUI();
-
         loadCurrentTabContent();
-
         etSearch.setText("");
         updateCountText();
     }
 
-    /**
-     * 加载当前tab的内容。本地tab在allSongs为空时跳过（等scanMusic回调统一处理）。
-     */
     private void loadCurrentTabContent() {
         if (currentTab == 0) {
             if (!allSongs.isEmpty()) {
                 loadLocalItems();
             }
-            // allSongs为空时scanMusic回调会负责加载，避免用空数据显示空白页面
         } else if (currentTab == 1) {
             loadWebDavItems();
         } else if (currentTab == 2) {
             loadBiliItems();
         } else {
             int spanCount = calcSpanCount();
-            rvList.setLayoutManager(new GridLayoutManager(this, spanCount));
+            rvList.setLayoutManager(new GridLayoutManager(requireContext(), spanCount));
             rvList.setAdapter(browseAdapter);
             refreshFavorites();
             loadFavoriteBrowseItems();
         }
     }
 
-    // ========== 本地浏览 ==========
+    // ==================== 本地浏览 ====================
 
-    /**
-     * 将收藏歌曲加载为封面卡片网格
-     */
     private void loadFavoriteBrowseItems() {
         List<BrowseItem> items = new ArrayList<>();
         for (Song song : songAdapter.getFavoriteSongs()) {
@@ -701,9 +750,6 @@ public class MainActivity extends BaseFloatActivity {
         browseAdapter.setItems(items);
     }
 
-    /**
-     * 按关键字过滤收藏卡片
-     */
     private void filterFavoriteBrowseItems(String query) {
         String q = query != null ? query.trim().toLowerCase() : "";
         List<BrowseItem> items = new ArrayList<>();
@@ -722,7 +768,6 @@ public class MainActivity extends BaseFloatActivity {
     }
 
     private void navigateLocalTo(String dirPath) {
-        // 入子目录时压栈
         if (dirPath != null && localCurrentDir != null && !dirPath.equals(localCurrentDir)) {
             localNavStack.push(localCurrentDir);
         }
@@ -731,7 +776,6 @@ public class MainActivity extends BaseFloatActivity {
         List<BrowseItem> items = LocalDirectoryScanner.buildLevel(allSongs, dirPath);
         browseAdapter.setItems(items);
 
-        // 路径栏：根目录隐藏，子目录显示
         if (dirPath == null) {
             pathBar.setVisibility(View.GONE);
             btnWebDavSettings.setVisibility(View.GONE);
@@ -746,7 +790,6 @@ public class MainActivity extends BaseFloatActivity {
         webdavSetupArea.setVisibility(View.GONE);
         browseLoading.setVisibility(View.GONE);
         rvBrowse.setVisibility(View.VISIBLE);
-
         updateCountText();
     }
 
@@ -757,16 +800,14 @@ public class MainActivity extends BaseFloatActivity {
             return;
         }
         String parentDir = localNavStack.pop();
-        localCurrentDir = null; // 防止压栈
+        localCurrentDir = null;
         navigateLocalTo(parentDir);
     }
 
-    // ========== 云端浏览 ==========
-
-    // ========== WebDAV 浏览 ==========
+    // ==================== WebDAV 浏览 ====================
 
     private void loadWebDavItems() {
-        webDavConfig = new WebDavConfig(this);
+        webDavConfig = new WebDavConfig(requireContext());
 
         if (!webDavConfig.isConfigured()) {
             rvBrowse.setVisibility(View.GONE);
@@ -813,7 +854,8 @@ public class MainActivity extends BaseFloatActivity {
                 }
                 browseItems.add(bi);
             }
-            runOnUiThread(() -> {
+            runOnUi(() -> {
+                if (isActivityGone()) return;
                 browseLoading.setVisibility(View.GONE);
                 rvBrowse.setVisibility(View.VISIBLE);
                 browseAdapter.setItems(browseItems);
@@ -833,12 +875,11 @@ public class MainActivity extends BaseFloatActivity {
         navigateCloudTo(parentUrl);
     }
 
-    // ========== B站 浏览 ==========
+    // ==================== B站 浏览 ====================
 
     private void loadBiliItems() {
-        BiliConfig biliConfig = new BiliConfig(this);
+        BiliConfig biliConfig = new BiliConfig(requireContext());
         if (!biliConfig.isConfigured()) {
-            // 未登录，显示引导
             rvBrowse.setVisibility(View.GONE);
             browseLoading.setVisibility(View.GONE);
             pathBar.setVisibility(View.GONE);
@@ -849,14 +890,11 @@ public class MainActivity extends BaseFloatActivity {
         }
 
         webdavSetupArea.setVisibility(View.GONE);
-        // 首次加载时恢复持久化的导航状态
         restoreBiliNavState();
-        // 不再每次清空导航栈，保留当前浏览层级（从播放页返回时不会跳回根目录）
         navigateBiliTo(biliCurrentUrl);
     }
 
     private void navigateBiliTo(String url) {
-        // 压栈
         if (url != null && biliCurrentUrl != null && !url.equals(biliCurrentUrl)) {
             biliNavStack.push(biliCurrentUrl);
         }
@@ -876,19 +914,17 @@ public class MainActivity extends BaseFloatActivity {
         rvBrowse.setVisibility(View.GONE);
         browseLoading.setVisibility(View.VISIBLE);
 
-        BiliConfig biliConfig = new BiliConfig(this);
+        BiliConfig biliConfig = new BiliConfig(requireContext());
 
         executor.execute(() -> {
             List<BrowseItem> browseItems = new ArrayList<>();
 
             if (url == null) {
-                // 根目录：显示收藏夹列表
                 List<BiliApi.FavoriteFolder> folders = BiliApi.getFavoriteFolders(biliConfig);
                 for (BiliApi.FavoriteFolder ff : folders) {
                     browseItems.add(BrowseItem.biliFolder(ff.title, ff.id, ff.mediaCount));
                 }
             } else if (url.startsWith("bili://folder/")) {
-                // 收藏夹内的视频列表
                 long folderId = 0;
                 try {
                     folderId = Long.parseLong(url.substring("bili://folder/".length()));
@@ -898,12 +934,10 @@ public class MainActivity extends BaseFloatActivity {
                     List<BiliApi.FavoriteItem> items = BiliApi.getFavoriteItems(folderId, biliConfig);
                     for (BiliApi.FavoriteItem fi : items) {
                         if (fi.pageCount > 1) {
-                            // 多P视频：作为目录项，点击后展开分P列表
                             browseItems.add(BrowseItem.biliVideo(
                                     fi.bvid, fi.title, fi.upperName,
                                     fi.cover, fi.pageCount, fi.duration));
                         } else {
-                            // 单P视频：直接作为歌曲，点击即播放
                             Song song = Song.fromBili(fi.bvid, fi.title, fi.upperName,
                                     fi.duration, fi.cover);
                             browseItems.add(BrowseItem.biliSong(song));
@@ -911,11 +945,9 @@ public class MainActivity extends BaseFloatActivity {
                     }
                 }
             } else if (url.startsWith("bili://video/")) {
-                // 视频分P列表：展开每个分P为独立歌曲
                 String bvid = url.substring("bili://video/".length());
                 List<BiliApi.VideoPage> pages = BiliApi.getVideoPages(bvid, biliConfig);
 
-                // 找到对应的视频目录项获取封面和UP主信息
                 String coverUrl = null;
                 String upperName = "";
                 String videoTitle = "";
@@ -929,8 +961,6 @@ public class MainActivity extends BaseFloatActivity {
                 }
 
                 for (BiliApi.VideoPage vp : pages) {
-                    // 多P标题：如果分P标题不同于视频标题，直接用分P标题
-                    // 如果分P标题为空或与视频标题相同，加序号区分
                     String partTitle;
                     if (vp.part != null && !vp.part.isEmpty()
                             && !vp.part.equals(videoTitle)) {
@@ -947,7 +977,8 @@ public class MainActivity extends BaseFloatActivity {
             }
 
             List<BrowseItem> finalItems = browseItems;
-            runOnUiThread(() -> {
+            runOnUi(() -> {
+                if (isActivityGone()) return;
                 browseLoading.setVisibility(View.GONE);
                 rvBrowse.setVisibility(View.VISIBLE);
                 browseAdapter.setItems(finalItems);
@@ -967,14 +998,13 @@ public class MainActivity extends BaseFloatActivity {
         navigateBiliTo(parentUrl);
     }
 
-    /** 持久化B站导航状态，重启后恢复 */
     private void saveBiliNavState() {
         try {
             org.json.JSONArray stackArr = new org.json.JSONArray();
             for (String s : biliNavStack) {
                 stackArr.put(s);
             }
-            getSharedPreferences("bili_nav", MODE_PRIVATE)
+            requireContext().getSharedPreferences("bili_nav", Context.MODE_PRIVATE)
                     .edit()
                     .putString("current_url", biliCurrentUrl)
                     .putString("nav_stack", stackArr.toString())
@@ -984,11 +1014,10 @@ public class MainActivity extends BaseFloatActivity {
         }
     }
 
-    /** 恢复B站导航状态（仅首次加载且内存状态为空时调用） */
     private void restoreBiliNavState() {
-        if (biliCurrentUrl != null || !biliNavStack.isEmpty()) return; // 已有内存状态，不覆盖
+        if (biliCurrentUrl != null || !biliNavStack.isEmpty()) return;
         try {
-            android.content.SharedPreferences prefs = getSharedPreferences("bili_nav", MODE_PRIVATE);
+            SharedPreferences prefs = requireContext().getSharedPreferences("bili_nav", Context.MODE_PRIVATE);
             biliCurrentUrl = prefs.getString("current_url", null);
             String stackJson = prefs.getString("nav_stack", null);
             if (stackJson != null) {
@@ -1025,7 +1054,7 @@ public class MainActivity extends BaseFloatActivity {
         return url;
     }
 
-    // ========== 从浏览项播放 ==========
+    // ==================== 从浏览项播放 ====================
 
     private void playFromBrowse(BrowseItem clickedItem) {
         List<BrowseItem> items = browseAdapter.getItems();
@@ -1033,7 +1062,6 @@ public class MainActivity extends BaseFloatActivity {
         int playIndex = 0;
 
         if (clickedItem.source == Song.SOURCE_LOCAL) {
-            // 本地歌曲
             for (int i = 0; i < items.size(); i++) {
                 BrowseItem item = items.get(i);
                 if (!item.isDirectory && item.song != null) {
@@ -1046,26 +1074,24 @@ public class MainActivity extends BaseFloatActivity {
 
             if (playlist.isEmpty()) return;
 
-            Intent intent = new Intent(this, PlayerActivity.class);
-            Song clickedSong = playlist.get(playIndex);
-            clickedSong.toIntent(intent);
-            intent.putExtra("position", playIndex);
+            Bundle args = new Bundle();
+            Intent temp = new Intent();
+            playlist.get(playIndex).toIntent(temp);
+            if (temp.getExtras() != null) args.putAll(temp.getExtras());
+            args.putInt("position", playIndex);
 
             if (currentTab == 3) {
-                // 收藏模式
-                intent.putExtra("playlist_mode", "favorites");
+                args.putString("playlist_mode", "favorites");
             } else {
-                // 本地目录模式
-                intent.putExtra("playlist_mode", "folder");
-                intent.putExtra("folder_size", playlist.size());
-                java.util.ArrayList<String> paths = new java.util.ArrayList<>();
+                args.putString("playlist_mode", "folder");
+                args.putInt("folder_size", playlist.size());
+                ArrayList<String> paths = new ArrayList<>();
                 for (Song s : playlist) paths.add(s.filePath);
-                intent.putStringArrayListExtra("folder_song_paths", paths);
+                args.putStringArrayList("folder_song_paths", paths);
             }
-            startActivity(intent);
+            navigateToPlayer(args);
 
         } else {
-            // WebDAV / B站歌曲
             long idBase = 1000000;
             for (int i = 0; i < items.size(); i++) {
                 BrowseItem item = items.get(i);
@@ -1074,7 +1100,6 @@ public class MainActivity extends BaseFloatActivity {
                     if (item.song != null) {
                         song = item.song;
                     } else if (item.source == Song.SOURCE_BILI) {
-                        // 理论上不应该到这里，biliSong总是有song
                         continue;
                     } else {
                         WebDavScanner.DavItem davItem = new WebDavScanner.DavItem(
@@ -1092,27 +1117,25 @@ public class MainActivity extends BaseFloatActivity {
 
             if (playlist.isEmpty()) return;
 
-            // 保存播放列表
             saveWebDavPlaylist(playlist, playIndex);
 
-            // 判断播放模式
             String playlistMode = "webdav";
             if (clickedItem.source == Song.SOURCE_BILI) {
                 playlistMode = "bili";
             }
 
-            Intent intent = new Intent(this, PlayerActivity.class);
-            Song clickedSong = playlist.get(playIndex);
-            clickedSong.toIntent(intent);
-            intent.putExtra("position", playIndex);
-            intent.putExtra("playlist_mode", playlistMode);
-            intent.putExtra("from_webdav", true);
-            intent.putExtra("webdav_playlist_size", playlist.size());
-            // 保存B站导航上下文，用于从播放页返回时恢复
+            Bundle args = new Bundle();
+            Intent temp = new Intent();
+            playlist.get(playIndex).toIntent(temp);
+            if (temp.getExtras() != null) args.putAll(temp.getExtras());
+            args.putInt("position", playIndex);
+            args.putString("playlist_mode", playlistMode);
+            args.putBoolean("from_webdav", true);
+            args.putInt("webdav_playlist_size", playlist.size());
             if (clickedItem.source == Song.SOURCE_BILI) {
-                intent.putExtra("bili_nav_url", biliCurrentUrl != null ? biliCurrentUrl : "");
+                args.putString("bili_nav_url", biliCurrentUrl != null ? biliCurrentUrl : "");
             }
-            startActivity(intent);
+            navigateToPlayer(args);
         }
     }
 
@@ -1122,7 +1145,7 @@ public class MainActivity extends BaseFloatActivity {
             for (Song song : playlist) {
                 arr.put(song.toJson());
             }
-            getSharedPreferences("webdav_playlist", MODE_PRIVATE)
+            requireContext().getSharedPreferences("webdav_playlist", Context.MODE_PRIVATE)
                     .edit()
                     .putString("playlist", arr.toString())
                     .putInt("play_index", playIndex)
@@ -1132,17 +1155,19 @@ public class MainActivity extends BaseFloatActivity {
         }
     }
 
-    // ========== 收藏歌曲点击（仅收藏tab） ==========
+    // ==================== 收藏歌曲点击 ====================
 
     private void onFavoriteSongClick(Song song) {
-        Intent intent = new Intent(this, PlayerActivity.class);
-        song.toIntent(intent);
-        intent.putExtra("position", songAdapter.getSongPositionInFavorites(song));
-        intent.putExtra("playlist_mode", "favorites");
-        startActivity(intent);
+        Bundle args = new Bundle();
+        Intent temp = new Intent();
+        song.toIntent(temp);
+        if (temp.getExtras() != null) args.putAll(temp.getExtras());
+        args.putInt("position", songAdapter.getSongPositionInFavorites(song));
+        args.putString("playlist_mode", "favorites");
+        navigateToPlayer(args);
     }
 
-    // ========== 数量文本 ==========
+    // ==================== 数量文本 ====================
 
     private void updateCountText() {
         if (currentTab == 0) {
@@ -1169,7 +1194,7 @@ public class MainActivity extends BaseFloatActivity {
         }
     }
 
-    // ========== 主题 ==========
+    // ==================== 主题 ====================
 
     private void updateThemeUI() {
         if (isNightMode) {
@@ -1187,16 +1212,14 @@ public class MainActivity extends BaseFloatActivity {
             btnStyle.clearColorFilter();
             btnClose.clearColorFilter();
             btnHelp.clearColorFilter();
-            // Browse area
             browseArea.setBackground(ThemeColors.bgGradient(true));
             pathBar.setBackground(ThemeColors.barGradient(true));
             tvBrowsePath.setTextColor(ThemeColors.nightTextSecondary());
             btnNavigateBack.setColorFilter(ThemeColors.nightTextSecondary());
             btnWebDavSettings.setColorFilter(ThemeColors.nightTextSecondary());
             btnBiliSettings.setColorFilter(ThemeColors.nightTextSecondary());
-             btnGoWebDavSettings.setTextColor(ThemeColors.nightTabActive());
+            btnGoWebDavSettings.setTextColor(ThemeColors.nightTabActive());
             tvSetupMsg.setTextColor(ThemeColors.nightTextSecondary());
-            // mini 播放条
             miniPlayer.setBackground(ThemeColors.miniGradient(true));
             miniSongTitle.setTextColor(ThemeColors.nightTextPrimary());
             miniSongArtist.setTextColor(ThemeColors.nightTextSecondary());
@@ -1216,7 +1239,6 @@ public class MainActivity extends BaseFloatActivity {
             btnTheme.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             btnClose.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             btnHelp.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
-            // Browse area
             browseArea.setBackground(ThemeColors.bgGradient(false));
             pathBar.setBackground(ThemeColors.barGradient(false));
             tvBrowsePath.setTextColor(ThemeColors.dayTextSecondary());
@@ -1225,40 +1247,31 @@ public class MainActivity extends BaseFloatActivity {
             btnBiliSettings.setColorFilter(ThemeColors.dayTextSecondary());
             btnGoWebDavSettings.setTextColor(ThemeColors.dayTabActive());
             tvSetupMsg.setTextColor(ThemeColors.dayTextSecondary());
-            // mini 播放条
             miniPlayer.setBackground(ThemeColors.miniGradient(false));
             miniSongTitle.setTextColor(ThemeColors.dayTextPrimary());
             miniSongArtist.setTextColor(ThemeColors.dayTextSecondary());
             miniPlayPause.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
         }
-        // 更新 Tab 文字颜色
         int activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
         int inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
         tabLocal.setTextColor(currentTab == 0 ? activeColor : inactiveColor);
         tabCloud.setTextColor(currentTab == 1 ? activeColor : inactiveColor);
         tabBili.setTextColor(currentTab == 2 ? activeColor : inactiveColor);
         tabFavorite.setTextColor(currentTab == 3 ? activeColor : inactiveColor);
-        // Tab指示线已隐藏
-        // 标题栏底部霓虹绿渐变线
         int brandGreen = isNightMode ? ThemeColors.nightTabIndicator() : ThemeColors.dayTabIndicator();
         android.graphics.drawable.GradientDrawable accentGradient = new android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
                 new int[]{ 0x00000000, brandGreen, brandGreen, 0x00000000 });
         titleAccentLine.setBackground(accentGradient);
-        // 迷你播放条流光线
-        int shimmerColor = isNightMode ? brandGreen : brandGreen;
+        int shimmerColor = brandGreen;
         android.graphics.drawable.GradientDrawable shimmerGradient = new android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
                 new int[]{ 0x00000000, shimmerColor, 0x00000000 });
         miniShimmerLine.setBackground(shimmerGradient);
-        // 迷你播放条流光动画
         startMiniShimmerAnimation();
-        // 同步 adapter 主题
         songAdapter.setNightMode(isNightMode);
         browseAdapter.setNightMode(isNightMode);
-        // 刷新浏览列表（文件夹卡片渐变需要重新绑定）
         browseAdapter.notifyDataSetChanged();
-        // 刷新当前可见 item
         applyThemeToRecyclerViewItems();
     }
 
@@ -1280,7 +1293,7 @@ public class MainActivity extends BaseFloatActivity {
         });
     }
 
-    // ========== 收藏刷新 ==========
+    // ==================== 收藏刷新 ====================
 
     private void refreshFavorites() {
         List<Song> favSongs = FavoriteManager.loadFavorites(favDir);
@@ -1304,11 +1317,12 @@ public class MainActivity extends BaseFloatActivity {
         return null;
     }
 
-    // ========== 权限与扫描 ==========
+    // ==================== 权限与扫描 ====================
 
     private void checkPermissionAndScan() {
+        Context ctx = requireContext();
         if (android.os.Build.VERSION.SDK_INT >= 33) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                 scanMusic();
                 requestNotificationPermissionIfNeeded();
             } else {
@@ -1317,12 +1331,12 @@ public class MainActivity extends BaseFloatActivity {
                 permissionLauncher.launch(Manifest.permission.READ_MEDIA_AUDIO);
             }
         } else {
-            List<String> needed = new java.util.ArrayList<>();
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            List<String> needed = new ArrayList<>();
+            if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 needed.add(Manifest.permission.READ_EXTERNAL_STORAGE);
             }
             if (android.os.Build.VERSION.SDK_INT <= 28 &&
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 needed.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             }
             if (needed.isEmpty()) {
@@ -1337,18 +1351,17 @@ public class MainActivity extends BaseFloatActivity {
 
     private void requestNotificationPermissionIfNeeded() {
         if (android.os.Build.VERSION.SDK_INT >= 33) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS)
                     != PackageManager.PERMISSION_GRANTED) {
                 currentPermissionRequest = Manifest.permission.POST_NOTIFICATIONS;
                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
             }
         }
-        // 申请悬浮窗权限（Android 6+需要用户手动在设置中开启）
         requestOverlayPermissionIfNeeded();
     }
 
     private void showPermissionDeniedDialog(String title, String message, Runnable retryAction) {
-        new android.app.AlertDialog.Builder(this)
+        new android.app.AlertDialog.Builder(requireContext())
                 .setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("去设置", (dialog, which) -> {
@@ -1360,17 +1373,17 @@ public class MainActivity extends BaseFloatActivity {
 
     private void requestOverlayPermissionIfNeeded() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            if (!android.provider.Settings.canDrawOverlays(this)) {
+            if (!android.provider.Settings.canDrawOverlays(requireContext())) {
                 showPermissionDeniedDialog("悬浮窗权限",
                         "后台播放时需要悬浮窗权限来显示迷你播放窗口。是否前往设置开启？",
                         () -> {
                             try {
                                 Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:" + getPackageName()));
+                                        Uri.parse("package:" + requireContext().getPackageName()));
                                 startActivity(intent);
                             } catch (Exception e) {
                                 Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                                intent.setData(Uri.fromParts("package", getPackageName(), null));
+                                intent.setData(Uri.fromParts("package", requireContext().getPackageName(), null));
                                 startActivity(intent);
                             }
                         });
@@ -1384,11 +1397,11 @@ public class MainActivity extends BaseFloatActivity {
                 () -> {
                     try {
                         Intent intent = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-                        intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName());
+                        intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, requireContext().getPackageName());
                         startActivity(intent);
                     } catch (Exception e) {
                         Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                        intent.setData(Uri.fromParts("package", getPackageName(), null));
+                        intent.setData(Uri.fromParts("package", requireContext().getPackageName(), null));
                         startActivity(intent);
                     }
                 });
@@ -1400,7 +1413,7 @@ public class MainActivity extends BaseFloatActivity {
                 () -> {
                     try {
                         Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                        intent.setData(Uri.fromParts("package", getPackageName(), null));
+                        intent.setData(Uri.fromParts("package", requireContext().getPackageName(), null));
                         startActivity(intent);
                     } catch (Exception e) {
                         Log.e(TAG, "无法打开应用设置页", e);
@@ -1419,8 +1432,8 @@ public class MainActivity extends BaseFloatActivity {
         }
         isScanning = true;
 
-        // 先尝试读缓存，秒开
-        List<Song> cached = MusicScanner.loadCache(this);
+        Context ctx = requireContext();
+        List<Song> cached = MusicScanner.loadCache(ctx);
         if (cached != null && !cached.isEmpty()) {
             Log.d(TAG, "使用缓存立即显示 " + cached.size() + " 首歌曲");
             allSongs = cached;
@@ -1432,18 +1445,16 @@ public class MainActivity extends BaseFloatActivity {
             loadCurrentTabContent();
             updateCountText();
             applyThemeToRecyclerViewItems();
-            // 用缓存立即恢复上次播放
             if (tryAutoResume) {
                 autoResumeLastPlayed(cached);
             }
-            // 后台异步刷新（不阻塞 UI）
             executor.execute(() -> {
-                // 仅在没有有效缓存时才触发媒体扫描
-                if (!MusicScanner.hasValidCache(this)) {
-                    MusicScanner.triggerMediaScan(this);
+                if (!MusicScanner.hasValidCache(ctx)) {
+                    MusicScanner.triggerMediaScan(ctx);
                 }
-                List<Song> songs = MusicScanner.scanMusic(this);
-                runOnUiThread(() -> {
+                List<Song> songs = MusicScanner.scanMusic(ctx);
+                runOnUi(() -> {
+                    if (isActivityGone()) return;
                     isScanning = false;
                     allSongs = songs;
                     songAdapter.setAllSongs(songs);
@@ -1456,17 +1467,18 @@ public class MainActivity extends BaseFloatActivity {
             return;
         }
 
-        // 无缓存，正常扫描（首次安装/缓存过期）
         tvLoading.setVisibility(View.VISIBLE);
         tvSongCount.setText("正在扫描音乐...");
         rvBrowse.setVisibility(View.GONE);
         browseLoading.setVisibility(View.VISIBLE);
 
         executor.execute(() -> {
-            // 首次扫描触发媒体扫描，让新文件被索引
-            MusicScanner.triggerMediaScan(this);
-            List<Song> songs = MusicScanner.scanMusic(this);
-            runOnUiThread(() -> {
+            if (!isActivityGone()) {
+                MusicScanner.triggerMediaScan(ctx);
+            }
+            List<Song> songs = MusicScanner.scanMusic(ctx);
+            runOnUi(() -> {
+                if (isActivityGone()) return;
                 isScanning = false;
                 allSongs = songs;
                 songAdapter.setAllSongs(songs);
@@ -1489,20 +1501,7 @@ public class MainActivity extends BaseFloatActivity {
         scanMusic(false);
     };
 
-    // ========== 自动恢复上次播放 ==========
-
-    private Intent buildPlayerIntent(Song song, int position, String playlistMode) {
-        Intent intent = new Intent(this, PlayerActivity.class);
-        song.toIntent(intent);
-        intent.putExtra("position", position);
-        intent.putExtra("playlist_mode", playlistMode);
-        intent.putExtra("resume_play", true);
-        if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
-            intent.putExtra("from_webdav", true);
-            intent.putExtra("song_index", position);
-        }
-        return intent;
-    }
+    // ==================== 自动恢复上次播放 ====================
 
     private boolean autoResumeLastPlayed(List<Song> songs) {
         if (hasAutoResumed) {
@@ -1510,7 +1509,7 @@ public class MainActivity extends BaseFloatActivity {
             return false;
         }
 
-        android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
+        SharedPreferences prefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
         Song resumeSong = Song.fromPrefs(prefs);
         if (resumeSong == null) return false;
 
@@ -1526,28 +1525,27 @@ public class MainActivity extends BaseFloatActivity {
 
         String savedPlaylistMode = prefs.getString("playlist_mode", "all");
 
-        // 根据播放模式切到对应tab，这样返回时不会落到错误的页面
         if ("bili".equals(savedPlaylistMode)) {
             currentTab = 2;
         } else if ("webdav".equals(savedPlaylistMode)) {
             currentTab = 1;
         }
 
-        Intent intent = buildPlayerIntent(resumeSong, foundPosition, savedPlaylistMode);
+        Bundle args = buildPlayerArgs(resumeSong, foundPosition, savedPlaylistMode);
 
         if ("folder".equals(savedPlaylistMode)) {
             java.util.Set<String> pathSet = prefs.getStringSet("folder_song_paths", null);
             if (pathSet != null && !pathSet.isEmpty()) {
-                intent.putStringArrayListExtra("folder_song_paths", new java.util.ArrayList<>(pathSet));
+                args.putStringArrayList("folder_song_paths", new ArrayList<>(pathSet));
             }
         }
 
         hasAutoResumed = true;
-        startActivity(intent);
+        navigateToPlayer(args);
         return true;
     }
 
-    // ========== Mini 播放条 ==========
+    // ==================== Mini 播放条 ====================
 
     private void updateMiniPlayerFromService() {
         if (bound && playerBinder != null) {
@@ -1558,9 +1556,7 @@ public class MainActivity extends BaseFloatActivity {
                 miniPlayerWrap.setVisibility(View.VISIBLE);
                 if (shimmerAnimator != null && !shimmerAnimator.isRunning()) shimmerAnimator.start();
                 miniPlayPause.setImageResource(playerBinder.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
-                // 更新迷你封面
                 loadMiniCover(currentSong.title, currentSong.artist);
-                // 根据播放状态控制旋转
                 if (playerBinder.isPlaying()) {
                     startCoverRotation();
                 } else {
@@ -1574,35 +1570,31 @@ public class MainActivity extends BaseFloatActivity {
         if (bound && playerBinder != null) {
             Song currentSong = playerBinder.getCurrentSong();
             if (currentSong != null && currentSong.title != null && !currentSong.title.isEmpty()) {
-                android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
+                SharedPreferences prefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
                 String savedPlaylistMode = prefs.getString("playlist_mode", "all");
                 String biliNavUrl = prefs.getString("bili_nav_url", "");
 
-                Intent intent = buildPlayerIntent(currentSong, playerBinder.getCurrentIndex(), savedPlaylistMode);
-                intent.putExtra("bili_nav_url", biliNavUrl);
+                Bundle args = buildPlayerArgs(currentSong, playerBinder.getCurrentIndex(), savedPlaylistMode);
+                args.putString("bili_nav_url", biliNavUrl);
 
                 returningFromPlayer = true;
-                startActivity(intent);
+                navigateToPlayer(args);
             } else if (playerBinder.isPlaying() || playerBinder.getCurrentIndex() >= 0) {
-                android.content.SharedPreferences prefs = getSharedPreferences("last_played", MODE_PRIVATE);
+                SharedPreferences prefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
                 Song resumeSong = Song.fromPrefs(prefs);
                 if (resumeSong != null) {
-                    Intent intent = buildPlayerIntent(resumeSong, prefs.getInt("position", 0), prefs.getString("playlist_mode", "all"));
-                    intent.putExtra("bili_nav_url", prefs.getString("bili_nav_url", ""));
+                    Bundle args = buildPlayerArgs(resumeSong, prefs.getInt("position", 0), prefs.getString("playlist_mode", "all"));
+                    args.putString("bili_nav_url", prefs.getString("bili_nav_url", ""));
 
                     returningFromPlayer = true;
-                    startActivity(intent);
+                    navigateToPlayer(args);
                 }
             }
         }
     }
 
-    /**
-     * Tab指示线呼吸动画 — 2.5秒周期，alpha从0.5到1.0缓慢呼吸
-     */
     private void startTabBreathAnimation(int activeColor) {
         if (tabBreathAnimator != null) tabBreathAnimator.cancel();
-        // 找到当前激活的指示线
         View activeIndicator = null;
         if (currentTab == 0) activeIndicator = indicatorLocal;
         else if (currentTab == 1) activeIndicator = indicatorCloud;
@@ -1610,7 +1602,6 @@ public class MainActivity extends BaseFloatActivity {
         else activeIndicator = indicatorFavorite;
         if (activeIndicator == null) return;
 
-        // 设置激活色
         activeIndicator.setBackgroundColor(activeColor);
         tabBreathAnimator = android.animation.ObjectAnimator.ofInt(activeIndicator, "backgroundColor",
                 activeColor, com.jingxin.jingxinmusic.util.ColorUtil.adjustAlpha(activeColor, 0.4f), activeColor);
@@ -1620,14 +1611,10 @@ public class MainActivity extends BaseFloatActivity {
         tabBreathAnimator.start();
     }
 
-    /**
-     * 迷你播放条流光动画 — 绿色光带从左到右循环移动
-     */
     private android.animation.ObjectAnimator shimmerAnimator;
     private void startMiniShimmerAnimation() {
         if (miniShimmerLine == null) return;
         if (shimmerAnimator != null) shimmerAnimator.cancel();
-        // 使用 translationX 制造流光效果：view从-宽度移动到屏幕宽度
         miniShimmerLine.setTranslationX(-miniShimmerLine.getWidth());
         shimmerAnimator = android.animation.ObjectAnimator.ofFloat(miniShimmerLine, "translationX",
                 -getResources().getDisplayMetrics().widthPixels,
@@ -1635,36 +1622,25 @@ public class MainActivity extends BaseFloatActivity {
         shimmerAnimator.setDuration(3000);
         shimmerAnimator.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
         shimmerAnimator.setInterpolator(new android.view.animation.LinearInterpolator());
-        // 只在mini播放条可见时启动
         if (miniPlayerWrap != null && miniPlayerWrap.getVisibility() == View.VISIBLE) {
             shimmerAnimator.start();
         }
     }
 
-    /**
-     * 启动封面旋转（首次start，暂停后resume）
-     */
     private void startCoverRotation() {
         coverRotationHelper.start();
     }
 
-    /**
-     * 暂停封面旋转
-     */
     private void pauseCoverRotation() {
         coverRotationHelper.pause();
     }
 
-    /**
-     * 加载迷你播放条圆形封面
-     * 先查本地缓存目录，没有则用默认图标
-     */
     private void loadMiniCover(String title, String artist) {
         if (title == null) return;
         executor.execute(() -> {
             android.graphics.Bitmap coverBitmap = null;
             try {
-                File coverDir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this);
+                File coverDir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(requireContext());
                 if (coverDir != null) {
                     String coverName = Song.toFileName(title, artist != null ? artist : "") + ".jpg";
                     File coverFile = new File(coverDir, coverName);
@@ -1683,7 +1659,6 @@ public class MainActivity extends BaseFloatActivity {
                 Log.d(TAG, "迷你封面查找失败: " + e.getMessage());
             }
             if (coverBitmap != null) {
-                // 圆形裁剪
                 int size = Math.min(coverBitmap.getWidth(), coverBitmap.getHeight());
                 android.graphics.Bitmap squared = android.graphics.Bitmap.createBitmap(
                         coverBitmap,
@@ -1691,40 +1666,32 @@ public class MainActivity extends BaseFloatActivity {
                         (coverBitmap.getHeight() - size) / 2,
                         size, size);
                 android.graphics.Bitmap rounded = getScaledRoundedBitmap(squared, 42);
-                runOnUiThread(() -> miniCover.setImageBitmap(rounded));
-            } else {
-                // 无封面，保持默认图标（不再额外设置，布局里已有默认src）
+                runOnUi(() -> {
+                    if (!isActivityGone()) miniCover.setImageBitmap(rounded);
+                });
             }
         });
     }
 
-    /** 将Bitmap缩放并裁剪为圆形 */
     private android.graphics.Bitmap getScaledRoundedBitmap(android.graphics.Bitmap bitmap, int dpSize) {
         float density = getResources().getDisplayMetrics().density;
         int px = (int) (dpSize * density);
         return BitmapUtil.createScaledCircularBitmap(bitmap, px);
     }
 
-    /** 计算网格列数：保证至少显示2行卡片 */
     private int calcSpanCount() {
         int screenWidth = getResources().getDisplayMetrics().widthPixels;
         int screenHeight = getResources().getDisplayMetrics().heightPixels;
         boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
         int baseSpan = Math.max(3, screenWidth / 360);
         if (!isLandscape) return baseSpan;
-        // 横屏：估算列表可用高度（总高 - 顶栏14% - Tab10% - Mini14% - 版权3% - 霓虹线）
         int availableH = (int) (screenHeight * 0.59f);
-        // 卡片高 ≈ 卡片宽 + 30px（名称文字），至少2行：2*(screenWidth/span+30) ≤ availableH
         int minSpanFor2Rows = (int) Math.ceil(2.0 * screenWidth / Math.max(1, availableH - 60));
         return Math.max(baseSpan, minSpanFor2Rows);
     }
 
-    // ===== 横屏比例布局 =====
+    // ==================== 横屏比例布局 ====================
 
-    /** 横屏时按比例分配各区域高度，竖屏时恢复 XML 默认值 */
-    /**
-     * 将状态栏高度设为 titleBar 的 topMargin（车机全屏时 systemTopInset=0，不影响）
-     */
     private void applyTitleBarTopMargin() {
         if (titleBar != null) {
             android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
@@ -1735,13 +1702,11 @@ public class MainActivity extends BaseFloatActivity {
 
     private void applyLandscapeProportionalLayout() {
         boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
-        View rootView = findViewById(android.R.id.content);
-        if (rootView == null || rootView.getHeight() == 0) return;
-        int height = rootView.getHeight();
+        if (mRootView == null || mRootView.getHeight() == 0) return;
+        int height = mRootView.getHeight();
         float density = getResources().getDisplayMetrics().density;
 
         if (isLandscape) {
-            // 顶部栏：H×14%，不小于36px（保证按钮可点）
             int titleBarH = Math.max(36, (int) (height * 0.14f));
             if (titleBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
@@ -1749,24 +1714,20 @@ public class MainActivity extends BaseFloatActivity {
                 lp.topMargin = systemTopInset;
                 titleBar.setLayoutParams(lp);
             }
-            // Tab栏：H×10%
             int tabBarH = Math.max(28, (int) (height * 0.10f));
             if (tabBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tabBar.getLayoutParams();
                 lp.height = tabBarH;
                 tabBar.setLayoutParams(lp);
-                // Tab字号跟随比例
                 float tabTextSize = Math.max(10f, tabBarH * 0.38f);
                 if (tabLocal != null) tabLocal.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
                 if (tabCloud != null) tabCloud.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
                 if (tabBili != null) tabBili.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
                 if (tabFavorite != null) tabFavorite.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
-                // Tab分隔线高度跟随
                 int dividerH = Math.max(1, (int) (tabBarH * 0.5f));
                 if (tabDivider1 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider1.getLayoutParams(); lp2.height = dividerH; tabDivider1.setLayoutParams(lp2); }
                 if (tabDivider2 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider2.getLayoutParams(); lp2.height = dividerH; tabDivider2.setLayoutParams(lp2); }
             }
-            // 版权行：H×3%
             if (tvCopyright != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tvCopyright.getLayoutParams();
                 lp.topMargin = Math.max(2, (int) (height * 0.005f));
@@ -1774,7 +1735,6 @@ public class MainActivity extends BaseFloatActivity {
                 tvCopyright.setLayoutParams(lp);
                 tvCopyright.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, height * 0.02f));
             }
-            // Mini播放条：H×14%
             int miniH = Math.max(36, (int) (height * 0.14f));
             if (miniPlayerWrap != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniPlayerWrap.getLayoutParams();
@@ -1783,10 +1743,9 @@ public class MainActivity extends BaseFloatActivity {
             }
             if (miniPlayer != null) {
                 android.widget.FrameLayout.LayoutParams lp = (android.widget.FrameLayout.LayoutParams) miniPlayer.getLayoutParams();
-                lp.height = miniH - 2; // 留2px给流光线
+                lp.height = miniH - 2;
                 miniPlayer.setLayoutParams(lp);
             }
-            // Mini播放条内部元素
             int miniCoverSize = Math.max(24, (int) (miniH * 0.72f));
             if (miniCover != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniCover.getLayoutParams();
@@ -1804,50 +1763,37 @@ public class MainActivity extends BaseFloatActivity {
                 lp.rightMargin = Math.max(4, (int) (miniH * 0.15f));
                 miniPlayPause.setLayoutParams(lp);
             }
-            if (miniSongTitle != null) {
-                miniSongTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(10f, miniH * 0.24f));
-            }
-            if (miniSongArtist != null) {
-                miniSongArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, miniH * 0.2f));
-            }
-            // 路径栏：H×8%
+            if (miniSongTitle != null) miniSongTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(10f, miniH * 0.24f));
+            if (miniSongArtist != null) miniSongArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, miniH * 0.2f));
             int pathBarH = Math.max(28, (int) (height * 0.08f));
             if (pathBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) pathBar.getLayoutParams();
                 lp.height = pathBarH;
                 pathBar.setLayoutParams(lp);
-                // 路径栏内部元素跟随高度缩放
                 int pathIconSize = Math.max(20, (int) (pathBarH * 0.8f));
                 if (btnNavigateBack != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnNavigateBack.getLayoutParams();
-                    lp2.width = pathIconSize;
-                    lp2.height = pathIconSize;
+                    lp2.width = pathIconSize; lp2.height = pathIconSize;
                     btnNavigateBack.setLayoutParams(lp2);
                 }
                 if (btnWebDavSettings != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnWebDavSettings.getLayoutParams();
-                    lp2.width = pathIconSize;
-                    lp2.height = pathIconSize;
+                    lp2.width = pathIconSize; lp2.height = pathIconSize;
                     btnWebDavSettings.setLayoutParams(lp2);
                 }
                 if (btnBiliSettings != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnBiliSettings.getLayoutParams();
-                    lp2.width = pathIconSize;
-                    lp2.height = pathIconSize;
+                    lp2.width = pathIconSize; lp2.height = pathIconSize;
                     btnBiliSettings.setLayoutParams(lp2);
                 }
-                if (tvBrowsePath != null) {
-                    tvBrowsePath.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, pathBarH * 0.45f));
-                }
+                if (tvBrowsePath != null) tvBrowsePath.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, pathBarH * 0.45f));
             }
-            // 搜索栏：H×5%
             if (etSearch != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) etSearch.getLayoutParams();
                 lp.height = Math.max(28, (int) (height * 0.05f));
                 etSearch.setLayoutParams(lp);
             }
         } else {
-            // 竖屏恢复 XML 默认值
             if (titleBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
                 lp.height = (int) (56 * density);
@@ -1872,7 +1818,7 @@ public class MainActivity extends BaseFloatActivity {
                 lp.topMargin = (int) (8 * density);
                 lp.bottomMargin = (int) (12 * density);
                 tvCopyright.setLayoutParams(lp);
-                tvCopyright.setTextSize(11); // sp
+                tvCopyright.setTextSize(11);
             }
             if (miniPlayerWrap != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniPlayerWrap.getLayoutParams();
@@ -1887,47 +1833,40 @@ public class MainActivity extends BaseFloatActivity {
             int coverDefault = (int) (42 * density);
             if (miniCover != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniCover.getLayoutParams();
-                lp.width = coverDefault;
-                lp.height = coverDefault;
-                lp.leftMargin = (int) (12 * density);
-                lp.rightMargin = (int) (8 * density);
+                lp.width = coverDefault; lp.height = coverDefault;
+                lp.leftMargin = (int) (12 * density); lp.rightMargin = (int) (8 * density);
                 miniCover.setLayoutParams(lp);
             }
             int btnDefault = (int) (44 * density);
             if (miniPlayPause != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniPlayPause.getLayoutParams();
-                lp.width = btnDefault;
-                lp.height = btnDefault;
+                lp.width = btnDefault; lp.height = btnDefault;
                 lp.rightMargin = (int) (12 * density);
                 miniPlayPause.setLayoutParams(lp);
             }
-            if (miniSongTitle != null) miniSongTitle.setTextSize(14); // sp
-            if (miniSongArtist != null) miniSongArtist.setTextSize(12); // sp
+            if (miniSongTitle != null) miniSongTitle.setTextSize(14);
+            if (miniSongArtist != null) miniSongArtist.setTextSize(12);
             if (pathBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) pathBar.getLayoutParams();
                 lp.height = (int) (36 * density);
                 pathBar.setLayoutParams(lp);
-                // 恢复路径栏内部元素默认值
                 int iconDefault = (int) (32 * density);
                 if (btnNavigateBack != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnNavigateBack.getLayoutParams();
-                    lp2.width = iconDefault;
-                    lp2.height = iconDefault;
+                    lp2.width = iconDefault; lp2.height = iconDefault;
                     btnNavigateBack.setLayoutParams(lp2);
                 }
                 if (btnWebDavSettings != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnWebDavSettings.getLayoutParams();
-                    lp2.width = iconDefault;
-                    lp2.height = iconDefault;
+                    lp2.width = iconDefault; lp2.height = iconDefault;
                     btnWebDavSettings.setLayoutParams(lp2);
                 }
                 if (btnBiliSettings != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnBiliSettings.getLayoutParams();
-                    lp2.width = iconDefault;
-                    lp2.height = iconDefault;
+                    lp2.width = iconDefault; lp2.height = iconDefault;
                     btnBiliSettings.setLayoutParams(lp2);
                 }
-                if (tvBrowsePath != null) tvBrowsePath.setTextSize(13); // sp
+                if (tvBrowsePath != null) tvBrowsePath.setTextSize(13);
             }
             if (etSearch != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) etSearch.getLayoutParams();
@@ -1935,25 +1874,5 @@ public class MainActivity extends BaseFloatActivity {
                 etSearch.setLayoutParams(lp);
             }
         }
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (coverRotationHelper != null) { coverRotationHelper.release(); }
-        if (tabBreathAnimator != null) { tabBreathAnimator.cancel(); tabBreathAnimator = null; }
-        if (shimmerAnimator != null) { shimmerAnimator.cancel(); shimmerAnimator = null; }
-        try {
-            unregisterReceiver(playStateReceiver);
-        } catch (Exception ignored) {}
-        if (mediaStoreObserver != null) {
-            getContentResolver().unregisterContentObserver(mediaStoreObserver);
-        }
-        scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
-        if (bound) {
-            unbindService(serviceConnection);
-            bound = false;
-        }
-        executor.shutdownNow();
     }
 }

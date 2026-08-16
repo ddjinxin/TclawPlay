@@ -1,4 +1,4 @@
-package com.jingxin.jingxinmusic.ui;
+package com.jingxin.jingxinmusic.fragment;
 
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -6,7 +6,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -19,9 +21,11 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.jingxin.jingxinmusic.MainActivity;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import com.jingxin.jingxinmusic.HostActivity;
 import com.jingxin.jingxinmusic.R;
-import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.util.BiliApi;
 import com.jingxin.jingxinmusic.util.BiliConfig;
 import com.jingxin.jingxinmusic.util.HttpUtil;
@@ -31,10 +35,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * B站音源设置页面
+ * B站音源设置页面 Fragment
  * 扫码登录 + 用户信息 + 去播放
  */
-public class BiliSettingsActivity extends BaseFloatActivity {
+public class BiliSettingsFragment extends BaseFloatFragment {
 
     private static final String TAG = "BiliSettings";
     /** 二维码轮询间隔（毫秒） */
@@ -44,6 +48,7 @@ public class BiliSettingsActivity extends BaseFloatActivity {
 
     private BiliConfig config;
     private boolean isNightMode;
+    private View rootView;
 
     // 根布局
     private ScrollView rootScroll;
@@ -79,15 +84,16 @@ public class BiliSettingsActivity extends BaseFloatActivity {
     private boolean isPolling = false;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_bili_settings);
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.activity_bili_settings, container, false);
+        rootView = view;
 
-        config = new BiliConfig(this);
-        isNightMode = getSharedPreferences("theme", MODE_PRIVATE)
+        config = new BiliConfig(requireContext());
+        isNightMode = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE)
                 .getBoolean("isNight", true);
 
-        initViews();
+        initViews(view);
         applyTheme();
         setupListeners();
 
@@ -97,44 +103,51 @@ public class BiliSettingsActivity extends BaseFloatActivity {
         } else {
             showLoginArea();
         }
+
+        return view;
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
+    public void onDestroyView() {
+        super.onDestroyView();
         stopPolling();
         if (webViewQrcode != null) {
             webViewQrcode.destroy();
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
         executor.shutdownNow();
     }
 
-    private void initViews() {
-        rootScroll = findViewById(R.id.root_scroll);
+    private void initViews(View view) {
+        rootScroll = view.findViewById(R.id.root_scroll);
 
         // 未登录
-        layoutLogin = findViewById(R.id.layout_login);
-        webViewQrcode = findViewById(R.id.webview_qrcode);
-        layoutQrcodeLoading = findViewById(R.id.layout_qrcode_loading);
-        layoutQrcodeContainer = findViewById(R.id.layout_qrcode_container);
-        tvScanHint = findViewById(R.id.tv_scan_hint);
-        tvScanStatus = findViewById(R.id.tv_scan_status);
-        btnRefreshQrcode = findViewById(R.id.btn_refresh_qrcode);
+        layoutLogin = view.findViewById(R.id.layout_login);
+        webViewQrcode = view.findViewById(R.id.webview_qrcode);
+        layoutQrcodeLoading = view.findViewById(R.id.layout_qrcode_loading);
+        layoutQrcodeContainer = view.findViewById(R.id.layout_qrcode_container);
+        tvScanHint = view.findViewById(R.id.tv_scan_hint);
+        tvScanStatus = view.findViewById(R.id.tv_scan_status);
+        btnRefreshQrcode = view.findViewById(R.id.btn_refresh_qrcode);
 
         // 初始化WebView
         initWebView();
 
         // 已登录
-        layoutLoggedIn = findViewById(R.id.layout_logged_in);
-        ivAvatar = findViewById(R.id.iv_avatar);
-        tvNickname = findViewById(R.id.tv_nickname);
-        tvUid = findViewById(R.id.tv_uid);
-        btnLogout = findViewById(R.id.btn_logout);
-        btnGoPlay = findViewById(R.id.btn_go_play);
+        layoutLoggedIn = view.findViewById(R.id.layout_logged_in);
+        ivAvatar = view.findViewById(R.id.iv_avatar);
+        tvNickname = view.findViewById(R.id.tv_nickname);
+        tvUid = view.findViewById(R.id.tv_uid);
+        btnLogout = view.findViewById(R.id.btn_logout);
+        btnGoPlay = view.findViewById(R.id.btn_go_play);
 
         // 配色
-        tvTitle = findViewById(R.id.tv_title);
-        dividerTop = findViewById(R.id.divider_top);
+        tvTitle = view.findViewById(R.id.tv_title);
+        dividerTop = view.findViewById(R.id.divider_top);
     }
 
     private void initWebView() {
@@ -153,6 +166,7 @@ public class BiliSettingsActivity extends BaseFloatActivity {
     }
 
     private void applyTheme() {
+        if (rootView == null) return;
         int bgColor = isNightMode ? ThemeColors.nightBg() : ThemeColors.dayBg();
         int textColor = isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
         int subTextColor = isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary();
@@ -163,7 +177,7 @@ public class BiliSettingsActivity extends BaseFloatActivity {
         dividerTop.setBackgroundColor(dividerColor);
 
         // 未登录区域
-        ((TextView) findViewById(R.id.tv_label_qrcode)).setTextColor(textColor);
+        ((TextView) rootView.findViewById(R.id.tv_label_qrcode)).setTextColor(textColor);
         tvScanHint.setTextColor(subTextColor);
         tvScanStatus.setTextColor(subTextColor);
 
@@ -174,7 +188,7 @@ public class BiliSettingsActivity extends BaseFloatActivity {
 
     private void setupListeners() {
         // 返回
-        findViewById(R.id.btn_back).setOnClickListener(v -> finish());
+        rootView.findViewById(R.id.btn_back).setOnClickListener(v -> requireActivity().onBackPressed());
 
         // 刷新二维码
         btnRefreshQrcode.setOnClickListener(v -> requestQrCode());
@@ -184,15 +198,15 @@ public class BiliSettingsActivity extends BaseFloatActivity {
             config.clearAll();
             stopPolling();
             showLoginArea();
-            Toast.makeText(this, "已退出B站登录", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "已退出B站登录", Toast.LENGTH_SHORT).show();
         });
 
-        // 去播放：跳到MainActivity的B站tab，恢复当前导航层级
+        // 去播放：跳回首页 B站tab
         btnGoPlay.setOnClickListener(v -> {
-            Intent intent = new Intent(this, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            intent.putExtra("select_tab", 2); // B站tab
-            startActivity(intent);
+            if (getActivity() instanceof HostActivity) {
+                ((HostActivity) getActivity()).pendingTab = 2;
+                requireActivity().onBackPressed();
+            }
         });
     }
 
@@ -411,7 +425,7 @@ public class BiliSettingsActivity extends BaseFloatActivity {
             } else {
                 uiHandler.post(() -> {
                     // Cookie已失效，退回登录
-                    Toast.makeText(this, "登录已过期，请重新扫码", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), "登录已过期，请重新扫码", Toast.LENGTH_SHORT).show();
                     config.clearAll();
                     showLoginArea();
                 });

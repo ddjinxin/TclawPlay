@@ -42,8 +42,9 @@
         android:requestLegacyExternalStorage="true">
         
         <activity
-            android:name=".MainActivity"
+            android:name=".HostActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/Theme.JingxinMusic">
@@ -52,32 +53,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
-        <!-- 播放页面 -->
-        <activity
-            android:name=".PlayerActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
-            android:theme="@style/Theme.JingxinMusic" />
-        
-        <!-- WebDAV设置页面 -->
-        <activity
-            android:name=".ui.WebDavSettingsActivity"
-            android:exported="false"
-            android:theme="@style/Theme.JingxinMusic" />
-        
-        <!-- B站音源设置页面 -->
-        <activity
-            android:name=".ui.BiliSettingsActivity"
-            android:exported="false"
-            android:theme="@style/Theme.JingxinMusic" />
-        
-        <!-- 帮助页面 -->
-        <activity
-            android:name=".ui.HelpActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
-            android:theme="@style/Theme.JingxinMusic" />
         
         <!-- 播放服务 -->
         <service

@@ -1,4 +1,4 @@
-package com.jingxin.jingxinmusic.ui;
+package com.jingxin.jingxinmusic.fragment;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -7,7 +7,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -19,24 +21,28 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import com.jingxin.jingxinmusic.HostActivity;
 import com.jingxin.jingxinmusic.R;
-import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.WebDavCacheManager;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
 import com.jingxin.jingxinmusic.util.WebDavScanner;
 
 /**
- * WebDAV 设置页面
+ * WebDAV 设置页面 Fragment
  * 配置服务器地址、账号、缓存大小等
  * 配色跟随首页风格系统（4种风格+昼夜模式）
  */
-public class WebDavSettingsActivity extends BaseFloatActivity {
+public class WebDavSettingsFragment extends BaseFloatFragment {
 
     private static final String TAG = "WebDavSettings";
 
     private WebDavConfig config;
     private boolean isNightMode;
+    private View rootView;
 
     private ScrollView rootScroll;
     private LinearLayout contentLayout;
@@ -69,16 +75,19 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_webdav_settings);
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.activity_webdav_settings, container, false);
+        rootView = view;
 
-        config = new WebDavConfig(this);
+        config = new WebDavConfig(requireContext());
 
-        initViews();
+        initViews(view);
         applyTheme();
         loadConfig();
         checkStoragePermission();
+
+        return view;
     }
 
     /**
@@ -87,18 +96,18 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
     private void checkStoragePermission() {
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             if (!android.os.Environment.isExternalStorageManager()) {
-                new androidx.appcompat.app.AlertDialog.Builder(this)
+                new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                     .setTitle("需要存储权限")
                     .setMessage("读取备份配置需要\"所有文件访问\"权限，请在设置中开启")
                     .setPositiveButton("去设置", (d, w) -> {
                         try {
                             startActivity(new android.content.Intent(
                                 android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                                android.net.Uri.parse("package:" + getPackageName())));
+                                android.net.Uri.parse("package:" + requireContext().getPackageName())));
                         } catch (Exception e) {
                             startActivity(new android.content.Intent(
                                 android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                android.net.Uri.parse("package:" + getPackageName())));
+                                android.net.Uri.parse("package:" + requireContext().getPackageName())));
                         }
                     })
                     .setNegativeButton("取消", null)
@@ -108,37 +117,37 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
         }
     }
 
-    private void initViews() {
-        rootScroll = findViewById(R.id.root_scroll);
-        contentLayout = findViewById(R.id.content_layout);
-        etServerUrl = findViewById(R.id.et_server_url);
-        etUsername = findViewById(R.id.et_username);
-        etPassword = findViewById(R.id.et_password);
-        etMusicPath = findViewById(R.id.et_music_path);
-        spinnerCacheSize = findViewById(R.id.spinner_cache_size);
-        tvCacheUsed = findViewById(R.id.tv_cache_used);
-        btnTestConnection = findViewById(R.id.btn_test_connection);
-        btnSave = findViewById(R.id.btn_save);
-        btnImport = findViewById(R.id.btn_import);
-        btnClearCache = findViewById(R.id.btn_clear_cache);
+    private void initViews(View view) {
+        rootScroll = view.findViewById(R.id.root_scroll);
+        contentLayout = view.findViewById(R.id.content_layout);
+        etServerUrl = view.findViewById(R.id.et_server_url);
+        etUsername = view.findViewById(R.id.et_username);
+        etPassword = view.findViewById(R.id.et_password);
+        etMusicPath = view.findViewById(R.id.et_music_path);
+        spinnerCacheSize = view.findViewById(R.id.spinner_cache_size);
+        tvCacheUsed = view.findViewById(R.id.tv_cache_used);
+        btnTestConnection = view.findViewById(R.id.btn_test_connection);
+        btnSave = view.findViewById(R.id.btn_save);
+        btnImport = view.findViewById(R.id.btn_import);
+        btnClearCache = view.findViewById(R.id.btn_clear_cache);
 
-        tvTitle = findViewById(R.id.tv_title);
-        tvLabelServer = findViewById(R.id.tv_label_server);
-        tvLabelUsername = findViewById(R.id.tv_label_username);
-        tvLabelPassword = findViewById(R.id.tv_label_password);
-        tvLabelPath = findViewById(R.id.tv_label_path);
-        tvLabelCache = findViewById(R.id.tv_label_cache);
-        tvCacheLabel = findViewById(R.id.tv_cache_label);
-        dividerTop = findViewById(R.id.divider_top);
-        dividerServer = findViewById(R.id.divider_server);
-        dividerUsername = findViewById(R.id.divider_username);
-        dividerPassword = findViewById(R.id.divider_password);
-        dividerPath = findViewById(R.id.divider_path);
-        dividerCache = findViewById(R.id.divider_cache);
+        tvTitle = view.findViewById(R.id.tv_title);
+        tvLabelServer = view.findViewById(R.id.tv_label_server);
+        tvLabelUsername = view.findViewById(R.id.tv_label_username);
+        tvLabelPassword = view.findViewById(R.id.tv_label_password);
+        tvLabelPath = view.findViewById(R.id.tv_label_path);
+        tvLabelCache = view.findViewById(R.id.tv_label_cache);
+        tvCacheLabel = view.findViewById(R.id.tv_cache_label);
+        dividerTop = view.findViewById(R.id.divider_top);
+        dividerServer = view.findViewById(R.id.divider_server);
+        dividerUsername = view.findViewById(R.id.divider_username);
+        dividerPassword = view.findViewById(R.id.divider_password);
+        dividerPath = view.findViewById(R.id.divider_path);
+        dividerCache = view.findViewById(R.id.divider_cache);
 
         // 返回按钮
-        ImageView btnBack = findViewById(R.id.btn_back);
-        btnBack.setOnClickListener(v -> finish());
+        ImageView btnBack = view.findViewById(R.id.btn_back);
+        btnBack.setOnClickListener(v -> requireActivity().onBackPressed());
 
         // 缓存大小下拉
         int[] cacheOptions = WebDavConfig.getCacheSizeOptions();
@@ -146,19 +155,19 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
         for (int i = 0; i < cacheOptions.length; i++) {
             cacheLabels[i] = WebDavConfig.getCacheSizeLabel(cacheOptions[i]);
         }
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(requireContext(),
                 R.layout.spinner_item_theme, cacheLabels) {
             @Override
             public View getView(int position, View convertView, android.view.ViewGroup parent) {
                 View v = super.getView(position, convertView, parent);
-                boolean night = getSharedPreferences("theme", MODE_PRIVATE).getBoolean("isNight", true);
+                boolean night = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE).getBoolean("isNight", true);
                 ((TextView) v).setTextColor(night ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());
                 return v;
             }
             @Override
             public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
                 View v = super.getDropDownView(position, convertView, parent);
-                boolean night = getSharedPreferences("theme", MODE_PRIVATE).getBoolean("isNight", true);
+                boolean night = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE).getBoolean("isNight", true);
                 ((TextView) v).setTextColor(night ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());
                 return v;
             }
@@ -183,9 +192,9 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
      * 根据首页风格系统应用配色
      */
     private void applyTheme() {
-        SharedPreferences themePrefs = getSharedPreferences("theme", MODE_PRIVATE);
+        SharedPreferences themePrefs = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE);
         isNightMode = themePrefs.getBoolean("isNight", true);
-        ThemeColors.init(this);
+        ThemeColors.init(requireContext());
 
         int textPrimary = isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
         int textSecondary = isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary();
@@ -235,7 +244,7 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
         btnClearCache.setTextColor(0xFFFF5252);
 
         // 返回键图标颜色
-        ImageView btnBack = findViewById(R.id.btn_back);
+        ImageView btnBack = rootView.findViewById(R.id.btn_back);
         btnBack.setImageTintList(android.content.res.ColorStateList.valueOf(textPrimary));
 
         // Spinner下拉文字颜色
@@ -288,7 +297,7 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
                 config.setCacheSizeMb(options[position]);
                 // 设置选中项文字颜色跟随主题
                 if (view instanceof TextView) {
-                    boolean night = getSharedPreferences("theme", MODE_PRIVATE).getBoolean("isNight", true);
+                    boolean night = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE).getBoolean("isNight", true);
                     ((TextView) view).setTextColor(night ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());
                 }
             }
@@ -308,8 +317,8 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
         config.exportToDownload();
         // 通知Service重建DataSource（认证头需要更新）
         Intent configIntent = new Intent(com.jingxin.jingxinmusic.service.MusicPlayerService.ACTION_WEBDAV_CONFIG_CHANGED);
-        configIntent.setPackage(getPackageName());
-        sendBroadcast(configIntent);
+        configIntent.setPackage(requireContext().getPackageName());
+        requireContext().sendBroadcast(configIntent);
         // 保存后备份文件可能新建，刷新提取按钮状态
         updateImportButton();
     }
@@ -326,10 +335,10 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
                 btnTestConnection.setEnabled(true);
                 btnTestConnection.setText("测试");
                 if (error == null) {
-                    Toast.makeText(this, "连接成功", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), "连接成功", Toast.LENGTH_SHORT).show();
                     btnTestConnection.setBackgroundColor(0xFF4CAF50);
                 } else {
-                    Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                    Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
                     btnTestConnection.setBackgroundColor(0xFFFF5252);
                 }
             });
@@ -339,21 +348,21 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
     private void saveAndBrowse() {
         saveConfig();
         if (!config.isConfigured()) {
-            Toast.makeText(this, "请填写服务器地址", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "请填写服务器地址", Toast.LENGTH_SHORT).show();
             return;
         }
-        // 跳转到首页云端Tab
-        Intent intent = new Intent(this, com.jingxin.jingxinmusic.MainActivity.class);
-        intent.putExtra("select_tab", 1); // 1=云端Tab
-        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        startActivity(intent);
+        // 跳回首页云端Tab
+        if (getActivity() instanceof HostActivity) {
+            ((HostActivity) getActivity()).pendingTab = 1;
+            requireActivity().onBackPressed();
+        }
     }
 
     private void importFromBackup() {
         // 只回填UI，不写入SharedPreferences，点保存才生效
         String json = readBackupContent();
         if (json == null) {
-            Toast.makeText(this, "未找到备份配置", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "未找到备份配置", Toast.LENGTH_SHORT).show();
             updateImportButton();
             return;
         }
@@ -373,9 +382,9 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
                     }
                 }
             }
-            Toast.makeText(this, "配置已提取，请点保存生效", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "配置已提取，请点保存生效", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(this, "备份文件格式错误", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "备份文件格式错误", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -415,28 +424,27 @@ public class WebDavSettingsActivity extends BaseFloatActivity {
     }
 
     private void clearCache() {
-        WebDavCacheManager cacheManager = WebDavCacheManager.getInstance(this);
+        WebDavCacheManager cacheManager = WebDavCacheManager.getInstance(requireContext());
         long sizeBefore = cacheManager.getCacheSize();
         if (sizeBefore == 0) {
-            Toast.makeText(this, "无缓存文件", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "无缓存文件", Toast.LENGTH_SHORT).show();
             return;
         }
         cacheManager.clearCache();
         updateCacheUsed();
-        Toast.makeText(this, "已清除缓存 " + WebDavCacheManager.formatSize(sizeBefore), Toast.LENGTH_SHORT).show();
+        Toast.makeText(requireContext(), "已清除缓存 " + WebDavCacheManager.formatSize(sizeBefore), Toast.LENGTH_SHORT).show();
     }
 
     private void updateCacheUsed() {
-        WebDavCacheManager cacheManager = WebDavCacheManager.getInstance(this);
+        WebDavCacheManager cacheManager = WebDavCacheManager.getInstance(requireContext());
         long size = cacheManager.getCacheSize();
         tvCacheUsed.setText("当前已用: " + WebDavCacheManager.formatSize(size));
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         // 从权限设置页返回后刷新提取按钮状态
         updateImportButton();
     }
-
 }

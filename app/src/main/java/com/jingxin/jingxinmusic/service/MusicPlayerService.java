@@ -38,8 +38,6 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 
-import com.jingxin.jingxinmusic.MainActivity;
-import com.jingxin.jingxinmusic.PlayerActivity;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.util.BiliApi;
 import com.jingxin.jingxinmusic.util.BiliConfig;

@@ -185,9 +185,18 @@ public class RotatingCoverView extends AppCompatImageView {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        if (rotationAnimator != null) {
-            rotationAnimator.cancel();
+        // 用 pause 而非 cancel，View 被剥离到 overlay 窗口后重新 attach 时可 resume 恢复旋转
+        if (rotationAnimator != null && rotationAnimator.isRunning()) {
+            rotationAnimator.pause();
         }
-        // 预制位图由系统管理，不需要手动recycle
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        // View 被重新 attach（如剥离到 overlay 窗口后），恢复暂停的旋转动画
+        if (rotationAnimator != null && isRotating && rotationAnimator.isPaused()) {
+            rotationAnimator.resume();
+        }
     }
 }

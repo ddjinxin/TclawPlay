@@ -1,4 +1,4 @@
-package com.jingxin.jingxinmusic.ui;
+package com.jingxin.jingxinmusic.fragment;
 
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
@@ -7,7 +7,9 @@ import android.os.Bundle;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.style.StyleSpan;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -15,12 +17,14 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import com.jingxin.jingxinmusic.R;
-import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.UpdateHelper;
 
-public class HelpActivity extends BaseFloatActivity {
+public class HelpFragment extends BaseFloatFragment {
 
     private boolean isNightMode;
     private LinearLayout helpContent;
@@ -31,41 +35,44 @@ public class HelpActivity extends BaseFloatActivity {
     private float density;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_help);
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.activity_help, container, false);
 
         density = getResources().getDisplayMetrics().density;
-        isNightMode = getSharedPreferences("theme", MODE_PRIVATE).getBoolean("isNight", true);
+        isNightMode = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE)
+                .getBoolean("isNight", true);
 
-        initViews();
+        initViews(view);
         applyTheme();
         buildHelpContent();
 
-        Button btnUpdate = findViewById(R.id.btn_check_update);
+        Button btnUpdate = view.findViewById(R.id.btn_check_update);
         btnUpdate.setOnClickListener(v -> {
-            Toast.makeText(this, "正在检查更新...", Toast.LENGTH_SHORT).show();
-            UpdateHelper.getInstance(this).checkManually(this);
+            Toast.makeText(requireContext(), "正在检查更新...", Toast.LENGTH_SHORT).show();
+            UpdateHelper.getInstance(requireContext()).checkManually(requireActivity());
         });
 
-        Button btnContact = findViewById(R.id.btn_contact);
+        Button btnContact = view.findViewById(R.id.btn_contact);
         btnContact.setOnClickListener(v -> showContactDialog());
 
-        Button btnReturn = findViewById(R.id.btn_return);
-        btnReturn.setOnClickListener(v -> finish());
+        Button btnReturn = view.findViewById(R.id.btn_return);
+        btnReturn.setOnClickListener(v -> requireActivity().onBackPressed());
 
-        btnBack.setOnClickListener(v -> finish());
+        btnBack.setOnClickListener(v -> requireActivity().onBackPressed());
+
+        return view;
     }
 
-    private void initViews() {
-        rootScroll = findViewById(R.id.root_scroll);
-        helpContent = findViewById(R.id.help_content);
-        tvTitle = findViewById(R.id.tv_title);
-        dividerTop = findViewById(R.id.divider_top);
-        tvVersion = findViewById(R.id.tv_version);
-        btnBack = findViewById(R.id.btn_back);
+    private void initViews(View view) {
+        rootScroll = view.findViewById(R.id.root_scroll);
+        helpContent = view.findViewById(R.id.help_content);
+        tvTitle = view.findViewById(R.id.tv_title);
+        dividerTop = view.findViewById(R.id.divider_top);
+        tvVersion = view.findViewById(R.id.tv_version);
+        btnBack = view.findViewById(R.id.btn_back);
         try {
-            String v = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            String v = requireContext().getPackageManager().getPackageInfo(requireContext().getPackageName(), 0).versionName;
             tvVersion.setText("静心音乐 v" + v);
         } catch (Exception e) {
             tvVersion.setText("静心音乐");
@@ -88,7 +95,7 @@ public class HelpActivity extends BaseFloatActivity {
     }
 
     private void showContactDialog() {
-        new AlertDialog.Builder(this)
+        new AlertDialog.Builder(requireContext())
                 .setTitle("联系我们")
                 .setMessage("静心音乐\n作者：静心\n\n交流群：乐酷桌面群\n群号：812753974、651547480\n\n欢迎加入交流群反馈建议和问题！")
                 .setPositiveButton("知道了", null)
@@ -103,7 +110,7 @@ public class HelpActivity extends BaseFloatActivity {
     private int divColor() { return isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider(); }
 
     private void addSection(String title) {
-        TextView tv = new TextView(this);
+        TextView tv = new TextView(requireContext());
         tv.setText(title);
         tv.setTextColor(accentColor());
         tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16);
@@ -122,7 +129,7 @@ public class HelpActivity extends BaseFloatActivity {
         ssb.append(bold);
         ssb.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), start, ssb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         ssb.append(rest);
-        TextView tv = new TextView(this);
+        TextView tv = new TextView(requireContext());
         tv.setText(ssb);
         tv.setTextColor(textColor());
         tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
@@ -135,7 +142,7 @@ public class HelpActivity extends BaseFloatActivity {
 
     /** 普通段落 */
     private void addPara(String text) {
-        TextView tv = new TextView(this);
+        TextView tv = new TextView(requireContext());
         tv.setText(text);
         tv.setTextColor(textColor());
         tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
@@ -154,7 +161,7 @@ public class HelpActivity extends BaseFloatActivity {
         ssb.append(bold);
         ssb.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), start, ssb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         ssb.append(rest);
-        TextView tv = new TextView(this);
+        TextView tv = new TextView(requireContext());
         tv.setText(ssb);
         tv.setTextColor(textColor());
         tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
@@ -168,7 +175,7 @@ public class HelpActivity extends BaseFloatActivity {
 
     /** 普通要点 */
     private void addBullet(String text) {
-        TextView tv = new TextView(this);
+        TextView tv = new TextView(requireContext());
         tv.setText("• " + text);
         tv.setTextColor(textColor());
         tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
@@ -181,7 +188,7 @@ public class HelpActivity extends BaseFloatActivity {
     }
 
     private void addDivider() {
-        View v = new View(this);
+        View v = new View(requireContext());
         v.setBackgroundColor(divColor());
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1);
         p.topMargin = (int)(12 * density);

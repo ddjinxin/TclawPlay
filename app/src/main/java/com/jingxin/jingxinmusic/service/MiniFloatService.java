@@ -23,6 +23,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
@@ -38,7 +39,7 @@ import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 
-import com.jingxin.jingxinmusic.MainActivity;
+import com.jingxin.jingxinmusic.HostActivity;
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.util.CoverFetcher;
@@ -157,6 +158,25 @@ public class MiniFloatService extends Service {
     private boolean visualizerEnabled = false;
     private FrameLayout capsuleCenterLayout; // 歌词+频谱中间区域
 
+    // 频谱心跳检测：当同一 audioSessionId 上其他 Visualizer 被 release 时，
+    // 本服务的回调会静默失效，需要自动重建
+    private volatile long lastSpectrumCallbackTime;
+    private final Runnable spectrumHeartbeat = new Runnable() {
+        @Override
+        public void run() {
+            if (visualizerEnabled && playerBinder != null && playerBinder.isPlaying()) {
+                long elapsed = SystemClock.elapsedRealtime() - lastSpectrumCallbackTime;
+                if (elapsed > 3000) {
+                    Log.d(TAG, "频谱心跳: 回调超时(" + elapsed + "ms)，重建 Visualizer");
+                    releaseVisualizer();
+                    initVisualizer();
+                    lastSpectrumCallbackTime = SystemClock.elapsedRealtime();
+                }
+            }
+            uiHandler.postDelayed(this, 2000);
+        }
+    };
+
     // ========== 卡拉OK模式字段 ==========
     private static final float KARAOKE_UNIT_RATIO = 0.95f;   // 卡拉OK默认宽度比例（屏宽×95%）
     private static final float KARAOKE_UNIT_MIN = 0.40f;     // 卡拉OK最小宽度比例
@@ -229,6 +249,7 @@ public class MiniFloatService extends Service {
     public void onDestroy() {
         super.onDestroy();
         uiHandler.removeCallbacks(progressRunnable);
+        uiHandler.removeCallbacks(spectrumHeartbeat);
         releaseVisualizer();
         coverRotationHelper.release();
         if (bound) {
@@ -255,7 +276,7 @@ public class MiniFloatService extends Service {
     }
 
     private Notification buildNotification() {
-        Intent intent = new Intent(this, MainActivity.class);
+        Intent intent = new Intent(this, HostActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -500,7 +521,7 @@ public class MiniFloatService extends Service {
                             // 第一次点击：延迟执行单击，等双击窗口期
                             lastClickTime = now;
                             pendingSingleClick = () -> {
-                                Intent mainIntent = new Intent(MiniFloatService.this, MainActivity.class);
+                                Intent mainIntent = new Intent(MiniFloatService.this, HostActivity.class);
                                 mainIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                 startActivity(mainIntent);
                                 pendingSingleClick = null;
@@ -1574,7 +1595,7 @@ public class MiniFloatService extends Service {
                         } else {
                             lastClickTime = now;
                             pendingSingleClick = () -> {
-                                Intent mainIntent = new Intent(MiniFloatService.this, MainActivity.class);
+                                Intent mainIntent = new Intent(MiniFloatService.this, HostActivity.class);
                                 mainIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                 startActivity(mainIntent);
                                 pendingSingleClick = null;
@@ -1680,6 +1701,7 @@ public class MiniFloatService extends Service {
 
                 @Override
                 public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
+                    lastSpectrumCallbackTime = SystemClock.elapsedRealtime();
                     // 取当前活跃的频谱View作为基准
                     SpectrumView activeSpectrum = capsuleSpectrum != null ? capsuleSpectrum : karaokeSpectrum;
                     if (activeSpectrum == null) return;
@@ -1711,6 +1733,9 @@ public class MiniFloatService extends Service {
             boolean playing = (playerBinder != null && playerBinder.isPlaying());
             visualizer.setEnabled(playing);
             visualizerEnabled = true;
+            lastSpectrumCallbackTime = SystemClock.elapsedRealtime();
+            uiHandler.removeCallbacks(spectrumHeartbeat);
+            uiHandler.postDelayed(spectrumHeartbeat, 2000);
             if (capsuleSpectrum != null) {
                 capsuleSpectrum.setPlaying(playing);
             }
@@ -1730,6 +1755,7 @@ public class MiniFloatService extends Service {
      * 释放 Visualizer
      */
     private void releaseVisualizer() {
+        uiHandler.removeCallbacks(spectrumHeartbeat);
         if (visualizer != null) {
             try {
                 visualizer.setEnabled(false);
@@ -2017,7 +2043,7 @@ public class MiniFloatService extends Service {
                         } else {
                             lastClickTime = now;
                             pendingSingleClick = () -> {
-                                Intent mainIntent = new Intent(MiniFloatService.this, MainActivity.class);
+                                Intent mainIntent = new Intent(MiniFloatService.this, HostActivity.class);
                                 mainIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                 startActivity(mainIntent);
                                 pendingSingleClick = null;
