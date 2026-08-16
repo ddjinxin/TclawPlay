@@ -106,7 +106,6 @@ public class PlayerFragment extends BaseFloatFragment {
     private ImageView btnFavorite;
     private ImageView btnDownload;
     private ImageView btnPlayOrder;
-    private ImageView btnTheme;
     private ImageView btnBack;
     private ImageView btnSpectrum;
     private ImageView btnOutfit;
@@ -197,7 +196,6 @@ public class PlayerFragment extends BaseFloatFragment {
                     stopSpectrum();
                     startSpectrumWithPermission();
                 }
-                Log.d(TAG, "UI 更新: " + newSong.title + " - " + newSong.artist);
             } else if (MusicPlayerService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
                 updatePlayPauseButton(playing);
@@ -220,13 +218,11 @@ public class PlayerFragment extends BaseFloatFragment {
                                     com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
                         }
                         updateThemeUI();
-                        Log.d(TAG, "高德日夜模式同步: " + (isNightMode ? "夜间" : "白天"));
                     }
                 }
             } else if ("com.jingxin.jingxinmusic.SPECTRUM_RESTART".equals(action)) {
                 // 乐酷悬浮进入/退出时，MiniFloatService 的 Visualizer 被释放/重建
                 // 导致同一 audioSessionId 上 PlayerFragment 的 Visualizer 回调失效，需重建
-                Log.d(TAG, "收到频谱重建广播，重启 Visualizer");
                 stopSpectrum();
                 startSpectrumWithPermission();
             }
@@ -238,7 +234,6 @@ public class PlayerFragment extends BaseFloatFragment {
         public void onServiceConnected(ComponentName name, IBinder service) {
             playerBinder = (MusicPlayerBinder) service;
             bound = true;
-            Log.d(TAG, "播放服务已连接");
 
             // 读缓存或扫描歌曲列表（不触发 triggerMediaScan）
             executor.execute(() -> {
@@ -408,7 +403,6 @@ public class PlayerFragment extends BaseFloatFragment {
         btnFavorite = view.findViewById(R.id.mode_button);  // 复用 mode_button 位置
         btnDownload = view.findViewById(R.id.download_button);
         btnPlayOrder = view.findViewById(R.id.play_order_button);
-        btnTheme = view.findViewById(R.id.theme_button);
         btnBack = view.findViewById(R.id.back_button);
         btnSpectrum = view.findViewById(R.id.spectrum_button);
         btnOutfit = view.findViewById(R.id.outfit_button);
@@ -602,11 +596,11 @@ public class PlayerFragment extends BaseFloatFragment {
             }
         });
         lyricView.setOnModeChangeListener(newMode -> updateLayoutForMode(newMode));
-        btnTheme.setOnClickListener(v -> toggleTheme());
         btnOutfit.setOnClickListener(v -> toggleImmersiveMode());
         // 单击：弹出频谱选择面板（频谱可见时）或恢复显示频谱
         // 长按：切换频谱显示/隐藏
         btnSpectrum.setOnClickListener(v -> {
+            if (!SettingsFragment.isSpectrumEnabled(requireContext())) return;
             if (spectrumView.isSpectrumVisible()) {
                 showSpectrumPicker();
             } else {
@@ -614,11 +608,11 @@ public class PlayerFragment extends BaseFloatFragment {
             }
         });
         btnSpectrum.setOnLongClickListener(v -> {
+            if (!SettingsFragment.isSpectrumEnabled(requireContext())) return true;
             spectrumView.toggleVisibility();
             return true;
         });
         btnBack.setOnClickListener(v -> {
-            Log.d(TAG, "Back button clicked");
             stopSpectrum();
             requireActivity().onBackPressed();
         });
@@ -654,7 +648,6 @@ public class PlayerFragment extends BaseFloatFragment {
         // 开始进度更新
         uiHandler.post(progressRunnable);
 
-        Log.d(TAG, "播放页面加载: " + song.title + " - " + song.artist);
 
         return view;
     }
@@ -670,6 +663,19 @@ public class PlayerFragment extends BaseFloatFragment {
             lyricView.setThemeMode(isNightMode
                     ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
                     : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
+        }
+        // 频谱开关：关闭时隐藏频谱View并停止，开启时恢复
+        boolean spectrumEnabled = SettingsFragment.isSpectrumEnabled(requireContext());
+        if (!spectrumEnabled) {
+            stopSpectrum();
+            spectrumView.setVisibility(View.GONE);
+            btnSpectrum.setVisibility(View.GONE);
+        } else {
+            btnSpectrum.setVisibility(View.VISIBLE);
+            if (bound && playerBinder != null && playerBinder.isPlaying()) {
+                spectrumView.setPlaying(true);
+                startSpectrumWithPermission();
+            }
         }
         // 从列表页返回时，可能横竖屏已变化，需要重新检测并刷新唱臂
         if (tonearmView != null && tonearmView.getVisibility() == View.VISIBLE) {
@@ -816,6 +822,7 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     private void startSpectrumWithPermission() {
+        if (!SettingsFragment.isSpectrumEnabled(requireContext())) return;
         // 使用 ContextCompat/ActivityCompat 避免直接调用 API 23+ 方法导致低版本 ART VerifyError
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startSpectrum();
@@ -1097,7 +1104,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 btnPlayPause, btnPrevious, btnNext, btnFavorite,
                 infoPanel, coverPlaceholder, overlayView, whiteOverlay,
                 immersiveDarkOverlay, immersiveOverlay,
-                btnBack, btnSpectrum, btnOutfit, btnTheme,
+                btnBack, btnSpectrum, btnOutfit,
                 mRootView.findViewById(R.id.top_buttons_bar),
                 mRootView.findViewById(R.id.control_buttons),
                 mRootView.findViewById(R.id.progress_layout),
@@ -1287,16 +1294,13 @@ public class PlayerFragment extends BaseFloatFragment {
                 if (lyricView != null && lyricData != null && lyricData.lines != null && !lyricData.lines.isEmpty()) {
                     uiHandler.post(() -> {
                         lyricView.setLyricData(lyricData);
-                        Log.d(TAG, "歌词加载成功，共 " + lyricData.lines.size() + " 行");
                     });
                 } else {
-                    Log.d(TAG, "歌词为空");
                 }
             }
 
             @Override
             public void onError(String errorMessage) {
-                Log.d(TAG, "歌词获取失败: " + errorMessage);
             }
         }, requireContext(), song.title);
     }
@@ -1942,7 +1946,6 @@ public class PlayerFragment extends BaseFloatFragment {
                                             lyricView.setLyricData(lyricData);
                                             android.widget.Toast.makeText(requireContext(),
                                                     "歌词已更新", android.widget.Toast.LENGTH_SHORT).show();
-                                            Log.d(TAG, "手动选择歌词加载成功，共 " + lyricData.lines.size() + " 行");
                                         }
                                     });
                                 }
@@ -1978,6 +1981,10 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     private void updateThemeUI() {
+        // 频谱日夜模式
+        if (spectrumView != null) {
+            spectrumView.setNightMode(isNightMode);
+        }
         // 唱臂日夜主题 + 横屏模式
         if (tonearmView != null) {
             tonearmView.setNightMode(isNightMode);
@@ -2058,7 +2065,7 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private void applyButtonTheme(boolean isNight) {
         ImageView[] buttons = {btnPlayPause, btnPrevious, btnNext,
-                btnHistory, btnPlayOrder, btnTheme, btnBack, btnSpectrum, btnOutfit, btnDownload, btnLyricSearch};
+                btnHistory, btnPlayOrder, btnBack, btnSpectrum, btnOutfit, btnDownload, btnLyricSearch};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
             // 收藏按钮：已收藏用红色，未收藏清除滤镜
@@ -2137,7 +2144,6 @@ public class PlayerFragment extends BaseFloatFragment {
         if (bound && playerBinder != null) {
             try {
                 int sessionId = playerBinder.getAudioSessionId();
-                Log.d(TAG, "尝试 Visualizer, audioSessionId=" + sessionId);
                 if (sessionId != -1 && sessionId != 0) {
                     visualizer = new Visualizer(sessionId);
                     visualizer.setEnabled(false);
@@ -2180,7 +2186,6 @@ public class PlayerFragment extends BaseFloatFragment {
 
                     visualizer.setEnabled(true);
                     useVisualizer = true;
-                    Log.d(TAG, "Visualizer 启动成功");
                     return; // 成功，不需要 AudioRecord
                 }
             } catch (Exception e) {
@@ -2228,7 +2233,6 @@ public class PlayerFragment extends BaseFloatFragment {
                                 AudioFormat.ENCODING_PCM_16BIT,
                                 bufferSize);
                         if (audioRecord.getState() == AudioRecord.STATE_INITIALIZED) {
-                            Log.d(TAG, "AudioRecord 创建成功, source=" + source);
                             created = true;
                             break;
                         } else {
@@ -2238,7 +2242,6 @@ public class PlayerFragment extends BaseFloatFragment {
                             }
                         }
                     } catch (Exception e) {
-                        Log.d(TAG, "AudioSource " + source + " 失败: " + e.getMessage());
                         if (audioRecord != null) {
                             audioRecord.release();
                             audioRecord = null;
@@ -2254,7 +2257,6 @@ public class PlayerFragment extends BaseFloatFragment {
 
                 audioRecord.startRecording();
                 Thread.sleep(500);
-                Log.d(TAG, "AudioRecord 启动成功，开始频谱采集(FFT)");
 
                 // FFT 补零到 1024（2^10），800 采样点零填充
                 final int FFT_SIZE = 1024;
@@ -2274,14 +2276,9 @@ public class PlayerFragment extends BaseFloatFragment {
                     bitRevTable[i] = rev;
                 }
 
-                int logFrameCount = 0;
                 while (spectrumRunning) {
                     int totalRead = audioRecord.read(readBuffer, 0, 800);
                     if (totalRead <= 0) continue;
-
-                    if (logFrameCount++ % 10 == 0) {
-                        Log.d(TAG, "AudioRecord totalRead=" + totalRead);
-                    }
 
                     // 零填充到 FFT_SIZE 并加窗（Hann 窗减少频谱泄漏）
                     for (int i = 0; i < FFT_SIZE; i++) {

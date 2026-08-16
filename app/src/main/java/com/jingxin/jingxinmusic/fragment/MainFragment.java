@@ -81,8 +81,6 @@ public class MainFragment extends BaseFloatFragment {
     private TextView tvCopyright;
     private ImageView ivAppIcon;
     private EditText etSearch;
-    private ImageView btnTheme;
-    private ImageView btnStyle;
     private ImageView btnClose;
     private ImageView btnHelp;
     private View rootLayout;
@@ -291,8 +289,6 @@ public class MainFragment extends BaseFloatFragment {
         tvLoading = view.findViewById(R.id.tv_loading);
         ivAppIcon = view.findViewById(R.id.iv_app_icon);
         etSearch = view.findViewById(R.id.et_search);
-        btnTheme = view.findViewById(R.id.theme_button);
-        btnStyle = view.findViewById(R.id.style_button);
         rootLayout = view.findViewById(R.id.root_layout);
         tabBar = view.findViewById(R.id.tab_bar);
         titleBar = view.findViewById(R.id.title_bar);
@@ -423,23 +419,6 @@ public class MainFragment extends BaseFloatFragment {
                         }
                     }
                 });
-
-        // 风格切换按钮
-        btnStyle.setOnClickListener(v -> {
-            int newIndex = ThemeColors.cycleStyle(ctx);
-            updateThemeUI();
-            android.widget.Toast.makeText(ctx, ThemeColors.getStyle().name, android.widget.Toast.LENGTH_SHORT).show();
-        });
-
-        // 主题按钮
-        btnTheme.setOnClickListener(v -> {
-            isNightMode = !isNightMode;
-            themePrefs.edit().putBoolean("isNight", isNightMode)
-                    .putBoolean("amapTriggered", false)
-                    .apply();
-            updateThemeUI();
-            android.widget.Toast.makeText(ctx, isNightMode ? "夜间模式" : "白天模式", android.widget.Toast.LENGTH_SHORT).show();
-        });
 
         updateThemeUI();
 
@@ -581,20 +560,20 @@ public class MainFragment extends BaseFloatFragment {
             updateThemeUI();
         }
 
-        if (returningFromPlayer) {
-            returningFromPlayer = false;
-            SharedPreferences prefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
-            String savedPlaylistMode = prefs.getString("playlist_mode", "all");
-            if ("bili".equals(savedPlaylistMode) && currentTab != 2) {
-                currentTab = 2;
-                String biliNavUrl = prefs.getString("bili_nav_url", "");
-                if (!biliNavUrl.isEmpty()) {
-                    biliCurrentUrl = biliNavUrl;
-                }
-            } else if ("webdav".equals(savedPlaylistMode) && currentTab != 1) {
-                currentTab = 1;
+        // 从播放页返回时，根据上次播放来源恢复 tab
+        // 不依赖 returningFromPlayer 实例变量（replace 会销毁重建 MainFragment 导致丢失）
+        SharedPreferences playPrefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
+        String savedPlaylistMode = playPrefs.getString("playlist_mode", "all");
+        if ("bili".equals(savedPlaylistMode) && currentTab != 2) {
+            currentTab = 2;
+            String biliNavUrl = playPrefs.getString("bili_nav_url", "");
+            if (!biliNavUrl.isEmpty()) {
+                biliCurrentUrl = biliNavUrl;
             }
+        } else if ("webdav".equals(savedPlaylistMode) && currentTab != 1) {
+            currentTab = 1;
         }
+        returningFromPlayer = false;
 
         updateTabUI();
         refreshFavorites();
@@ -1208,8 +1187,6 @@ public class MainFragment extends BaseFloatFragment {
             tvCopyright.setTextColor(ThemeColors.nightTextCopyright());
             tabDivider1.setBackgroundColor(ThemeColors.nightDivider());
             tabDivider2.setBackgroundColor(ThemeColors.nightDivider());
-            btnTheme.clearColorFilter();
-            btnStyle.clearColorFilter();
             btnClose.clearColorFilter();
             btnHelp.clearColorFilter();
             browseArea.setBackground(ThemeColors.bgGradient(true));
@@ -1235,8 +1212,6 @@ public class MainFragment extends BaseFloatFragment {
             tvCopyright.setTextColor(ThemeColors.dayTextCopyright());
             tabDivider1.setBackgroundColor(ThemeColors.dayDivider());
             tabDivider2.setBackgroundColor(ThemeColors.dayDivider());
-            btnStyle.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
-            btnTheme.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             btnClose.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             btnHelp.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             browseArea.setBackground(ThemeColors.bgGradient(false));

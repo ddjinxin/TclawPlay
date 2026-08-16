@@ -61,8 +61,7 @@ public class App extends Application {
                     // 乐酷悬浮模式：应用通过覆盖窗口在悬浮区域内显示，不启动独立悬浮窗
                     if (LecoFloatManager.getInstance().isFloating()) {
                         isForeground = false;
-                        Log.d(TAG, "Leco float active, skip MiniFloatService");
-                        return;
+                            return;
                     }
                     // 延迟300ms确认是否真的进后台，避免Activity切换时序问题导致误判
                     pendingStartFloat = () -> {
@@ -85,6 +84,10 @@ public class App extends Application {
     }
 
     private void startFloatService(Context context) {
+        // 检查悬浮窗开关
+        if (!com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(context)) {
+            return;
+        }
         // 只有在有音乐播放服务时才弹悬浮窗
         try {
             Intent intent = new Intent(context, MiniFloatService.class);
@@ -93,7 +96,6 @@ public class App extends Application {
             } else {
                 context.startService(intent);
             }
-            Log.d(TAG, "启动悬浮播放窗");
         } catch (Exception e) {
             Log.e(TAG, "启动悬浮播放窗失败: " + e.getMessage());
         }
@@ -102,7 +104,6 @@ public class App extends Application {
     private void stopFloatService(Context context) {
         try {
             context.stopService(new Intent(context, MiniFloatService.class));
-            Log.d(TAG, "停止悬浮播放窗");
         } catch (Exception e) {
             Log.e(TAG, "停止悬浮播放窗失败: " + e.getMessage());
         }
@@ -118,8 +119,7 @@ public class App extends Application {
             File lyricsDir = new File(downloadsDir, "lyrics");
             if (!lyricsDir.exists()) {
                 if (lyricsDir.mkdirs()) {
-                    Log.d(TAG, "已创建公共歌词目录: " + lyricsDir.getAbsolutePath());
-                }
+                    }
             }
         } catch (Exception e) {
             Log.e(TAG, "创建公共歌词目录失败: " + e.getMessage());

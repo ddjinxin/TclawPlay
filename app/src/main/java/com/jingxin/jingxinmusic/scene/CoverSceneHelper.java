@@ -55,7 +55,6 @@ public class CoverSceneHelper {
     public final ImageView btnBack;
     public final ImageView btnSpectrum;
     public final ImageView btnOutfit;
-    public final ImageView btnTheme;
     public final View topButtonsBar;
     public final View controlButtons;
     public final View progressLayout;
@@ -116,7 +115,6 @@ public class CoverSceneHelper {
             ImageView btnBack,
             ImageView btnSpectrum,
             ImageView btnOutfit,
-            ImageView btnTheme,
             View topButtonsBar,
             View controlButtons,
             View progressLayout,
@@ -146,7 +144,6 @@ public class CoverSceneHelper {
         this.btnBack = btnBack;
         this.btnSpectrum = btnSpectrum;
         this.btnOutfit = btnOutfit;
-        this.btnTheme = btnTheme;
         this.topButtonsBar = topButtonsBar;
         this.controlButtons = controlButtons;
         this.progressLayout = progressLayout;

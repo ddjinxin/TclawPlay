@@ -167,7 +167,6 @@ public class MiniFloatService extends Service {
             if (visualizerEnabled && playerBinder != null && playerBinder.isPlaying()) {
                 long elapsed = SystemClock.elapsedRealtime() - lastSpectrumCallbackTime;
                 if (elapsed > 3000) {
-                    Log.d(TAG, "频谱心跳: 回调超时(" + elapsed + "ms)，重建 Visualizer");
                     releaseVisualizer();
                     initVisualizer();
                     lastSpectrumCallbackTime = SystemClock.elapsedRealtime();
@@ -1499,13 +1498,17 @@ public class MiniFloatService extends Service {
         capsuleCenterLayout.addView(tvLyric, lyricParams);
 
         // 下层：迷你柱状频谱（底部对齐，与封面底部齐平）
-        capsuleSpectrum = new SpectrumView(this);
-        capsuleSpectrum.setStyle(SpectrumView.STYLE_COLUMNAR);
-        capsuleSpectrum.setNightMode(isNightMode);
-        FrameLayout.LayoutParams spectrumParams = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, (int)(42 * unit));
-        spectrumParams.gravity = Gravity.BOTTOM;
-        capsuleCenterLayout.addView(capsuleSpectrum, spectrumParams);
+        if (com.jingxin.jingxinmusic.fragment.SettingsFragment.isSpectrumEnabled(this)) {
+            capsuleSpectrum = new SpectrumView(this);
+            capsuleSpectrum.setStyle(SpectrumView.STYLE_COLUMNAR);
+            capsuleSpectrum.setNightMode(isNightMode);
+            FrameLayout.LayoutParams spectrumParams = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, (int)(42 * unit));
+            spectrumParams.gravity = Gravity.BOTTOM;
+            capsuleCenterLayout.addView(capsuleSpectrum, spectrumParams);
+        } else {
+            capsuleSpectrum = null;
+        }
 
         rootLayout.addView(capsuleCenterLayout, centerParams);
 
@@ -1521,45 +1524,18 @@ public class MiniFloatService extends Service {
         btnContainer.setBackground(btnBg);
 
         btnPlayPause = new ImageView(this);
-        FrameLayout.LayoutParams btnPpParams = new FrameLayout.LayoutParams(
-                (int)(28 * unit), (int)(28 * unit));
-        btnPpParams.gravity = Gravity.CENTER;
-        btnPlayPause.setLayoutParams(btnPpParams);
-        btnPlayPause.setImageResource(R.drawable.ic_pause);
-        btnPlayPause.setColorFilter(iconColor);
-        btnPlayPause.setOnClickListener(v -> {
-            if (bound && playerBinder != null) playerBinder.togglePlayPause();
-        });
-        btnContainer.addView(btnPlayPause);
-
+        btnPlayPause.setScaleType(ImageView.ScaleType.CENTER);
+        btnPlayPause.setImageResource(R.drawable.ic_play);
+        btnContainer.addView(btnPlayPause, new FrameLayout.LayoutParams(btnSize, btnSize));
         rootLayout.addView(btnContainer, btnContainerParams);
 
-         // ===== 外层 FrameLayout =====
-         FrameLayout container = new FrameLayout(this);
-         container.addView(rootLayout, new FrameLayout.LayoutParams(capsuleW, capsuleH));
+        // ===== 外层 FrameLayout =====
+        FrameLayout container = new FrameLayout(this);
+        container.addView(rootLayout, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
 
-         // 尺寸调节面板（胶囊模式用density作为unit，避免面板元素过大）
-        tvTitle = null;
-        tvArtist = null;
-        progressBar = null;
-        btnPrev = null;
-        btnNext = null;
-        float density = getResources().getDisplayMetrics().density;
-        float savedUnit = unit;
-        unit = density; // 面板用标准density
-        sizeAdjustPanel = buildSizeAdjustPanel(0xFFFFFFFF);
-        unit = savedUnit; // 恢复
-        sizeAdjustPanel.setVisibility(android.view.View.GONE);
-        container.addView(sizeAdjustPanel);
-
-        // ===== 拖动 + 点击/双击 =====
         rootLayout.setOnTouchListener((v, event) -> {
-            int action = event.getAction() & MotionEvent.ACTION_MASK;
-
-            if (sizeAdjustPanel != null && sizeAdjustPanel.getVisibility() == android.view.View.VISIBLE) {
-                return false;
-            }
-
+            int action = event.getAction();
             if (action == MotionEvent.ACTION_DOWN) {
                 if (isTouchOnCover(event)) {
                     return false;
@@ -1954,36 +1930,40 @@ public class MiniFloatService extends Service {
                 LinearLayout.LayoutParams.MATCH_PARENT, twoRowsH + pad));
 
         // ===== 第3行：全宽柱状频谱，高度=两行歌词总高度 =====
-        karaokeSpectrum = new SpectrumView(this);
-        karaokeSpectrum.setStyle(SpectrumView.STYLE_BAR);
-        karaokeSpectrum.setNightMode(isNightMode);
-        // 频谱渐变：黄色 → 歌词播放高亮色（高级灰日间用红色）
-        int spectrumDark = 0xFFFFD54F;  // 亮黄
-        int spectrumLight;
-        if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
-            spectrumLight = 0xFFE53935;  // 红色
-        } else {
-            spectrumLight = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
-        }
-        karaokeSpectrum.setBarColors(spectrumDark, spectrumLight);
-        LinearLayout.LayoutParams spectrumParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, spectrumH);
-
-        // 双击频谱关闭
-        karaokeSpectrum.setOnTouchListener((v, ev) -> {
-            if (ev.getAction() == MotionEvent.ACTION_UP) {
-                long now = System.currentTimeMillis();
-                if (now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
-                    karaokeSpectrum.setVisibility(View.GONE);
-                    lastClickTime = 0;
-                } else {
-                    lastClickTime = now;
-                }
+        if (com.jingxin.jingxinmusic.fragment.SettingsFragment.isSpectrumEnabled(this)) {
+            karaokeSpectrum = new SpectrumView(this);
+            karaokeSpectrum.setStyle(SpectrumView.STYLE_BAR);
+            karaokeSpectrum.setNightMode(isNightMode);
+            // 频谱渐变：黄色 → 歌词播放高亮色（高级灰日间用红色）
+            int spectrumDark = 0xFFFFD54F;  // 亮黄
+            int spectrumLight;
+            if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
+                spectrumLight = 0xFFE53935;  // 红色
+            } else {
+                spectrumLight = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
             }
-            return true;
-        });
+            karaokeSpectrum.setBarColors(spectrumDark, spectrumLight);
+            LinearLayout.LayoutParams spectrumParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, spectrumH);
 
-        rootLayout.addView(karaokeSpectrum, spectrumParams);
+            // 双击频谱关闭
+            karaokeSpectrum.setOnTouchListener((v, ev) -> {
+                if (ev.getAction() == MotionEvent.ACTION_UP) {
+                    long now = System.currentTimeMillis();
+                    if (now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
+                        karaokeSpectrum.setVisibility(View.GONE);
+                        lastClickTime = 0;
+                    } else {
+                        lastClickTime = now;
+                    }
+                }
+                return true;
+            });
+
+            rootLayout.addView(karaokeSpectrum, spectrumParams);
+        } else {
+            karaokeSpectrum = null;
+        }
 
         // ===== 外层 FrameLayout =====
          FrameLayout container = new FrameLayout(this);

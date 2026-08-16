@@ -31,7 +31,7 @@ public class HelpFragment extends BaseFloatFragment {
     private TextView tvTitle, tvVersion;
     private View dividerTop;
     private ScrollView rootScroll;
-    private ImageView btnBack;
+    private ImageView btnBack, btnSettings;
     private float density;
 
     @Override
@@ -71,6 +71,13 @@ public class HelpFragment extends BaseFloatFragment {
         dividerTop = view.findViewById(R.id.divider_top);
         tvVersion = view.findViewById(R.id.tv_version);
         btnBack = view.findViewById(R.id.btn_back);
+        btnSettings = view.findViewById(R.id.btn_settings);
+        btnSettings.setOnClickListener(v -> {
+            if (getActivity() instanceof com.jingxin.jingxinmusic.HostActivity) {
+                ((com.jingxin.jingxinmusic.HostActivity) getActivity())
+                        .navigateTo(new com.jingxin.jingxinmusic.fragment.SettingsFragment(), true);
+            }
+        });
         try {
             String v = requireContext().getPackageManager().getPackageInfo(requireContext().getPackageName(), 0).versionName;
             tvVersion.setText("静心音乐 v" + v);
@@ -86,11 +93,13 @@ public class HelpFragment extends BaseFloatFragment {
             dividerTop.setBackgroundColor(ThemeColors.nightDivider());
             tvVersion.setTextColor(ThemeColors.nightTextTertiary());
             btnBack.clearColorFilter();
+            btnSettings.clearColorFilter();
         } else {
             tvTitle.setTextColor(ThemeColors.dayTextPrimary());
             dividerTop.setBackgroundColor(ThemeColors.dayDivider());
             tvVersion.setTextColor(ThemeColors.dayTextSecondary());
             btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+            btnSettings.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
         }
     }
 

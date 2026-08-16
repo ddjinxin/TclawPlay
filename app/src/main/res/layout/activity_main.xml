@@ -33,30 +33,6 @@
             android:background="?attr/selectableItemBackgroundBorderless" />
 
         <ImageView
-            android:id="@+id/style_button"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_gravity="end|center_vertical"
-            android:layout_marginEnd="92dp"
-            android:src="@drawable/ic_palette"
-            android:padding="6dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:background="?attr/selectableItemBackgroundBorderless" />
-
-        <ImageView
-            android:id="@+id/theme_button"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_gravity="end|center_vertical"
-            android:layout_marginEnd="52dp"
-            android:src="@drawable/ic_theme"
-            android:padding="6dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:background="?attr/selectableItemBackgroundBorderless" />
-
-        <ImageView
             android:id="@+id/help_button"
             android:layout_width="36dp"
             android:layout_height="36dp"

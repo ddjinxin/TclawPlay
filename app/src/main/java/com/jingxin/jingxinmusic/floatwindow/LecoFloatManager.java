@@ -84,7 +84,6 @@ public class LecoFloatManager {
         this.windowManager = (WindowManager) app.getSystemService(Context.WINDOW_SERVICE);
         registerReceiver();
         app.registerActivityLifecycleCallbacks(new FloatLifecycle());
-        Log.d(TAG, "LecoFloatManager initialized");
     }
 
     private void registerReceiver() {
@@ -95,7 +94,6 @@ public class LecoFloatManager {
         filter.addAction(ACTION_CLOSE_MAP);
         application.registerReceiver(receiver, filter);
         receiverRegistered = true;
-        Log.d(TAG, "Broadcast receiver registered");
     }
 
     // ==================== 广播接收 ====================
@@ -104,14 +102,12 @@ public class LecoFloatManager {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            Log.d(TAG, "onReceive: " + action);
 
             if (ACTION_SHOW_MAP.equals(action)) {
                 int x = intent.getIntExtra("x", 0);
                 int y = intent.getIntExtra("y", 0);
                 int w = intent.getIntExtra("w", 0);
                 int h = intent.getIntExtra("h", 0);
-                Log.d(TAG, "showmap: x=" + x + " y=" + y + " w=" + w + " h=" + h);
 
                 if (w > 0 && h > 0) {
                     floatRect = new Rect(x, y, x + w, y + h);
@@ -130,26 +126,26 @@ public class LecoFloatManager {
                     }
                 }
             } else if (ACTION_CLOSE_MAP.equals(action)) {
-                Log.d(TAG, "closemap received");
                 canFloat.set(false);
                 restoreCurrentActivity();
                 removeFloatWindow();
-                // 乐酷悬浮退出后，如果 app 在后台，恢复独立桌面悬浮窗
-                Intent floatIntent = new Intent(application, com.jingxin.jingxinmusic.service.MiniFloatService.class);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    application.startForegroundService(floatIntent);
-                } else {
-                    application.startService(floatIntent);
-                }
-                Log.d(TAG, "Leco float closed, MiniFloatService started");
+                // 乐酷悬浮退出后，如果 app 在后台，恢复独立桌面悬浮窗（受设置开关控制）
+                if (com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(application)) {
+                    Intent floatIntent = new Intent(application, com.jingxin.jingxinmusic.service.MiniFloatService.class);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        application.startForegroundService(floatIntent);
+                    } else {
+                        application.startService(floatIntent);
+                    }
 
-                // MiniFloatService 重建 Visualizer 会抢占同一 audioSessionId，
-                // 通知 PlayerFragment 重建频谱（延迟 500ms 确保 Service 启动完）
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    Intent restartIntent = new Intent("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
-                    restartIntent.setPackage(application.getPackageName());
-                    application.sendBroadcast(restartIntent);
-                }, 500);
+                    // MiniFloatService 重建 Visualizer 会抢占同一 audioSessionId，
+                    // 通知 PlayerFragment 重建频谱（延迟 500ms 确保 Service 启动完）
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        Intent restartIntent = new Intent("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
+                        restartIntent.setPackage(application.getPackageName());
+                        application.sendBroadcast(restartIntent);
+                    }, 500);
+                }
             }
         }
     }
@@ -160,14 +156,11 @@ public class LecoFloatManager {
         @Override
         public void onActivityResumed(Activity activity) {
             currentResumedActivity = activity;
-            Log.d(TAG, "onActivityResumed: " + activity.getClass().getSimpleName()
-                    + " canFloat=" + canFloat.get() + " isFloating=" + isFloating.get());
             if (canFloat.get() && !isFloating.get()) {
                 floatActivity(activity);
             } else if (isFloating.get()) {
                 // 已在悬浮态，Activity 被 onResume 说明被拉回前台（如点击乐酷图标）
                 // 保持悬浮不变，把 Activity 推回后台，让乐酷继续在前台
-                Log.d(TAG, "onActivityResumed: already floating, push activity to back");
                 activity.moveTaskToBack(true);
             }
         }
@@ -183,7 +176,6 @@ public class LecoFloatManager {
                 currentResumedActivity = null;
             }
             if (activity == currentFloatingActivity) {
-                Log.d(TAG, "onActivityDestroyed: floating activity destroyed");
                 if (canFloat.get()) {
                     currentContentView = null;
                     currentFloatingActivity = null;
@@ -221,7 +213,6 @@ public class LecoFloatManager {
                     windowContainer.requestLayout();
                 });
             }
-            Log.d(TAG, "showmap: updated float rect while floating");
         }
     }
 
@@ -276,7 +267,6 @@ public class LecoFloatManager {
 
             if (!isFloating.get()) {
                 windowManager.addView(windowContainer, windowParams);
-                Log.d(TAG, "WindowManager.addView done");
             } else if (windowContainer.getWindowToken() != null) {
                 windowManager.updateViewLayout(windowContainer, windowParams);
             }
@@ -301,7 +291,6 @@ public class LecoFloatManager {
             try {
                 application.stopService(new Intent(application,
                         com.jingxin.jingxinmusic.service.MiniFloatService.class));
-                Log.d(TAG, "MiniFloatService stopped (entering Leco float mode)");
             } catch (Exception e) {
                 Log.w(TAG, "Failed to stop MiniFloatService: " + e.getMessage());
             }
@@ -315,8 +304,6 @@ public class LecoFloatManager {
                 application.sendBroadcast(restartIntent);
             }, 500);
 
-            Log.d(TAG, "Floating activity: " + activity.getClass().getSimpleName()
-                    + " rect=" + floatRect);
 
         } catch (Exception e) {
             Log.e(TAG, "floatActivity failed: " + e.getMessage(), e);
@@ -329,9 +316,6 @@ public class LecoFloatManager {
                 if (windowContainer != null) {
                     windowContainer.removeView(currentContentView);
                 }
-                Log.d(TAG, "restoreCurrentActivity: originalParent windowToken=" + (originalParent.getWindowToken() != null)
-                        + " parent attached=" + originalParent.isAttachedToWindow()
-                        + " contentView parent=" + currentContentView.getParent());
                 if (originalParent.getWindowToken() != null) {
                     if (currentContentView.getParent() == null) {
                         originalParent.addView(currentContentView, originalLayoutParams != null
@@ -340,16 +324,12 @@ public class LecoFloatManager {
                                         ViewGroup.LayoutParams.MATCH_PARENT,
                                         ViewGroup.LayoutParams.MATCH_PARENT));
                     }
-                    Log.d(TAG, "View fully restored, contentView parent=" + currentContentView.getParent()
-                            + " visibility=" + currentContentView.getVisibility()
-                            + " w=" + currentContentView.getWidth() + " h=" + currentContentView.getHeight());
                     // post 到下一帧强制重新布局为全屏尺寸
                     final View cv = currentContentView;
                     final ViewGroup parent = originalParent;
                     cv.post(() -> {
                         int pw = parent.getWidth();
                         int ph = parent.getHeight();
-                        Log.d(TAG, "post-restore relayout: parent w=" + pw + " h=" + ph);
                         cv.measure(
                                 View.MeasureSpec.makeMeasureSpec(pw, View.MeasureSpec.EXACTLY),
                                 View.MeasureSpec.makeMeasureSpec(ph, View.MeasureSpec.EXACTLY));
@@ -371,7 +351,6 @@ public class LecoFloatManager {
         try {
             if (windowContainer != null && windowContainer.getWindowToken() != null) {
                 windowManager.removeViewImmediate(windowContainer);
-                Log.d(TAG, "Float window removed");
             }
         } catch (Exception e) {
             Log.e(TAG, "removeFloatWindow failed: " + e.getMessage(), e);

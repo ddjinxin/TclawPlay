@@ -1,6 +1,7 @@
 package com.jingxin.jingxinmusic.view;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.text.Layout;
@@ -60,8 +61,8 @@ public class LyricView extends View {
     
     // 当前使用的颜色（根据主题切换）
     private int textColorNormal = ThemeColors.nightLyricNormal();
-    private int textColorPlayed = ThemeColors.lyricHighlight();
-    private int textColorCurrent = ThemeColors.lyricHighlight();
+    private int textColorPlayed = 0xFFFFEB3B;
+    private int textColorCurrent = 0xFFFFEB3B;
     
     // 字体大小配置（动态计算）
     private float textSizeNormal = 36f;
@@ -220,14 +221,19 @@ public class LyricView extends View {
         this.currentTheme = theme;
         Log.d(TAG, "切换主题模式: " + theme);
         
+        // 读取自定义歌词高亮颜色，fallback 到默认值
+        SharedPreferences prefs = getContext().getSharedPreferences("theme", Context.MODE_PRIVATE);
+        int customDayColor = prefs.getInt("day_lyric_color", 0xFFE53935);
+        int customNightColor = prefs.getInt("night_lyric_color", 0xFFFFEB3B);
+        
         if (theme == ThemeMode.NIGHT) {
             textColorNormal = ThemeColors.nightLyricNormal();
-            textColorPlayed = ThemeColors.lyricHighlight();
-            textColorCurrent = ThemeColors.lyricHighlight();
+            textColorPlayed = customNightColor;
+            textColorCurrent = customNightColor;
         } else {
             textColorNormal = ThemeColors.dayLyricNormal();
-            textColorPlayed = 0xFFE53935;   // 白天高亮改为红色
-            textColorCurrent = 0xFFE53935;
+            textColorPlayed = customDayColor;
+            textColorCurrent = customDayColor;
         }
         
         paintHint.setColor(textColorNormal);
