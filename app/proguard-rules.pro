@@ -1,18 +1,17 @@
 # ===== 项目自身类 =====
 
-# Activity 类 - 布局回调、onClick 等通过反射调用
--keep class com.jingxin.jingxinmusic.MainActivity { *; }
--keep class com.jingxin.jingxinmusic.PlayerActivity { *; }
--keep class com.jingxin.jingxinmusic.ui.WebDavSettingsActivity { *; }
+# HostActivity - Manifest 注册的入口 Activity
+-keep class com.jingxin.jingxinmusic.HostActivity { *; }
 
-# CoverScene 策略 - 接口和实现类被 PlayerActivity 动态调用
--keep class com.jingxin.jingxinmusic.scene.CoverScene { *; }
--keep class com.jingxin.jingxinmusic.scene.CoverSceneHelper { *; }
--keep class com.jingxin.jingxinmusic.scene.CoverSceneHelper$Callback { *; }
--keep class com.jingxin.jingxinmusic.scene.PortraitClassicScene { *; }
--keep class com.jingxin.jingxinmusic.scene.PortraitImmersiveScene { *; }
--keep class com.jingxin.jingxinmusic.scene.LandscapeClassicScene { *; }
--keep class com.jingxin.jingxinmusic.scene.LandscapeImmersiveScene { *; }
+# Fragment 子类 — FragmentManager 通过反射恢复 InstanceState
+-keep class com.jingxin.jingxinmusic.fragment.** { *; }
+
+# CoverScene 策略 - 接口和实现类被 PlayerFragment 动态调用
+-keep class com.jingxin.jingxinmusic.scene.** { *; }
+
+# CoverCarousel 相关视图
+-keep class com.jingxin.jingxinmusic.view.CoverCarouselView { *; }
+-keep class com.jingxin.jingxinmusic.view.CoverCarouselAdapter { *; }
 
 # CoverLoader - 回调接口被 Activity/Service 实现
 -keep class com.jingxin.jingxinmusic.util.CoverLoader { *; }

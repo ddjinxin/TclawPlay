@@ -97,7 +97,8 @@ public class App extends Application {
                 context.startService(intent);
             }
         } catch (Exception e) {
-            Log.e(TAG, "启动悬浮播放窗失败: " + e.getMessage());
+            // Android 12+ 禁止从后台启动前台服务，忽略即可
+            Log.w(TAG, "启动悬浮播放窗失败（可能是后台启动限制）: " + e.getMessage());
         }
     }
 

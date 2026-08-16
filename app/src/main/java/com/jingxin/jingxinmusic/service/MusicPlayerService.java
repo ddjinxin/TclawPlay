@@ -486,7 +486,11 @@ public class MusicPlayerService extends Service {
             coverExecutor.shutdownNow();
             coverExecutor = null;
         }
-        stopForeground(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(Service.STOP_FOREGROUND_REMOVE);
+        } else {
+            stopForeground(true);
+        }
         try {
             unregisterReceiver(notificationActionReceiver);
         } catch (Exception ignored) {}

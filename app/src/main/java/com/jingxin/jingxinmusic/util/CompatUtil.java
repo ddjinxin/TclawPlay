@@ -76,11 +76,20 @@ public class CompatUtil {
                         "startForeground", int.class, Notification.class, int.class);
                 method.invoke(service, id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
             } catch (Exception e) {
-                Log.w(TAG, "反射调用 startForeground 3参数失败，回退2参数: " + e.getMessage());
-                service.startForeground(id, notification);
+                Log.w(TAG, "startForeground 3参数失败: " + e.getMessage());
+                // fallback 也用 try-catch，2参数版在 API 34+ 可能也抛异常
+                try {
+                    service.startForeground(id, notification);
+                } catch (Exception e2) {
+                    Log.w(TAG, "startForeground 2参数也失败: " + e2.getMessage());
+                }
             }
         } else {
-            service.startForeground(id, notification);
+            try {
+                service.startForeground(id, notification);
+            } catch (Exception e) {
+                Log.w(TAG, "startForeground 失败: " + e.getMessage());
+            }
         }
     }
 }

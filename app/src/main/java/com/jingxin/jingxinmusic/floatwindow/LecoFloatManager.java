@@ -18,6 +18,7 @@ import android.view.WindowManager;
 import android.widget.FrameLayout;
 
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.util.CompatUtil;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -92,7 +93,7 @@ public class LecoFloatManager {
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_SHOW_MAP);
         filter.addAction(ACTION_CLOSE_MAP);
-        application.registerReceiver(receiver, filter);
+        CompatUtil.safeRegisterReceiverExported(application, receiver, filter);
         receiverRegistered = true;
     }
 
@@ -131,11 +132,15 @@ public class LecoFloatManager {
                 removeFloatWindow();
                 // 乐酷悬浮退出后，如果 app 在后台，恢复独立桌面悬浮窗（受设置开关控制）
                 if (com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(application)) {
-                    Intent floatIntent = new Intent(application, com.jingxin.jingxinmusic.service.MiniFloatService.class);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        application.startForegroundService(floatIntent);
-                    } else {
-                        application.startService(floatIntent);
+                    try {
+                        Intent floatIntent = new Intent(application, com.jingxin.jingxinmusic.service.MiniFloatService.class);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            application.startForegroundService(floatIntent);
+                        } else {
+                            application.startService(floatIntent);
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "乐酷悬浮退出后启动独立悬浮窗失败（可能是后台启动限制）: " + e.getMessage());
                     }
 
                     // MiniFloatService 重建 Visualizer 会抢占同一 audioSessionId，

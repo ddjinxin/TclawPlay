@@ -488,13 +488,19 @@ public class MainFragment extends BaseFloatFragment {
 
         checkPermissionAndScan();
 
-        // 初始 tab（从 HostActivity pendingTab 读取）
+        // 初始 tab（从 HostActivity pendingTab 读取，或从 last_played 恢复）
         int initialTab = 0;
         if (getActivity() instanceof HostActivity) {
             HostActivity host = (HostActivity) getActivity();
             if (host.pendingTab >= 0) {
                 initialTab = host.pendingTab;
                 host.pendingTab = -1;
+            } else {
+                // 悬浮模式返回时 new MainFragment()，从 last_played 恢复 tab
+                String savedMode = ctx.getSharedPreferences("last_played", Context.MODE_PRIVATE)
+                        .getString("playlist_mode", "all");
+                if ("bili".equals(savedMode)) initialTab = 2;
+                else if ("webdav".equals(savedMode)) initialTab = 1;
             }
         }
         switchTab(initialTab);
@@ -801,6 +807,7 @@ public class MainFragment extends BaseFloatFragment {
         webdavSetupArea.setVisibility(View.GONE);
         webDavScanner = new WebDavScanner(webDavConfig);
 
+        restoreWebDavNavState();
         String url = cloudCurrentUrl != null ? cloudCurrentUrl : webDavConfig.getMusicUrl();
         navigateCloudTo(url);
     }
@@ -810,6 +817,7 @@ public class MainFragment extends BaseFloatFragment {
             cloudNavStack.push(cloudCurrentUrl);
         }
         cloudCurrentUrl = url;
+        saveWebDavNavState();
 
         pathBar.setVisibility(View.VISIBLE);
         btnWebDavSettings.setVisibility(View.VISIBLE);
@@ -846,12 +854,48 @@ public class MainFragment extends BaseFloatFragment {
     private void navigateCloudBack() {
         if (cloudNavStack.isEmpty()) {
             cloudCurrentUrl = null;
+            saveWebDavNavState();
             loadWebDavItems();
             return;
         }
         String parentUrl = cloudNavStack.pop();
         cloudCurrentUrl = null;
         navigateCloudTo(parentUrl);
+    }
+
+    // ==================== WebDAV 导航状态持久化 ====================
+
+    private void saveWebDavNavState() {
+        try {
+            org.json.JSONArray stackArr = new org.json.JSONArray();
+            for (String s : cloudNavStack) {
+                stackArr.put(s);
+            }
+            requireContext().getSharedPreferences("webdav_nav", Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("current_url", cloudCurrentUrl)
+                    .putString("nav_stack", stackArr.toString())
+                    .apply();
+        } catch (Exception e) {
+            Log.e(TAG, "保存WebDAV导航状态失败: " + e.getMessage());
+        }
+    }
+
+    private void restoreWebDavNavState() {
+        if (cloudCurrentUrl != null || !cloudNavStack.isEmpty()) return;
+        try {
+            SharedPreferences prefs = requireContext().getSharedPreferences("webdav_nav", Context.MODE_PRIVATE);
+            cloudCurrentUrl = prefs.getString("current_url", null);
+            String stackJson = prefs.getString("nav_stack", null);
+            if (stackJson != null) {
+                org.json.JSONArray arr = new org.json.JSONArray(stackJson);
+                for (int i = 0; i < arr.length(); i++) {
+                    cloudNavStack.push(arr.getString(i));
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "恢复WebDAV导航状态失败: " + e.getMessage());
+        }
     }
 
     // ==================== B站 浏览 ====================
