@@ -1370,6 +1370,19 @@ public class MiniFloatService extends Service {
     }
 
     /**
+     * 判断触摸点是否落在播放/暂停按钮上（胶囊模式）
+     */
+    private boolean isTouchOnPlayPause(MotionEvent event) {
+        if (btnPlayPause == null) return false;
+        int[] location = new int[2];
+        btnPlayPause.getLocationOnScreen(location);
+        float x = event.getRawX();
+        float y = event.getRawY();
+        return x >= location[0] && x <= location[0] + btnPlayPause.getWidth()
+                && y >= location[1] && y <= location[1] + btnPlayPause.getHeight();
+    }
+
+    /**
      * 判断当前是否竖屏
      */
     private boolean isCurrentPortrait() {
@@ -1526,7 +1539,11 @@ public class MiniFloatService extends Service {
         btnPlayPause = new ImageView(this);
         btnPlayPause.setScaleType(ImageView.ScaleType.CENTER);
         btnPlayPause.setImageResource(R.drawable.ic_play);
+        btnPlayPause.setColorFilter(iconColor);
         btnContainer.addView(btnPlayPause, new FrameLayout.LayoutParams(btnSize, btnSize));
+        btnContainer.setOnClickListener(v -> {
+            if (bound && playerBinder != null) playerBinder.togglePlayPause();
+        });
         rootLayout.addView(btnContainer, btnContainerParams);
 
         // ===== 外层 FrameLayout =====
@@ -1534,10 +1551,24 @@ public class MiniFloatService extends Service {
         container.addView(rootLayout, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
 
+        // ===== 尺寸调节面板（默认隐藏，点击封面弹出） =====
+        sizeAdjustPanel = buildSizeAdjustPanel(0xFFFFFFFF);
+        sizeAdjustPanel.setVisibility(android.view.View.GONE);
+        container.addView(sizeAdjustPanel);
+
+        // 单击回app / 双击关闭悬浮窗（空实现，实际逻辑在 onTouch 的 ACTION_UP 中）
+        rootLayout.setOnClickListener(v -> {});
+
         rootLayout.setOnTouchListener((v, event) -> {
             int action = event.getAction();
+            if (sizeAdjustPanel != null && sizeAdjustPanel.getVisibility() == android.view.View.VISIBLE) {
+                return false;
+            }
             if (action == MotionEvent.ACTION_DOWN) {
                 if (isTouchOnCover(event)) {
+                    return false;
+                }
+                if (isTouchOnPlayPause(event)) {
                     return false;
                 }
             }

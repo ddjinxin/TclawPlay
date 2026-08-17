@@ -166,6 +166,21 @@ public class PlayerFragment extends BaseFloatFragment {
     private AudioRecord audioRecord;
     private volatile boolean spectrumRunning = false;
     private boolean useVisualizer = false; // 当前是否用 Visualizer
+    private volatile long lastSpectrumCallbackTime = 0; // 频谱回调时间戳（心跳检测）
+    private final Runnable spectrumHeartbeat = new Runnable() {
+        @Override
+        public void run() {
+            if (spectrumRunning && useVisualizer && bound && playerBinder != null && playerBinder.isPlaying()) {
+                long elapsed = android.os.SystemClock.elapsedRealtime() - lastSpectrumCallbackTime;
+                if (elapsed > 3000) {
+                    Log.w(TAG, "频谱心跳超时(" + elapsed + "ms)，自动重建");
+                    stopSpectrum();
+                    startSpectrumWithPermission();
+                }
+            }
+            uiHandler.postDelayed(this, 2000);
+        }
+    };
     private static final int SAMPLE_RATE = 8000;
     private static final int FFT_SIZE = 256;
 
@@ -191,8 +206,8 @@ public class PlayerFragment extends BaseFloatFragment {
                 saveLastPlayed();
                 // 轮播模式切歌时滚动到新位置
                 syncCarouselPosition();
-                // MediaPlayer 兜底模式下切歌会产生新的 audioSessionId，需重建 Visualizer
-                if (bound && playerBinder != null && playerBinder.isFallbackMode()) {
+                // 切歌时重建频谱（sessionId 可能变化，如 ExoPlayer 重建或 MediaPlayer 兜底）
+                if (bound && playerBinder != null) {
                     stopSpectrum();
                     startSpectrumWithPermission();
                 }
@@ -668,6 +683,7 @@ public class PlayerFragment extends BaseFloatFragment {
         boolean spectrumEnabled = SettingsFragment.isSpectrumEnabled(requireContext());
         if (!spectrumEnabled) {
             stopSpectrum();
+            uiHandler.removeCallbacks(spectrumHeartbeat);
             spectrumView.setVisibility(View.GONE);
             btnSpectrum.setVisibility(View.GONE);
         } else {
@@ -676,6 +692,9 @@ public class PlayerFragment extends BaseFloatFragment {
                 spectrumView.setPlaying(true);
                 startSpectrumWithPermission();
             }
+            // 启动频谱心跳检测
+            lastSpectrumCallbackTime = android.os.SystemClock.elapsedRealtime();
+            uiHandler.postDelayed(spectrumHeartbeat, 2000);
         }
         // 从列表页返回时，可能横竖屏已变化，需要重新检测并刷新唱臂
         if (tonearmView != null && tonearmView.getVisibility() == View.VISIBLE) {
@@ -1267,6 +1286,10 @@ public class PlayerFragment extends BaseFloatFragment {
             }
             spectrumView.setPlaying(true);
             currentScene.onPlayingStateChanged(true);
+            // 恢复播放时重启频谱数据采集（暂停期间 Visualizer 可能已失效）
+            if (SettingsFragment.isSpectrumEnabled(requireContext())) {
+                startSpectrumWithPermission();
+            }
         } else {
             btnPlayPause.setImageResource(R.drawable.ic_play);
             coverView.stopRotation();
@@ -2137,7 +2160,10 @@ public class PlayerFragment extends BaseFloatFragment {
      * 启动频谱：优先 Visualizer（直接读取音频输出），失败则降级到 AudioRecord（麦克风采集）
      */
     private void startSpectrum() {
-        if (spectrumRunning) return;
+        // 先停后启：确保每次调用都能得到全新的 Visualizer（避免旧实例回调静默失效后标志卡死）
+        if (spectrumRunning) {
+            stopSpectrum();
+        }
         spectrumRunning = true;
 
         // 尝试 Visualizer 方案（直接读取音频输出，不依赖麦克风）
@@ -2160,6 +2186,7 @@ public class PlayerFragment extends BaseFloatFragment {
                         @Override
                         public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
                             if (!spectrumRunning || spectrumView == null) return;
+                            lastSpectrumCallbackTime = android.os.SystemClock.elapsedRealtime();
 
                             // BD 方式：FFT 1:1 取幅度，竖条模式只取半数频段（会镜像展开）
                             int count = spectrumView.getBarInputCount();
@@ -2377,6 +2404,7 @@ public class PlayerFragment extends BaseFloatFragment {
     public void onDestroyView() {
         super.onDestroyView();
         stopSpectrum();
+        uiHandler.removeCallbacks(spectrumHeartbeat);
         uiHandler.removeCallbacks(progressRunnable);
         try {
             requireContext().unregisterReceiver(songChangedReceiver);

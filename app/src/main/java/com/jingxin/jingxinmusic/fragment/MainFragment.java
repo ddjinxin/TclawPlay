@@ -405,15 +405,18 @@ public class MainFragment extends BaseFloatFragment {
                     int newHeight = bottom - top;
                     int oldWidth = oldRight - oldLeft;
                     int oldHeight = oldBottom - oldTop;
-                    if (oldWidth > 0 && (newWidth != oldWidth || newHeight != oldHeight)) {
+                    if (newWidth > 0 && (oldWidth <= 0 || newWidth != oldWidth || newHeight != oldHeight)) {
                         if (rvBrowse != null) {
                             rvBrowse.post(() -> {
                                 if (isActivityGone()) return;
                                 applyLandscapeProportionalLayout();
                                 int newSpan = calcSpanCount();
-                                rvBrowse.setLayoutManager(new GridLayoutManager(ctx, newSpan));
-                                if (browseAdapter != null) {
-                                    browseAdapter.notifyDataSetChanged();
+                                GridLayoutManager lm = (GridLayoutManager) rvBrowse.getLayoutManager();
+                                if (lm == null || lm.getSpanCount() != newSpan) {
+                                    rvBrowse.setLayoutManager(new GridLayoutManager(ctx, newSpan));
+                                    if (browseAdapter != null) {
+                                        browseAdapter.notifyDataSetChanged();
+                                    }
                                 }
                             });
                         }
@@ -568,6 +571,7 @@ public class MainFragment extends BaseFloatFragment {
 
         // 从播放页返回时，根据上次播放来源恢复 tab
         // 不依赖 returningFromPlayer 实例变量（replace 会销毁重建 MainFragment 导致丢失）
+        boolean tabChanged = false;
         SharedPreferences playPrefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
         String savedPlaylistMode = playPrefs.getString("playlist_mode", "all");
         if ("bili".equals(savedPlaylistMode) && currentTab != 2) {
@@ -576,15 +580,20 @@ public class MainFragment extends BaseFloatFragment {
             if (!biliNavUrl.isEmpty()) {
                 biliCurrentUrl = biliNavUrl;
             }
+            tabChanged = true;
         } else if ("webdav".equals(savedPlaylistMode) && currentTab != 1) {
             currentTab = 1;
+            tabChanged = true;
         }
         returningFromPlayer = false;
 
         updateTabUI();
         refreshFavorites();
         webDavConfig = new WebDavConfig(requireContext());
-        loadCurrentTabContent();
+        // 仅在 tab 实际变化时才重新加载内容，避免从播放页返回时 WebDAV 区域闪烁
+        if (tabChanged) {
+            loadCurrentTabContent();
+        }
         updateMiniPlayerFromService();
     }
 
@@ -1699,8 +1708,14 @@ public class MainFragment extends BaseFloatFragment {
     }
 
     private int calcSpanCount() {
-        int screenWidth = getResources().getDisplayMetrics().widthPixels;
-        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int screenWidth, screenHeight;
+        if (mRootView != null && mRootView.getWidth() > 0 && mRootView.getHeight() > 0) {
+            screenWidth = mRootView.getWidth();
+            screenHeight = mRootView.getHeight();
+        } else {
+            screenWidth = getResources().getDisplayMetrics().widthPixels;
+            screenHeight = getResources().getDisplayMetrics().heightPixels;
+        }
         boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
         int baseSpan = Math.max(3, screenWidth / 360);
         if (!isLandscape) return baseSpan;
