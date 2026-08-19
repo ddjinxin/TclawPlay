@@ -62,9 +62,17 @@ public class UpdateHelper {
     private static final int SPEED_TEST_BYTES = 16 * 1024;
     private static final int SPEED_TEST_TIMEOUT = 5000;
 
-    // APK 缓存路径
-    private static final String UPDATE_DIR  = "/sdcard/Download/TclawPlay/";
-    private static final String UPDATE_FILE = UPDATE_DIR + "update.apk";
+    // APK 缓存路径（应用专属目录，不需要特殊权限）
+    private static final String UPDATE_FILE_NAME = "update.apk";
+    private File updateFile;
+    private File getUpdateFile() {
+        if (updateFile == null) {
+            File dir = appContext.getExternalFilesDir(null);
+            if (dir == null) dir = appContext.getCacheDir();
+            updateFile = new File(dir, UPDATE_FILE_NAME);
+        }
+        return updateFile;
+    }
 
     // 永久忽略版本集合存储
     private static final String SP_NAME       = "update_prefs";
@@ -291,12 +299,12 @@ public class UpdateHelper {
     /** 下载 APK：并发测速选最快镜像，按速度顺序依次尝试，全失败才回退主源 */
     private boolean downloadApk(String originalUrl) {
         // 先清理旧 APK
-        File oldFile = new File(UPDATE_FILE);
+        File oldFile = getUpdateFile();
         if (oldFile.exists()) oldFile.delete();
 
-        File dir = new File(UPDATE_DIR);
-        if (!dir.exists() && !dir.mkdirs()) {
-            Log.e(TAG, "创建下载目录失败: " + UPDATE_DIR);
+        File dir = oldFile.getParentFile();
+        if (dir != null && !dir.exists() && !dir.mkdirs()) {
+            Log.e(TAG, "创建下载目录失败: " + dir.getAbsolutePath());
             return false;
         }
 
@@ -316,7 +324,7 @@ public class UpdateHelper {
         // 按测速结果尝试下载（最快的优先）
         for (SpeedResult sr : sorted) {
             Log.i(TAG, "尝试从镜像下载: " + sr.url);
-            if (tryDownload(sr.url, UPDATE_FILE, 20000)) {
+            if (tryDownload(sr.url, getUpdateFile().getAbsolutePath(), 20000)) {
                 Log.i(TAG, "镜像下载成功: " + sr.url);
                 return true;
             }
@@ -325,7 +333,7 @@ public class UpdateHelper {
 
         // 所有镜像都失败，回退 GitHub 主源
         Log.w(TAG, "所有镜像均失败，回退 GitHub 主源");
-        return tryDownload(originalUrl, UPDATE_FILE, 20000);
+        return tryDownload(originalUrl, getUpdateFile().getAbsolutePath(), 20000);
     }
 
     /** 构造镜像 URL */
@@ -504,7 +512,7 @@ public class UpdateHelper {
     /** 调起系统安装器 */
     private void installApk(Activity activity) {
         try {
-            File apkFile = new File(UPDATE_FILE);
+            File apkFile = getUpdateFile();
             if (!apkFile.exists()) {
                 Toast.makeText(activity, "APK 文件不存在", Toast.LENGTH_SHORT).show();
                 return;

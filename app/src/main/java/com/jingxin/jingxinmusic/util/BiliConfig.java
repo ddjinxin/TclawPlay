@@ -6,8 +6,6 @@ import android.util.Log;
 
 import org.json.JSONObject;
 
-import java.io.File;
-
 /**
  * B站配置管理
  * 持久化存储 B站登录Cookie（SESSDATA等）
@@ -125,18 +123,13 @@ public class BiliConfig {
      */
     public void clearAll() {
         prefs.edit().clear().apply();
-        File backup = new File(getBackupPath());
-        if (backup != null && backup.exists()) backup.delete();
+        ConfigBackupHelper.deleteBackup(context, BACKUP_FILENAME);
     }
 
-    // ===== 备份与恢复（Download目录） =====
-
-    private String getBackupPath() {
-        return "/sdcard/Download/" + BACKUP_FILENAME;
-    }
+    // ===== 备份与恢复（Download目录，Android 10+ 通过 MediaStore） =====
 
     public boolean hasBackup() {
-        return ConfigBackupHelper.hasBackup(getBackupPath());
+        return ConfigBackupHelper.hasBackup(context, BACKUP_FILENAME);
     }
 
     public boolean exportToDownload() {
@@ -148,7 +141,7 @@ public class BiliConfig {
             json.put(KEY_NICKNAME, getNickname());
             json.put(KEY_AVATAR_URL, getAvatarUrl());
             json.put(KEY_ENABLED, isEnabled());
-            return ConfigBackupHelper.exportToDownload(getBackupPath(), json, "B站");
+            return ConfigBackupHelper.exportToDownload(context, BACKUP_FILENAME, json, "B站");
         } catch (Exception e) {
             Log.e(TAG, "导出B站配置失败: " + e.getMessage());
             return false;
@@ -156,8 +149,7 @@ public class BiliConfig {
     }
 
     public boolean importFromDownload() {
-        File backup = ConfigBackupHelper.findBackupFile(getBackupPath());
-        return ConfigBackupHelper.importFromDownload(backup, prefs, (editor, json) -> {
+        return ConfigBackupHelper.importFromDownload(context, prefs, (editor, json) -> {
             try {
                 if (json.has(KEY_SESSDATA)) editor.putString(KEY_SESSDATA, json.getString(KEY_SESSDATA));
                 if (json.has(KEY_BILI_JCT)) editor.putString(KEY_BILI_JCT, json.getString(KEY_BILI_JCT));
@@ -168,6 +160,6 @@ public class BiliConfig {
             } catch (org.json.JSONException e) {
                 throw new RuntimeException(e);
             }
-        }, "B站");
+        }, "B站", BACKUP_FILENAME);
     }
 }

@@ -26,6 +26,7 @@ import androidx.annotation.Nullable;
 
 import com.jingxin.jingxinmusic.HostActivity;
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.util.ConfigBackupHelper;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.WebDavCacheManager;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
@@ -85,36 +86,8 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
         initViews(view);
         applyTheme();
         loadConfig();
-        checkStoragePermission();
 
         return view;
-    }
-
-    /**
-     * 检查存储权限，没有则弹窗引导用户去系统设置授权
-     */
-    private void checkStoragePermission() {
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
-            if (!android.os.Environment.isExternalStorageManager()) {
-                new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                    .setTitle("需要存储权限")
-                    .setMessage("读取备份配置需要\"所有文件访问\"权限，请在设置中开启")
-                    .setPositiveButton("去设置", (d, w) -> {
-                        try {
-                            startActivity(new android.content.Intent(
-                                android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                                android.net.Uri.parse("package:" + requireContext().getPackageName())));
-                        } catch (Exception e) {
-                            startActivity(new android.content.Intent(
-                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                android.net.Uri.parse("package:" + requireContext().getPackageName())));
-                        }
-                    })
-                    .setNegativeButton("取消", null)
-                    .setCancelable(false)
-                    .show();
-            }
-        }
     }
 
     private void initViews(View view) {
@@ -389,22 +362,11 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
     }
 
     /**
-     * 读取Download目录下备份文件的内容（不写入SharedPreferences）
+     * 读取备份文件内容（通过 MediaoStore/API 兼容方式，不需要特殊权限）
      */
     private String readBackupContent() {
-        java.io.File backup = new java.io.File("/sdcard/Download/jingxin_webdav_config.json");
-        java.io.File oldBackup = new java.io.File("/sdcard/Download/.jingxin_webdav_config");
-        if (!backup.exists() && !oldBackup.exists()) return null;
-        java.io.File file = backup.exists() ? backup : oldBackup;
-        try {
-            java.io.FileInputStream fis = new java.io.FileInputStream(file);
-            byte[] buffer = new byte[(int) file.length()];
-            fis.read(buffer);
-            fis.close();
-            return new String(buffer, "UTF-8");
-        } catch (Exception e) {
-            return null;
-        }
+        return ConfigBackupHelper.readBackupContent(requireContext(),
+                WebDavConfig.getBackupFilename(), WebDavConfig.getBackupFilenameOld());
     }
 
     /**

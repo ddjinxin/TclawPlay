@@ -111,16 +111,17 @@ public class App extends Application {
     }
 
     /**
-     * 确保公共歌词目录存在（/sdcard/Download/lyrics/）
-     * 已存在则跳过，Android 10+ 也用 File API 创建目录（不影响 MediaStore 写入）
+     * 确保公共歌词目录存在
+     * Android 10+ 通过 MediaStore.Downloads 写入，目录由系统自动创建，无需预建
+     * Android 9- 用 File API 创建
      */
     private void ensureLyricsDir() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) return;
         try {
             File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
             File lyricsDir = new File(downloadsDir, "lyrics");
             if (!lyricsDir.exists()) {
-                if (lyricsDir.mkdirs()) {
-                    }
+                lyricsDir.mkdirs();
             }
         } catch (Exception e) {
             Log.e(TAG, "创建公共歌词目录失败: " + e.getMessage());

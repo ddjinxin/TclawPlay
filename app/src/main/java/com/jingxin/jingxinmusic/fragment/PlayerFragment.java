@@ -487,6 +487,10 @@ public class PlayerFragment extends BaseFloatFragment {
                                 updateThemeUI();
                                 updateLayoutForMode(lyricView.getDisplayMode());
                             }
+                            // 兜底：Scene.layout() 设置了 LyricView 新 LayoutParams，
+                            // 但 onSizeChanged 在下一帧才触发，存在时序窗口。
+                            // post 一次 refreshTextSize 确保字号立即重算+重绘。
+                            lyricView.post(lyricView::refreshTextSize);
                         }
                     });
         }
@@ -842,15 +846,9 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void startSpectrumWithPermission() {
         if (!SettingsFragment.isSpectrumEnabled(requireContext())) return;
-        // 使用 ContextCompat/ActivityCompat 避免直接调用 API 23+ 方法导致低版本 ART VerifyError
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            startSpectrum();
-        } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                androidx.core.app.ActivityCompat.requestPermissions(requireActivity(), new String[]{Manifest.permission.RECORD_AUDIO}, 100);
-            }
-            // API < 23 安装时即授权，不会走此分支
-        }
+        // Visualizer 只需要 MODIFY_AUDIO_SETTINGS（安装即授予），不需要 RECORD_AUDIO
+        // 先直接尝试 Visualizer，失败后再请求 RECORD_AUDIO 降级到 AudioRecord
+        startSpectrum();
     }
 
     @Override
@@ -2174,6 +2172,9 @@ public class PlayerFragment extends BaseFloatFragment {
                     visualizer = new Visualizer(sessionId);
                     visualizer.setEnabled(false);
                     int[] range = visualizer.getCaptureSizeRange();
+                    if (range == null || range.length < 2) {
+                        throw new RuntimeException("getCaptureSizeRange returned invalid range");
+                    }
                     visualizer.setCaptureSize(range[1]);
                     visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
 
@@ -2233,6 +2234,14 @@ public class PlayerFragment extends BaseFloatFragment {
      * AudioRecord 降级方案：通过麦克风采集音频 + FFT 计算频谱
      */
     private void startSpectrumAudioRecord() {
+        // AudioRecord 降级方案需要 RECORD_AUDIO 权限，Visualizer 不需要
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            androidx.core.app.ActivityCompat.requestPermissions(requireActivity(),
+                    new String[]{Manifest.permission.RECORD_AUDIO}, 100);
+            spectrumRunning = false;
+            return;
+        }
         new Thread(() -> {
             try {
                 int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE,

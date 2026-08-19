@@ -94,6 +94,17 @@ public class LyricView extends View {
         updateTextSize();
         invalidate();
     }
+
+    /**
+     * 外部主动触发字号重算并重绘。
+     * 用于布局变化后 coverScene.layout() 已设置新 LayoutParams、
+     * 但 onSizeChanged 和 invalidate 时序不确定时做兜底刷新。
+     */
+    public void refreshTextSize() {
+        if (viewWidth <= 0) return;
+        updateTextSize();
+        invalidate();
+    }
     private float lineSpacing = 60f;     // 歌词行之间的间距（不同时间戳的行之间）
     
     // 字体大小计算比例
@@ -285,6 +296,9 @@ public class LyricView extends View {
         textAreaWidth = viewWidth - 2 * textPadding;
         if (textAreaWidth < 100) textAreaWidth = viewWidth; // 安全下限
         updateTextSize();
+        // 字号已重算但 updateTextSize 内部不触发重绘，必须显式 invalidate
+        // 否则新字号要等下一次 updatePosition()（每秒一次）才刷新到屏幕
+        invalidate();
     }
     
     private void updateTextSize() {

@@ -1699,6 +1699,11 @@ public class MiniFloatService extends Service {
             visualizer = new Visualizer(sessionId);
             visualizer.setEnabled(false);
             int[] range = visualizer.getCaptureSizeRange();
+            if (range == null || range.length < 2) {
+                visualizer.release();
+                visualizer = null;
+                return;
+            }
             visualizer.setCaptureSize(range[1]);
             visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
 

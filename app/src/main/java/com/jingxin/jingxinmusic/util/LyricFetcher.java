@@ -644,17 +644,9 @@ public class LyricFetcher {
     private static void notifyLyricAvailable(Context context, String safeName, String songTitle, String songArtist) {
         if (context == null) return;
 
-        File lyricsPublicDir = new File(
-                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
-                "lyrics");
-
-        String lrcPath = null;
-        String krcPath = null;
-
-        File lrcFile = new File(lyricsPublicDir, safeName + ".lrc");
-        if (lrcFile.exists()) lrcPath = lrcFile.getAbsolutePath();
-        File krcFile = new File(lyricsPublicDir, safeName + ".krc");
-        if (krcFile.exists()) krcPath = krcFile.getAbsolutePath();
+        // Android 10+ 通过 MediaStore 查询公共歌词文件，9- 用 File.exists()
+        String lrcPath = getPublicLyricPath(context, safeName + ".lrc");
+        String krcPath = getPublicLyricPath(context, safeName + ".krc");
 
         if (lrcPath == null && krcPath == null) return;
 
@@ -668,6 +660,42 @@ public class LyricFetcher {
         context.sendBroadcast(intent);
 
         Log.d(TAG, "歌词就绪广播: " + safeName + " lrc=" + (lrcPath != null) + " krc=" + (krcPath != null));
+    }
+
+    /**
+     * 查询公共 Download/lyrics/ 目录中歌词文件路径
+     * Android 10+ 通过 MediaStore 查询，9- 用 File.exists()
+     * @return 文件路径（Android 10+ 为 content Uri 或 File 路径），不存在返回 null
+     */
+    private static String getPublicLyricPath(Context context, String fileName) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            try {
+                android.net.Uri downloadsUri = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+                String[] projection = {android.provider.MediaStore.Downloads._ID};
+                String selection = android.provider.MediaStore.Downloads.DISPLAY_NAME + " = ? AND " +
+                        android.provider.MediaStore.Downloads.RELATIVE_PATH + " LIKE ?";
+                String[] selectionArgs = {fileName, "%/lyrics/%"};
+                try (android.database.Cursor cursor = context.getContentResolver().query(
+                        downloadsUri, projection, selection, selectionArgs, null)) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        long id = cursor.getLong(0);
+                        return android.content.ContentUris.withAppendedId(downloadsUri, id).toString();
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "查询公共歌词失败: " + e.getMessage());
+            }
+            // 兼容旧版 File 路径
+            File legacy = new File(
+                    android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+                    "lyrics/" + fileName);
+            return legacy.exists() ? legacy.getAbsolutePath() : null;
+        } else {
+            File file = new File(
+                    android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+                    "lyrics/" + fileName);
+            return file.exists() ? file.getAbsolutePath() : null;
+        }
     }
 
 }

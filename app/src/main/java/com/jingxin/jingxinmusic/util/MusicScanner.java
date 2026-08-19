@@ -378,27 +378,44 @@ public class MusicScanner {
     /**
      * 触发媒体扫描，让 MediaStore 索引新增的音乐文件
      * 解决 adb push 或第三方下载的文件不会自动被 MediaStore 索引的问题
-     * 扫描内置存储的 Music、Download、Records 等常见音频目录
+     * Android 10+：通过 MediaStore 查询已知音频文件，无需 listFiles
+     * Android 9-：用 File API 遍历公共目录收集音频路径
      * @return 是否触发了扫描（有新文件需要索引时返回 true）
      */
     public static boolean triggerMediaScan(Context context) {
-        File storageRoot = Environment.getExternalStorageDirectory();
-        String[] musicDirs = {"Music", "Download", "Records", "Recordings", "Audio"};
-        boolean scanned = false;
-        for (String dirName : musicDirs) {
-            File dir = new File(storageRoot, dirName);
-            if (!dir.isDirectory()) continue;
-            File[] files = dir.listFiles();
-            if (files == null) continue;
-            // 收集音频文件路径
-            List<String> paths = new ArrayList<>();
-            collectAudioFiles(dir, paths);
-            if (!paths.isEmpty()) {
-                String[] pathsArray = paths.toArray(new String[0]);
-                // scanFile 是异步的，但会在查询 MediaStore 之前被处理
-                MediaScannerConnection.scanFile(context, pathsArray, null, null);
-                Log.d(TAG, "触发媒体扫描: " + dirName + "/ 下 " + pathsArray.length + " 个音频文件");
-                scanned = true;
+        boolean scanned;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            // Android 10+：直接请求 MediaStore 扫描内置存储卷
+            // listFiles() 在 Scoped Storage 下不可靠，改用 MediaScannerConnection 扫描公共音频目录
+            String[] scanPaths = {
+                    Environment.getExternalStorageDirectory() + "/Music",
+                    Environment.getExternalStorageDirectory() + "/Download",
+                    Environment.getExternalStorageDirectory() + "/Records",
+                    Environment.getExternalStorageDirectory() + "/Recordings",
+                    Environment.getExternalStorageDirectory() + "/Audio"
+            };
+            // scanFile 接受目录路径，系统会递归扫描
+            MediaScannerConnection.scanFile(context, scanPaths, null, null);
+            Log.d(TAG, "触发媒体扫描: 内置存储音频目录");
+            scanned = true;
+        } else {
+            // Android 9-：用 File API 遍历收集音频文件路径
+            File storageRoot = Environment.getExternalStorageDirectory();
+            String[] musicDirs = {"Music", "Download", "Records", "Recordings", "Audio"};
+            scanned = false;
+            for (String dirName : musicDirs) {
+                File dir = new File(storageRoot, dirName);
+                if (!dir.isDirectory()) continue;
+                File[] files = dir.listFiles();
+                if (files == null) continue;
+                List<String> paths = new ArrayList<>();
+                collectAudioFiles(dir, paths);
+                if (!paths.isEmpty()) {
+                    String[] pathsArray = paths.toArray(new String[0]);
+                    MediaScannerConnection.scanFile(context, pathsArray, null, null);
+                    Log.d(TAG, "触发媒体扫描: " + dirName + "/ 下 " + pathsArray.length + " 个音频文件");
+                    scanned = true;
+                }
             }
         }
         if (scanned) {

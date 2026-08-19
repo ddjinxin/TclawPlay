@@ -403,6 +403,26 @@ public class LecoFloatManager {
         return isFloating.get() && activity == currentFloatingActivity;
     }
 
+    /**
+     * 获取乐酷悬浮区域宽度（像素），未悬浮时返回 0
+     */
+    public int getFloatWidth() {
+        if (floatRect != null && isFloating.get()) {
+            return floatRect.width() - floatRect.left;
+        }
+        return 0;
+    }
+
+    /**
+     * 获取乐酷悬浮区域高度（像素），未悬浮时返回 0
+     */
+    public int getFloatHeight() {
+        if (floatRect != null && isFloating.get()) {
+            return floatRect.height() - floatRect.top;
+        }
+        return 0;
+    }
+
     public View findViewById(int id) {
         if (windowContainer != null) {
             return windowContainer.findViewById(id);

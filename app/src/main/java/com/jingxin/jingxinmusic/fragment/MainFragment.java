@@ -1707,16 +1707,51 @@ public class MainFragment extends BaseFloatFragment {
         return BitmapUtil.createScaledCircularBitmap(bitmap, px);
     }
 
+    /**
+     * 判断是否为横屏模式（基于实际宽高比，悬浮模式下优先使用悬浮区域尺寸）
+     */
+    private boolean isLandscapeMode() {
+        int width = 0, height = 0;
+        // 优先使用根视图实际测量尺寸（悬浮模式下 = 悬浮区域尺寸）
+        if (mRootView != null && mRootView.getWidth() > 0 && mRootView.getHeight() > 0) {
+            width = mRootView.getWidth();
+            height = mRootView.getHeight();
+        }
+        // 回退到悬浮区域尺寸
+        if (width <= 0 || height <= 0) {
+            int floatW = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatWidth();
+            int floatH = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatHeight();
+            if (floatW > 0 && floatH > 0) {
+                width = floatW;
+                height = floatH;
+            }
+        }
+        // 最后回退到屏幕尺寸
+        if (width <= 0 || height <= 0) {
+            width = getResources().getDisplayMetrics().widthPixels;
+            height = getResources().getDisplayMetrics().heightPixels;
+        }
+        return width > height * 1.1f;
+    }
+
     private int calcSpanCount() {
         int screenWidth, screenHeight;
         if (mRootView != null && mRootView.getWidth() > 0 && mRootView.getHeight() > 0) {
             screenWidth = mRootView.getWidth();
             screenHeight = mRootView.getHeight();
         } else {
-            screenWidth = getResources().getDisplayMetrics().widthPixels;
-            screenHeight = getResources().getDisplayMetrics().heightPixels;
+            // 悬浮模式下优先取悬浮区域尺寸
+            int floatW = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatWidth();
+            int floatH = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatHeight();
+            if (floatW > 0 && floatH > 0) {
+                screenWidth = floatW;
+                screenHeight = floatH;
+            } else {
+                screenWidth = getResources().getDisplayMetrics().widthPixels;
+                screenHeight = getResources().getDisplayMetrics().heightPixels;
+            }
         }
-        boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        boolean isLandscape = isLandscapeMode();
         int baseSpan = Math.max(3, screenWidth / 360);
         if (!isLandscape) return baseSpan;
         int availableH = (int) (screenHeight * 0.59f);
@@ -1735,9 +1770,18 @@ public class MainFragment extends BaseFloatFragment {
     }
 
     private void applyLandscapeProportionalLayout() {
-        boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
-        if (mRootView == null || mRootView.getHeight() == 0) return;
+        boolean isLandscape = isLandscapeMode();
+        if (mRootView == null) return;
         int height = mRootView.getHeight();
+        if (height == 0) {
+            // 悬浮模式下根视图未布局时，取悬浮区域高度
+            int floatH = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatHeight();
+            if (floatH > 0) {
+                height = floatH;
+            } else {
+                return;
+            }
+        }
         float density = getResources().getDisplayMetrics().density;
 
         if (isLandscape) {

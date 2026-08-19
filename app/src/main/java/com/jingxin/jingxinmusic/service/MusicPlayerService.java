@@ -1265,31 +1265,30 @@ public class MusicPlayerService extends Service {
         String safeName = FileUtil.sanitizeFileName(song.title);
         File lyricsDir = new File(getExternalFilesDir(null), "lyrics");
 
-        File lrcPublicFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + safeName + ".lrc");
-        File krcPublicFile = new File(android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + safeName + ".krc");
-
-        // 如果公共目录已经有，直接返回路径
-        if (lrcPublicFile.exists()) result[0] = lrcPublicFile.getAbsolutePath();
-        if (krcPublicFile.exists()) result[1] = krcPublicFile.getAbsolutePath();
+        // 检查公共目录是否已有歌词文件（Android 10+ 通过 MediaStore，9- 用 File.exists）
+        if (publicLyricExists(safeName + ".lrc")) {
+            result[0] = getPublicLyricPath(safeName + ".lrc");
+        }
+        if (publicLyricExists(safeName + ".krc")) {
+            result[1] = getPublicLyricPath(safeName + ".krc");
+        }
         if (result[0] != null && result[1] != null) return result;
 
         // 检查本地缓存（兼容旧文件名格式），有则同步复制
         File krcCache = findLyricFile(lyricsDir, safeName, song.artist, ".krc");
         File lrcCache = findLyricFile(lyricsDir, safeName, song.artist, ".lrc");
 
-        if (krcCache.exists() && !krcPublicFile.exists()) {
+        if (krcCache.exists() && result[1] == null) {
             LyricPublicUtil.copyToPublicDir(this, krcCache);
-            if (krcPublicFile.exists()) result[1] = krcPublicFile.getAbsolutePath();
+            if (publicLyricExists(safeName + ".krc")) result[1] = getPublicLyricPath(safeName + ".krc");
         }
-        if (lrcCache.exists() && !lrcPublicFile.exists()) {
+        if (lrcCache.exists() && result[0] == null) {
             LyricPublicUtil.copyToPublicDir(this, lrcCache);
-            if (lrcPublicFile.exists()) result[0] = lrcPublicFile.getAbsolutePath();
+            if (publicLyricExists(safeName + ".lrc")) result[0] = getPublicLyricPath(safeName + ".lrc");
         }
 
         // 本地有KRC但没有LRC，从KRC生成LRC
-        if (krcCache.exists() && !lrcCache.exists() && !lrcPublicFile.exists()) {
+        if (krcCache.exists() && !lrcCache.exists() && result[0] == null) {
             KrcParser.LyricData data = KrcParser.parseKrcFile(krcCache);
             if (data != null && data.lines != null && !data.lines.isEmpty()) {
                 String lrcText = data.toLrcText();
@@ -1297,12 +1296,72 @@ public class MusicPlayerService extends Service {
                     File newLrcCache = new File(lyricsDir, safeName + ".lrc");
                     FileUtil.writeFile(newLrcCache, lrcText);
                     LyricPublicUtil.copyToPublicDir(this, newLrcCache);
-                    if (lrcPublicFile.exists()) result[0] = lrcPublicFile.getAbsolutePath();
+                    if (publicLyricExists(safeName + ".lrc")) result[0] = getPublicLyricPath(safeName + ".lrc");
                 }
             }
         }
 
         return result;
+    }
+
+    /**
+     * 检查公共 Download/lyrics/ 目录中是否存在指定歌词文件
+     * Android 10+ 通过 MediaStore 查询，9- 用 File.exists()
+     */
+    private boolean publicLyricExists(String fileName) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            try {
+                android.net.Uri downloadsUri = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+                String[] projection = {android.provider.MediaStore.Downloads._ID};
+                String selection = android.provider.MediaStore.Downloads.DISPLAY_NAME + " = ? AND " +
+                        android.provider.MediaStore.Downloads.RELATIVE_PATH + " LIKE ?";
+                String[] selectionArgs = {fileName, "%/lyrics/%"};
+                try (android.database.Cursor cursor = getContentResolver().query(
+                        downloadsUri, projection, selection, selectionArgs, null)) {
+                    return cursor != null && cursor.getCount() > 0;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "查询公共歌词存在性失败: " + e.getMessage());
+            }
+            // 兼容旧版 File 路径
+            File legacy = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + fileName);
+            return legacy.exists();
+        } else {
+            File file = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + fileName);
+            return file.exists();
+        }
+    }
+
+    /**
+     * 获取公共 Download/lyrics/ 目录中歌词文件路径
+     * Android 10+：返回 MediaStore Uri 的字符串形式（content://）或 legacy File 路径
+     * Android 9-：返回 File 路径
+     */
+    private String getPublicLyricPath(String fileName) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            try {
+                android.net.Uri downloadsUri = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+                String[] projection = {android.provider.MediaStore.Downloads._ID};
+                String selection = android.provider.MediaStore.Downloads.DISPLAY_NAME + " = ? AND " +
+                        android.provider.MediaStore.Downloads.RELATIVE_PATH + " LIKE ?";
+                String[] selectionArgs = {fileName, "%/lyrics/%"};
+                try (android.database.Cursor cursor = getContentResolver().query(
+                        downloadsUri, projection, selection, selectionArgs, null)) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        long id = cursor.getLong(0);
+                        return android.content.ContentUris.withAppendedId(downloadsUri, id).toString();
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "获取公共歌词路径失败: " + e.getMessage());
+            }
+        }
+        // Android 9- 或 MediaStore 查询失败时回退到 File 路径
+        File file = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS), "lyrics/" + fileName);
+        return file.getAbsolutePath();
     }
 
     /**

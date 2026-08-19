@@ -198,6 +198,9 @@ public class CoverSceneHelper {
     public int getLayoutWidth() {
         int pw = rootLayout.getWidth();
         if (pw > 0) return pw;
+        // 悬浮模式下优先取乐酷发送的悬浮区域宽度
+        int floatW = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatWidth();
+        if (floatW > 0) return floatW;
         return rootLayout.getResources().getDisplayMetrics().widthPixels;
     }
 
@@ -207,6 +210,9 @@ public class CoverSceneHelper {
     public int getAvailableScreenHeight() {
         int ph = rootLayout.getHeight();
         if (ph > 0) return ph;
+        // 悬浮模式下优先取乐酷发送的悬浮区域高度
+        int floatH = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatHeight();
+        if (floatH > 0) return floatH;
         int height = rootLayout.getResources().getDisplayMetrics().heightPixels;
         // 减去系统栏
         int resourceId = rootLayout.getResources().getIdentifier("status_bar_height", "dimen", "android");

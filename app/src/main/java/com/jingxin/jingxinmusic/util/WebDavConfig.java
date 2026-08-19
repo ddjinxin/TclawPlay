@@ -6,8 +6,6 @@ import android.util.Log;
 
 import org.json.JSONObject;
 
-import java.io.File;
-
 /**
  * WebDAV 配置管理
  * 持久化存储 WebDAV 服务器地址、账号、音乐根目录、缓存设置等
@@ -19,6 +17,9 @@ public class WebDavConfig {
     private static final String PREFS_NAME = "webdav_config";
     private static final String BACKUP_FILENAME = "jingxin_webdav_config.json";
     private static final String BACKUP_FILENAME_OLD = ".jingxin_webdav_config";
+
+    public static String getBackupFilename() { return BACKUP_FILENAME; }
+    public static String getBackupFilenameOld() { return BACKUP_FILENAME_OLD; }
 
     // 配置项 key
     private static final String KEY_SERVER_URL = "server_url";
@@ -162,24 +163,13 @@ public class WebDavConfig {
      */
     public void clearAll() {
         prefs.edit().clear().apply();
-        File backup = new File(getBackupPath());
-        if (backup != null && backup.exists()) backup.delete();
-        File backupOld = new File(getOldBackupPath());
-        if (backupOld != null && backupOld.exists()) backupOld.delete();
+        ConfigBackupHelper.deleteBackup(context, BACKUP_FILENAME, BACKUP_FILENAME_OLD);
     }
 
-    // ===== 备份与恢复（Download目录） =====
-
-    private String getBackupPath() {
-        return "/sdcard/Download/" + BACKUP_FILENAME;
-    }
-
-    private String getOldBackupPath() {
-        return "/sdcard/Download/" + BACKUP_FILENAME_OLD;
-    }
+    // ===== 备份与恢复（Download目录，Android 10+ 通过 MediaStore） =====
 
     public boolean hasBackup() {
-        return ConfigBackupHelper.hasBackup(getBackupPath(), getOldBackupPath());
+        return ConfigBackupHelper.hasBackup(context, BACKUP_FILENAME, BACKUP_FILENAME_OLD);
     }
 
     public boolean exportToDownload() {
@@ -191,7 +181,7 @@ public class WebDavConfig {
             json.put(KEY_MUSIC_PATH, getMusicPath());
             json.put(KEY_CACHE_SIZE_MB, getCacheSizeMb());
             json.put(KEY_ENABLED, isEnabled());
-            return ConfigBackupHelper.exportToDownload(getBackupPath(), json, "WebDAV");
+            return ConfigBackupHelper.exportToDownload(context, BACKUP_FILENAME, json, "WebDAV");
         } catch (Exception e) {
             Log.e(TAG, "导出WebDAV配置失败: " + e.getMessage());
             return false;
@@ -199,8 +189,7 @@ public class WebDavConfig {
     }
 
     public boolean importFromDownload() {
-        File backup = ConfigBackupHelper.findBackupFile(getBackupPath(), getOldBackupPath());
-        return ConfigBackupHelper.importFromDownload(backup, prefs, (editor, json) -> {
+        return ConfigBackupHelper.importFromDownload(context, prefs, (editor, json) -> {
             try {
                 if (json.has(KEY_SERVER_URL)) editor.putString(KEY_SERVER_URL, json.getString(KEY_SERVER_URL));
                 if (json.has(KEY_USERNAME)) editor.putString(KEY_USERNAME, json.getString(KEY_USERNAME));
@@ -211,6 +200,6 @@ public class WebDavConfig {
             } catch (org.json.JSONException e) {
                 throw new RuntimeException(e);
             }
-        }, "WebDAV");
+        }, "WebDAV", BACKUP_FILENAME, BACKUP_FILENAME_OLD);
     }
 }
