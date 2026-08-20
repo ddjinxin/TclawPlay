@@ -1401,7 +1401,12 @@ public class MusicPlayerService extends Service {
      * 判断是否需要使用 MediaPlayer 兜底播放
      * ALAC 编码的 m4a：若设备无 ALAC 解码器，ExoPlayer 会静默跳过音频轨道（不报错），
      * 所以必须提前检测，直接走 MediaPlayer 兜底。
-     * AIFF / WMA 等更罕见格式：同样直接兜底。
+     * AIFF / WMA / APE / DTS / DSD / AC3 等罕见格式：同样直接兜底。
+     * 车机可能带特殊解码器（杜比AC3/DTS/DSD），MediaPlayer 调系统解码器有机会播放。
+     *
+     * WebDAV 例外：playUri 以 http 开头时不走 MediaPlayer 兜底，
+     * 因为 MediaPlayer.setDataSource(String) 无法携带 HTTP 认证头，
+     * WebDAV 需要认证的资源会直接 401 失败。
      */
     private boolean needsFallback(String filePath, String playUri) {
         String path = filePath != null ? filePath : playUri;
@@ -1420,6 +1425,17 @@ public class MusicPlayerService extends Service {
         }
         // AIFF / WMA 等罕见格式，直接兜底
         if (lower.endsWith(".aiff") || lower.endsWith(".aif") || lower.endsWith(".wma")) {
+            return true;
+        }
+        // APE / DTS / DSD / AC3：ExoPlayer 不支持，走 MediaPlayer 兜底
+        // 车机可能带杜比AC3/DTS/DSD解码器，MediaPlayer 调系统解码器有机会播放
+        // WebDAV 歌曲例外：MediaPlayer 无法携带认证头，不兜底
+        if (lower.endsWith(".ape") || lower.endsWith(".dts") ||
+            lower.endsWith(".dsf") || lower.endsWith(".dff") || lower.endsWith(".ac3")) {
+            // WebDAV 歌曲不走 MediaPlayer 兜底（认证头问题）
+            if (playUri != null && playUri.startsWith("http")) {
+                return false;
+            }
             return true;
         }
         return false;

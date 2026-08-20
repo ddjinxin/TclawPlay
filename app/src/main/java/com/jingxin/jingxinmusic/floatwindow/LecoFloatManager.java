@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.os.Build;
@@ -14,6 +15,7 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 
@@ -57,6 +59,8 @@ public class LecoFloatManager {
 
     // 悬浮区域
     private Rect floatRect;
+    // 乐酷通知的圆角参数（px），未取到时为 0（直角）
+    private float floatCornerRadius = 0f;
 
     // 状态标志
     private final AtomicBoolean canFloat = new AtomicBoolean(false);
@@ -109,6 +113,9 @@ public class LecoFloatManager {
                 int y = intent.getIntExtra("y", 0);
                 int w = intent.getIntExtra("w", 0);
                 int h = intent.getIntExtra("h", 0);
+                // 读取乐酷新增的圆角参数 r（px），默认 0 即直角
+                float r = intent.getFloatExtra("r", 0f);
+                floatCornerRadius = r;
 
                 if (w > 0 && h > 0) {
                     floatRect = new Rect(x, y, x + w, y + h);
@@ -193,6 +200,30 @@ public class LecoFloatManager {
         }
     }
 
+    // ==================== 圆角裁剪 ====================
+
+    /**
+     * 根据乐酷通知的圆角参数 r 设置悬浮窗圆角裁剪。
+     * r > 0 时用 ViewOutlineProvider 裁剪圆角，r = 0 时清除裁剪（直角）。
+     */
+    private void applyFloatCornerRadius() {
+        if (windowContainer == null) return;
+        if (floatCornerRadius > 0f) {
+            windowContainer.setClipToOutline(true);
+            windowContainer.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), floatCornerRadius);
+                }
+            });
+            windowContainer.invalidate();
+        } else {
+            windowContainer.setClipToOutline(false);
+            windowContainer.setOutlineProvider(null);
+            windowContainer.invalidate();
+        }
+    }
+
     // ==================== 核心逻辑 ====================
 
     private void updateFloatWindowSize() {
@@ -260,6 +291,7 @@ public class LecoFloatManager {
 
             windowContainer.setClipChildren(true);
             windowContainer.setClipToPadding(true);
+            applyFloatCornerRadius();
 
             if (windowParams == null) {
                 windowParams = createLayoutParams(floatRect);
@@ -273,7 +305,8 @@ public class LecoFloatManager {
             if (!isFloating.get()) {
                 windowManager.addView(windowContainer, windowParams);
             } else if (windowContainer.getWindowToken() != null) {
-                windowManager.updateViewLayout(windowContainer, windowParams);
+            windowManager.updateViewLayout(windowContainer, windowParams);
+            applyFloatCornerRadius();
             }
 
             final int fw = floatW;
@@ -364,6 +397,7 @@ public class LecoFloatManager {
             windowContainer.removeAllViews();
         }
         windowParams = null;
+        floatCornerRadius = 0f;
         isFloating.set(false);
     }
 
@@ -421,6 +455,13 @@ public class LecoFloatManager {
             return floatRect.height() - floatRect.top;
         }
         return 0;
+    }
+
+    /**
+     * 获取乐酷悬浮圆角参数（px），未取到时为 0（直角）
+     */
+    public float getFloatCornerRadius() {
+        return floatCornerRadius;
     }
 
     public View findViewById(int id) {

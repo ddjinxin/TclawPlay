@@ -1,6 +1,7 @@
 package com.jingxin.jingxinmusic.fragment;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.PorterDuff;
 import android.os.Bundle;
@@ -60,6 +61,17 @@ public class HelpFragment extends BaseFloatFragment {
         btnReturn.setOnClickListener(v -> requireActivity().onBackPressed());
 
         btnBack.setOnClickListener(v -> requireActivity().onBackPressed());
+
+        rootScroll.setOnApplyWindowInsetsListener((v, insets) -> {
+            int topInset;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                topInset = insets.getInsets(android.view.WindowInsets.Type.systemBars()).top;
+            } else {
+                topInset = insets.getSystemWindowInsetTop();
+            }
+            rootScroll.setPadding(rootScroll.getPaddingLeft(), topInset, rootScroll.getPaddingRight(), rootScroll.getPaddingBottom());
+            return insets;
+        });
 
         return view;
     }

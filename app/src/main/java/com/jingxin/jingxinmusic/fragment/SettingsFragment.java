@@ -1,9 +1,13 @@
 package com.jingxin.jingxinmusic.fragment;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.PorterDuff;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,6 +15,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -18,8 +23,11 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SwitchCompat;
 
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.util.MusicScanner;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.LyricColorBar;
+
+import java.util.List;
 
 public class SettingsFragment extends BaseFloatFragment {
 
@@ -46,6 +54,13 @@ public class SettingsFragment extends BaseFloatFragment {
     // 各设置项描述
     private TextView tvNightDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc;
     private TextView btnDayReset, btnNightReset;
+    private TextView btnScan;
+    private TextView tvScanTitle, tvScanDesc;
+    private ProgressBar scanProgress;
+    private boolean isScanning = false;
+    // 文件访问权限
+    private TextView btnStoragePerm;
+    private TextView tvStoragePermTitle, tvStoragePermDesc;
 
     /** 设置项标题颜色：白天黑色，夜间白色 */
     private int titleColor() {
@@ -86,11 +101,24 @@ public class SettingsFragment extends BaseFloatFragment {
 
         initViews(view);
         applyTheme();
+        setupScanButton(view);
+        setupStoragePermission(view);
         setupNightModeSwitch(view);
         setupStyleSelector(view);
         setupFloatWindowSwitch(view);
         setupSpectrumSwitch(view);
         setupLyricColorSelector(view);
+
+        rootScroll.setOnApplyWindowInsetsListener((v, insets) -> {
+            int topInset;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                topInset = insets.getInsets(android.view.WindowInsets.Type.systemBars()).top;
+            } else {
+                topInset = insets.getSystemWindowInsetTop();
+            }
+            rootScroll.setPadding(rootScroll.getPaddingLeft(), topInset, rootScroll.getPaddingRight(), rootScroll.getPaddingBottom());
+            return insets;
+        });
 
         return view;
     }
@@ -121,12 +149,18 @@ public class SettingsFragment extends BaseFloatFragment {
         if (tvFloatTitle != null) tvFloatTitle.setTextColor(tc);
         if (tvSpectrumTitle != null) tvSpectrumTitle.setTextColor(tc);
         if (tvLyricTitle != null) tvLyricTitle.setTextColor(tc);
+        if (tvScanTitle != null) tvScanTitle.setTextColor(tc);
+        if (btnScan != null) btnScan.setTextColor(tc);
+        if (tvStoragePermTitle != null) tvStoragePermTitle.setTextColor(tc);
+        if (btnStoragePerm != null) btnStoragePerm.setTextColor(tc);
         // 刷新所有描述
         if (tvNightDesc != null) tvNightDesc.setTextColor(ts);
         if (tvStyleDesc != null) tvStyleDesc.setTextColor(ts);
         if (tvFloatDesc != null) tvFloatDesc.setTextColor(ts);
         if (tvSpectrumDesc != null) tvSpectrumDesc.setTextColor(ts);
         if (tvLyricDesc != null) tvLyricDesc.setTextColor(ts);
+        if (tvScanDesc != null) tvScanDesc.setTextColor(ts);
+        if (tvStoragePermDesc != null) tvStoragePermDesc.setTextColor(ts);
         if (btnDayReset != null) btnDayReset.setTextColor(ts);
         if (btnNightReset != null) btnNightReset.setTextColor(ts);
         // 风格 tab 颜色
@@ -146,6 +180,99 @@ public class SettingsFragment extends BaseFloatFragment {
             dividerMid4.setBackgroundColor(ThemeColors.dayDivider());
             btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
         }
+    }
+
+    private void setupStoragePermission(View view) {
+        btnStoragePerm = view.findViewById(R.id.btn_storage_perm);
+        tvStoragePermTitle = view.findViewById(R.id.tv_storage_perm_title);
+        tvStoragePermDesc = view.findViewById(R.id.tv_storage_perm_desc);
+        tvStoragePermTitle.setTextColor(titleColor());
+        tvStoragePermDesc.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
+        btnStoragePerm.setTextColor(titleColor());
+
+        updateStoragePermissionUI();
+
+        btnStoragePerm.setOnClickListener(v -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (Environment.isExternalStorageManager()) {
+                    Toast.makeText(requireContext(), "文件访问权限已开启", Toast.LENGTH_SHORT).show();
+                } else {
+                    try {
+                        Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                        intent.setData(Uri.parse("package:" + requireContext().getPackageName()));
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        try {
+                            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                            startActivity(intent);
+                        } catch (Exception e2) {
+                            Toast.makeText(requireContext(), "无法打开设置页，请手动前往系统设置", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }
+            } else {
+                Toast.makeText(requireContext(), "当前系统版本不需要此权限", Toast.LENGTH_SHORT).show();
+                btnStoragePerm.setText("已开启");
+                btnStoragePerm.setEnabled(false);
+            }
+        });
+    }
+
+    private void updateStoragePermissionUI() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (Environment.isExternalStorageManager()) {
+                btnStoragePerm.setText("已开启");
+                btnStoragePerm.setEnabled(false);
+                tvStoragePermDesc.setText("U盘音乐扫描权限已就绪");
+            } else {
+                btnStoragePerm.setText("去授权");
+                btnStoragePerm.setEnabled(true);
+                tvStoragePermDesc.setText("U盘音乐扫描需要此权限");
+            }
+        } else {
+            btnStoragePerm.setText("已开启");
+            btnStoragePerm.setEnabled(false);
+            tvStoragePermDesc.setText("当前系统版本不需要此权限");
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 从系统授权页返回后刷新按钮状态
+        if (btnStoragePerm != null) {
+            updateStoragePermissionUI();
+        }
+    }
+
+    private void setupScanButton(View view) {
+        btnScan = view.findViewById(R.id.btn_scan);
+        scanProgress = view.findViewById(R.id.scan_progress);
+        tvScanTitle = view.findViewById(R.id.tv_scan_title);
+        tvScanDesc = view.findViewById(R.id.tv_scan_desc);
+        tvScanTitle.setTextColor(titleColor());
+        tvScanDesc.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
+        btnScan.setTextColor(titleColor());
+
+        btnScan.setOnClickListener(v -> {
+            if (isScanning) return;
+            isScanning = true;
+            btnScan.setText("扫描中…");
+            btnScan.setEnabled(false);
+            scanProgress.setVisibility(View.VISIBLE);
+
+            MusicScanner.manualScan(requireContext(), songs -> {
+                requireActivity().runOnUiThread(() -> {
+                    isScanning = false;
+                    btnScan.setText("扫描");
+                    btnScan.setEnabled(true);
+                    scanProgress.setVisibility(View.GONE);
+                    Toast.makeText(requireContext(),
+                            "扫描完成，共 " + (songs != null ? songs.size() : 0) + " 首",
+                            Toast.LENGTH_SHORT).show();
+                });
+            });
+        });
     }
 
     private void setupNightModeSwitch(View view) {
