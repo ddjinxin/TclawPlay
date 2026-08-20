@@ -76,36 +76,24 @@ public class MusicScanner {
      *
      * 注意：triggerMediaScan 不在此方法中调用，由调用方按需触发
      */
+    /**
+     * 合并去重后保存缓存
+     */
+    private static List<Song> mergeAndCache(Context context, List<Song>... lists) {
+        List<Song> merged = mergeSongs(lists);
+        Log.d(TAG, "合并去重后: " + merged.size() + " 首");
+        saveCache(context, merged);
+        return merged;
+    }
+
     public static List<Song> scanMusic(Context context) {
-        // 第一步：MediaStore 查询
         List<Song> mediaStoreSongs = scanByMediaStore(context);
         Log.d(TAG, "MediaStore 扫描: " + mediaStoreSongs.size() + " 首");
 
-        // 第二步：文件遍历扫描（探测 U 盘/SD 卡）
         List<Song> fileTraversalSongs = scanByFileTraversal(context);
         Log.d(TAG, "文件遍历扫描: " + fileTraversalSongs.size() + " 首");
 
-        // 第三步：合并去重（以 filePath 为键，MediaStore 结果优先）
-        Set<String> existingPaths = new HashSet<>();
-        for (Song song : mediaStoreSongs) {
-            if (song.filePath != null) {
-                existingPaths.add(song.filePath);
-            }
-        }
-
-        List<Song> merged = new ArrayList<>(mediaStoreSongs);
-        for (Song song : fileTraversalSongs) {
-            if (song.filePath != null && !existingPaths.contains(song.filePath)) {
-                merged.add(song);
-                existingPaths.add(song.filePath);
-            }
-        }
-
-        Log.d(TAG, "合并去重后: " + merged.size() + " 首");
-
-        // 保存缓存
-        saveCache(context, merged);
-        return merged;
+        return mergeAndCache(context, mediaStoreSongs, fileTraversalSongs);
     }
 
     // ========== 手动扫描 ==========
@@ -129,17 +117,13 @@ public class MusicScanner {
             try {
                 Log.d(TAG, "===== 手动扫描开始 =====");
 
-                // Step 1: 清除缓存
                 clearCache(context);
-
-                // Step 2: 强制 triggerMediaScan
                 triggerMediaScan(context);
 
-                // Step 3: 轮询等待 MediaStore 索引稳定
                 int prevCount = getMediaStoreCount(context);
                 boolean stable = false;
                 for (int i = 0; i < 5; i++) {
-                    try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+                    sleepSafe(2000);
                     int currCount = getMediaStoreCount(context);
                     Log.d(TAG, "轮询[" + (i + 1) + "]: prev=" + prevCount + " curr=" + currCount);
                     if (currCount == prevCount) {
@@ -150,16 +134,14 @@ public class MusicScanner {
                 }
                 Log.d(TAG, "索引稳定: " + stable);
 
-                // Step 4: 三路全量扫描
                 List<Song> result = manualScanInternal(context);
 
-                // Step 5: 二次检查结果稳定性
                 int firstCount = result.size();
                 if (!stable || firstCount != prevCount) {
-                    try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+                    sleepSafe(2000);
                     List<Song> result2 = manualScanInternal(context);
                     if (result2.size() != firstCount) {
-                        try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+                        sleepSafe(2000);
                         result = manualScanInternal(context);
                     } else {
                         result = result2;
@@ -168,11 +150,9 @@ public class MusicScanner {
 
                 Log.d(TAG, "===== 手动扫描完成，共 " + result.size() + " 首 =====");
 
-                // 发送广播
                 Intent scanIntent = new Intent(ACTION_SCAN_COMPLETE);
                 context.sendBroadcast(scanIntent);
 
-                // 回调
                 if (callback != null) {
                     callback.onScanComplete(result);
                 }
@@ -189,47 +169,17 @@ public class MusicScanner {
      * 手动扫描内部三路扫描逻辑
      */
     private static List<Song> manualScanInternal(Context context) {
-        // 路1: MediaStore 多卷查询
         List<Song> mediaStoreSongs = scanByMediaStore(context);
         Log.d(TAG, "手动扫描 路1(MediaStore): " + mediaStoreSongs.size() + " 首");
 
-        // 路2: U盘/SD卡文件遍历
         List<Song> fileTraversalSongs = scanByFileTraversal(context);
         Log.d(TAG, "手动扫描 路2(U盘遍历): " + fileTraversalSongs.size() + " 首");
 
-        // 路3: 内置存储文件遍历
         List<Song> internalSongs = scanInternalByFileTraversal(context);
         Log.d(TAG, "手动扫描 路3(内置存储遍历): " + internalSongs.size() + " 首");
 
-        // 合并去重（以 filePath 为键，MediaStore 优先，路2次之，路3最后）
-        Set<String> existingPaths = new HashSet<>();
-        List<Song> merged = new ArrayList<>();
-
-        for (Song song : mediaStoreSongs) {
-            if (song.filePath != null && !existingPaths.contains(song.filePath)) {
-                merged.add(song);
-                existingPaths.add(song.filePath);
-            } else if (song.filePath == null) {
-                merged.add(song);
-            }
-        }
-        for (Song song : fileTraversalSongs) {
-            if (song.filePath != null && !existingPaths.contains(song.filePath)) {
-                merged.add(song);
-                existingPaths.add(song.filePath);
-            }
-        }
-        for (Song song : internalSongs) {
-            if (song.filePath != null && !existingPaths.contains(song.filePath)) {
-                merged.add(song);
-                existingPaths.add(song.filePath);
-            }
-        }
-
-        // 补充U盘歌曲元数据
+        List<Song> merged = mergeSongs(mediaStoreSongs, fileTraversalSongs, internalSongs);
         enrichMetadata(merged);
-
-        // 保存缓存
         saveCache(context, merged);
         return merged;
     }
@@ -244,6 +194,77 @@ public class MusicScanner {
     // ========== 缓存机制 ==========
 
     /**
+     * 获取外部卷名列表（API 29+ 多卷含U盘，API 21-28 单卷）
+     */
+    private static List<String> getVolumeNames(Context context) {
+        List<String> volumeNames = new ArrayList<>();
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            try {
+                Set<String> volSet = MediaStore.getExternalVolumeNames(context);
+                if (volSet != null && !volSet.isEmpty()) {
+                    volumeNames.addAll(volSet);
+                } else {
+                    volumeNames.add(MediaStore.VOLUME_EXTERNAL);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "获取外部卷名失败，使用默认: " + e.getMessage());
+                volumeNames.add(MediaStore.VOLUME_EXTERNAL);
+            }
+        } else {
+            volumeNames.add(null);
+        }
+        return volumeNames;
+    }
+
+    /**
+     * 构建 displayName（artist + " - " + title，或仅 title）
+     */
+    private static void buildDisplayName(Song song) {
+        if (song.artist != null && !song.artist.equals("<unknown>")) {
+            song.displayName = song.artist + " - " + song.title;
+        } else {
+            song.displayName = song.title;
+        }
+    }
+
+    /**
+     * 检查目录是否含 .nomedia 标记
+     */
+    private static boolean hasNomedia(File[] files) {
+        if (files == null) return false;
+        for (File f : files) {
+            if (f.isFile() && f.getName().equals(".nomedia")) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 合并多路扫描结果去重（以 filePath 为键，靠前的列表优先）
+     */
+    private static List<Song> mergeSongs(List<Song>... lists) {
+        Set<String> existingPaths = new HashSet<>();
+        List<Song> merged = new ArrayList<>();
+        for (List<Song> list : lists) {
+            for (Song song : list) {
+                if (song.filePath == null) {
+                    merged.add(song);
+                } else if (!existingPaths.contains(song.filePath)) {
+                    merged.add(song);
+                    existingPaths.add(song.filePath);
+                }
+            }
+        }
+        return merged;
+    }
+
+    /**
+     * 安全 sleep，忽略中断异常
+     */
+    private static void sleepSafe(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException ignored) {}
+    }
+
+    /**
      * 加载缓存的歌曲列表
      * @return 缓存列表，无缓存或已过期返回 null
      */
@@ -253,7 +274,6 @@ public class MusicScanner {
             Log.d(TAG, "无缓存文件");
             return null;
         }
-        // 检查缓存是否过期
         long age = System.currentTimeMillis() - cacheFile.lastModified();
         if (age > CACHE_VALID_MS) {
             Log.d(TAG, "缓存已过期（" + (age / 1000) + "秒）");
@@ -266,13 +286,8 @@ public class MusicScanner {
             fis.close();
             String json = new String(data, "UTF-8");
             JSONObject root = new JSONObject(json);
-            JSONArray arr = root.getJSONArray("songs");
-            List<Song> songs = new ArrayList<>();
-            for (int i = 0; i < arr.length(); i++) {
-                songs.add(Song.fromJson(arr.getJSONObject(i)));
-            }
 
-            // 校验 storageVolumesHash（可移动存储变化则缓存失效）
+            // 先校验 storageVolumesHash，不匹配则不解析
             int cachedHash = root.optInt("storageVolumesHash", 0);
             int currentHash = computeStorageVolumesHash(context);
             if (cachedHash != currentHash) {
@@ -280,6 +295,11 @@ public class MusicScanner {
                 return null;
             }
 
+            JSONArray arr = root.getJSONArray("songs");
+            List<Song> songs = new ArrayList<>();
+            for (int i = 0; i < arr.length(); i++) {
+                songs.add(Song.fromJson(arr.getJSONObject(i)));
+            }
             Log.d(TAG, "从缓存加载 " + songs.size() + " 首歌曲");
             return songs;
         } catch (Exception e) {
@@ -316,23 +336,7 @@ public class MusicScanner {
      * 判断是否有有效缓存（用于决定是否跳过 triggerMediaScan）
      */
     public static boolean hasValidCache(Context context) {
-        File cacheFile = new File(context.getCacheDir(), CACHE_FILE);
-        if (!cacheFile.exists()) return false;
-        long age = System.currentTimeMillis() - cacheFile.lastModified();
-        if (age > CACHE_VALID_MS) return false;
-        // 校验 storageVolumesHash
-        try {
-            FileInputStream fis = new FileInputStream(cacheFile);
-            byte[] data = new byte[(int) cacheFile.length()];
-            fis.read(data);
-            fis.close();
-            JSONObject root = new JSONObject(new String(data, "UTF-8"));
-            int cachedHash = root.optInt("storageVolumesHash", 0);
-            int currentHash = computeStorageVolumesHash(context);
-            return cachedHash == currentHash;
-        } catch (Exception e) {
-            return false;
-        }
+        return loadCache(context) != null;
     }
 
     /**
@@ -366,26 +370,8 @@ public class MusicScanner {
      * API 21-28: 单卷查询（系统自动聚合）
      */
     private static List<Song> scanByMediaStore(Context context) {
+        List<String> volumeNames = getVolumeNames(context);
         List<Song> songs = new ArrayList<>();
-
-        // 确定要查询的卷名列表
-        List<String> volumeNames = new ArrayList<>();
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            try {
-                Set<String> volSet = MediaStore.getExternalVolumeNames(context);
-                if (volSet != null && !volSet.isEmpty()) {
-                    volumeNames.addAll(volSet);
-                } else {
-                    volumeNames.add(MediaStore.VOLUME_EXTERNAL);
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "获取外部卷名失败，使用默认: " + e.getMessage());
-                volumeNames.add(MediaStore.VOLUME_EXTERNAL);
-            }
-        } else {
-            // API 21-28: 用 EXTERNAL_CONTENT_URI，系统自动聚合所有卷
-            volumeNames.add(null); // 标记用 EXTERNAL_CONTENT_URI
-        }
 
         for (String volumeName : volumeNames) {
             Uri collection;
@@ -483,13 +469,8 @@ public class MusicScanner {
                     continue;
                 }
 
-                if (song.artist != null && !song.artist.equals("<unknown>")) {
-                    song.displayName = song.artist + " - " + song.title;
-                } else {
-                    song.displayName = song.title;
-                }
-
                 song.sourceType = Song.SOURCE_LOCAL;
+                buildDisplayName(song);
                 songs.add(song);
             }
         } catch (Exception e) {
@@ -503,28 +484,11 @@ public class MusicScanner {
      * 获取 MediaStore 中音乐数量（用于手动扫描轮询检测索引稳定）
      */
     private static int getMediaStoreCount(Context context) {
-        int count = 0;
         String selection = MediaStore.Audio.Media.IS_MUSIC + " != 0 AND " +
                 MediaStore.Audio.Media.DURATION + " > 30000";
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            // 多卷计数：覆盖内置存储 + U盘/SD卡独立卷
-            Set<String> volSet;
-            try {
-                volSet = MediaStore.getExternalVolumeNames(context);
-            } catch (Exception e) {
-                Log.w(TAG, "getMediaStoreCount 获取卷名失败: " + e.getMessage());
-                volSet = null;
-            }
-            if (volSet == null || volSet.isEmpty()) {
-                count += queryMediaStoreCount(context, MediaStore.VOLUME_EXTERNAL, selection);
-            } else {
-                for (String volumeName : volSet) {
-                    count += queryMediaStoreCount(context, volumeName, selection);
-                }
-            }
-        } else {
-            count += queryMediaStoreCount(context, null, selection);
+        int count = 0;
+        for (String volumeName : getVolumeNames(context)) {
+            count += queryMediaStoreCount(context, volumeName, selection);
         }
         return count;
     }
@@ -655,13 +619,10 @@ public class MusicScanner {
      */
     private static List<Song> scanByFileTraversal(Context context) {
         List<Song> songs = new ArrayList<>();
-        List<File> storages = detectRemovableStorage(context);
-
-        for (File storage : storages) {
+        for (File storage : detectRemovableStorage(context)) {
             int[] counter = {0};
-            traverseDirectory(storage, songs, 0, counter);
+            traverseDirectory(storage, songs, 0, counter, MAX_TRAVERSE_DEPTH, MAX_TRAVERSE_FILES);
         }
-
         return songs;
     }
 
@@ -673,31 +634,27 @@ public class MusicScanner {
      * @param depth 当前递归深度
      * @param counter 文件计数器（int[1]）
      */
-    private static void traverseDirectory(File dir, List<Song> songs, int depth, int[] counter) {
-        if (depth > MAX_TRAVERSE_DEPTH) return;
-        if (counter[0] > MAX_TRAVERSE_FILES) return;
+    private static void traverseDirectory(File dir, List<Song> songs, int depth, int[] counter, int maxDepth, int maxFiles) {
+        if (depth > maxDepth) return;
+        if (counter[0] > maxFiles) return;
 
         File[] files = dir.listFiles();
         if (files == null) return;
-
-        // 检查 .nomedia
-        for (File f : files) {
-            if (f.isFile() && f.getName().equals(".nomedia")) return;
-        }
+        if (hasNomedia(files)) return;
 
         for (File file : files) {
-            if (counter[0] > MAX_TRAVERSE_FILES) return;
+            if (counter[0] > maxFiles) return;
 
             if (file.isDirectory()) {
-                // 跳过特殊目录
                 if (SKIP_DIR_NAMES.contains(file.getName())) continue;
+                if (file.getName().startsWith(".")) continue;
                 // 跳过符号链接
                 try {
                     if (!file.getCanonicalPath().equals(file.getAbsolutePath())) continue;
                 } catch (Exception e) {
                     continue;
                 }
-                traverseDirectory(file, songs, depth + 1, counter);
+                traverseDirectory(file, songs, depth + 1, counter, maxDepth, maxFiles);
             } else if (file.isFile() && WebDavScanner.isMusicFile(file.getName())) {
                 counter[0]++;
                 Song song = buildSongFromFile(file);
@@ -731,7 +688,7 @@ public class MusicScanner {
                     if (!dir.isDirectory()) continue;
                     if (SKIP_DIR_NAMES.contains(dir.getName())) continue;
                     if (dir.getName().startsWith(".")) continue;
-                    traverseDirectoryInternal(dir, songs, 0, counter);
+                    traverseDirectory(dir, songs, 0, counter, MAX_INTERNAL_TRAVERSE_DEPTH, MAX_INTERNAL_TRAVERSE_FILES);
                 }
             }
         }
@@ -744,30 +701,11 @@ public class MusicScanner {
      * 不加 IS_MUSIC 过滤，用扩展名过滤
      */
     private static List<Song> scanByMediaStoreFiles(Context context) {
+        List<String> volumeNames = getVolumeNames(context);
         List<Song> songs = new ArrayList<>();
-
-        // 多卷查询：覆盖内置存储 + U盘/SD卡独立卷
-        List<String> volumeNames = new ArrayList<>();
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            try {
-                Set<String> volSet = MediaStore.getExternalVolumeNames(context);
-                if (volSet != null && !volSet.isEmpty()) {
-                    volumeNames.addAll(volSet);
-                } else {
-                    volumeNames.add(MediaStore.VOLUME_EXTERNAL);
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "MediaStore.Files 获取外部卷名失败: " + e.getMessage());
-                volumeNames.add(MediaStore.VOLUME_EXTERNAL);
-            }
-        } else {
-            volumeNames.add(MediaStore.VOLUME_EXTERNAL);
-        }
-
         for (String volumeName : volumeNames) {
             songs.addAll(queryMediaStoreFiles(context, volumeName));
         }
-
         Log.d(TAG, "MediaStore.Files 多卷扫描完成，共 " + songs.size() + " 首歌曲（" + volumeNames.size() + " 个卷）");
         return songs;
     }
@@ -849,21 +787,7 @@ public class MusicScanner {
                 song.albumArt = getAlbumArtUri(cursor.getLong(albumIdCol));
                 song.contentUri = "content://media/external/audio/media/" + song.id;
                 song.sourceType = Song.SOURCE_LOCAL;
-
-                if (song.filePath == null && relPathCol >= 0 && displayNameCol >= 0) {
-                    String relPath = cursor.getString(relPathCol);
-                    String displayName = cursor.getString(displayNameCol);
-                    if (relPath != null && displayName != null) {
-                        song.filePath = "/storage/emulated/0/" + relPath + displayName;
-                    }
-                }
-
-                if (song.artist != null && !song.artist.equals("<unknown>")) {
-                    song.displayName = song.artist + " - " + song.title;
-                } else {
-                    song.displayName = song.title;
-                }
-
+                buildDisplayName(song);
                 songs.add(song);
             }
 
@@ -876,40 +800,7 @@ public class MusicScanner {
     }
 
     /**
-     * 内置存储递归遍历（API 29-，带安全保护）
-     */
-    private static void traverseDirectoryInternal(File dir, List<Song> songs, int depth, int[] counter) {
-        if (depth > MAX_INTERNAL_TRAVERSE_DEPTH) return;
-        if (counter[0] > MAX_INTERNAL_TRAVERSE_FILES) return;
-
-        File[] files = dir.listFiles();
-        if (files == null) return;
-
-        // 检查 .nomedia
-        for (File f : files) {
-            if (f.isFile() && f.getName().equals(".nomedia")) return;
-        }
-
-        for (File file : files) {
-            if (counter[0] > MAX_INTERNAL_TRAVERSE_FILES) return;
-
-            if (file.isDirectory()) {
-                if (SKIP_DIR_NAMES.contains(file.getName())) continue;
-                if (dir.getName().startsWith(".")) continue;
-                traverseDirectoryInternal(file, songs, depth + 1, counter);
-            } else if (file.isFile() && WebDavScanner.isMusicFile(file.getName())) {
-                counter[0]++;
-                Song song = buildSongFromFile(file);
-                if (song != null) {
-                    songs.add(song);
-                }
-            }
-        }
-    }
-
-    /**
      * 从文件构建 Song 对象
-     * 不依赖 MediaStore，仅用文件信息构造
      */
     private static Song buildSongFromFile(File file) {
         String fileName = file.getName();
@@ -964,12 +855,8 @@ public class MusicScanner {
                     String title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
                     if (title != null && !title.isEmpty()) {
                         song.title = title;
-                        if (!"<unknown>".equals(song.artist)) {
-                            song.displayName = song.artist + " - " + title;
-                        } else {
-                            song.displayName = title;
-                        }
                     }
+                    buildDisplayName(song);
                     processed++;
                 } catch (Exception e) {
                     Log.w(TAG, "提取元数据失败: " + song.filePath + " - " + e.getMessage());
@@ -1060,12 +947,7 @@ public class MusicScanner {
      */
     private static void collectAudioFiles(File dir, List<String> paths) {
         File[] files = dir.listFiles();
-        if (files == null) return;
-
-        // 检查 .nomedia
-        for (File f : files) {
-            if (f.isFile() && f.getName().equals(".nomedia")) return;
-        }
+        if (files == null || hasNomedia(files)) return;
 
         for (File file : files) {
             if (file.isDirectory()) {
@@ -1084,18 +966,13 @@ public class MusicScanner {
     private static void collectAudioDirs(File dir, List<String> paths, int depth) {
         if (depth > 3) return;
         File[] files = dir.listFiles();
-        if (files == null) return;
-
-        for (File f : files) {
-            if (f.isFile() && f.getName().equals(".nomedia")) return;
-        }
+        if (files == null || hasNomedia(files)) return;
 
         for (File file : files) {
             if (file.isDirectory()) {
                 if (SKIP_DIR_NAMES.contains(file.getName())) continue;
                 collectAudioDirs(file, paths, depth + 1);
             } else if (file.isFile() && WebDavScanner.isMusicFile(file.getName())) {
-                // 当前目录含音频文件，加入扫描路径
                 String dirPath = dir.getAbsolutePath();
                 if (!paths.contains(dirPath)) {
                     paths.add(dirPath);

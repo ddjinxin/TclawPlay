@@ -246,15 +246,7 @@ public class MainFragment extends BaseFloatFragment {
                     List<Song> finalSongs = songs;
                     runOnUi(() -> {
                         if (isActivityGone()) return;
-                        allSongs = finalSongs;
-                        songAdapter.setAllSongs(finalSongs);
-                        refreshFavorites();
-                        loadCurrentTabContent();
-                        updateCountText();
-                        applyThemeToRecyclerViewItems();
-                        // 更新缓存时间戳
-                        File cacheFile = new File(ctx.getCacheDir(), "music_cache.json");
-                        lastShownCacheTime = cacheFile.lastModified();
+                        applyScanResult(finalSongs, ctx);
                     });
                 });
             }
@@ -303,23 +295,14 @@ public class MainFragment extends BaseFloatFragment {
         manageStorageLauncher = registerForActivityResult(
                 new StartActivityForResult(),
                 result -> {
-                    Context ctx = requireContext();
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && pendingScanAfterStoragePermission) {
+                        pendingScanAfterStoragePermission = false;
                         if (Environment.isExternalStorageManager()) {
                             Log.d(TAG, "MANAGE_EXTERNAL_STORAGE 已授权");
-                            if (pendingScanAfterStoragePermission) {
-                                pendingScanAfterStoragePermission = false;
-                                MusicScanner.clearCache(ctx);
-                                isScanning = false;
-                                scanMusic();
-                            }
+                            clearCacheAndScan();
                         } else {
                             Log.d(TAG, "MANAGE_EXTERNAL_STORAGE 用户拒绝");
-                            // 即使拒绝也正常扫描（MediaStore 路径仍可用）
-                            if (pendingScanAfterStoragePermission) {
-                                pendingScanAfterStoragePermission = false;
-                                scanMusic();
-                            }
+                            scanMusic();
                         }
                     }
                 });
@@ -618,7 +601,6 @@ public class MainFragment extends BaseFloatFragment {
                         return;
                     }
                     Log.d(TAG, "MEDIA_MOUNTED: U盘/SD卡挂载，延迟2秒后重扫");
-                    MusicScanner.clearCache(context);
                     isScanning = false;
                     scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
                     scanDebounceHandler.postDelayed(() -> {
@@ -629,7 +611,6 @@ public class MainFragment extends BaseFloatFragment {
                            Intent.ACTION_MEDIA_REMOVED.equals(action) ||
                            Intent.ACTION_MEDIA_BAD_REMOVAL.equals(action)) {
                     Log.d(TAG, "存储移除: " + action + "，延迟1秒后刷新");
-                    MusicScanner.clearCache(context);
                     scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
                     scanDebounceHandler.postDelayed(() -> {
                         MusicScanner.clearCache(context);
@@ -714,10 +695,10 @@ public class MainFragment extends BaseFloatFragment {
         }
         updateMiniPlayerFromService();
 
-        // 存储卷快照比对：检测U盘变化
+        // 存储\u5377快照比对：检测U盘变化
         checkStorageChanged();
 
-        // 缓存新鲜度检查：手动扫描后返回首页时补偿刷新
+        // \u7f13\u5b58\u65b0\u9c9c\u5ea6\u68c0\u67e5：手动扫描后返回首页时补偿刷新
         checkCacheRefreshed();
 
         // Android 11+: 从系统授权页返回后，如果刚获得权限则重新扫描
@@ -726,9 +707,7 @@ public class MainFragment extends BaseFloatFragment {
                 && Environment.isExternalStorageManager()) {
             Log.d(TAG, "onResume: 检测到文件访问权限已授权，触发重扫");
             pendingScanAfterStoragePermission = false;
-            MusicScanner.clearCache(requireContext());
-            isScanning = false;
-            scanMusic();
+            clearCacheAndScan();
         }
     }
 
@@ -1019,36 +998,13 @@ public class MainFragment extends BaseFloatFragment {
     // ==================== WebDAV 导航状态持久化 ====================
 
     private void saveWebDavNavState() {
-        try {
-            org.json.JSONArray stackArr = new org.json.JSONArray();
-            for (String s : cloudNavStack) {
-                stackArr.put(s);
-            }
-            requireContext().getSharedPreferences("webdav_nav", Context.MODE_PRIVATE)
-                    .edit()
-                    .putString("current_url", cloudCurrentUrl)
-                    .putString("nav_stack", stackArr.toString())
-                    .apply();
-        } catch (Exception e) {
-            Log.e(TAG, "保存WebDAV导航状态失败: " + e.getMessage());
-        }
+        saveNavState("webdav_nav", cloudCurrentUrl, cloudNavStack, "保存WebDAV导航状态失败");
     }
 
     private void restoreWebDavNavState() {
         if (cloudCurrentUrl != null || !cloudNavStack.isEmpty()) return;
-        try {
-            SharedPreferences prefs = requireContext().getSharedPreferences("webdav_nav", Context.MODE_PRIVATE);
-            cloudCurrentUrl = prefs.getString("current_url", null);
-            String stackJson = prefs.getString("nav_stack", null);
-            if (stackJson != null) {
-                org.json.JSONArray arr = new org.json.JSONArray(stackJson);
-                for (int i = 0; i < arr.length(); i++) {
-                    cloudNavStack.push(arr.getString(i));
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "恢复WebDAV导航状态失败: " + e.getMessage());
-        }
+        String[] result = restoreNavState("webdav_nav", cloudNavStack, "恢复WebDAV导航状态失败");
+        if (result != null) cloudCurrentUrl = result[0];
     }
 
     // ==================== B站 浏览 ====================
@@ -1175,35 +1131,53 @@ public class MainFragment extends BaseFloatFragment {
     }
 
     private void saveBiliNavState() {
-        try {
-            org.json.JSONArray stackArr = new org.json.JSONArray();
-            for (String s : biliNavStack) {
-                stackArr.put(s);
-            }
-            requireContext().getSharedPreferences("bili_nav", Context.MODE_PRIVATE)
-                    .edit()
-                    .putString("current_url", biliCurrentUrl)
-                    .putString("nav_stack", stackArr.toString())
-                    .apply();
-        } catch (Exception e) {
-            Log.e(TAG, "保存B站导航状态失败: " + e.getMessage());
-        }
+        saveNavState("bili_nav", biliCurrentUrl, biliNavStack, "保存B站导航状态失败");
     }
 
     private void restoreBiliNavState() {
         if (biliCurrentUrl != null || !biliNavStack.isEmpty()) return;
+        String[] result = restoreNavState("bili_nav", biliNavStack, "恢复B站导航状态失败");
+        if (result != null) biliCurrentUrl = result[0];
+    }
+
+    /**
+     * 通用导航状态持久化（WebDAV/B站共用）
+     */
+    private void saveNavState(String prefsName, String currentUrl, Stack<String> stack, String errTag) {
         try {
-            SharedPreferences prefs = requireContext().getSharedPreferences("bili_nav", Context.MODE_PRIVATE);
-            biliCurrentUrl = prefs.getString("current_url", null);
+            org.json.JSONArray stackArr = new org.json.JSONArray();
+            for (String s : stack) {
+                stackArr.put(s);
+            }
+            requireContext().getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("current_url", currentUrl)
+                    .putString("nav_stack", stackArr.toString())
+                    .apply();
+        } catch (Exception e) {
+            Log.e(TAG, errTag + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * 通用导航状态恢复（WebDAV/B站共用）
+     * @return [0]=currentUrl, 或 null 表示无保存状态
+     */
+    private String[] restoreNavState(String prefsName, Stack<String> stack, String errTag) {
+        try {
+            SharedPreferences prefs = requireContext().getSharedPreferences(prefsName, Context.MODE_PRIVATE);
+            String currentUrl = prefs.getString("current_url", null);
             String stackJson = prefs.getString("nav_stack", null);
             if (stackJson != null) {
                 org.json.JSONArray arr = new org.json.JSONArray(stackJson);
                 for (int i = 0; i < arr.length(); i++) {
-                    biliNavStack.push(arr.getString(i));
+                    stack.push(arr.getString(i));
                 }
             }
+            return new String[]{currentUrl};
         } catch (Exception e) {
-            Log.e(TAG, "恢复B站导航状态失败: " + e.getMessage());
+            Log.e(TAG, errTag + ": " + e.getMessage());
+            return null;
         }
     }
 
@@ -1522,8 +1496,53 @@ public class MainFragment extends BaseFloatFragment {
     }
 
     /**
+     * 清缓存 + 重置扫描状态 + 重新扫描
+     */
+    private void clearCacheAndScan() {
+        MusicScanner.clearCache(requireContext());
+        isScanning = false;
+        scanMusic();
+    }
+
+    /**
+     * 将扫描结果应用到 UI（4处重复逻辑统一）
+     */
+    private void applyScanResult(List<Song> songs, Context ctx) {
+        allSongs = songs;
+        songAdapter.setAllSongs(songs);
+        tvLoading.setVisibility(View.GONE);
+        browseLoading.setVisibility(View.GONE);
+        rootLayout.setVisibility(View.VISIBLE);
+        refreshFavorites();
+        loadCurrentTabContent();
+        updateCountText();
+        applyThemeToRecyclerViewItems();
+        File cacheFile = new File(ctx.getCacheDir(), "music_cache.json");
+        lastShownCacheTime = cacheFile.lastModified();
+    }
+
+    /**
+     * 跳转到 MANAGE_EXTERNAL_STORAGE 授权页（公共方法）
+     */
+    private void launchManageStoragePermission(Runnable onUnsupported) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+            intent.setData(Uri.parse("package:" + requireContext().getPackageName()));
+            manageStorageLauncher.launch(intent);
+        } catch (Exception e) {
+            Log.w(TAG, "MANAGE_APP_ALL_FILES_ACCESS 不支持，尝试通用设置", e);
+            try {
+                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                manageStorageLauncher.launch(intent);
+            } catch (Exception e2) {
+                Log.e(TAG, "无法打开文件访问权限设置页", e2);
+                if (onUnsupported != null) onUnsupported.run();
+            }
+        }
+    }
+
+    /**
      * Android 11+: 检查 MANAGE_EXTERNAL_STORAGE（所有文件访问权限）
-     * 已授权直接扫描；未授权弹对话框引导用户跳转系统设置页
      */
     private void checkManageStorageAndScan() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -1535,21 +1554,10 @@ public class MainFragment extends BaseFloatFragment {
                         .setMessage("扫描U盘音乐需要「所有文件访问权限」，否则U盘歌曲将无法显示。点击去授权跳转系统设置。")
                         .setPositiveButton("去授权", (dialog, which) -> {
                             pendingScanAfterStoragePermission = true;
-                            try {
-                                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                                intent.setData(Uri.parse("package:" + requireContext().getPackageName()));
-                                manageStorageLauncher.launch(intent);
-                            } catch (Exception e) {
-                                Log.w(TAG, "MANAGE_APP_ALL_FILES_ACCESS 不支持，尝试通用设置", e);
-                                try {
-                                    Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
-                                    manageStorageLauncher.launch(intent);
-                                } catch (Exception e2) {
-                                    Log.e(TAG, "无法打开文件访问权限设置页", e2);
-                                    pendingScanAfterStoragePermission = false;
-                                    scanMusic();
-                                }
-                            }
+                            launchManageStoragePermission(() -> {
+                                pendingScanAfterStoragePermission = false;
+                                scanMusic();
+                            });
                         })
                         .setNegativeButton("跳过", (dialog, which) -> {
                             pendingScanAfterStoragePermission = false;
@@ -1559,7 +1567,6 @@ public class MainFragment extends BaseFloatFragment {
                         .show();
             }
         } else {
-            // Android 10 及以下不需要 MANAGE_EXTERNAL_STORAGE
             scanMusic();
         }
     }
@@ -1651,55 +1658,23 @@ public class MainFragment extends BaseFloatFragment {
 
         Context ctx = requireContext();
         List<Song> cached = MusicScanner.loadCache(ctx);
+
         if (cached != null && !cached.isEmpty()) {
             Log.d(TAG, "使用缓存立即显示 " + cached.size() + " 首歌曲");
-            allSongs = cached;
-            songAdapter.setAllSongs(cached);
-            tvLoading.setVisibility(View.GONE);
-            browseLoading.setVisibility(View.GONE);
-            rootLayout.setVisibility(View.VISIBLE);
-            refreshFavorites();
-            loadCurrentTabContent();
-            updateCountText();
-            applyThemeToRecyclerViewItems();
-            if (tryAutoResume) {
-                autoResumeLastPlayed(cached);
-            }
-            executor.execute(() -> {
-                if (!MusicScanner.hasValidCache(ctx)) {
-                    MusicScanner.triggerMediaScan(ctx);
-                }
-                List<Song> songs = MusicScanner.scanMusic(ctx);
-                runOnUi(() -> {
-                    if (isActivityGone()) return;
-                    synchronized (scanLock) {
-                        isScanning = false;
-                        if (manualScanPending) {
-                            manualScanPending = false;
-                            Log.d(TAG, "自动扫描完成，执行待处理的手动扫描");
-                            scanMusic(tryAutoResume);
-                        }
-                    }
-                    allSongs = songs;
-                    songAdapter.setAllSongs(songs);
-                    refreshFavorites();
-                    loadCurrentTabContent();
-                    updateCountText();
-                    applyThemeToRecyclerViewItems();
-                    File cacheFile = new File(ctx.getCacheDir(), "music_cache.json");
-                    lastShownCacheTime = cacheFile.lastModified();
-                });
-            });
-            return;
+            applyScanResult(cached, ctx);
+            if (tryAutoResume) autoResumeLastPlayed(cached);
+        } else {
+            tvLoading.setVisibility(View.VISIBLE);
+            tvSongCount.setText("正在扫描音乐...");
+            rvBrowse.setVisibility(View.GONE);
+            browseLoading.setVisibility(View.VISIBLE);
         }
 
-        tvLoading.setVisibility(View.VISIBLE);
-        tvSongCount.setText("正在扫描音乐...");
-        rvBrowse.setVisibility(View.GONE);
-        browseLoading.setVisibility(View.VISIBLE);
-
+        final boolean finalTryAutoResume = tryAutoResume;
         executor.execute(() -> {
-            if (!isActivityGone()) {
+            if (cached == null || cached.isEmpty()) {
+                if (!isActivityGone()) MusicScanner.triggerMediaScan(ctx);
+            } else if (!MusicScanner.hasValidCache(ctx)) {
                 MusicScanner.triggerMediaScan(ctx);
             }
             List<Song> songs = MusicScanner.scanMusic(ctx);
@@ -1710,23 +1685,13 @@ public class MainFragment extends BaseFloatFragment {
                     if (manualScanPending) {
                         manualScanPending = false;
                         Log.d(TAG, "自动扫描完成，执行待处理的手动扫描");
-                        scanMusic(tryAutoResume);
+                        scanMusic(finalTryAutoResume);
                     }
                 }
-                allSongs = songs;
-                songAdapter.setAllSongs(songs);
-                tvLoading.setVisibility(View.GONE);
-                browseLoading.setVisibility(View.GONE);
-                rootLayout.setVisibility(View.VISIBLE);
-                refreshFavorites();
-                loadCurrentTabContent();
-                updateCountText();
-                applyThemeToRecyclerViewItems();
-                if (tryAutoResume) {
-                    autoResumeLastPlayed(songs);
+                applyScanResult(songs, ctx);
+                if (cached == null || cached.isEmpty()) {
+                    if (finalTryAutoResume) autoResumeLastPlayed(songs);
                 }
-                File cacheFile = new File(ctx.getCacheDir(), "music_cache.json");
-                lastShownCacheTime = cacheFile.lastModified();
             });
         });
     }
@@ -1741,27 +1706,19 @@ public class MainFragment extends BaseFloatFragment {
     /**
      * 获取当前可移动存储路径集合快照
      */
+    /**
+     * 获取当前可移动存储路径集合快照（复用 MusicScanner.detectRemovableStorage）
+     */
     private Set<String> getStorageSnapshot() {
         Set<String> snapshot = new HashSet<>();
         try {
-            Context ctx = requireContext();
-            android.os.storage.StorageManager sm = (android.os.storage.StorageManager)
-                    ctx.getSystemService(Context.STORAGE_SERVICE);
-            if (sm != null) {
-                for (android.os.storage.StorageVolume vol : sm.getStorageVolumes()) {
-                    if (vol.isEmulated()) continue;
-                    if (!"mounted".equals(vol.getState())) continue;
-                    String path = null;
-                    if (android.os.Build.VERSION.SDK_INT >= 30) {
-                        File dir = vol.getDirectory();
-                        if (dir != null) path = dir.getAbsolutePath();
-                    } else {
-                        try {
-                            java.lang.reflect.Method getPath = android.os.storage.StorageVolume.class.getMethod("getPath");
-                            path = (String) getPath.invoke(vol);
-                        } catch (Exception ignored) {}
-                    }
-                    if (path != null) snapshot.add(path);
+            java.lang.reflect.Method m = MusicScanner.class.getDeclaredMethod("detectRemovableStorage", Context.class);
+            m.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            List<File> storages = (List<File>) m.invoke(null, requireContext());
+            if (storages != null) {
+                for (File f : storages) {
+                    snapshot.add(f.getAbsolutePath());
                 }
             }
         } catch (Exception e) {
@@ -1805,12 +1762,7 @@ public class MainFragment extends BaseFloatFragment {
                 List<Song> finalSongs = songs;
                 runOnUi(() -> {
                     if (isActivityGone()) return;
-                    allSongs = finalSongs;
-                    songAdapter.setAllSongs(finalSongs);
-                    refreshFavorites();
-                    loadCurrentTabContent();
-                    updateCountText();
-                    applyThemeToRecyclerViewItems();
+                    applyScanResult(finalSongs, ctx);
                     lastShownCacheTime = currentMod;
                 });
             });

@@ -62,16 +62,7 @@ public class HelpFragment extends BaseFloatFragment {
 
         btnBack.setOnClickListener(v -> requireActivity().onBackPressed());
 
-        rootScroll.setOnApplyWindowInsetsListener((v, insets) -> {
-            int topInset;
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                topInset = insets.getInsets(android.view.WindowInsets.Type.systemBars()).top;
-            } else {
-                topInset = insets.getSystemWindowInsetTop();
-            }
-            rootScroll.setPadding(rootScroll.getPaddingLeft(), topInset, rootScroll.getPaddingRight(), rootScroll.getPaddingBottom());
-            return insets;
-        });
+        applyTopInset(rootScroll);
 
         return view;
     }
@@ -143,26 +134,10 @@ public class HelpFragment extends BaseFloatFragment {
         helpContent.addView(tv, p);
     }
 
-    /** 带冒号加粗的段落 */
-    private void addPara(String bold, String rest) {
-        SpannableStringBuilder ssb = new SpannableStringBuilder();
-        int start = ssb.length();
-        ssb.append(bold);
-        ssb.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), start, ssb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-        ssb.append(rest);
-        TextView tv = new TextView(requireContext());
-        tv.setText(ssb);
-        tv.setTextColor(textColor());
-        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
-        tv.setLineSpacing((int)(2 * density), 1f);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.bottomMargin = (int)(4 * density);
-        helpContent.addView(tv, p);
-    }
-
-    /** 普通段落 */
-    private void addPara(String text) {
+    /**
+     * 创建带通用样式的段落 TextView
+     */
+    private TextView createParaTextView(CharSequence text) {
         TextView tv = new TextView(requireContext());
         tv.setText(text);
         tv.setTextColor(textColor());
@@ -171,7 +146,40 @@ public class HelpFragment extends BaseFloatFragment {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         p.bottomMargin = (int)(4 * density);
-        helpContent.addView(tv, p);
+        tv.setLayoutParams(p);
+        return tv;
+    }
+
+    /**
+     * 创建带通用样式的要点 TextView（带左缩进）
+     */
+    private TextView createBulletTextView(CharSequence text) {
+        TextView tv = new TextView(requireContext());
+        tv.setText(text);
+        tv.setTextColor(textColor());
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
+        tv.setLineSpacing((int)(2 * density), 1f);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        p.leftMargin = (int)(12 * density);
+        p.bottomMargin = (int)(3 * density);
+        tv.setLayoutParams(p);
+        return tv;
+    }
+
+    /** 带冒号加粗的段落 */
+    private void addPara(String bold, String rest) {
+        SpannableStringBuilder ssb = new SpannableStringBuilder();
+        int start = ssb.length();
+        ssb.append(bold);
+        ssb.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), start, ssb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        ssb.append(rest);
+        helpContent.addView(createParaTextView(ssb));
+    }
+
+    /** 普通段落 */
+    private void addPara(String text) {
+        helpContent.addView(createParaTextView(text));
     }
 
     /** 带冒号加粗的要点 */
@@ -182,30 +190,12 @@ public class HelpFragment extends BaseFloatFragment {
         ssb.append(bold);
         ssb.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), start, ssb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         ssb.append(rest);
-        TextView tv = new TextView(requireContext());
-        tv.setText(ssb);
-        tv.setTextColor(textColor());
-        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
-        tv.setLineSpacing((int)(2 * density), 1f);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.leftMargin = (int)(12 * density);
-        p.bottomMargin = (int)(3 * density);
-        helpContent.addView(tv, p);
+        helpContent.addView(createBulletTextView(ssb));
     }
 
     /** 普通要点 */
     private void addBullet(String text) {
-        TextView tv = new TextView(requireContext());
-        tv.setText("• " + text);
-        tv.setTextColor(textColor());
-        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
-        tv.setLineSpacing((int)(2 * density), 1f);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.leftMargin = (int)(12 * density);
-        p.bottomMargin = (int)(3 * density);
-        helpContent.addView(tv, p);
+        helpContent.addView(createBulletTextView("• " + text));
     }
 
     private void addDivider() {

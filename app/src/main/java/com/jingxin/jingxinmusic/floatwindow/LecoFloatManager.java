@@ -152,11 +152,7 @@ public class LecoFloatManager {
 
                     // MiniFloatService 重建 Visualizer 会抢占同一 audioSessionId，
                     // 通知 PlayerFragment 重建频谱（延迟 500ms 确保 Service 启动完）
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        Intent restartIntent = new Intent("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
-                        restartIntent.setPackage(application.getPackageName());
-                        application.sendBroadcast(restartIntent);
-                    }, 500);
+                    sendSpectrumRestartBroadcast();
                 }
             }
         }
@@ -237,17 +233,7 @@ public class LecoFloatManager {
             windowParams.height = newH;
             windowManager.updateViewLayout(windowContainer, windowParams);
             if (currentContentView != null) {
-                final int fw = newW;
-                final int fh = newH;
-                final View cv = currentContentView;
-                windowContainer.post(() -> {
-                    cv.measure(
-                            View.MeasureSpec.makeMeasureSpec(fw, View.MeasureSpec.EXACTLY),
-                            View.MeasureSpec.makeMeasureSpec(fh, View.MeasureSpec.EXACTLY));
-                    cv.layout(0, 0, fw, fh);
-                    cv.forceLayout();
-                    windowContainer.requestLayout();
-                });
+                forceRelayout(currentContentView, newW, newH);
             }
         }
     }
@@ -309,17 +295,7 @@ public class LecoFloatManager {
             applyFloatCornerRadius();
             }
 
-            final int fw = floatW;
-            final int fh = floatH;
-            final View cv = fragmentContainer;
-            windowContainer.post(() -> {
-                cv.measure(
-                        View.MeasureSpec.makeMeasureSpec(fw, View.MeasureSpec.EXACTLY),
-                        View.MeasureSpec.makeMeasureSpec(fh, View.MeasureSpec.EXACTLY));
-                cv.layout(0, 0, fw, fh);
-                cv.forceLayout();
-                windowContainer.requestLayout();
-            });
+            forceRelayout(fragmentContainer, floatW, floatH);
 
             currentFloatingActivity = activity;
             currentContentView = fragmentContainer;
@@ -336,13 +312,7 @@ public class LecoFloatManager {
             // MiniFloatService 释放 Visualizer 会连带杀死同一 audioSessionId 上
             // PlayerFragment 的 Visualizer 回调，通知 PlayerFragment 重建
             // 延迟 500ms 确保 MiniFloatService.onDestroy → releaseVisualizer 已执行完
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                Intent restartIntent = new Intent("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
-                restartIntent.setPackage(application.getPackageName());
-                application.sendBroadcast(restartIntent);
-            }, 500);
-
-
+            sendSpectrumRestartBroadcast();
         } catch (Exception e) {
             Log.e(TAG, "floatActivity failed: " + e.getMessage(), e);
         }
@@ -368,11 +338,7 @@ public class LecoFloatManager {
                     cv.post(() -> {
                         int pw = parent.getWidth();
                         int ph = parent.getHeight();
-                        cv.measure(
-                                View.MeasureSpec.makeMeasureSpec(pw, View.MeasureSpec.EXACTLY),
-                                View.MeasureSpec.makeMeasureSpec(ph, View.MeasureSpec.EXACTLY));
-                        cv.layout(0, 0, pw, ph);
-                        cv.requestLayout();
+                        forceRelayout(cv, pw, ph);
                     });
                 }
             }
@@ -425,6 +391,31 @@ public class LecoFloatManager {
 
         params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE;
         return params;
+    }
+
+    // ==================== 工具方法 ====================
+
+    /**
+     * 强制对指定 View 执行 measure + layout 到精确尺寸，并请求重排
+     */
+    private void forceRelayout(View view, int width, int height) {
+        view.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        view.layout(0, 0, width, height);
+        view.forceLayout();
+        if (windowContainer != null) windowContainer.requestLayout();
+    }
+
+    /**
+     * 延迟 500ms 发送频谱重启广播，通知 PlayerFragment 重建 Visualizer
+     */
+    private void sendSpectrumRestartBroadcast() {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Intent restartIntent = new Intent("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
+            restartIntent.setPackage(application.getPackageName());
+            application.sendBroadcast(restartIntent);
+        }, 500);
     }
 
     // ==================== 公共 API ====================

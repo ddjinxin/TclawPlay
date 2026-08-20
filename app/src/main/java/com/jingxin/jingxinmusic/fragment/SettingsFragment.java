@@ -67,6 +67,17 @@ public class SettingsFragment extends BaseFloatFragment {
         return isNightMode ? 0xFFFFFFFF : 0xFF000000;
     }
 
+    /** 设置项描述/次要文字颜色 */
+    private int secondaryColor() {
+        return isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary();
+    }
+
+    /** 统一设置一个设置项的标题和描述颜色 */
+    private void applyItemTheme(TextView title, TextView desc) {
+        if (title != null) title.setTextColor(titleColor());
+        if (desc != null) desc.setTextColor(secondaryColor());
+    }
+
     /** 读取悬浮窗开关状态（默认开启） */
     public static boolean isFloatWindowEnabled(Context context) {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -109,16 +120,7 @@ public class SettingsFragment extends BaseFloatFragment {
         setupSpectrumSwitch(view);
         setupLyricColorSelector(view);
 
-        rootScroll.setOnApplyWindowInsetsListener((v, insets) -> {
-            int topInset;
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                topInset = insets.getInsets(android.view.WindowInsets.Type.systemBars()).top;
-            } else {
-                topInset = insets.getSystemWindowInsetTop();
-            }
-            rootScroll.setPadding(rootScroll.getPaddingLeft(), topInset, rootScroll.getPaddingRight(), rootScroll.getPaddingBottom());
-            return insets;
-        });
+        applyTopInset(rootScroll);
 
         return view;
     }
@@ -141,43 +143,24 @@ public class SettingsFragment extends BaseFloatFragment {
     private void applyTheme() {
         rootScroll.setBackground(ThemeColors.bgGradient(isNightMode));
         int tc = titleColor();
-        int ts = isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary();
+        int ts = secondaryColor();
         tvTitle.setTextColor(tc);
         // 刷新所有标题
-        if (tvNightTitle != null) tvNightTitle.setTextColor(tc);
-        if (tvStyleTitle != null) tvStyleTitle.setTextColor(tc);
-        if (tvFloatTitle != null) tvFloatTitle.setTextColor(tc);
-        if (tvSpectrumTitle != null) tvSpectrumTitle.setTextColor(tc);
-        if (tvLyricTitle != null) tvLyricTitle.setTextColor(tc);
-        if (tvScanTitle != null) tvScanTitle.setTextColor(tc);
-        if (btnScan != null) btnScan.setTextColor(tc);
-        if (tvStoragePermTitle != null) tvStoragePermTitle.setTextColor(tc);
-        if (btnStoragePerm != null) btnStoragePerm.setTextColor(tc);
+        TextView[] titles = {tvNightTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle,
+                tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm};
+        for (TextView t : titles) if (t != null) t.setTextColor(tc);
         // 刷新所有描述
-        if (tvNightDesc != null) tvNightDesc.setTextColor(ts);
-        if (tvStyleDesc != null) tvStyleDesc.setTextColor(ts);
-        if (tvFloatDesc != null) tvFloatDesc.setTextColor(ts);
-        if (tvSpectrumDesc != null) tvSpectrumDesc.setTextColor(ts);
-        if (tvLyricDesc != null) tvLyricDesc.setTextColor(ts);
-        if (tvScanDesc != null) tvScanDesc.setTextColor(ts);
-        if (tvStoragePermDesc != null) tvStoragePermDesc.setTextColor(ts);
-        if (btnDayReset != null) btnDayReset.setTextColor(ts);
-        if (btnNightReset != null) btnNightReset.setTextColor(ts);
+        TextView[] descs = {tvNightDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc,
+                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset};
+        for (TextView d : descs) if (d != null) d.setTextColor(ts);
         // 风格 tab 颜色
         updateStyleTabColors();
+        int divColor = isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider();
+        View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4};
+        for (View d : dividers) d.setBackgroundColor(divColor);
         if (isNightMode) {
-            dividerTop.setBackgroundColor(ThemeColors.nightDivider());
-            dividerMid.setBackgroundColor(ThemeColors.nightDivider());
-            dividerMid2.setBackgroundColor(ThemeColors.nightDivider());
-            dividerMid3.setBackgroundColor(ThemeColors.nightDivider());
-            dividerMid4.setBackgroundColor(ThemeColors.nightDivider());
             btnBack.clearColorFilter();
         } else {
-            dividerTop.setBackgroundColor(ThemeColors.dayDivider());
-            dividerMid.setBackgroundColor(ThemeColors.dayDivider());
-            dividerMid2.setBackgroundColor(ThemeColors.dayDivider());
-            dividerMid3.setBackgroundColor(ThemeColors.dayDivider());
-            dividerMid4.setBackgroundColor(ThemeColors.dayDivider());
             btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
         }
     }
@@ -186,9 +169,8 @@ public class SettingsFragment extends BaseFloatFragment {
         btnStoragePerm = view.findViewById(R.id.btn_storage_perm);
         tvStoragePermTitle = view.findViewById(R.id.tv_storage_perm_title);
         tvStoragePermDesc = view.findViewById(R.id.tv_storage_perm_desc);
-        tvStoragePermTitle.setTextColor(titleColor());
-        tvStoragePermDesc.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
-        btnStoragePerm.setTextColor(titleColor());
+        applyItemTheme(tvStoragePermTitle, tvStoragePermDesc);
+        if (btnStoragePerm != null) btnStoragePerm.setTextColor(titleColor());
 
         updateStoragePermissionUI();
 
@@ -250,9 +232,8 @@ public class SettingsFragment extends BaseFloatFragment {
         scanProgress = view.findViewById(R.id.scan_progress);
         tvScanTitle = view.findViewById(R.id.tv_scan_title);
         tvScanDesc = view.findViewById(R.id.tv_scan_desc);
-        tvScanTitle.setTextColor(titleColor());
-        tvScanDesc.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
-        btnScan.setTextColor(titleColor());
+        applyItemTheme(tvScanTitle, tvScanDesc);
+        if (btnScan != null) btnScan.setTextColor(titleColor());
 
         btnScan.setOnClickListener(v -> {
             if (isScanning) return;
@@ -279,9 +260,7 @@ public class SettingsFragment extends BaseFloatFragment {
         switchNight = view.findViewById(R.id.switch_night_mode);
         tvNightTitle = view.findViewById(R.id.tv_night_mode_title);
         tvNightDesc = view.findViewById(R.id.tv_night_mode_desc);
-
-        tvNightTitle.setTextColor(titleColor());
-        tvNightDesc.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
+        applyItemTheme(tvNightTitle, tvNightDesc);
 
         SharedPreferences themePrefs = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE);
         boolean isNight = themePrefs.getBoolean("isNight", true);
@@ -316,8 +295,7 @@ public class SettingsFragment extends BaseFloatFragment {
         tvStyleDesc = view.findViewById(R.id.tv_style_desc);
 
         currentStyleIndex = ThemeColors.getStyleIndex();
-        tvStyleTitle.setTextColor(titleColor());
-        tvStyleDesc.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
+        applyItemTheme(tvStyleTitle, tvStyleDesc);
         updateStyleTabColors();
 
         for (int i = 0; i < 4; i++) {
@@ -349,9 +327,7 @@ public class SettingsFragment extends BaseFloatFragment {
         switchFloat = view.findViewById(R.id.switch_float_window);
         tvFloatDesc = view.findViewById(R.id.tv_float_window_desc);
         tvFloatTitle = view.findViewById(R.id.tv_float_window_title);
-
-        tvFloatTitle.setTextColor(titleColor());
-        tvFloatDesc.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
+        applyItemTheme(tvFloatTitle, tvFloatDesc);
 
         SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         boolean enabled = prefs.getBoolean(KEY_FLOAT_WINDOW_ENABLED, true);
@@ -379,9 +355,7 @@ public class SettingsFragment extends BaseFloatFragment {
         switchSpectrum = view.findViewById(R.id.switch_spectrum);
         tvSpectrumTitle = view.findViewById(R.id.tv_spectrum_title);
         tvSpectrumDesc = view.findViewById(R.id.tv_spectrum_desc);
-
-        tvSpectrumTitle.setTextColor(titleColor());
-        tvSpectrumDesc.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
+        applyItemTheme(tvSpectrumTitle, tvSpectrumDesc);
 
         SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         boolean enabled = prefs.getBoolean(KEY_SPECTRUM_ENABLED, true);
@@ -405,11 +379,10 @@ public class SettingsFragment extends BaseFloatFragment {
         TextView tvNightLabel = view.findViewById(R.id.tv_night_label);
         btnDayReset = view.findViewById(R.id.btn_day_color_reset);
         btnNightReset = view.findViewById(R.id.btn_night_color_reset);
-
-        tvLyricTitle.setTextColor(titleColor());
-        tvLyricDesc.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
-        btnDayReset.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
-        btnNightReset.setTextColor(isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary());
+        applyItemTheme(tvLyricTitle, tvLyricDesc);
+        int ts = secondaryColor();
+        if (btnDayReset != null) btnDayReset.setTextColor(ts);
+        if (btnNightReset != null) btnNightReset.setTextColor(ts);
 
         SharedPreferences themePrefs = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE);
 

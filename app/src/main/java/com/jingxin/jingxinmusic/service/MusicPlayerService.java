@@ -318,8 +318,8 @@ public class MusicPlayerService extends Service {
                     Log.w(TAG, "ExoPlayer静默跳过音频轨道（可能不支持该编码），尝试MediaPlayer兜底");
                     Song currentSong = getCurrentSong();
                     if (currentSong != null) {
-                        String playUri = currentSong.contentUri != null ? currentSong.contentUri : currentSong.filePath;
-                        if (playUri != null && !playUri.startsWith("http") && !playUri.startsWith("bili://")) {
+                        String playUri = getLocalPlayUri(currentSong);
+                        if (playUri != null) {
                             startFallbackPlayback(currentSong, playUri, currentIndex);
                             return;
                         }
@@ -344,27 +344,14 @@ public class MusicPlayerService extends Service {
                 // ExoPlayer 播放失败：尝试用 MediaPlayer 兜底（可能是 ALAC 等不支持的格式）
                 Song currentSong = getCurrentSong();
                 if (currentSong != null && !isFallbackMode) {
-                    String playUri = currentSong.contentUri != null ? currentSong.contentUri : currentSong.filePath;
-                    // 本地歌曲才兜底（WebDAV/B站 MediaPlayer 不方便处理）
-                    if (playUri != null && !playUri.startsWith("http") && !playUri.startsWith("bili://")) {
+                    String playUri = getLocalPlayUri(currentSong);
+                    if (playUri != null) {
                         Log.d(TAG, "ExoPlayer播放失败，尝试MediaPlayer兜底: " + currentSong.title);
                         startFallbackPlayback(currentSong, playUri, currentIndex);
                         return;
                     }
                 }
-                consecutiveErrors++;
-                if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
-                    Log.d(TAG, "播放错误(" + consecutiveErrors + "/" + MAX_CONSECUTIVE_ERRORS + ")，尝试下一首");
-                    playNext();
-                } else {
-                    Log.w(TAG, "连续" + MAX_CONSECUTIVE_ERRORS + "首播放失败，停止自动切歌");
-                    // 发送广播通知UI
-                    Intent errorIntent = new Intent(ACTION_PLAY_STATE_CHANGED);
-                    errorIntent.setPackage(getPackageName());
-                    errorIntent.putExtra("play_error", true);
-                    errorIntent.putExtra("error_message", "连续播放失败，请检查网络或音乐文件");
-                    sendBroadcast(errorIntent);
-                }
+                handlePlaybackError();
             }
         };
         exoPlayer.addListener(playerListener);
@@ -643,18 +630,12 @@ public class MusicPlayerService extends Service {
                 android.net.Uri parsed = Uri.parse(playUri);
                 if (parsed.getScheme() == null || parsed.getHost() == null) {
                     Log.e(TAG, "播放URL格式异常: " + playUri);
-                    consecutiveErrors++;
-                    if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
-                        playNext();
-                    }
+                    handlePlaybackError();
                     return;
                 }
             } catch (Exception e) {
                 Log.e(TAG, "播放URL解析失败: " + playUri + " - " + e.getMessage());
-                consecutiveErrors++;
-                if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
-                    playNext();
-                }
+                handlePlaybackError();
                 return;
             }
         }
@@ -698,13 +679,7 @@ public class MusicPlayerService extends Service {
         // 播放成功，重置连续错误计数
         consecutiveErrors = 0;
 
-        // 记录播放历史（后台线程）
-        new Thread(() -> {
-            File historyDir = new File(getExternalFilesDir(null), "history");
-            HistoryManager.addHistory(historyDir, song);
-        }, "HistoryLogger").start();
-
-        // MediaSession metadata 在 sendSongChangedBroadcast 中根据歌词就绪时机更新
+        logPlayHistory(song);
 
         Log.d(TAG, "开始播放: " + song.title + " - " + song.artist);
         updateNotification();
@@ -797,23 +772,15 @@ public class MusicPlayerService extends Service {
             exoPlayer.prepare();
             exoPlayer.play();
 
-            consecutiveErrors = 0;
+        consecutiveErrors = 0;
 
-            new Thread(() -> {
-                File historyDir = new File(getExternalFilesDir(null), "history");
-                HistoryManager.addHistory(historyDir, song);
-            }, "HistoryLogger").start();
-
-            // MediaSession metadata 延迟到 sendSongChangedBroadcast 中根据歌词就绪时机更新
+        logPlayHistory(song);
             updateNotification();
             sendSongChangedBroadcast(song, position);
 
         } catch (Exception e) {
             Log.e(TAG, "B站播放启动失败: " + e.getMessage());
-            consecutiveErrors++;
-            if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
-                playNext();
-            }
+            handlePlaybackError();
         }
     }
 
@@ -846,28 +813,27 @@ public class MusicPlayerService extends Service {
     private void playNext() {
         if (playlist.isEmpty()) return;
         Log.d(TAG, "playNext: playOrder=" + playOrder + ", currentIndex=" + currentIndex + ", playlist.size=" + playlist.size());
-
-        if (playOrder == PLAY_ORDER_REPEAT_ONE) {
-            playSongAtPosition(currentIndex);
-        } else if (playOrder == PLAY_ORDER_SHUFFLE) {
-            playRandomSong();
-        } else {
-            currentIndex++;
-            if (currentIndex >= playlist.size()) currentIndex = 0;
-            playSongAtPosition(currentIndex);
-        }
+        playAdjacent(1);
     }
 
     private void playPrevious() {
         if (playlist.isEmpty()) return;
+        playAdjacent(-1);
+    }
 
+    /**
+     * 按当前播放顺序切换到相邻歌曲
+     * @param direction +1 下一首, -1 上一首
+     */
+    private void playAdjacent(int direction) {
         if (playOrder == PLAY_ORDER_REPEAT_ONE) {
             playSongAtPosition(currentIndex);
         } else if (playOrder == PLAY_ORDER_SHUFFLE) {
             playRandomSong();
         } else {
-            currentIndex--;
-            if (currentIndex < 0) currentIndex = playlist.size() - 1;
+            currentIndex += direction;
+            if (currentIndex >= playlist.size()) currentIndex = 0;
+            else if (currentIndex < 0) currentIndex = playlist.size() - 1;
             playSongAtPosition(currentIndex);
         }
     }
@@ -1409,13 +1375,8 @@ public class MusicPlayerService extends Service {
      * WebDAV 需要认证的资源会直接 401 失败。
      */
     private boolean needsFallback(String filePath, String playUri) {
-        String path = filePath != null ? filePath : playUri;
+        String path = stripQueryParams(filePath != null ? filePath : playUri);
         if (path == null) return false;
-        // WebDAV URL 去掉查询参数
-        if (path.startsWith("http")) {
-            int q = path.indexOf('?');
-            if (q > 0) path = path.substring(0, q);
-        }
         String lower = path.toLowerCase();
         // m4a 可能是 ALAC 编码，先检查设备解码器
         // 有 ALAC 解码器的设备（如部分三星/小米真机），ExoPlayer 能正常播放
@@ -1493,10 +1454,7 @@ public class MusicPlayerService extends Service {
                 releaseFallbackPlayer();
                 isFallbackMode = false;
                 showToast("当前设备不支持播放此音频格式");
-                consecutiveErrors++;
-                if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
-                    playNext();
-                }
+                handlePlaybackError();
                 return true;
             });
             fallbackPlayer.prepare();
@@ -1506,27 +1464,20 @@ public class MusicPlayerService extends Service {
             // 播放成功，重置连续错误计数
             consecutiveErrors = 0;
 
-            // 记录播放历史
-            new Thread(() -> {
-                File historyDir = new File(getExternalFilesDir(null), "history");
-                HistoryManager.addHistory(historyDir, song);
-            }, "HistoryLogger").start();
+            logPlayHistory(song);
 
             // 同步播放状态到UI（fallback模式下没有ExoPlayer回调，需手动发送）
             sendPlayStateBroadcast();
             updateNotification();
             startPlaybackStateUpdater();
             sendSongChangedBroadcast(song, position);
-        } catch (Exception e) {
-            Log.e(TAG, "MediaPlayer兜底播放初始化失败: " + e.getMessage());
-            releaseFallbackPlayer();
-            isFallbackMode = false;
-            showToast("当前设备不支持播放此音频格式");
-            consecutiveErrors++;
-            if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
-                playNext();
-            }
-        }
+    } catch (Exception e) {
+        Log.e(TAG, "MediaPlayer兜底播放初始化失败: " + e.getMessage());
+        releaseFallbackPlayer();
+        isFallbackMode = false;
+        showToast("当前设备不支持播放此音频格式");
+        handlePlaybackError();
+    }
     }
 
     /**
@@ -1550,17 +1501,63 @@ public class MusicPlayerService extends Service {
     }
 
     /**
+     * 去掉 URL 查询参数（?xxx=yyy），非 http(s) 路径原样返回
+     */
+    private String stripQueryParams(String path) {
+        if (path != null && path.startsWith("http")) {
+            int q = path.indexOf('?');
+            if (q > 0) return path.substring(0, q);
+        }
+        return path;
+    }
+
+    /**
+     * 后台线程记录播放历史
+     */
+    private void logPlayHistory(Song song) {
+        new Thread(() -> {
+            File historyDir = new File(getExternalFilesDir(null), "history");
+            HistoryManager.addHistory(historyDir, song);
+        }, "HistoryLogger").start();
+    }
+
+    /**
+     * 获取当前歌曲的本地播放 URI（contentUri 优先），非本地源返回 null
+     */
+    private String getLocalPlayUri(Song song) {
+        if (song == null) return null;
+        String uri = song.contentUri != null ? song.contentUri : song.filePath;
+        if (uri != null && !uri.startsWith("http") && !uri.startsWith("bili://")) {
+            return uri;
+        }
+        return null;
+    }
+
+    /**
+     * 统一处理播放错误：递增计数，未超限则跳下一首，超限则通知 UI 停止自动切歌
+     */
+    private void handlePlaybackError() {
+        consecutiveErrors++;
+        if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+            Log.d(TAG, "播放错误(" + consecutiveErrors + "/" + MAX_CONSECUTIVE_ERRORS + ")，尝试下一首");
+            playNext();
+        } else {
+            Log.w(TAG, "连续" + MAX_CONSECUTIVE_ERRORS + "首播放失败，停止自动切歌");
+            Intent errorIntent = new Intent(ACTION_PLAY_STATE_CHANGED);
+            errorIntent.setPackage(getPackageName());
+            errorIntent.putExtra("play_error", true);
+            errorIntent.putExtra("error_message", "连续播放失败，请检查网络或音乐文件");
+            sendBroadcast(errorIntent);
+        }
+    }
+
+    /**
      * 根据文件扩展名推断音频MIME类型
      * content://URI 无法传递格式信息时，ExoPlayer 可能选错解码器，明确指定 MIME 可避免此问题
      * 注意：ALAC 编码的 m4a 已在 needsFallback() 中拦截走 MediaPlayer，此处只处理常规格式
      */
     private String inferMimeType(String filePath, String playUri) {
-        String path = filePath;
-        // WebDAV URL可能带查询参数，先去掉
-        if (path != null && path.startsWith("http")) {
-            int q = path.indexOf('?');
-            if (q > 0) path = path.substring(0, q);
-        }
+        String path = stripQueryParams(filePath);
         // 如果filePath不可用，尝试从playUri提取
         if (path == null || path.isEmpty()) path = playUri;
         if (path == null) return null;
