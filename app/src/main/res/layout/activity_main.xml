@@ -56,7 +56,7 @@
     <LinearLayout
         android:id="@+id/tab_bar"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="56dp"
         android:gravity="center"
         android:orientation="horizontal">
 
@@ -159,7 +159,7 @@
         <LinearLayout
         android:id="@+id/path_bar"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="56dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="8dp"

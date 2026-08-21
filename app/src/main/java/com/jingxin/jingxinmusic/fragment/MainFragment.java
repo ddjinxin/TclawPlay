@@ -169,7 +169,6 @@ public class MainFragment extends BaseFloatFragment {
     private android.database.ContentObserver mediaStoreObserver;
     private volatile boolean isScanning = false;
     private volatile boolean isManualScanning = false;
-    private volatile boolean manualScanPending = false;
     private final Object scanLock = new Object();
     private static final int SELF_SCAN_IGNORE_MS = 3000;
     private final Handler scanDebounceHandler = new Handler();
@@ -777,6 +776,8 @@ public class MainFragment extends BaseFloatFragment {
 
     private void navigateToPlayer(Bundle args) {
         if (getActivity() == null || !isAdded() || mRootView == null) return;
+        // 任何主动进入播放页（点歌/mini条/浏览/自动恢复）后，返回列表页时都不应再自动跳回播放页
+        hasAutoResumed = true;
         mRootView.post(() -> {
             if (getActivity() == null || !isAdded()) return;
             PlayerFragment fragment = new PlayerFragment();
@@ -1663,35 +1664,29 @@ public class MainFragment extends BaseFloatFragment {
             Log.d(TAG, "使用缓存立即显示 " + cached.size() + " 首歌曲");
             applyScanResult(cached, ctx);
             if (tryAutoResume) autoResumeLastPlayed(cached);
-        } else {
-            tvLoading.setVisibility(View.VISIBLE);
-            tvSongCount.setText("正在扫描音乐...");
-            rvBrowse.setVisibility(View.GONE);
-            browseLoading.setVisibility(View.VISIBLE);
+            // 缓存有效，无需后台全量扫描，避免返回列表页时重复刷新
+            synchronized (scanLock) {
+                isScanning = false;
+            }
+            return;
         }
+
+        tvLoading.setVisibility(View.VISIBLE);
+        tvSongCount.setText("正在扫描音乐...");
+        rvBrowse.setVisibility(View.GONE);
+        browseLoading.setVisibility(View.VISIBLE);
 
         final boolean finalTryAutoResume = tryAutoResume;
         executor.execute(() -> {
-            if (cached == null || cached.isEmpty()) {
-                if (!isActivityGone()) MusicScanner.triggerMediaScan(ctx);
-            } else if (!MusicScanner.hasValidCache(ctx)) {
-                MusicScanner.triggerMediaScan(ctx);
-            }
+            if (!isActivityGone()) MusicScanner.triggerMediaScan(ctx);
             List<Song> songs = MusicScanner.scanMusic(ctx);
             runOnUi(() -> {
                 if (isActivityGone()) return;
                 synchronized (scanLock) {
                     isScanning = false;
-                    if (manualScanPending) {
-                        manualScanPending = false;
-                        Log.d(TAG, "自动扫描完成，执行待处理的手动扫描");
-                        scanMusic(finalTryAutoResume);
-                    }
                 }
                 applyScanResult(songs, ctx);
-                if (cached == null || cached.isEmpty()) {
-                    if (finalTryAutoResume) autoResumeLastPlayed(songs);
-                }
+                if (finalTryAutoResume) autoResumeLastPlayed(songs);
             });
         });
     }
@@ -2120,9 +2115,9 @@ public class MainFragment extends BaseFloatFragment {
             }
             if (tabBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tabBar.getLayoutParams();
-                lp.height = (int) (40 * density);
+                lp.height = (int) (56 * density);
                 tabBar.setLayoutParams(lp);
-                float tabDefaultSize = 14 * density;
+                float tabDefaultSize = Math.max(8f, 56 * density * 0.3f);
                 if (tabLocal != null) tabLocal.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
                 if (tabCloud != null) tabCloud.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
                 if (tabBili != null) tabBili.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
@@ -2166,9 +2161,10 @@ public class MainFragment extends BaseFloatFragment {
             if (miniSongArtist != null) miniSongArtist.setTextSize(12);
             if (pathBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) pathBar.getLayoutParams();
-                lp.height = (int) (40 * density);
+                lp.height = (int) (56 * density);
                 pathBar.setLayoutParams(lp);
-                int iconDefault = (int) (32 * density);
+                int pathBarH = (int) (56 * density);
+                int iconDefault = Math.max(20, (int) (pathBarH * 0.7f));
                 if (btnNavigateBack != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnNavigateBack.getLayoutParams();
                     lp2.width = iconDefault; lp2.height = iconDefault;
@@ -2184,7 +2180,7 @@ public class MainFragment extends BaseFloatFragment {
                     lp2.width = iconDefault; lp2.height = iconDefault;
                     btnBiliSettings.setLayoutParams(lp2);
                 }
-                if (tvBrowsePath != null) tvBrowsePath.setTextSize(14);
+                if (tvBrowsePath != null) tvBrowsePath.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, pathBarH * 0.3f));
             }
             if (etSearch != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) etSearch.getLayoutParams();
