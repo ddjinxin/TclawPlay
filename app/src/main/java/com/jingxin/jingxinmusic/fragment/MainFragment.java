@@ -1772,6 +1772,12 @@ public class MainFragment extends BaseFloatFragment {
             return false;
         }
 
+        // 检查是否开启启动直达播放
+        if (!SettingsFragment.isAutoResumeEnabled(requireContext())) {
+            Log.d(TAG, "autoResumeLastPlayed: auto resume disabled, skip");
+            return false;
+        }
+
         SharedPreferences prefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
         Song resumeSong = Song.fromPrefs(prefs);
         if (resumeSong == null) return false;

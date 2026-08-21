@@ -88,7 +88,8 @@ public class CoverCarouselAdapter {
         iv.setAlpha(cardIndex == 2 ? 1.0f : (cardIndex == 1 || cardIndex == 3) ? 0.85f : 0.7f);
 
         if (executor != null) {
-            CoverLoader.load(context, song, 300, 300, true, executor,
+            boolean preferLocal = com.jingxin.jingxinmusic.fragment.SettingsFragment.isLocalCoverPriority(context);
+            CoverLoader.load(context, song, 300, 300, true, preferLocal, executor,
                     new CoverLoader.CoverCallback() {
                         @Override
                         public void onCoverLoaded(Bitmap bitmap) {

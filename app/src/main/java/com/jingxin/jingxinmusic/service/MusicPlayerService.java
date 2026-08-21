@@ -1202,7 +1202,8 @@ public class MusicPlayerService extends Service {
 
         Log.d(TAG, "封面缓存不存在，Service 异步加载: " + coverName);
         // CoverLoader.load 内部通过 executor 异步加载，回调在主线程
-        com.jingxin.jingxinmusic.util.CoverLoader.load(this, song, 200, 200, true,
+        boolean preferLocal = com.jingxin.jingxinmusic.fragment.SettingsFragment.isLocalCoverPriority(this);
+        com.jingxin.jingxinmusic.util.CoverLoader.load(this, song, 200, 200, true, preferLocal,
                 coverExecutor,
                 new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
                     @Override

@@ -1323,7 +1323,7 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override
             public void onError(String errorMessage) {
             }
-        }, requireContext(), song.title);
+        }, requireContext(), song.title, SettingsFragment.isLocalLyricPriority(requireContext()));
     }
 
     /**
@@ -1346,8 +1346,9 @@ public class PlayerFragment extends BaseFloatFragment {
             coverView.setForeground(null);
         }
 
+        boolean preferLocal = SettingsFragment.isLocalCoverPriority(requireContext());
         com.jingxin.jingxinmusic.util.CoverLoader.load(requireContext(), song, 600, 600,
-                true, executor, new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
+                true, preferLocal, executor, new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
             @Override
             public void onCoverLoaded(Bitmap bitmap) {
                 if (isActivityGone()) return;

@@ -96,55 +96,76 @@ public class CoverLoader {
      */
     public static void load(Context context, Song song, int reqWidth, int reqHeight,
                             boolean saveCache, ExecutorService executor, CoverCallback callback) {
+        load(context, song, reqWidth, reqHeight, saveCache, true, executor, callback);
+    }
+
+    /**
+     * 异步加载封面（可控制是否优先本地）
+     *
+     * @param preferLocal true=内嵌封面→缓存→在线；false=跳过内嵌和缓存，直接在线获取
+     */
+    public static void load(Context context, Song song, int reqWidth, int reqHeight,
+                            boolean saveCache, boolean preferLocal,
+                            ExecutorService executor, CoverCallback callback) {
         if (song == null || song.title == null) {
             callback.onCoverFailed();
             return;
         }
 
+        // preferLocal=false（跳过本地封面）只对本地音乐生效
+        if (!preferLocal && (song.filePath == null || !new File(song.filePath).exists())) {
+            preferLocal = true;
+        }
+        final boolean useLocal = preferLocal;
+
         Handler uiHandler = new Handler(Looper.getMainLooper());
 
         executor.execute(() -> {
-            // 1. 提取音频文件内嵌封面
-            Bitmap embedded = CoverFetcher.extractEmbeddedCover(song.filePath);
-            if (embedded != null) {
-                if (saveCache) {
-                    String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
-                    File cacheDir = context.getExternalFilesDir("covers");
-                    if (cacheDir != null) {
-                        File f = new File(cacheDir, coverName);
-                        if (!f.exists()) {
-                            Song.saveCoverToPublic(context, coverName, embedded);
+            // 1. 提取音频文件内嵌封面（useLocal=false 时跳过）
+            if (useLocal) {
+                Bitmap embedded = CoverFetcher.extractEmbeddedCover(song.filePath);
+                if (embedded != null) {
+                    if (saveCache) {
+                        String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
+                        File cacheDir = context.getExternalFilesDir("covers");
+                        if (cacheDir != null) {
+                            File f = new File(cacheDir, coverName);
+                            if (!f.exists()) {
+                                Song.saveCoverToPublic(context, coverName, embedded);
+                            }
                         }
                     }
-                }
-                if (reqWidth > 0 && reqHeight > 0) {
-                    Bitmap sampled = BitmapUtil.decodeSampledFromBytes(
-                            bitmapToBytes(embedded), reqWidth, reqHeight);
-                    if (sampled != null && sampled != embedded) {
-                        embedded.recycle();
-                        embedded = sampled;
+                    if (reqWidth > 0 && reqHeight > 0) {
+                        Bitmap sampled = BitmapUtil.decodeSampledFromBytes(
+                                bitmapToBytes(embedded), reqWidth, reqHeight);
+                        if (sampled != null && sampled != embedded) {
+                            embedded.recycle();
+                            embedded = sampled;
+                        }
                     }
+                    Bitmap finalBitmap = embedded;
+                    uiHandler.post(() -> callback.onCoverLoaded(finalBitmap));
+                    return;
                 }
-                Bitmap finalBitmap = embedded;
-                uiHandler.post(() -> callback.onCoverLoaded(finalBitmap));
-                return;
             }
 
-            // 2. 本地封面缓存
-            File coverDir = context.getExternalFilesDir("covers");
-            if (coverDir != null) {
-                String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
-                File coverFile = new File(coverDir, coverName);
-                if (coverFile.exists() && coverFile.length() > 0) {
-                    Bitmap bmp;
-                    if (reqWidth > 0 && reqHeight > 0) {
-                        bmp = BitmapUtil.decodeSampledFromFile(coverFile.getAbsolutePath(), reqWidth, reqHeight);
-                    } else {
-                        bmp = android.graphics.BitmapFactory.decodeFile(coverFile.getAbsolutePath());
-                    }
-                    if (bmp != null) {
-                        uiHandler.post(() -> callback.onCoverLoaded(bmp));
-                        return;
+            // 2. 本地封面缓存（useLocal=false 时跳过）
+            if (useLocal) {
+                File coverDir = context.getExternalFilesDir("covers");
+                if (coverDir != null) {
+                    String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
+                    File coverFile = new File(coverDir, coverName);
+                    if (coverFile.exists() && coverFile.length() > 0) {
+                        Bitmap bmp;
+                        if (reqWidth > 0 && reqHeight > 0) {
+                            bmp = BitmapUtil.decodeSampledFromFile(coverFile.getAbsolutePath(), reqWidth, reqHeight);
+                        } else {
+                            bmp = android.graphics.BitmapFactory.decodeFile(coverFile.getAbsolutePath());
+                        }
+                        if (bmp != null) {
+                            uiHandler.post(() -> callback.onCoverLoaded(bmp));
+                            return;
+                        }
                     }
                 }
             }

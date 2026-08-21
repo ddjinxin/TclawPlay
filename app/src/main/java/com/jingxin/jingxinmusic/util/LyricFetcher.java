@@ -240,7 +240,7 @@ public class LyricFetcher {
     }
 
     public static void loadLyric(String songTitle, String artistName, String filePath, File lyricsDir, LyricCallback callback) {
-        loadLyric(songTitle, artistName, filePath, lyricsDir, callback, null, songTitle);
+        loadLyric(songTitle, artistName, filePath, lyricsDir, callback, null, songTitle, false);
     }
 
     /**
@@ -252,15 +252,19 @@ public class LyricFetcher {
      * @param callback   歌词回调
      * @param context    上下文，用于复制歌词到公共目录（可为null）
      * @param rawTitle   未清洗的原始标题（用于文件命名），为null时退化为songTitle
+     * @param preferLocalLyric 是否优先本地歌词（跳过KRC缓存，直接从歌曲同目录LRC开始）
      */
-    public static void loadLyric(String songTitle, String artistName, String filePath, File lyricsDir, LyricCallback callback, Context context, String rawTitle) {
+    public static void loadLyric(String songTitle, String artistName, String filePath, File lyricsDir, LyricCallback callback, Context context, String rawTitle, boolean preferLocalLyric) {
         new Thread(() -> {
             try {
                 // 文件命名用原始标题，搜索用清洗后的歌名
                 String fileBaseName = buildFileName(rawTitle != null ? rawTitle : songTitle, artistName);
 
-                // 1. 查本地 KRC
+                // 1. 查本地 KRC（preferLocalLyric=true 且为本地音乐时跳过此层）
                 File krcFile = findLyricFile(lyricsDir, fileBaseName, artistName, ".krc");
+                boolean skipKrc = preferLocalLyric && filePath != null && !filePath.isEmpty()
+                        && new File(filePath).exists();
+                if (!skipKrc) {
                 if (krcFile.exists()) {
                     Log.d(TAG, "找到本地 KRC: " + krcFile.getName());
                     KrcParser.LyricData data = KrcParser.parseKrcFile(krcFile);
@@ -287,6 +291,7 @@ public class LyricFetcher {
                         return;
                     }
                 }
+                } // end if (!preferLocalLyric)
 
                 // 1.5 查音乐文件所在目录的同名 LRC
                 if (filePath != null && !filePath.isEmpty()) {

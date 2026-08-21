@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory;
 
 import com.jingxin.jingxinmusic.util.BitmapUtil;
 import com.jingxin.jingxinmusic.util.CoverLoader;
+import com.jingxin.jingxinmusic.fragment.SettingsFragment;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -166,32 +167,41 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         coverExecutor.execute(() -> {
             Bitmap coverBitmap = null;
 
-            // 1. 本地封面缓存
-            try {
-                File coverDir = CoverLoader.getCoverDir(context);
-                if (coverDir != null) {
-                    // 优先用 歌名 - 歌手.jpg 匹配
-                    String artist = item.song != null ? item.song.artist : "";
-                    String coverName = Song.toFileName(songTitle, artist) + ".jpg";
-                    File coverFile = new File(coverDir, coverName);
-                    if (coverFile.exists() && coverFile.length() > 0) {
-                        coverBitmap = BitmapUtil.decodeSampledFromFile(coverFile.getAbsolutePath(), 200, 200);
-                    }
-                    // 回退：用歌名前缀匹配
-                    if (coverBitmap == null) {
-                        File[] coverFiles = coverDir.listFiles((dir, name) ->
-                                name.startsWith(songTitle) && name.endsWith(".jpg"));
-                        if (coverFiles != null && coverFiles.length > 0) {
-                            coverBitmap = BitmapUtil.decodeSampledFromFile(coverFiles[0].getAbsolutePath(), 200, 200);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                Log.d(TAG, "本地封面查找失败: " + e.getMessage());
+            boolean preferLocal = SettingsFragment.isLocalCoverPriority(context);
+            // preferLocal=false（跳过本地封面）只对本地音乐生效
+            if (!preferLocal && (item.song == null || item.song.filePath == null
+                    || !new File(item.song.filePath).exists())) {
+                preferLocal = true;
             }
 
-            // 2. 本地歌曲从MediaStore的albumArt URI加载
-            if (coverBitmap == null && item.song != null && item.song.albumArt != null
+            // 1. 本地封面缓存（preferLocal=false 时跳过）
+            if (preferLocal) {
+                try {
+                    File coverDir = CoverLoader.getCoverDir(context);
+                    if (coverDir != null) {
+                        // 优先用 歌名 - 歌手.jpg 匹配
+                        String artist = item.song != null ? item.song.artist : "";
+                        String coverName = Song.toFileName(songTitle, artist) + ".jpg";
+                        File coverFile = new File(coverDir, coverName);
+                        if (coverFile.exists() && coverFile.length() > 0) {
+                            coverBitmap = BitmapUtil.decodeSampledFromFile(coverFile.getAbsolutePath(), 200, 200);
+                        }
+                        // 回退：用歌名前缀匹配
+                        if (coverBitmap == null) {
+                            File[] coverFiles = coverDir.listFiles((dir, name) ->
+                                    name.startsWith(songTitle) && name.endsWith(".jpg"));
+                            if (coverFiles != null && coverFiles.length > 0) {
+                                coverBitmap = BitmapUtil.decodeSampledFromFile(coverFiles[0].getAbsolutePath(), 200, 200);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.d(TAG, "本地封面查找失败: " + e.getMessage());
+                }
+            }
+
+            // 2. 本地歌曲从MediaStore的albumArt URI加载（preferLocal=false 时跳过）
+            if (coverBitmap == null && preferLocal && item.song != null && item.song.albumArt != null
                     && !item.song.albumArt.isEmpty()) {
                 try {
                     coverBitmap = BitmapFactory.decodeStream(

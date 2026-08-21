@@ -41,6 +41,7 @@ import androidx.annotation.Nullable;
 
 import com.jingxin.jingxinmusic.HostActivity;
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.fragment.SettingsFragment;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.util.CoverFetcher;
 import com.jingxin.jingxinmusic.util.CompatUtil;
@@ -686,15 +687,16 @@ public class MiniFloatService extends Service {
                     public void onError(String errorMessage) {
                         lyricData = null;
                     }
-                }, this, song.title);
+                }, this, song.title, SettingsFragment.isLocalLyricPriority(this));
     }
 
     private void loadCover(Song song) {
         if (song.title == null) return;
         // 不重置封面，保留上一首歌的圆形封面直到新封面加载完成，避免切歌时方形闪烁
 
+        boolean preferLocal = com.jingxin.jingxinmusic.fragment.SettingsFragment.isLocalCoverPriority(this);
         com.jingxin.jingxinmusic.util.CoverLoader.load(this, song, 200, 200,
-                true, coverExecutor, new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
+                true, preferLocal, coverExecutor, new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
             @Override
             public void onCoverLoaded(Bitmap bitmap) {
                 setCircularCover(bitmap);

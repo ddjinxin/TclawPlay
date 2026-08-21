@@ -34,6 +34,9 @@ public class SettingsFragment extends BaseFloatFragment {
     public static final String PREFS_NAME = "app_settings";
     public static final String KEY_FLOAT_WINDOW_ENABLED = "float_window_enabled";
     public static final String KEY_SPECTRUM_ENABLED = "spectrum_enabled";
+    public static final String KEY_LOCAL_COVER_PRIORITY = "local_cover_priority";
+    public static final String KEY_LOCAL_LYRIC_PRIORITY = "local_lyric_priority";
+    public static final String KEY_AUTO_RESUME = "auto_resume";
 
     // 歌词高亮颜色 preferences 存在 "theme" SharedPreferences 中
     public static final String KEY_DAY_LYRIC_COLOR = "day_lyric_color";
@@ -44,15 +47,13 @@ public class SettingsFragment extends BaseFloatFragment {
     private boolean isNightMode;
     private ScrollView rootScroll;
     private TextView tvTitle;
-    private View dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4;
+    private View dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7;
     private ImageView btnBack;
     private TextView[] styleTabs = new TextView[4];
     private int currentStyleIndex = 0;
-    private SwitchCompat switchNight, switchFloat, switchSpectrum;
-    // 各设置项标题
-    private TextView tvNightTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle;
-    // 各设置项描述
-    private TextView tvNightDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc;
+    private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume;
+    private TextView tvNightTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle;
+    private TextView tvNightDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc;
     private TextView btnDayReset, btnNightReset;
     private TextView btnScan;
     private TextView tvScanTitle, tvScanDesc;
@@ -90,6 +91,24 @@ public class SettingsFragment extends BaseFloatFragment {
                 .getBoolean(KEY_SPECTRUM_ENABLED, true);
     }
 
+    /** 读取优先读取本地封面开关状态（默认开启） */
+    public static boolean isLocalCoverPriority(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_LOCAL_COVER_PRIORITY, true);
+    }
+
+    /** 读取优先读取本地歌词开关状态（默认开启） */
+    public static boolean isLocalLyricPriority(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_LOCAL_LYRIC_PRIORITY, true);
+    }
+
+    /** 读取启动直达播放开关状态（默认开启） */
+    public static boolean isAutoResumeEnabled(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_AUTO_RESUME, true);
+    }
+
     /** 读取白天高亮歌词颜色 */
     public static int getDayLyricColor(Context context) {
         return context.getSharedPreferences("theme", Context.MODE_PRIVATE)
@@ -118,6 +137,9 @@ public class SettingsFragment extends BaseFloatFragment {
         setupStyleSelector(view);
         setupFloatWindowSwitch(view);
         setupSpectrumSwitch(view);
+        setupLocalCoverSwitch(view);
+        setupLocalLyricSwitch(view);
+        setupAutoResumeSwitch(view);
         setupLyricColorSelector(view);
 
         applyTopInset(rootScroll);
@@ -133,6 +155,9 @@ public class SettingsFragment extends BaseFloatFragment {
         dividerMid2 = view.findViewById(R.id.divider_mid2);
         dividerMid3 = view.findViewById(R.id.divider_mid3);
         dividerMid4 = view.findViewById(R.id.divider_mid4);
+        dividerMid5 = view.findViewById(R.id.divider_mid5);
+        dividerMid6 = view.findViewById(R.id.divider_mid6);
+        dividerMid7 = view.findViewById(R.id.divider_mid7);
         btnBack = view.findViewById(R.id.btn_back);
         styleTabs[0] = view.findViewById(R.id.style_tab_0);
         styleTabs[1] = view.findViewById(R.id.style_tab_1);
@@ -147,16 +172,16 @@ public class SettingsFragment extends BaseFloatFragment {
         tvTitle.setTextColor(tc);
         // 刷新所有标题
         TextView[] titles = {tvNightTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle,
-                tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm};
+                tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle};
         for (TextView t : titles) if (t != null) t.setTextColor(tc);
         // 刷新所有描述
         TextView[] descs = {tvNightDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc,
-                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset};
+                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc};
         for (TextView d : descs) if (d != null) d.setTextColor(ts);
         // 风格 tab 颜色
         updateStyleTabColors();
         int divColor = isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider();
-        View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4};
+        View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7};
         for (View d : dividers) d.setBackgroundColor(divColor);
         if (isNightMode) {
             btnBack.clearColorFilter();
@@ -277,6 +302,9 @@ public class SettingsFragment extends BaseFloatFragment {
             applySwitchTint(switchNight);
             applySwitchTint(switchFloat);
             applySwitchTint(switchSpectrum);
+            applySwitchTint(switchLocalCover);
+            applySwitchTint(switchLocalLyric);
+            applySwitchTint(switchAutoResume);
             Toast.makeText(requireContext(), isChecked ? "夜间模式" : "白天模式", Toast.LENGTH_SHORT).show();
         });
     }
@@ -365,6 +393,57 @@ public class SettingsFragment extends BaseFloatFragment {
         switchSpectrum.setOnCheckedChangeListener((buttonView, isChecked) -> {
             prefs.edit().putBoolean(KEY_SPECTRUM_ENABLED, isChecked).apply();
             Toast.makeText(requireContext(), isChecked ? "已开启频谱显示" : "已关闭频谱显示", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void setupLocalCoverSwitch(View view) {
+        switchLocalCover = view.findViewById(R.id.switch_local_cover);
+        tvLocalCoverTitle = view.findViewById(R.id.tv_local_cover_title);
+        tvLocalCoverDesc = view.findViewById(R.id.tv_local_cover_desc);
+        applyItemTheme(tvLocalCoverTitle, tvLocalCoverDesc);
+
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean enabled = prefs.getBoolean(KEY_LOCAL_COVER_PRIORITY, true);
+        switchLocalCover.setChecked(enabled);
+        applySwitchTint(switchLocalCover);
+
+        switchLocalCover.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean(KEY_LOCAL_COVER_PRIORITY, isChecked).apply();
+            Toast.makeText(requireContext(), isChecked ? "已开启本地封面优先" : "已关闭本地封面优先，将在线获取", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void setupLocalLyricSwitch(View view) {
+        switchLocalLyric = view.findViewById(R.id.switch_local_lyric);
+        tvLocalLyricTitle = view.findViewById(R.id.tv_local_lyric_title);
+        tvLocalLyricDesc = view.findViewById(R.id.tv_local_lyric_desc);
+        applyItemTheme(tvLocalLyricTitle, tvLocalLyricDesc);
+
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean enabled = prefs.getBoolean(KEY_LOCAL_LYRIC_PRIORITY, true);
+        switchLocalLyric.setChecked(enabled);
+        applySwitchTint(switchLocalLyric);
+
+        switchLocalLyric.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean(KEY_LOCAL_LYRIC_PRIORITY, isChecked).apply();
+            Toast.makeText(requireContext(), isChecked ? "已开启本地歌词优先" : "已关闭本地歌词优先", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void setupAutoResumeSwitch(View view) {
+        switchAutoResume = view.findViewById(R.id.switch_auto_resume);
+        tvAutoResumeTitle = view.findViewById(R.id.tv_auto_resume_title);
+        tvAutoResumeDesc = view.findViewById(R.id.tv_auto_resume_desc);
+        applyItemTheme(tvAutoResumeTitle, tvAutoResumeDesc);
+
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean enabled = prefs.getBoolean(KEY_AUTO_RESUME, true);
+        switchAutoResume.setChecked(enabled);
+        applySwitchTint(switchAutoResume);
+
+        switchAutoResume.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean(KEY_AUTO_RESUME, isChecked).apply();
+            Toast.makeText(requireContext(), isChecked ? "已开启启动直达播放" : "已关闭启动直达播放", Toast.LENGTH_SHORT).show();
         });
     }
 
