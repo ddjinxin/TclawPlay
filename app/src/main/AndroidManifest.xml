@@ -45,7 +45,7 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
             android:theme="@style/Theme.JingxinMusic">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

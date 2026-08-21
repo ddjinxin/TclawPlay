@@ -258,6 +258,25 @@ public class PlayerFragment extends BaseFloatFragment {
                 }
                 uiHandler.post(() -> {
                     if (bound && playerBinder != null && allSongs != null) {
+                        // ★ 守卫：Service 已有有效播放队列且正在播放时，说明是 Activity/Fragment
+                        //   重建后重新绑定（如系统 uiMode 变化导致重建），只同步 UI，不重新播放
+                        List<Song> servicePlaylist = playerBinder.getPlaylist();
+                        if (servicePlaylist != null && !servicePlaylist.isEmpty()
+                                && playerBinder.getCurrentIndex() >= 0
+                                && playerBinder.isPlaying()) {
+                            btnPlayPause.setImageResource(playerBinder.isPlaying()
+                                    ? R.drawable.ic_pause : R.drawable.ic_play);
+                            if (playerBinder.isPlaying()) {
+                                coverView.startRotation();
+                                spectrumView.setPlaying(true);
+                                startSpectrumWithPermission();
+                            }
+                            currentScene.onServiceResumed(playerBinder.isPlaying());
+                            if (coverStyle == COVER_STYLE_CAROUSEL) {
+                                syncCarouselSongs();
+                            }
+                            return;
+                        }
                         if (resumePlay && playerBinder.isPlaying()) {
                             // 从 mini 播放条跳转，音乐已在后台播放，只更新 UI
                             btnPlayPause.setImageResource(R.drawable.ic_pause);
