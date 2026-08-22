@@ -2,6 +2,6 @@
 <paths>
     <!-- 封面缓存目录 -->
     <external-files-path name="covers" path="covers/" />
-    <!-- APK更新安装包目录 -->
-    <external-path name="update_apk" path="Download/TclawPlay/" />
+    <!-- APK更新安装包目录：getExternalFilesDir(null) 根目录 -->
+    <external-files-path name="update_apk" path="." />
 </paths>

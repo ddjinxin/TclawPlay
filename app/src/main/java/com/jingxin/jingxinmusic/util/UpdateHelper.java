@@ -49,15 +49,22 @@ public class UpdateHelper {
     // GitHub 仓库
     private static final String REPO_OWNER = "ddjinxin";
     private static final String REPO_NAME  = "TclawPlay";
-    private static final String API_URL =
+    private static final String GITHUB_API_URL =
             "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/releases/latest";
 
-    // 国内加速镜像列表：[类型, 基址]
+    // Gitee 仓库（国内优先，访问速度快）
+    private static final String GITEE_OWNER = "dandingjx";
+    private static final String GITEE_NAME  = "jingxin-music";
+    private static final String GITEE_API_URL =
+            "https://gitee.com/api/v5/repos/" + GITEE_OWNER + "/" + GITEE_NAME + "/releases/latest";
+
+    // GitHub 国内加速镜像列表：[类型, 基址]
+    // 注意：镜像服务经常变动，需定期更新。已移除失效的 mirror.ghproxy.com 和 kkgithub.com
     private static final String[][] MIRRORS = {
-        {"prefix", "https://ghproxy.net/"},
         {"prefix", "https://gh-proxy.com/"},
-        {"prefix", "https://mirror.ghproxy.com/"},
-        {"host",   "https://kkgithub.com"},
+        {"prefix", "https://ghproxy.net/"},
+        {"prefix", "https://ghfast.top/"},
+        {"host",   "https://gh-proxy.com"},
     };
     private static final int SPEED_TEST_BYTES = 16 * 1024;
     private static final int SPEED_TEST_TIMEOUT = 5000;
@@ -77,12 +84,13 @@ public class UpdateHelper {
     // 永久忽略版本集合存储
     private static final String SP_NAME       = "update_prefs";
     private static final String KEY_IGNORED   = "ignored_versions";
-    private static final String KEY_LAST_CHECK= "last_check_ver";
 
     private static UpdateHelper instance;
     private final Context appContext;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean isChecking = false;
+    // 进程级标记：本次进程已检查过，避免同一次启动重复检查。进程重启后自动重置。
+    private boolean launchChecked = false;
 
     private UpdateHelper(Context context) {
         appContext = context.getApplicationContext();
@@ -101,12 +109,11 @@ public class UpdateHelper {
      * 启动时自动检查（遵守"永久忽略"列表，本次启动只检查一次）。
      */
     public void checkOnLaunch(Activity activity) {
-        SharedPreferences sp = appContext.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE);
-        String lastCheckVer = sp.getString(KEY_LAST_CHECK, "");
-        if (!lastCheckVer.isEmpty()) {
-            Log.d(TAG, "本次启动已检查过最新版本: " + lastCheckVer + ", 跳过");
+        if (launchChecked) {
+            Log.d(TAG, "本次启动已检查过更新，跳过");
             return;
         }
+        launchChecked = true;
         checkAndDownload(activity, false);
     }
 
@@ -150,15 +157,11 @@ public class UpdateHelper {
                     finishCheck(activity, force, "无法连接更新服务器");
                     return;
                 }
-                // 记录本次启动已检查的版本
-                appContext.getSharedPreferences(SP_NAME, Context.MODE_PRIVATE)
-                        .edit().putString(KEY_LAST_CHECK, info.tagName).apply();
-
+                // 版本对比
                 String latestVer = normalizeVersion(info.tagName);
                 String currentNorm = normalizeVersion(currentVer);
                 Log.i(TAG, "最新版本: " + info.tagName + " (规范化: " + latestVer + ")");
 
-                // 3. 版本对比
                 if (compareVersions(currentNorm, latestVer) >= 0) {
                     Log.i(TAG, "已是最新版本");
                     finishCheck(activity, force, "已是最新版本");
@@ -203,26 +206,45 @@ public class UpdateHelper {
         }
     }
 
-    /** 调 GitHub API，解析最新 Release */
+    /** 检查更新：Gitee 优先，GitHub 回退。两个平台 JSON 格式一致，可复用解析逻辑。 */
     private ReleaseInfo fetchLatestRelease() {
+        // 1. 先试 Gitee（国内快）
+        ReleaseInfo info = fetchFromApi(GITEE_API_URL, true);
+        if (info != null) {
+            Log.i(TAG, "从 Gitee 获取版本信息成功");
+            return info;
+        }
+        Log.w(TAG, "Gitee API 失败，回退 GitHub");
+        // 2. 回退 GitHub
+        info = fetchFromApi(GITHUB_API_URL, false);
+        if (info != null) {
+            Log.i(TAG, "从 GitHub 获取版本信息成功");
+        }
+        return info;
+    }
+
+    /** 通用 API 请求：isGitee=true 时不需要 Accept 头 */
+    private ReleaseInfo fetchFromApi(String apiUrl, boolean isGitee) {
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(API_URL);
+            URL url = new URL(apiUrl);
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/vnd.github+json");
             conn.setRequestProperty("User-Agent", "TclawPlay-Updater");
+            if (!isGitee) {
+                conn.setRequestProperty("Accept", "application/vnd.github+json");
+            }
             conn.setConnectTimeout(10000);
             conn.setReadTimeout(15000);
             int code = conn.getResponseCode();
             if (code != 200) {
-                Log.w(TAG, "GitHub API 响应码: " + code);
+                Log.w(TAG, (isGitee ? "Gitee" : "GitHub") + " API 响应码: " + code);
                 return null;
             }
             String body = readStream(conn.getInputStream());
             return parseReleaseJson(body);
         } catch (Exception e) {
-            Log.e(TAG, "fetchLatestRelease 失败: " + e.getMessage());
+            Log.e(TAG, "fetchFromApi (" + (isGitee ? "Gitee" : "GitHub") + ") 失败: " + e.getMessage());
             return null;
         } finally {
             if (conn != null) conn.disconnect();
@@ -296,8 +318,12 @@ public class UpdateHelper {
         return json.substring(idx, end);
     }
 
-    /** 下载 APK：并发测速选最快镜像，按速度顺序依次尝试，全失败才回退主源 */
-    private boolean downloadApk(String originalUrl) {
+    /**
+     * 下载 APK：
+     * - 如果 downloadUrl 来自 Gitee，直接下载（国内无需镜像）
+     * - 如果来自 GitHub，走镜像测速 + 主源回退
+     */
+    private boolean downloadApk(String downloadUrl) {
         // 先清理旧 APK
         File oldFile = getUpdateFile();
         if (oldFile.exists()) oldFile.delete();
@@ -308,6 +334,30 @@ public class UpdateHelper {
             return false;
         }
 
+        // Gitee 直链：国内访问快，直接下载
+        if (downloadUrl.contains("gitee.com")) {
+            Log.i(TAG, "从 Gitee 直链下载: " + downloadUrl);
+            if (tryDownload(downloadUrl, getUpdateFile().getAbsolutePath(), 30000)) {
+                Log.i(TAG, "Gitee 下载成功");
+                return true;
+            }
+            Log.w(TAG, "Gitee 下载失败，尝试 GitHub 镜像");
+            // Gitee 失败，转 GitHub
+            String githubUrl = downloadUrl.contains("gitee.com") ?
+                    "https://github.com/" + REPO_OWNER + "/" + REPO_NAME +
+                    "/releases/download/" + extractVersionFromUrl(downloadUrl) + "/app-release.apk" : null;
+            if (githubUrl != null) {
+                return downloadFromGithubMirrors(githubUrl);
+            }
+            return false;
+        }
+
+        // GitHub 下载：走镜像测速
+        return downloadFromGithubMirrors(downloadUrl);
+    }
+
+    /** GitHub 镜像下载：并发测速选最快镜像，按速度顺序依次尝试，全失败回退主源 */
+    private boolean downloadFromGithubMirrors(String originalUrl) {
         // 构造所有候选 URL（镜像 + 主源兜底）
         List<String> mirrors = new ArrayList<>();
         for (String[] m : MIRRORS) {
@@ -334,6 +384,16 @@ public class UpdateHelper {
         // 所有镜像都失败，回退 GitHub 主源
         Log.w(TAG, "所有镜像均失败，回退 GitHub 主源");
         return tryDownload(originalUrl, getUpdateFile().getAbsolutePath(), 20000);
+    }
+
+    /** 从 Gitee 下载 URL 中提取版本号（如 v1.0.6） */
+    private String extractVersionFromUrl(String url) {
+        int idx = url.indexOf("/download/");
+        if (idx < 0) return "";
+        int start = idx + "/download/".length();
+        int end = url.indexOf("/", start);
+        if (end < 0) return "";
+        return url.substring(start, end);
     }
 
     /** 构造镜像 URL */
