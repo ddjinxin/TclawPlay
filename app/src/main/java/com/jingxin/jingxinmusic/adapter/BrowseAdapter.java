@@ -146,10 +146,9 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
     }
 
     private void loadCover(ViewHolder holder, BrowseItem item) {
-        // 默认封面：应用图标风格，背景渐变跟随主题
+        // 默认封面：耳机图标，背景渐变跟随主题
         holder.ivCover.setImageResource(R.drawable.ic_music_icon);
         holder.ivCover.setBackground(ThemeColors.cardGradient(isNightMode));
-        holder.ivCover.setColorFilter(ThemeColors.themedColor(isNightMode, ThemeColors.dayCoverTint(), ThemeColors.nightCoverTint()), android.graphics.PorterDuff.Mode.SRC_ATOP);
 
         if (context == null) return;
 
@@ -168,14 +167,15 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             Bitmap coverBitmap = null;
 
             boolean preferLocal = SettingsFragment.isLocalCoverPriority(context);
-            // preferLocal=false（跳过本地封面）只对本地音乐生效
-            if (!preferLocal && (item.song == null || item.song.filePath == null
-                    || !new File(item.song.filePath).exists())) {
-                preferLocal = true;
+
+            // 0. 提取音频内嵌封面（开关打开时）
+            if (preferLocal && item.song != null && item.song.filePath != null
+                    && new File(item.song.filePath).exists()) {
+                coverBitmap = CoverFetcher.extractEmbeddedCover(item.song.filePath);
             }
 
-            // 1. 本地封面缓存（preferLocal=false 时跳过）
-            if (preferLocal) {
+            // 1. 本地封面缓存
+            if (coverBitmap == null) {
                 try {
                     File coverDir = CoverLoader.getCoverDir(context);
                     if (coverDir != null) {
@@ -200,8 +200,8 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 }
             }
 
-            // 2. 本地歌曲从MediaStore的albumArt URI加载（preferLocal=false 时跳过）
-            if (coverBitmap == null && preferLocal && item.song != null && item.song.albumArt != null
+            // 2. 本地歌曲从MediaStore的albumArt URI加载
+            if (coverBitmap == null && item.song != null && item.song.albumArt != null
                     && !item.song.albumArt.isEmpty()) {
                 try {
                     coverBitmap = BitmapFactory.decodeStream(

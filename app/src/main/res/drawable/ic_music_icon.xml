@@ -5,16 +5,6 @@
     android:viewportWidth="120"
     android:viewportHeight="120">
 
-    <!-- 背景：灰蓝色 -->
-    <path
-        android:pathData="M0,0h120v120h-120z"
-        android:fillColor="#607D8B" />
-
-    <!-- 背景微亮层：上1/3稍亮，增加一点层次 -->
-    <path
-        android:pathData="M0,0h120v40h-120z"
-        android:fillColor="#78909C" />
-
     <!-- 头带弧线（耳机顶部弧形） -->
     <path
         android:strokeColor="#CFD8DC"

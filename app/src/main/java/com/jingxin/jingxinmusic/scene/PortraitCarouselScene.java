@@ -80,6 +80,7 @@ public class PortraitCarouselScene extends AbstractCarouselScene {
         int coverSize = (int) (height * 0.25f);
         // 轮播容器高度 = coverSize + 上下边距
         int carouselHeight = coverSize + (int) (h.density * 16);
+        int carouselTopMargin = h.systemTopInset + topBarHeight + (int) (h.density * 10);
         if (h.carouselView != null) {
             h.carouselView.setCoverSize(coverSize);
             h.carouselView.setOverlapRatio(0.70f);
@@ -87,7 +88,7 @@ public class PortraitCarouselScene extends AbstractCarouselScene {
             lp.width = FrameLayout.LayoutParams.MATCH_PARENT;
             lp.height = carouselHeight;
             lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
-            lp.topMargin = topBarHeight + (int) (h.density * 10);
+            lp.topMargin = carouselTopMargin;
             h.carouselView.setLayoutParams(lp);
             // 通知 carouselView 重新布局卡片
             h.carouselView.requestLayoutCards();
@@ -96,7 +97,7 @@ public class PortraitCarouselScene extends AbstractCarouselScene {
         h.coverPlaceholder.setVisibility(View.VISIBLE);
         LinearLayout.LayoutParams placeholderParams =
                 (LinearLayout.LayoutParams) h.coverPlaceholder.getLayoutParams();
-        placeholderParams.height = topBarHeight + (int) (h.density * 10) + carouselHeight;
+        placeholderParams.height = carouselTopMargin + carouselHeight;
         placeholderParams.width = 1;
         h.coverPlaceholder.setLayoutParams(placeholderParams);
         // 频谱位置：仅底部，不用圆形

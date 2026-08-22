@@ -83,7 +83,7 @@ public class PortraitClassicScene implements CoverScene {
         h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
         // 封面：顶部居中，25%屏幕高度
         int coverSize = (int) (height * 0.25f);
-        int coverMarginTop = (int) (h.density * 56);
+        int coverMarginTop = (int) (h.density * 56) + h.systemTopInset;
         FrameLayout.LayoutParams coverParams =
                 new FrameLayout.LayoutParams(coverSize, coverSize);
         coverParams.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;

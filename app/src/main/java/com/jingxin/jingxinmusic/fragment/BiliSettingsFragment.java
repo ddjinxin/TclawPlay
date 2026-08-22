@@ -176,6 +176,14 @@ public class BiliSettingsFragment extends BaseFloatFragment {
         tvTitle.setTextColor(textColor);
         dividerTop.setBackgroundColor(dividerColor);
 
+        // 返回按钮：日间模式着色，夜间模式清除滤镜
+        ImageView btnBack = rootView.findViewById(R.id.btn_back);
+        if (isNightMode) {
+            btnBack.clearColorFilter();
+        } else {
+            btnBack.setColorFilter(textColor, android.graphics.PorterDuff.Mode.SRC_IN);
+        }
+
         // 未登录区域
         ((TextView) rootView.findViewById(R.id.tv_label_qrcode)).setTextColor(textColor);
         tvScanHint.setTextColor(subTextColor);
