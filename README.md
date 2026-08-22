@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '53192c4f-c865-4650-b18a-997590e93124'
-  PropagateID: '53192c4f-c865-4650-b18a-997590e93124'
-  ReservedCode1: '9e455b14-1b49-4757-98f5-c148cb1a1c3c'
-  ReservedCode2: '9e455b14-1b49-4757-98f5-c148cb1a1c3c'
+  ProduceID: '5d51a64a-ab0a-4665-80e1-955e4bbbdeda'
+  PropagateID: '5d51a64a-ab0a-4665-80e1-955e4bbbdeda'
+  ReservedCode1: '8cfdbb23-def4-41c5-be42-2a0ff2a115f7'
+  ReservedCode2: '8cfdbb23-def4-41c5-be42-2a0ff2a115f7'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,35 +24,29 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.5)
-
-### 新功能
-- **悬浮窗新模式** — 新增胶囊模式（灵动岛风格）和卡拉OK模式（双行歌词+封面+频谱），长按封面循环切换三种模式
-- **帮助页** — 新增帮助页面，含10种频谱样式详细参数说明、联系我们弹窗（作者静心、乐酷桌面群812753974/651547480）、检查更新按钮
-- **帮助图标** — 单色镂空信息泡风格，自动适配昼夜模式
+## 📢 最新版本 (v1.0.6)
 
 ### 优化
-- **卡拉OK悬浮窗歌词自适应** — 歌词文字超宽时自动缩小字号以完全显示，短歌词保持原始大小
-- **音乐扫描缓存** — 新增JSON缓存机制（10分钟有效期），启动先读缓存秒开，triggerMediaScan仅缓存过期时触发，PlayerActivity改读缓存不再全量扫描
-- **悬浮窗缩放限制调整** — 经典模式最大缩放60%→80%，胶囊模式最大40%→60%
-- **悬浮窗面板修复** — 胶囊模式宽度滑条拖动时面板被裁剪问题修复，调整面板文字颜色固定浅色
-- 帮助页返回箭头支持日夜模式，底部三按钮（联系我们/检查更新/返回）同行排列
+- **封面加载逻辑改进** — 开关开启时新增内嵌封面提取步骤；开关关闭时仍走本地缓存+MediaStore，仅跳过内嵌封面；仅对本地音乐生效，WebDAV/B站不受影响
+- **帮助页面更新** — 新增设置页10个选项详细说明；删除已移除的「主题与风格」章节，重新编号
+
+### 修复
+- **B站设置页返回按钮** — 支持日夜模式着色
+- **默认封面显示** — 修复无封面歌曲显示纯色方块问题，改为耳机图标
+- **Android 15封面交叉** — 修复竖屏经典和轮播模式下封面与顶部按钮交叉重叠
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.5)
-
-### New Features
-- **New Float Window Modes** — Added capsule mode (Dynamic Island style) and Karaoke mode (dual-line lyrics + cover + spectrum), long-press cover to cycle through three modes
-- **Help Page** — New help screen with 10 spectrum style details, contact us dialog (author Jingxin, Leco Desktop groups 812753974/651547480), check update button
-- **Help Icon** — Monochrome hollow info-bubble style, auto day/night adaptation
+## 📢 Latest Version (v1.0.6)
 
 ### Improvements
-- **Karaoke Float Lyrics Auto-fit** — Lyrics text auto-shrinks font size when exceeding width to display fully; short lyrics keep original size
-- **Music Scan Cache** — JSON cache (10-min TTL), instant load on startup, triggerMediaScan only when cache expires, PlayerActivity reads cache instead of full scan
-- **Float Window Zoom Limits** — Classic mode max 60%→80%, capsule mode max 40%→60%
-- **Float Panel Fixes** — Fixed capsule width slider panel clipping issue, panel text color fixed to light
-- Help page back arrow supports day/night mode, bottom buttons (Contact/Check Update/Back) in same row
+- **Cover Loading Logic** — Added embedded cover extraction step when toggle on; local cache + MediaStore still work when toggle off; only affects local music, WebDAV/Bilibili unaffected
+- **Help Page Update** — Added detailed descriptions for 10 settings options; removed obsolete Theme & Style section, renumbered
+
+### Bug Fixes
+- **Bilibili Settings Back Button** — Supports day/night mode color tinting
+- **Default Cover Display** — Fixed no-cover songs showing solid color block, now shows headphone icon
+- **Android 15 Cover Overlap** — Fixed cover overlapping top buttons in portrait classic and carousel modes
 
 <!--END-->
 
@@ -299,6 +293,13 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 更新日志
 
+### v1.0.6 (2026-08)
+- 封面加载逻辑改进：开关开启时新增内嵌封面提取步骤，开关关闭时仍走本地缓存+MediaStore
+- 帮助页面更新：新增设置页10个选项说明，删除已移除的主题与风格章节
+- B站设置页返回按钮支持日夜模式着色
+- 默认封面修复：无封面歌曲显示耳机图标替代纯色方块
+- Android 15播放页封面与顶部按钮交叉修复（经典+轮播模式）
+
 ### v1.0.5 (2026-08)
 - 新增胶囊模式（灵动岛风格）和卡拉OK模式（双行歌词+封面+频谱）悬浮窗
 - 卡拉OK悬浮窗歌词超宽时自动缩小字号以完全显示
@@ -379,17 +380,16 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.2)
+## 📢 Latest Version (v1.0.6)
 
-### New Features
-- **Online Update** — New update button in title bar, GitHub Release auto-check + 4-mirror speed test download + triple validation + one-tap install, silent check on launch + manual check
+### Improvements
+- Cover loading logic improved (embedded cover extraction, local cache fallback)
+- Help page updated with 10 settings descriptions
 
 ### Bug Fixes
-- **Cover IS_PENDING Fix** — saveCoverToPublic did not clear IS_PENDING after creating MediaStore record, covers invisible to other apps, fixed
-
-### Optimizations
-- Cover public directory changed from `Pictures/静心音乐/` to `Download/jingxinmusic/cover/`
-- Landscape path bar ratio adjusted from 6% to 8%
+- Bilibili settings back button day/night tinting
+- Default cover headphone icon instead of solid block
+- Android 15 cover overlapping top buttons (portrait classic + carousel)
 
 ---
 
@@ -633,6 +633,13 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.6 (2026-08)
+- Cover loading logic improved: added embedded cover extraction step, local cache + MediaStore still work when toggle off
+- Help page updated: added 10 settings option descriptions, removed obsolete Theme & Style section
+- Bilibili settings back button supports day/night mode tinting
+- Default cover fix: no-cover songs show headphone icon instead of solid color block
+- Android 15 cover overlap fix (classic + carousel portrait modes)
 
 ### v1.0.5 (2026-08)
 - Added capsule mode (Dynamic Island style) and Karaoke mode (dual-line lyrics + cover + spectrum) float window
