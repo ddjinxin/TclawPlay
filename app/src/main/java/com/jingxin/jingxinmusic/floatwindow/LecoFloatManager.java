@@ -185,9 +185,13 @@ public class LecoFloatManager {
             }
             if (activity == currentFloatingActivity) {
                 if (canFloat.get()) {
+                    // 乐酷仍处于悬浮模式但 Activity 被销毁（横竖屏切换/内存压力等），
+                    // 必须移除覆盖窗口，否则新 Activity 重建后 addView 会因 windowToken 残留而失败，
+                    // 导致旧窗口泄漏 + 独立悬浮窗可能被启动 → 双悬浮窗
                     currentContentView = null;
                     currentFloatingActivity = null;
                     isFloating.set(false);
+                    removeFloatWindow();
                 } else {
                     restoreCurrentActivity();
                     removeFloatWindow();
@@ -286,6 +290,20 @@ public class LecoFloatManager {
                 windowParams.y = floatRect.top;
                 windowParams.width = floatW;
                 windowParams.height = floatH;
+            }
+
+            // 确保 windowContainer 不残留旧 windowToken（上一次悬浮未干净移除时）
+            if (isFloating.get() && windowContainer != null
+                    && windowContainer.getWindowToken() == null) {
+                // isFloating 标记为 true 但窗口已脱离 WindowManager，重置状态
+                isFloating.set(false);
+            }
+            if (windowContainer != null && windowContainer.getWindowToken() != null) {
+                // 窗口仍在 WindowManager 上（异常残留），先移除再重新添加
+                try {
+                    windowManager.removeViewImmediate(windowContainer);
+                } catch (Exception ignored) {}
+                isFloating.set(false);
             }
 
             if (!isFloating.get()) {

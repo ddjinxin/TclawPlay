@@ -2084,7 +2084,7 @@ public class MainFragment extends BaseFloatFragment {
             }
             if (miniSongTitle != null) miniSongTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(10f, miniH * 0.24f));
             if (miniSongArtist != null) miniSongArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, miniH * 0.2f));
-            int pathBarH = Math.max(28, (int) (height * 0.08f));
+            int pathBarH = Math.max(28, (int) (height * 0.10f));
             if (pathBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) pathBar.getLayoutParams();
                 lp.height = pathBarH;
