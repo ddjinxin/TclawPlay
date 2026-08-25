@@ -229,6 +229,19 @@ public class PlayerFragment extends BaseFloatFragment {
             } else if (ACTION_SERVICE_CLAIM.equals(action)) {
                 // MiniFloatService 要创建 Visualizer，PlayerFragment 释放自己的
                 stopSpectrum();
+            } else if ("com.jingxin.jingxinmusic.FLOAT_LAYOUT_REFRESH".equals(action)) {
+                // 乐酷悬浮进入：按悬浮区域尺寸刷新布局
+                if (!isActivityGone()) {
+                    detectAndApplyLandscapeMode();
+                    applyLayoutMode();
+                    int w = getLayoutWidth();
+                    int h = getAvailableScreenHeight();
+                    currentScene.layout(w, h);
+                    updateThemeUI();
+                    updateLayoutForMode(lyricView.getDisplayMode());
+                    tonearmNeedsUpdate = true;
+                    lyricView.post(lyricView::refreshTextSize);
+                }
             } else if ("com.jingxin.jingxinmusic.SPECTRUM_RESTART".equals(action)) {
                 // 乐酷悬浮进入/退出时，重建频谱
                 if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() || isResumed()) {
@@ -659,6 +672,7 @@ public class PlayerFragment extends BaseFloatFragment {
             filter.addAction(MusicPlayerService.ACTION_PLAY_ORDER_CHANGED);
             filter.addAction(MusicPlayerService.ACTION_THEME_CHANGED);
             filter.addAction("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
+            filter.addAction("com.jingxin.jingxinmusic.FLOAT_LAYOUT_REFRESH");
             filter.addAction(ACTION_SERVICE_CLAIM);
         CompatUtil.safeRegisterReceiver(requireContext(), songChangedReceiver, filter);
 

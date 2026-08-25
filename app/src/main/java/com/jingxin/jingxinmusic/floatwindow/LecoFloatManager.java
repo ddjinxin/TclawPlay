@@ -243,7 +243,16 @@ public class LecoFloatManager {
             windowParams.height = newH;
             windowManager.updateViewLayout(windowContainer, windowParams);
             if (currentContentView != null) {
+                // 更新 fragmentContainer 在 windowContainer 中的 LayoutParams，
+                // 否则下一帧 windowContainer layout 时按旧尺寸重新布局导致弹回
+                ViewGroup.LayoutParams lp = currentContentView.getLayoutParams();
+                if (lp != null) {
+                    lp.width = newW;
+                    lp.height = newH;
+                    currentContentView.setLayoutParams(lp);
+                }
                 forceRelayout(currentContentView, newW, newH);
+                sendFloatLayoutRefreshBroadcast();
             }
         }
     }
@@ -325,6 +334,11 @@ public class LecoFloatManager {
             currentContentView = fragmentContainer;
             isFloating.set(true);
             lecoFloatExit = false;
+
+            // 主动通知 PlayerFragment 按悬浮区域尺寸刷新布局
+            // 不依赖 onLayoutChange：首次进入悬浮时 onLayoutChange 可能因
+            // newWidth==oldWidth（横竖屏未变）不触发，导致页面保持全屏布局
+            sendFloatLayoutRefreshBroadcast();
 
             // 进入乐酷悬浮模式：关闭独立桌面悬浮窗
             try {
@@ -439,6 +453,15 @@ public class LecoFloatManager {
         Intent restartIntent = new Intent("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
         restartIntent.setPackage(application.getPackageName());
         application.sendBroadcast(restartIntent);
+    }
+
+    /**
+     * 发送布局刷新广播，通知 PlayerFragment 按悬浮区域尺寸重新布局
+     */
+    private void sendFloatLayoutRefreshBroadcast() {
+        Intent intent = new Intent("com.jingxin.jingxinmusic.FLOAT_LAYOUT_REFRESH");
+        intent.setPackage(application.getPackageName());
+        application.sendBroadcast(intent);
     }
 
     // ==================== 公共 API ====================
