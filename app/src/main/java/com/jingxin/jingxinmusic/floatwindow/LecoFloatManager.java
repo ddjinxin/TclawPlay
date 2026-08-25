@@ -65,6 +65,9 @@ public class LecoFloatManager {
     // 状态标志
     private final AtomicBoolean canFloat = new AtomicBoolean(false);
     private final AtomicBoolean isFloating = new AtomicBoolean(false);
+    // 乐酷悬浮退出标志：ACTION_CLOSE_MAP 时置 true，floatActivity 时重置
+    // 用于通知 App.onActivityStopped 跳过重复启动独立悬浮窗
+    private volatile boolean lecoFloatExit = false;
     private FloatReceiver receiver;
     private boolean receiverRegistered = false;
 
@@ -135,6 +138,7 @@ public class LecoFloatManager {
                 }
             } else if (ACTION_CLOSE_MAP.equals(action)) {
                 canFloat.set(false);
+                lecoFloatExit = true;
                 restoreCurrentActivity();
                 removeFloatWindow();
                 // 乐酷悬浮退出后，如果 app 在后台，恢复独立桌面悬浮窗（受设置开关控制）
@@ -318,6 +322,7 @@ public class LecoFloatManager {
             currentFloatingActivity = activity;
             currentContentView = fragmentContainer;
             isFloating.set(true);
+            lecoFloatExit = false;
 
             // 进入乐酷悬浮模式：关闭独立桌面悬浮窗
             try {
@@ -426,20 +431,28 @@ public class LecoFloatManager {
     }
 
     /**
-     * 延迟 500ms 发送频谱重启广播，通知 PlayerFragment 重建 Visualizer
+     * 发送频谱重启广播，通知 PlayerFragment 重建 Visualizer
      */
     private void sendSpectrumRestartBroadcast() {
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            Intent restartIntent = new Intent("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
-            restartIntent.setPackage(application.getPackageName());
-            application.sendBroadcast(restartIntent);
-        }, 500);
+        Intent restartIntent = new Intent("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
+        restartIntent.setPackage(application.getPackageName());
+        application.sendBroadcast(restartIntent);
     }
 
     // ==================== 公共 API ====================
 
     public boolean isFloating() {
         return isFloating.get();
+    }
+
+    /** 乐酷悬浮刚退出（由 LecoFloatManager 启动了独立悬浮窗），App 无需重复启动 */
+    public boolean isLecoFloatExit() {
+        return lecoFloatExit;
+    }
+
+    /** App 读取后清除标志，避免后续误判 */
+    public void clearLecoFloatExit() {
+        lecoFloatExit = false;
     }
 
     public boolean isCurrentFloatingActivity(Activity activity) {

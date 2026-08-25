@@ -63,6 +63,12 @@ public class App extends Application {
                         isForeground = false;
                             return;
                     }
+                    // 乐酷悬浮刚退出时 LecoFloatManager 已启动独立悬浮窗，跳过避免重复启动竞态
+                    if (LecoFloatManager.getInstance().isLecoFloatExit()) {
+                        LecoFloatManager.getInstance().clearLecoFloatExit();
+                        isForeground = false;
+                        return;
+                    }
                     // 延迟300ms确认是否真的进后台，避免Activity切换时序问题导致误判
                     pendingStartFloat = () -> {
                         if (activityCount <= 0 && isForeground) {

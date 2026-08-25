@@ -166,21 +166,11 @@ public class PlayerFragment extends BaseFloatFragment {
     private AudioRecord audioRecord;
     private volatile boolean spectrumRunning = false;
     private boolean useVisualizer = false; // 当前是否用 Visualizer
-    private volatile long lastSpectrumCallbackTime = 0; // 频谱回调时间戳（心跳检测）
-    private final Runnable spectrumHeartbeat = new Runnable() {
-        @Override
-        public void run() {
-            if (spectrumRunning && useVisualizer && bound && playerBinder != null && playerBinder.isPlaying()) {
-                long elapsed = android.os.SystemClock.elapsedRealtime() - lastSpectrumCallbackTime;
-                if (elapsed > 3000) {
-                    Log.w(TAG, "频谱心跳超时(" + elapsed + "ms)，自动重建");
-                    stopSpectrum();
-                    startSpectrumWithPermission();
-                }
-            }
-            uiHandler.postDelayed(this, 2000);
-        }
-    };
+
+    // 频谱仲裁广播：PlayerFragment 创建前通知 Service 释放（Service 监听此 action）
+    private static final String ACTION_PLAYER_CLAIM = "com.jingxin.jingxinmusic.PLAYER_CLAIM_VISUALIZER";
+    // Service 创建前通知 PlayerFragment 释放（PlayerFragment 监听此 action）
+    private static final String ACTION_SERVICE_CLAIM = "com.jingxin.jingxinmusic.SERVICE_CLAIM_VISUALIZER";
     private static final int SAMPLE_RATE = 8000;
     private static final int FFT_SIZE = 256;
 
@@ -207,7 +197,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 // 轮播模式切歌时滚动到新位置
                 syncCarouselPosition();
                 // 切歌时重建频谱（sessionId 可能变化，如 ExoPlayer 重建或 MediaPlayer 兜底）
-                if (bound && playerBinder != null) {
+                if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() || (isResumed() && bound && playerBinder != null)) {
                     stopSpectrum();
                     startSpectrumWithPermission();
                 }
@@ -235,11 +225,19 @@ public class PlayerFragment extends BaseFloatFragment {
                         updateThemeUI();
                     }
                 }
-            } else if ("com.jingxin.jingxinmusic.SPECTRUM_RESTART".equals(action)) {
-                // 乐酷悬浮进入/退出时，MiniFloatService 的 Visualizer 被释放/重建
-                // 导致同一 audioSessionId 上 PlayerFragment 的 Visualizer 回调失效，需重建
+            } else if (ACTION_SERVICE_CLAIM.equals(action)) {
+                // MiniFloatService 要创建 Visualizer，PlayerFragment 释放自己的
                 stopSpectrum();
-                startSpectrumWithPermission();
+            } else if ("com.jingxin.jingxinmusic.SPECTRUM_RESTART".equals(action)) {
+                // 乐酷悬浮进入/退出时，重建频谱
+                if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() || isResumed()) {
+                    // 可见 → 重建频谱
+                    stopSpectrum();
+                    startSpectrumWithPermission();
+                } else {
+                    // 不可见 → 让出 Visualizer，MiniFloatService 接管
+                    stopSpectrum();
+                }
             }
         }
     };
@@ -644,6 +642,7 @@ public class PlayerFragment extends BaseFloatFragment {
             filter.addAction(MusicPlayerService.ACTION_PLAY_ORDER_CHANGED);
             filter.addAction(MusicPlayerService.ACTION_THEME_CHANGED);
             filter.addAction("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
+            filter.addAction(ACTION_SERVICE_CLAIM);
         CompatUtil.safeRegisterReceiver(requireContext(), songChangedReceiver, filter);
 
         // 绑定播放服务
@@ -687,7 +686,6 @@ public class PlayerFragment extends BaseFloatFragment {
         boolean spectrumEnabled = SettingsFragment.isSpectrumEnabled(requireContext());
         if (!spectrumEnabled) {
             stopSpectrum();
-            uiHandler.removeCallbacks(spectrumHeartbeat);
             spectrumView.setVisibility(View.GONE);
             btnSpectrum.setVisibility(View.GONE);
         } else {
@@ -696,9 +694,6 @@ public class PlayerFragment extends BaseFloatFragment {
                 spectrumView.setPlaying(true);
                 startSpectrumWithPermission();
             }
-            // 启动频谱心跳检测
-            lastSpectrumCallbackTime = android.os.SystemClock.elapsedRealtime();
-            uiHandler.postDelayed(spectrumHeartbeat, 2000);
         }
         // 从列表页返回时，可能横竖屏已变化，需要重新检测并刷新唱臂
         if (tonearmView != null && tonearmView.getVisibility() == View.VISIBLE) {
@@ -718,6 +713,14 @@ public class PlayerFragment extends BaseFloatFragment {
                 }
             });
         }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        // 乐酷悬浮模式下 Activity 被推到后台但 Fragment 视图仍在悬浮窗中可见，不能停频谱
+        if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating()) return;
+        stopSpectrum();
     }
 
     @Override
@@ -846,6 +849,8 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void startSpectrumWithPermission() {
         if (!SettingsFragment.isSpectrumEnabled(requireContext())) return;
+        // 乐酷悬浮模式或 Activity resumed 时才启动频谱
+        if (!com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() && !isResumed()) return;
         // Visualizer 只需要 MODIFY_AUDIO_SETTINGS（安装即授予），不需要 RECORD_AUDIO
         // 先直接尝试 Visualizer，失败后再请求 RECORD_AUDIO 降级到 AudioRecord
         startSpectrum();
@@ -2163,6 +2168,10 @@ public class PlayerFragment extends BaseFloatFragment {
         if (spectrumRunning) {
             stopSpectrum();
         }
+        // 通知 MiniFloatService 释放 Visualizer（抢占式仲裁：创建前先释放对方）
+        Intent releaseIntent = new Intent(ACTION_PLAYER_CLAIM);
+        releaseIntent.setPackage(requireContext().getPackageName());
+        requireContext().sendBroadcast(releaseIntent);
         spectrumRunning = true;
 
         // 尝试 Visualizer 方案（直接读取音频输出，不依赖麦克风）
@@ -2188,7 +2197,6 @@ public class PlayerFragment extends BaseFloatFragment {
                         @Override
                         public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
                             if (!spectrumRunning || spectrumView == null) return;
-                            lastSpectrumCallbackTime = android.os.SystemClock.elapsedRealtime();
 
                             // BD 方式：FFT 1:1 取幅度，竖条模式只取半数频段（会镜像展开）
                             int count = spectrumView.getBarInputCount();
@@ -2414,7 +2422,6 @@ public class PlayerFragment extends BaseFloatFragment {
     public void onDestroyView() {
         super.onDestroyView();
         stopSpectrum();
-        uiHandler.removeCallbacks(spectrumHeartbeat);
         uiHandler.removeCallbacks(progressRunnable);
         try {
             requireContext().unregisterReceiver(songChangedReceiver);

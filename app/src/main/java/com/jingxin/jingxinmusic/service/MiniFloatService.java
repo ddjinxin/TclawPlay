@@ -159,23 +159,10 @@ public class MiniFloatService extends Service {
     private boolean visualizerEnabled = false;
     private FrameLayout capsuleCenterLayout; // 歌词+频谱中间区域
 
-    // 频谱心跳检测：当同一 audioSessionId 上其他 Visualizer 被 release 时，
-    // 本服务的回调会静默失效，需要自动重建
-    private volatile long lastSpectrumCallbackTime;
-    private final Runnable spectrumHeartbeat = new Runnable() {
-        @Override
-        public void run() {
-            if (visualizerEnabled && playerBinder != null && playerBinder.isPlaying()) {
-                long elapsed = SystemClock.elapsedRealtime() - lastSpectrumCallbackTime;
-                if (elapsed > 3000) {
-                    releaseVisualizer();
-                    initVisualizer();
-                    lastSpectrumCallbackTime = SystemClock.elapsedRealtime();
-                }
-            }
-            uiHandler.postDelayed(this, 2000);
-        }
-    };
+    // 频谱仲裁广播：PlayerFragment 创建前通知 Service 释放（Service 监听此 action）
+    private static final String ACTION_PLAYER_CLAIM = "com.jingxin.jingxinmusic.PLAYER_CLAIM_VISUALIZER";
+    // Service 创建前通知 PlayerFragment 释放（PlayerFragment 监听此 action）
+    private static final String ACTION_SERVICE_CLAIM = "com.jingxin.jingxinmusic.SERVICE_CLAIM_VISUALIZER";
 
     // ========== 卡拉OK模式字段 ==========
     private static final float KARAOKE_UNIT_RATIO = 0.95f;   // 卡拉OK默认宽度比例（屏宽×95%）
@@ -228,12 +215,16 @@ public class MiniFloatService extends Service {
                     updatePlayPauseButton(playing);
                     updateCoverRotation(playing);
                     updateSpectrumPlaying(playing);
+                } else if (ACTION_PLAYER_CLAIM.equals(action)) {
+                    // PlayerFragment 要创建 Visualizer，MiniFloatService 释放自己的
+                    releaseVisualizer();
                 }
             }
         };
         IntentFilter filter = new IntentFilter();
         filter.addAction(MusicPlayerService.ACTION_SONG_CHANGED);
         filter.addAction(MusicPlayerService.ACTION_PLAY_STATE_CHANGED);
+        filter.addAction(ACTION_PLAYER_CLAIM);
         CompatUtil.safeRegisterReceiver(this, songChangedReceiver, filter);
 
         // 启动进度更新
@@ -242,14 +233,13 @@ public class MiniFloatService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         uiHandler.removeCallbacks(progressRunnable);
-        uiHandler.removeCallbacks(spectrumHeartbeat);
         releaseVisualizer();
         coverRotationHelper.release();
         if (bound) {
@@ -652,6 +642,13 @@ public class MiniFloatService extends Service {
         if (bound && playerBinder != null) {
             updatePlayPauseButton(playerBinder.isPlaying());
             updateCoverRotation(playerBinder.isPlaying());
+        }
+        // 切歌时 sessionId 可能变化（ExoPlayer 重建或 MediaPlayer 兜底），需重建 Visualizer
+        if (bound && playerBinder != null
+                && (floatMode == MODE_CAPSULE || floatMode == MODE_KARAOKE)
+                && SettingsFragment.isSpectrumEnabled(this)) {
+            releaseVisualizer();
+            initVisualizer();
         }
     }
 
@@ -1694,6 +1691,12 @@ public class MiniFloatService extends Service {
      */
     private void initVisualizer() {
         if (visualizer != null || !bound || playerBinder == null) return;
+        if (floatMode != MODE_CAPSULE && floatMode != MODE_KARAOKE) return;
+        if (!SettingsFragment.isSpectrumEnabled(this)) return;
+        // 通知 PlayerFragment 释放 Visualizer（抢占式仲裁：创建前先释放对方）
+        Intent releaseIntent = new Intent(ACTION_SERVICE_CLAIM);
+        releaseIntent.setPackage(getPackageName());
+        sendBroadcast(releaseIntent);
         try {
             int sessionId = playerBinder.getAudioSessionId();
             if (sessionId == -1 || sessionId == 0) return;
@@ -1715,7 +1718,6 @@ public class MiniFloatService extends Service {
 
                 @Override
                 public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
-                    lastSpectrumCallbackTime = SystemClock.elapsedRealtime();
                     // 取当前活跃的频谱View作为基准
                     SpectrumView activeSpectrum = capsuleSpectrum != null ? capsuleSpectrum : karaokeSpectrum;
                     if (activeSpectrum == null) return;
@@ -1747,9 +1749,6 @@ public class MiniFloatService extends Service {
             boolean playing = (playerBinder != null && playerBinder.isPlaying());
             visualizer.setEnabled(playing);
             visualizerEnabled = true;
-            lastSpectrumCallbackTime = SystemClock.elapsedRealtime();
-            uiHandler.removeCallbacks(spectrumHeartbeat);
-            uiHandler.postDelayed(spectrumHeartbeat, 2000);
             if (capsuleSpectrum != null) {
                 capsuleSpectrum.setPlaying(playing);
             }
@@ -1769,7 +1768,6 @@ public class MiniFloatService extends Service {
      * 释放 Visualizer
      */
     private void releaseVisualizer() {
-        uiHandler.removeCallbacks(spectrumHeartbeat);
         if (visualizer != null) {
             try {
                 visualizer.setEnabled(false);
