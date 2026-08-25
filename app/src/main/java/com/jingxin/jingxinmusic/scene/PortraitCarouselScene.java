@@ -73,6 +73,19 @@ public class PortraitCarouselScene extends AbstractCarouselScene {
         float songNameSize = Math.max(32f, Math.min(50f, width * 0.048f));
         h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
+        // 歌词：恢复全宽 match_parent，清除横屏残留的宽度和高度约束
+        // 横屏轮播会将 lyricView 宽度设为 65% 且开启 sceneSizingActive，
+        // 切回竖屏时必须恢复全宽，否则字号基于旧窄宽度计算导致异常
+        if (h.lyricView != null) {
+            h.lyricView.setMaxTextSizeForHeight(Float.MAX_VALUE);
+            h.lyricView.setMaxLyricAreaHeight(Float.MAX_VALUE);
+            LinearLayout.LayoutParams lyricParams = (LinearLayout.LayoutParams) h.lyricView.getLayoutParams();
+            lyricParams.width = LinearLayout.LayoutParams.MATCH_PARENT;
+            lyricParams.gravity = Gravity.NO_GRAVITY;
+            lyricParams.topMargin = (int) (h.density * 16);
+            h.lyricView.setLayoutParams(lyricParams);
+            h.lyricView.refreshTextSize();
+        }
         // 轮播封面区域：在顶部按钮栏下方
         int topBarHeight = (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
                 ? h.topButtonsBar.getHeight() : (int) (h.density * 56);

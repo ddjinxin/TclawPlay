@@ -178,6 +178,8 @@ public class LandscapeCarouselScene extends AbstractCarouselScene {
         // 恢复歌词默认状态（清除高度约束，不影响竖屏等其他模式）
         if (h.lyricView != null) {
             h.lyricView.setShowPrevLine(true);
+            h.lyricView.setMaxTextSizeForHeight(Float.MAX_VALUE);
+            h.lyricView.setMaxLyricAreaHeight(Float.MAX_VALUE);
             h.lyricView.clearSceneTextSizes();
         }
     }
