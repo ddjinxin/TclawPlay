@@ -87,6 +87,7 @@ public class CoverSceneHelper {
         void updateThemeUI();
         void extractAndApplyDominantColor(Bitmap bitmap);
         void updateTonearmPosition();
+        void markTonearmNeedsUpdate();
         void playSongAt(int position);
     }
     public Callback callback;
@@ -550,7 +551,7 @@ public class CoverSceneHelper {
     public void recordLayoutTonearm() {
         if (tonearmView != null) {
             tonearmView.setLandscapeMode(isLandscapeMode);
-            callback.updateTonearmPosition();
+            callback.markTonearmNeedsUpdate();
             tonearmView.refreshAngle();
         }
     }
@@ -580,7 +581,7 @@ public class CoverSceneHelper {
             tonearmView.setLandscapeMode(isLandscapeMode);
             tonearmView.setPlaying(isPlaying);
             tonearmView.refreshAngle();
-            callback.updateTonearmPosition();
+            callback.markTonearmNeedsUpdate();
         }
     }
 
@@ -593,7 +594,7 @@ public class CoverSceneHelper {
             tonearmView.setNightMode(isNightMode);
             tonearmView.setPlaying(isPlaying);
             tonearmView.refreshAngle();
-            callback.updateTonearmPosition();
+            callback.markTonearmNeedsUpdate();
         }
     }
 
