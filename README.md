@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '006a530a-116f-4694-9700-fa274b95019a'
-  PropagateID: '006a530a-116f-4694-9700-fa274b95019a'
-  ReservedCode1: '29262b75-3317-4062-8a61-02d90ffaf32a'
-  ReservedCode2: '29262b75-3317-4062-8a61-02d90ffaf32a'
+  ProduceID: 'b57ad2ce-b0b8-41bd-9992-4c236f4c7a8b'
+  PropagateID: 'b57ad2ce-b0b8-41bd-9992-4c236f4c7a8b'
+  ReservedCode1: '43ab9c1b-c571-494e-8d27-8b589f10906f'
+  ReservedCode2: '43ab9c1b-c571-494e-8d27-8b589f10906f'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,69 +24,101 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.6)
+## 📢 最新版本 (v1.0.6.3)
 
-### 新功能
-- **乐酷桌面悬浮显示** — 静心音乐可在乐酷桌面悬浮区域显示完整播放页，支持拖动调整大小
-- **单 Activity + Fragment 架构改造** — Fragment 事务切换页面，不涉及 Activity 切换，避免 onSaveInstanceState 崩溃，悬浮态更稳定
-- **播放页歌词搜索** — 新增歌词搜索按钮，手动多源搜索（酷狗20条+网易云10条），时长匹配排序+最佳标记，可下载覆盖
-- **设置页统一收纳** — 主题/风格/频谱等功能按钮统一移入设置页，新增歌词高亮颜色选择器、频谱开关
-- **优先读取本地封面/歌词** — 新增开关，开启后优先从音频文件提取内嵌封面和同目录歌词文件
-- **启动直达播放** — 新增开关，开启后启动自动跳转播放页，关闭则停在列表页
-- **白天高亮歌词颜色** — 日间模式歌词高亮色改为红色 #E53935
-- **悬浮窗关闭方式** — 移除右上角关闭按钮，仅保留双击关闭
+### v1.0.6.3 (2026-08)
+#### 修复
+- **首次进入乐酷悬浮区域时页面布局异常** — 主动发 FLOAT_LAYOUT_REFRESH 广播刷新布局 + 修复 updateFloatWindowSize 未更新 LayoutParams 导致尺寸弹回
+- **独立悬浮窗点击跳全屏后不自动关闭** — 乐酷重复 closemap 广播导致 MiniFloatService 被重新启动，改为记录 wasFloating 状态 + closeFloat() 统一移除
+- **轮播模式横→竖切换时歌词字号跳变为全屏大小** — 修复悬浮区域调整高度时竖屏判定误用全屏宽度
+- **唱片机模式下唱臂随悬浮区域宽度变化的位置更新** — 改用 coverView OnLayoutChangeListener 精确跟随封面实际 layout
+- **频谱抢占式仲裁 + 独立悬浮窗 START_NOT_STICKY + lecoFloatExit 竞态修复**
 
-### 修复
-- **Android 14/15/16 闪退** — 修复多版本兼容性崩溃
-- **WebDAV 悬浮返回目录丢失** — 悬浮态下返回目录浏览数据不丢失
-- **悬浮模式列数计算** — 修复悬浮态卡片列数错误
-- **悬浮态频谱停止** — 修复悬浮态频谱不刷新及胶囊播放按钮失效
-- **Android 11+ U盘扫描失败** — 修复 U盘音乐扫描失败，新增 MANAGE_EXTERNAL_STORAGE 授权流程
-- **高德日夜变化导致歌曲重播** — 修复高德车机版日夜切换时播放页歌曲跳回第一首
-- **返回列表页重复加载** — 修复从播放页返回列表时的重复扫描
-- **收藏数量与搜索** — 修复收藏数量显示和收藏搜索功能
-- **封面加载逻辑改进** — 开关开启时新增内嵌封面提取步骤；开关关闭时仍走本地缓存+MediaStore
-- **B站设置页返回按钮** — 支持日夜模式着色
-- **默认封面显示** — 修复无封面歌曲显示纯色方块，改为耳机图标
-- **Android 15 封面交叉** — 修复竖屏经典和轮播模式下封面与顶部按钮交叉重叠
+### v1.0.6.2 (2026-08)
+- **LRC 编码自动识别** — 自动检测 UTF-8/GBK 编码，解决乱码歌词
+- **横屏路径栏比例调整**
+- **双悬浮窗修复**
 
-### 优化
-- **帮助页面更新** — 新增设置页10个选项详细说明；删除已移除的「主题与风格」章节
-- **冗余代码清理** — 提取公共方法消除重复逻辑
-- **悬浮首页横竖屏判断统一**
+### v1.0.6.1 (2026-08)
+- **双源更新机制** — Gitee 优先 + GitHub 回退，提升国内更新成功率
+- **FileProvider 修复** — 修复 Android 7+ APK 安装崩溃
+- **启动检查更新修复**
+
+### v1.0.6 (2026-08)
+#### 新功能
+- 乐酷桌面悬浮区域显示完整播放页，支持拖动调整大小
+- 单 Activity + Fragment 架构改造，Fragment 事务切换页面，悬浮态更稳定
+- 播放页新增歌词搜索按钮，手动多源搜索（酷狗20条+网易云10条），时长匹配排序+最佳标记
+- 设置页统一收纳功能按钮，新增歌词高亮颜色选择器、频谱开关
+- 新增优先读取本地封面/歌词开关、启动直达播放开关
+- 白天高亮歌词颜色改为红色 #E53935
+- 移除悬浮窗右上角关闭按钮，仅保留双击关闭
+
+#### 修复
+- Android 14/15/16 多版本兼容性崩溃
+- WebDAV 悬浮态返回目录浏览数据丢失
+- 悬浮模式列数计算错误、频谱停止、胶囊播放按钮失效
+- Android 11+ U盘音乐扫描失败，新增 MANAGE_EXTERNAL_STORAGE 授权流程
+- 高德车机版日夜切换导致播放页歌曲跳回第一首
+- 返回列表页重复加载扫描
+- 收藏数量显示和收藏搜索功能
+- 封面加载逻辑改进（内嵌封面提取步骤）
+- B站设置页返回按钮日夜模式着色
+- 默认封面显示耳机图标替代纯色方块
+- Android 15 播放页封面与顶部按钮交叉（经典+轮播模式）
+
+#### 优化
+- 帮助页面更新（设置页10项说明，删除已移除章节）
+- 冗余代码清理，悬浮首页横竖屏判断统一
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.6)
+## 📢 Latest Version (v1.0.6.3)
 
-### New Features
-- **Leco Desktop Floating Display** — Full player page display in Leco Desktop floating area, supports drag-to-resize
-- **Single Activity + Fragment Architecture** — Fragment transaction-based page switching, no Activity switching, avoids onSaveInstanceState crashes, more stable floating state
-- **Player Page Lyrics Search** — New lyrics search button, multi-source search (Kugou 20 + Netease 10), duration-matched sorting + best match, download to overwrite
-- **Unified Settings Page** — Theme/style/spectrum buttons moved to settings page, new lyrics highlight color picker, spectrum toggle
-- **Local Cover/Lyrics Priority** — New toggle, extracts embedded covers and same-directory lyric files first
-- **Launch to Player** — New toggle, auto-navigate to player on launch when on, stay on list when off
-- **Daytime Highlight Color** — Day mode lyrics highlight changed to red #E53935
-- **Float Window Close** — Removed top-right close button, double-tap to close only
+### v1.0.6.3 (2026-08)
+#### Bug Fixes
+- **First entry to Leco floating area layout error** — Active FLOAT_LAYOUT_REFRESH broadcast + fixed updateFloatWindowSize not updating LayoutParams causing size bounce
+- **Standalone float window not closing after tap-to-fullscreen** — Repeated closemap broadcast caused MiniFloatService restart, fixed with wasFloating state + closeFloat() unified removal
+- **Carousel mode landscape→portrait lyrics font size jump** — Fixed floating area height adjustment using full-screen width for portrait detection
+- **Record mode tonearm position not following floating width** — Switched to coverView OnLayoutChangeListener for precise tracking
+- **Spectrum preemptive arbitration + standalone float START_NOT_STICKY + lecoFloatExit race condition fix**
 
-### Bug Fixes
-- **Android 14/15/16 Crashes** — Fixed multi-version compatibility crashes
-- **WebDAV Floating Directory Loss** — Fixed directory browse data loss in floating state
-- **Floating Mode Column Count** — Fixed incorrect card column count in floating mode
-- **Floating Spectrum Stop** — Fixed spectrum not refreshing and capsule play button failure in floating state
-- **Android 11+ USB Scan Failure** — Fixed USB music scan failure, added MANAGE_EXTERNAL_STORAGE authorization flow
-- **Amap Day/Night Song Restart** — Fixed song jumping to first track on Amap day/night change
-- **List Page Duplicate Load** — Fixed duplicate scan when returning from player page
-- **Favorites Count & Search** — Fixed favorites count display and search functionality
-- **Cover Loading Logic** — Added embedded cover extraction step; local cache + MediaStore still work when toggle off
-- **Bilibili Settings Back Button** — Supports day/night mode color tinting
-- **Default Cover Display** — Fixed no-cover songs showing solid color block, now shows headphone icon
-- **Android 15 Cover Overlap** — Fixed cover overlapping top buttons in portrait classic and carousel modes
+### v1.0.6.2 (2026-08)
+- **LRC encoding auto-detection** — Auto-detect UTF-8/GBK encoding to fix garbled lyrics
+- **Landscape path bar ratio adjustment**
+- **Dual float window fix**
 
-### Improvements
-- **Help Page Update** — Added 10 settings option descriptions; removed obsolete Theme & Style section
-- **Redundant Code Cleanup** — Extracted common methods to eliminate duplication
-- **Unified Floating Landscape/Portrait Detection**
+### v1.0.6.1 (2026-08)
+- **Dual-source update** — Gitee priority + GitHub fallback, improved domestic update success rate
+- **FileProvider fix** — Fixed Android 7+ APK install crash
+- **Startup update check fix**
+
+### v1.0.6 (2026-08)
+#### New Features
+- Leco Desktop floating area full player page display, supports drag-to-resize
+- Single Activity + Fragment architecture refactor, Fragment transaction page switching, more stable floating
+- Player page lyrics search button, multi-source search (Kugou 20 + Netease 10), duration-matched sorting + best match
+- Unified settings page, new lyrics highlight color picker, spectrum toggle
+- New local cover/lyrics priority toggle, launch-to-player toggle
+- Daytime lyrics highlight color changed to red #E53935
+- Removed float window close button, double-tap to close only
+
+#### Bug Fixes
+- Android 14/15/16 multi-version compatibility crashes
+- WebDAV floating state directory browse data loss
+- Floating mode column count, spectrum stop, capsule play button failure
+- Android 11+ USB music scan failure, added MANAGE_EXTERNAL_STORAGE authorization flow
+- Amap car day/night change causing song restart
+- List page duplicate load on return from player
+- Favorites count display and search functionality
+- Cover loading logic improvement (embedded cover extraction)
+- Bilibili settings back button day/night tinting
+- Default cover headphone icon instead of solid block
+- Android 15 cover overlapping top buttons (classic + carousel portrait)
+
+#### Improvements
+- Help page update (10 settings descriptions, removed obsolete sections)
+- Redundant code cleanup, unified floating landscape/portrait detection
 
 <!--END-->
 
@@ -332,6 +364,24 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.6.3 (2026-08)
+#### 修复
+- 首次进入乐酷悬浮区域时页面布局异常——主动发广播刷新布局+修复 updateFloatWindowSize 未更新 LayoutParams 导致尺寸弹回
+- 独立悬浮窗点击跳全屏后不自动关闭——乐酷重复 closemap 广播导致 MiniFloatService 被重新启动
+- 轮播模式横→竖切换时歌词字号跳变为全屏大小
+- 唱片机模式下唱臂随悬浮区域宽度变化的位置更新
+- 频谱抢占式仲裁 + 独立悬浮窗 START_NOT_STICKY + lecoFloatExit 竞态修复
+
+### v1.0.6.2 (2026-08)
+- LRC 编码自动识别（UTF-8/GBK），解决乱码歌词
+- 横屏路径栏比例调整
+- 双悬浮窗修复
+
+### v1.0.6.1 (2026-08)
+- 双源更新机制（Gitee 优先 + GitHub 回退），提升国内更新成功率
+- FileProvider 修复，解决 Android 7+ APK 安装崩溃
+- 启动检查更新修复
 
 ### v1.0.6 (2026-08)
 #### 新功能
@@ -698,6 +748,24 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.6.3 (2026-08)
+#### Bug Fixes
+- First entry to Leco floating area layout error — active broadcast refresh + fixed updateFloatWindowSize LayoutParams
+- Standalone float window not closing after tap-to-fullscreen — repeated closemap broadcast caused Service restart
+- Carousel mode landscape→portrait lyrics font size jump to fullscreen
+- Record mode tonearm position not following floating width change
+- Spectrum preemptive arbitration + standalone float START_NOT_STICKY + lecoFloatExit race fix
+
+### v1.0.6.2 (2026-08)
+- LRC encoding auto-detection (UTF-8/GBK), fixes garbled lyrics
+- Landscape path bar ratio adjustment
+- Dual float window fix
+
+### v1.0.6.1 (2026-08)
+- Dual-source update (Gitee priority + GitHub fallback), improved domestic update success rate
+- FileProvider fix for Android 7+ APK install crash
+- Startup update check fix
 
 ### v1.0.6 (2026-08)
 #### New Features
