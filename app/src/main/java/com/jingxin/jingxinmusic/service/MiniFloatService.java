@@ -231,6 +231,24 @@ public class MiniFloatService extends Service {
         uiHandler.post(progressRunnable);
     }
 
+    /**
+     * 立即关闭悬浮窗并停止 Service
+     * 先同步移除悬浮窗 View（removeViewImmediate），再停前台通知和 Service，
+     * 避免 stopSelf() 的异步 onDestroy 延迟导致悬浮窗残留。
+     */
+    private void closeFloat() {
+        if (pendingSingleClick != null) {
+            uiHandler.removeCallbacks(pendingSingleClick);
+            pendingSingleClick = null;
+        }
+        lastClickTime = 0;
+        if (floatView != null && floatView.isAttachedToWindow()) {
+            try { windowManager.removeViewImmediate(floatView); } catch (Exception ignored) {}
+        }
+        stopForeground(true);
+        stopSelf();
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         return START_NOT_STICKY;
@@ -248,7 +266,7 @@ public class MiniFloatService extends Service {
         }
         try { unregisterReceiver(songChangedReceiver); } catch (Exception ignored) {}
         if (floatView != null && floatView.isAttachedToWindow()) {
-            try { windowManager.removeView(floatView); } catch (Exception ignored) {}
+            try { windowManager.removeViewImmediate(floatView); } catch (Exception ignored) {}
         }
     }
 
@@ -501,12 +519,7 @@ public class MiniFloatService extends Service {
                         long now = System.currentTimeMillis();
                         if (now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
                             // 双击：取消待执行的单击，关闭悬浮窗
-                            if (pendingSingleClick != null) {
-                                uiHandler.removeCallbacks(pendingSingleClick);
-                                pendingSingleClick = null;
-                            }
-                            lastClickTime = 0;
-                            stopSelf();
+                            closeFloat();
                         } else {
                             // 第一次点击：延迟执行单击，等双击窗口期
                             lastClickTime = now;
@@ -514,6 +527,7 @@ public class MiniFloatService extends Service {
                                 Intent mainIntent = new Intent(MiniFloatService.this, HostActivity.class);
                                 mainIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                 startActivity(mainIntent);
+                                closeFloat();
                                 pendingSingleClick = null;
                             };
                             uiHandler.postDelayed(pendingSingleClick, DOUBLE_CLICK_INTERVAL);
@@ -1592,18 +1606,14 @@ public class MiniFloatService extends Service {
                     if (!isDragging) {
                         long now = System.currentTimeMillis();
                         if (now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
-                            if (pendingSingleClick != null) {
-                                uiHandler.removeCallbacks(pendingSingleClick);
-                                pendingSingleClick = null;
-                            }
-                            lastClickTime = 0;
-                            stopSelf();
+                            closeFloat();
                         } else {
                             lastClickTime = now;
                             pendingSingleClick = () -> {
                                 Intent mainIntent = new Intent(MiniFloatService.this, HostActivity.class);
                                 mainIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                 startActivity(mainIntent);
+                                closeFloat();
                                 pendingSingleClick = null;
                             };
                             uiHandler.postDelayed(pendingSingleClick, DOUBLE_CLICK_INTERVAL);
@@ -2050,18 +2060,14 @@ public class MiniFloatService extends Service {
                     if (!isDragging) {
                         long now = System.currentTimeMillis();
                         if (now - lastClickTime < DOUBLE_CLICK_INTERVAL) {
-                            if (pendingSingleClick != null) {
-                                uiHandler.removeCallbacks(pendingSingleClick);
-                                pendingSingleClick = null;
-                            }
-                            lastClickTime = 0;
-                            stopSelf();
+                            closeFloat();
                         } else {
                             lastClickTime = now;
                             pendingSingleClick = () -> {
                                 Intent mainIntent = new Intent(MiniFloatService.this, HostActivity.class);
                                 mainIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                 startActivity(mainIntent);
+                                closeFloat();
                                 pendingSingleClick = null;
                             };
                             uiHandler.postDelayed(pendingSingleClick, DOUBLE_CLICK_INTERVAL);

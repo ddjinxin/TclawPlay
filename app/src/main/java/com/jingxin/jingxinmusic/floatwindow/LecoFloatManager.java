@@ -137,12 +137,14 @@ public class LecoFloatManager {
                     }
                 }
             } else if (ACTION_CLOSE_MAP.equals(action)) {
+                boolean wasFloating = isFloating.get();
                 canFloat.set(false);
                 lecoFloatExit = true;
                 restoreCurrentActivity();
                 removeFloatWindow();
-                // 乐酷悬浮退出后，如果 app 在后台，恢复独立桌面悬浮窗（受设置开关控制）
-                if (com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(application)) {
+                // 只有之前确实处于乐酷悬浮态时才启动独立悬浮窗
+                // 否则是乐酷误发/重复广播（如用户已点击悬浮窗回前台），不应启动
+                if (wasFloating && com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(application)) {
                     try {
                         Intent floatIntent = new Intent(application, com.jingxin.jingxinmusic.service.MiniFloatService.class);
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
