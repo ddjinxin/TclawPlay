@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'b57ad2ce-b0b8-41bd-9992-4c236f4c7a8b'
-  PropagateID: 'b57ad2ce-b0b8-41bd-9992-4c236f4c7a8b'
-  ReservedCode1: '43ab9c1b-c571-494e-8d27-8b589f10906f'
-  ReservedCode2: '43ab9c1b-c571-494e-8d27-8b589f10906f'
+  ProduceID: '9232cd9a-2fc4-496f-ab7f-c0ff97cdde08'
+  PropagateID: '9232cd9a-2fc4-496f-ab7f-c0ff97cdde08'
+  ReservedCode1: 'b64477e5-179c-42e5-87e7-b5426f91edea'
+  ReservedCode2: 'b64477e5-179c-42e5-87e7-b5426f91edea'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,7 +24,18 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.6.3)
+## 📢 最新版本 (v1.0.6.4)
+
+### v1.0.6.4 (2026-08)
+#### 新功能
+- **本地崩溃日志** — CrashHandler 自动落盘崩溃日志到 `Android/data/.../files/log/`，含完整堆栈/设备/版本信息；系统框架级异常（BadTokenException）只记录不退出进程
+- **日夜主题时间自动切换** — 设置页新增「按时间自动切换」开关，可自定义白天/夜间分界时间；优先级：高德广播 > 时间规则 > 记忆
+
+#### 修复
+- **频谱首次播放不显示** — ExoPlayer 异步 prepare 时 sessionId=0，改为 300ms 重试最多 10 次再降级 AudioRecord
+- **设置页时间选择行文字颜色不随日夜模式变化** — 5 个 TextView 提前初始化，applyTheme 统一着色
+- **Android 10 车机 MediaStore ContentObserver 注册崩溃** — 车机 ROM 的 MediaStore Provider 不可用导致 SecurityException，try-catch 防护
+- **Android 10+ 误弹存储写入权限对话框** — WRITE_EXTERNAL_STORAGE 的 maxSdkVersion=28，仅 API<=28 检查写入权限
 
 ### v1.0.6.3 (2026-08)
 #### 修复
@@ -73,7 +84,18 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.6.3)
+## 📢 Latest Version (v1.0.6.4)
+
+### v1.0.6.4 (2026-08)
+#### New Features
+- **Local crash logging** — CrashHandler writes crash logs to `Android/data/.../files/log/` with full stack trace/device/version info; system framework exceptions (BadTokenException) logged without process exit
+- **Day/night theme auto-switch by time** — New "auto-switch by time" toggle in settings with customizable day/night boundary; priority: Amap broadcast > time rule > memory
+
+#### Bug Fixes
+- **Spectrum not showing on first play** — ExoPlayer async prepare returns sessionId=0, now retries every 300ms up to 10 times before falling back to AudioRecord
+- **Settings time selector text color not following day/night theme** — 5 TextViews initialized early, applyTheme unified coloring
+- **Android 10 car head unit MediaStore ContentObserver crash** — SecurityException from unavailable MediaStore Provider on car ROM, try-catch protection
+- **Android 10+ false storage write permission dialog** — WRITE_EXTERNAL_STORAGE maxSdkVersion=28, only check write permission on API<=28
 
 ### v1.0.6.3 (2026-08)
 #### Bug Fixes
@@ -364,6 +386,17 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.6.4 (2026-08)
+#### 新功能
+- 本地崩溃日志（CrashHandler 落盘，系统框架异常只记录不退出）
+- 日夜主题时间自动切换（设置页可配置白天/夜间分界时间）
+
+#### 修复
+- 频谱首次播放不显示（sessionId=0 重试机制）
+- 设置页时间选择行文字颜色不随日夜模式变化
+- Android 10 车机 MediaStore ContentObserver 注册崩溃
+- Android 10+ 误弹存储写入权限对话框
 
 ### v1.0.6.3 (2026-08)
 #### 修复
@@ -748,6 +781,17 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.6.4 (2026-08)
+#### New Features
+- Local crash logging (CrashHandler, system framework exceptions logged without exit)
+- Day/night theme auto-switch by time (customizable day/night boundary in settings)
+
+#### Bug Fixes
+- Spectrum not showing on first play (sessionId=0 retry mechanism)
+- Settings time selector text color not following day/night theme
+- Android 10 car head unit MediaStore ContentObserver crash
+- Android 10+ false storage write permission dialog
 
 ### v1.0.6.3 (2026-08)
 #### Bug Fixes
