@@ -2195,6 +2195,10 @@ public class PlayerFragment extends BaseFloatFragment {
     /**
      * 启动频谱：优先 Visualizer（直接读取音频输出），失败则降级到 AudioRecord（麦克风采集）
      */
+    private static final int SPECTRUM_RETRY_INTERVAL = 300; // ms
+    private static final int SPECTRUM_MAX_RETRIES = 10; // 共 3 秒
+    private int spectrumRetryCount = 0;
+
     private void startSpectrum() {
         // 先停后启：确保每次调用都能得到全新的 Visualizer（避免旧实例回调静默失效后标志卡死）
         if (spectrumRunning) {
@@ -2205,8 +2209,15 @@ public class PlayerFragment extends BaseFloatFragment {
         releaseIntent.setPackage(requireContext().getPackageName());
         requireContext().sendBroadcast(releaseIntent);
         spectrumRunning = true;
+        spectrumRetryCount = 0;
+        tryStartVisualizer();
+    }
 
-        // 尝试 Visualizer 方案（直接读取音频输出，不依赖麦克风）
+    /**
+     * 尝试用 Visualizer 启动频谱，sessionId=0 时延迟重试
+     */
+    private void tryStartVisualizer() {
+        if (!spectrumRunning) return;
         if (bound && playerBinder != null) {
             try {
                 int sessionId = playerBinder.getAudioSessionId();
@@ -2256,6 +2267,15 @@ public class PlayerFragment extends BaseFloatFragment {
                     visualizer.setEnabled(true);
                     useVisualizer = true;
                     return; // 成功，不需要 AudioRecord
+                } else {
+                    // sessionId 还没准备好（ExoPlayer 正在异步 prepare），延迟重试
+                    if (spectrumRetryCount < SPECTRUM_MAX_RETRIES) {
+                        spectrumRetryCount++;
+                        uiHandler.postDelayed(this::tryStartVisualizer, SPECTRUM_RETRY_INTERVAL);
+                        return;
+                    }
+                    // 超过重试次数，降级到 AudioRecord
+                    Log.w(TAG, "Visualizer 重试 " + SPECTRUM_MAX_RETRIES + " 次仍无 sessionId，降级到 AudioRecord");
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Visualizer 初始化失败，降级到 AudioRecord: " + e.getMessage());

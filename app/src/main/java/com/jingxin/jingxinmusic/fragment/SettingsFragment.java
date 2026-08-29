@@ -25,6 +25,7 @@ import androidx.appcompat.widget.SwitchCompat;
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.util.MusicScanner;
 import com.jingxin.jingxinmusic.util.ThemeColors;
+import com.jingxin.jingxinmusic.util.ThemeHelper;
 import com.jingxin.jingxinmusic.view.LyricColorBar;
 
 import java.util.List;
@@ -51,9 +52,11 @@ public class SettingsFragment extends BaseFloatFragment {
     private ImageView btnBack;
     private TextView[] styleTabs = new TextView[4];
     private int currentStyleIndex = 0;
-    private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume;
-    private TextView tvNightTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle;
-    private TextView tvNightDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc;
+    private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoTheme;
+    private TextView tvNightTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoThemeTitle;
+    private TextView tvNightDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoThemeDesc;
+    private TextView tvDayStartLabel, tvDayStartValue, tvNightStartLabel, tvNightStartValue, tvTimeSeparator;
+    private View timeSelectorRow;
     private TextView btnDayReset, btnNightReset;
     private TextView btnScan;
     private TextView tvScanTitle, tvScanDesc;
@@ -134,6 +137,7 @@ public class SettingsFragment extends BaseFloatFragment {
         setupScanButton(view);
         setupStoragePermission(view);
         setupNightModeSwitch(view);
+        setupAutoTheme(view);
         setupStyleSelector(view);
         setupFloatWindowSwitch(view);
         setupSpectrumSwitch(view);
@@ -163,6 +167,13 @@ public class SettingsFragment extends BaseFloatFragment {
         styleTabs[1] = view.findViewById(R.id.style_tab_1);
         styleTabs[2] = view.findViewById(R.id.style_tab_2);
         styleTabs[3] = view.findViewById(R.id.style_tab_3);
+        // 时间选择行的 TextView 提前到 initViews 初始化，确保 applyTheme 能覆盖颜色
+        tvDayStartLabel = view.findViewById(R.id.tv_day_start_label);
+        tvDayStartValue = view.findViewById(R.id.tv_day_start_value);
+        tvTimeSeparator = view.findViewById(R.id.tv_time_separator);
+        tvNightStartLabel = view.findViewById(R.id.tv_night_start_label);
+        tvNightStartValue = view.findViewById(R.id.tv_night_start_value);
+        timeSelectorRow = view.findViewById(R.id.time_selector_row);
     }
 
     private void applyTheme() {
@@ -171,13 +182,16 @@ public class SettingsFragment extends BaseFloatFragment {
         int ts = secondaryColor();
         tvTitle.setTextColor(tc);
         // 刷新所有标题
-        TextView[] titles = {tvNightTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle,
+        TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle,
                 tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle};
         for (TextView t : titles) if (t != null) t.setTextColor(tc);
         // 刷新所有描述
-        TextView[] descs = {tvNightDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc,
+        TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc,
                 tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc};
         for (TextView d : descs) if (d != null) d.setTextColor(ts);
+        // 时间选择行文字
+        TextView[] timeTexts = {tvDayStartLabel, tvDayStartValue, tvTimeSeparator, tvNightStartLabel, tvNightStartValue};
+        for (TextView t : timeTexts) if (t != null) t.setTextColor(ts);
         // 风格 tab 颜色
         updateStyleTabColors();
         int divColor = isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider();
@@ -305,8 +319,107 @@ public class SettingsFragment extends BaseFloatFragment {
             applySwitchTint(switchLocalCover);
             applySwitchTint(switchLocalLyric);
             applySwitchTint(switchAutoResume);
+            applySwitchTint(switchAutoTheme);
             Toast.makeText(requireContext(), isChecked ? "夜间模式" : "白天模式", Toast.LENGTH_SHORT).show();
         });
+    }
+
+    private void setupAutoTheme(View view) {
+        switchAutoTheme = view.findViewById(R.id.switch_auto_theme);
+        tvAutoThemeTitle = view.findViewById(R.id.tv_auto_theme_title);
+        tvAutoThemeDesc = view.findViewById(R.id.tv_auto_theme_desc);
+        // tvDayStartValue/tvNightStartValue/timeSelectorRow 已在 initViews() 中初始化
+        applyItemTheme(tvAutoThemeTitle, tvAutoThemeDesc);
+
+        SharedPreferences themePrefs = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE);
+        boolean autoEnabled = themePrefs.getBoolean(ThemeHelper.KEY_AUTO_THEME, false);
+        switchAutoTheme.setChecked(autoEnabled);
+        applySwitchTint(switchAutoTheme);
+
+        int dayStart = themePrefs.getInt(ThemeHelper.KEY_DAY_START, 6);
+        int nightStart = themePrefs.getInt(ThemeHelper.KEY_NIGHT_START, 18);
+        tvDayStartValue.setText(ThemeHelper.formatHour(dayStart));
+        tvNightStartValue.setText(ThemeHelper.formatHour(nightStart));
+        timeSelectorRow.setVisibility(autoEnabled ? View.VISIBLE : View.GONE);
+
+        // 自动切换开启时，禁用手动日夜开关
+        updateNightSwitchEnabled(!autoEnabled);
+
+        switchAutoTheme.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            themePrefs.edit().putBoolean(ThemeHelper.KEY_AUTO_THEME, isChecked).apply();
+            timeSelectorRow.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+            updateNightSwitchEnabled(!isChecked);
+            applySwitchTint(switchAutoTheme);
+            applySwitchTint(switchNight);
+            if (isChecked) {
+                // 立即应用一次时间判断
+                ThemeHelper.applyAutoTheme(requireContext());
+                boolean nowNight = themePrefs.getBoolean("isNight", true);
+                switchNight.setOnCheckedChangeListener(null);
+                switchNight.setChecked(nowNight);
+                switchNight.setOnCheckedChangeListener((bw, checked) -> {
+                    themePrefs.edit().putBoolean("isNight", checked).putBoolean("amapTriggered", false).apply();
+                    isNightMode = checked;
+                    applyTheme();
+                    applySwitchTint(switchNight);
+                });
+                isNightMode = nowNight;
+                applyTheme();
+                Toast.makeText(requireContext(), "已开启，当前" + (nowNight ? "夜间" : "白天"), Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(requireContext(), "已关闭自动切换", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // 点击白天时间弹出 NumberPicker
+        tvDayStartValue.setOnClickListener(v -> showHourPicker(dayStart, nightStart, true, themePrefs));
+        tvNightStartValue.setOnClickListener(v -> showHourPicker(dayStart, nightStart, false, themePrefs));
+    }
+
+    private void updateNightSwitchEnabled(boolean enabled) {
+        if (switchNight != null) {
+            switchNight.setEnabled(enabled);
+            switchNight.setAlpha(enabled ? 1.0f : 0.5f);
+        }
+        if (tvNightTitle != null) {
+            tvNightTitle.setAlpha(enabled ? 1.0f : 0.5f);
+        }
+        if (tvNightDesc != null) {
+            tvNightDesc.setAlpha(enabled ? 1.0f : 0.5f);
+        }
+    }
+
+    private void showHourPicker(int currentDayStart, int currentNightStart, boolean isDayStart, SharedPreferences themePrefs) {
+        int current = isDayStart ? currentDayStart : currentNightStart;
+        // 用系统 TimePickerDialog 简单实现
+        android.app.TimePickerDialog dialog = new android.app.TimePickerDialog(
+                requireContext(),
+                (view, hourOfDay, minute) -> {
+                    if (isDayStart) {
+                        themePrefs.edit().putInt(ThemeHelper.KEY_DAY_START, hourOfDay).apply();
+                        tvDayStartValue.setText(ThemeHelper.formatHour(hourOfDay));
+                        // 立即应用一次
+                        ThemeHelper.applyAutoTheme(requireContext());
+                        boolean nowNight = themePrefs.getBoolean("isNight", true);
+                        isNightMode = nowNight;
+                        switchNight.setChecked(nowNight);
+                        applyTheme();
+                    } else {
+                        themePrefs.edit().putInt(ThemeHelper.KEY_NIGHT_START, hourOfDay).apply();
+                        tvNightStartValue.setText(ThemeHelper.formatHour(hourOfDay));
+                        ThemeHelper.applyAutoTheme(requireContext());
+                        boolean nowNight = themePrefs.getBoolean("isNight", true);
+                        isNightMode = nowNight;
+                        switchNight.setChecked(nowNight);
+                        applyTheme();
+                    }
+                    Toast.makeText(requireContext(),
+                            (isDayStart ? "白天" : "夜间") + "开始时间: " + ThemeHelper.formatHour(hourOfDay),
+                            Toast.LENGTH_SHORT).show();
+                },
+                current, 0, true
+        );
+        dialog.show();
     }
 
     /** 统一设置 SwitchCompat 开关外观 */

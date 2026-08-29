@@ -70,6 +70,31 @@
 -keep class com.jingxin.jingxinmusic.util.HistoryManager { *; }
 -keep class com.jingxin.jingxinmusic.util.HistoryManager$HistoryItem { *; }
 
+# MusicScanner - 被 MainFragment 通过反射调用 detectRemovableStorage
+-keep class com.jingxin.jingxinmusic.util.MusicScanner { *; }
+-keep class com.jingxin.jingxinmusic.util.MusicScanner$ManualScanCallback { *; }
+
+# ConfigBackupHelper - JSON 序列化依赖字段名
+-keep class com.jingxin.jingxinmusic.util.ConfigBackupHelper { *; }
+-keep class com.jingxin.jingxinmusic.util.ConfigBackupHelper$* { *; }
+
+# LyricPublicUtil - 被外部调用
+-keep class com.jingxin.jingxinmusic.util.LyricPublicUtil { *; }
+
+# CompatUtil - 反射调用系统 API，类本身不能被混淆
+-keep class com.jingxin.jingxinmusic.util.CompatUtil { *; }
+
+# CrashHandler - 崩溃捕获，UncaughtExceptionHandler 反射注册
+-keep class com.jingxin.jingxinmusic.util.CrashHandler { *; }
+
+# UpdateHelper - JSON 解析依赖字段名
+-keep class com.jingxin.jingxinmusic.util.UpdateHelper { *; }
+-keep class com.jingxin.jingxinmusic.util.UpdateHelper$* { *; }
+
+# LecoFloatManager - 单例 + 内部类 FloatLifecycle
+-keep class com.jingxin.jingxinmusic.floatwindow.LecoFloatManager { *; }
+-keep class com.jingxin.jingxinmusic.floatwindow.LecoFloatManager$* { *; }
+
 # SongAdapter - 接口被 Activity 实现
 -keep class com.jingxin.jingxinmusic.adapter.SongAdapter { *; }
 -keep interface com.jingxin.jingxinmusic.adapter.SongAdapter$OnSongClickListener { *; }

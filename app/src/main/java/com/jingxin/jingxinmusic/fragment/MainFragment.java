@@ -310,11 +310,13 @@ public class MainFragment extends BaseFloatFragment {
                 new ActivityResultContracts.RequestMultiplePermissions(),
                 result -> {
                     boolean readGranted = Boolean.TRUE.equals(result.get(Manifest.permission.READ_EXTERNAL_STORAGE));
-                    boolean writeGranted = Boolean.TRUE.equals(result.get(Manifest.permission.WRITE_EXTERNAL_STORAGE));
                     if (readGranted) {
                         checkManageStorageAndScan();
-                        if (!writeGranted) {
-                            if (!shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                        // WRITE_EXTERNAL_STORAGE 的 maxSdkVersion=28，Android 10+ 系统不会授予该权限。
+                        // 仅在 API <= 28 时检查写入权限被拒情况，避免 Android 10+ 误弹对话框
+                        if (Build.VERSION.SDK_INT <= 28) {
+                            boolean writeGranted = Boolean.TRUE.equals(result.get(Manifest.permission.WRITE_EXTERNAL_STORAGE));
+                            if (!writeGranted && !shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
                                 showWriteStoragePermissionDeniedDialog();
                             }
                         }
@@ -626,7 +628,7 @@ public class MainFragment extends BaseFloatFragment {
         storageFilter.addDataScheme("file");
         CompatUtil.safeRegisterReceiver(ctx, storageReceiver, storageFilter);
 
-        // 注册 MediaStore ContentObserver
+        // 注册 MediaStore ContentObserver（部分车机ROM的MediaStore Provider不可用，try-catch防护）
         mediaStoreObserver = new android.database.ContentObserver(null) {
             @Override
             public void onChange(boolean selfChange) {
@@ -638,8 +640,13 @@ public class MainFragment extends BaseFloatFragment {
                 scanDebounceHandler.postDelayed(scanDebounceRunnable, SCAN_DEBOUNCE_MS);
             }
         };
-        ctx.getContentResolver().registerContentObserver(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver);
+        try {
+            ctx.getContentResolver().registerContentObserver(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaStoreObserver);
+        } catch (SecurityException e) {
+            Log.w(TAG, "MediaStore ContentObserver 注册失败，自动扫描不可用: " + e.getMessage());
+            mediaStoreObserver = null;
+        }
 
         // 检查更新
         UpdateHelper.getInstance(ctx).checkOnLaunch(requireActivity());

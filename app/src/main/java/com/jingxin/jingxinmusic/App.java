@@ -14,6 +14,8 @@ import android.os.Environment;
 import com.jingxin.jingxinmusic.floatwindow.LecoFloatManager;
 import com.jingxin.jingxinmusic.service.MiniFloatService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
+import com.jingxin.jingxinmusic.util.CrashHandler;
+import com.jingxin.jingxinmusic.util.ThemeHelper;
 
 import java.io.File;
 
@@ -31,6 +33,12 @@ public class App extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        // 安装崩溃捕获（本地落盘崩溃日志）
+        CrashHandler.install(this);
+
+        // 按时间规则自动判断日夜主题（优先级低于高德导航广播）
+        ThemeHelper.applyAutoTheme(this);
 
         // 初始化乐酷桌面悬浮窗管理器
         LecoFloatManager.getInstance().init(this);
@@ -92,6 +100,11 @@ public class App extends Application {
     private void startFloatService(Context context) {
         // 检查悬浮窗开关
         if (!com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(context)) {
+            return;
+        }
+        // 检查悬浮窗权限，无权限时启动 Service 也无法显示窗口，还可能触发车机后台限制
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !android.provider.Settings.canDrawOverlays(context)) {
             return;
         }
         // 只有在有音乐播放服务时才弹悬浮窗
