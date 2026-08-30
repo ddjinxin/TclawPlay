@@ -45,8 +45,7 @@ public class MusicScanner {
 
     // 缓存文件名
     private static final String CACHE_FILE = "music_cache.json";
-    // 缓存有效期（10分钟），超时后才真正扫描
-    private static final long CACHE_VALID_MS = 10 * 60 * 1000;
+    // 缓存无时间限制，手动扫描前一直有效；歌库新鲜度由 ContentObserver + 存储挂载广播 + storageVolumesHash 三重保障
 
     // 手动扫描广播
     public static final String ACTION_SCAN_COMPLETE = "com.jingxin.jingxinmusic.SCAN_COMPLETE";
@@ -266,17 +265,13 @@ public class MusicScanner {
 
     /**
      * 加载缓存的歌曲列表
-     * @return 缓存列表，无缓存或已过期返回 null
+     * 缓存无时间限制，仅校验 storageVolumesHash（U盘变化时失效），手动扫描才刷新
+     * @return 缓存列表，无缓存或存储卷变化返回 null
      */
     public static List<Song> loadCache(Context context) {
         File cacheFile = new File(context.getCacheDir(), CACHE_FILE);
         if (!cacheFile.exists()) {
             Log.d(TAG, "无缓存文件");
-            return null;
-        }
-        long age = System.currentTimeMillis() - cacheFile.lastModified();
-        if (age > CACHE_VALID_MS) {
-            Log.d(TAG, "缓存已过期（" + (age / 1000) + "秒）");
             return null;
         }
         try {
