@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '83321fed-7b45-4215-acb1-eb0e5a3fafad'
-  PropagateID: '83321fed-7b45-4215-acb1-eb0e5a3fafad'
-  ReservedCode1: '414e9e8e-05c4-4bfb-8b0f-a6a342074db0'
-  ReservedCode2: '414e9e8e-05c4-4bfb-8b0f-a6a342074db0'
+  ProduceID: '6cfe335b-ffc9-4d30-a5c5-75dd9e63a768'
+  PropagateID: '6cfe335b-ffc9-4d30-a5c5-75dd9e63a768'
+  ReservedCode1: 'cc315f0f-8df5-4a8e-bce3-80d364713684'
+  ReservedCode2: 'cc315f0f-8df5-4a8e-bce3-80d364713684'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,7 +24,11 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.6.5)
+## 📢 最新版本 (v1.0.6.6)
+
+### v1.0.6.6 (2026-08)
+#### 优化
+- **音乐扫描缓存优化** — 去除缓存时间过期机制，手动扫描前缓存一直有效（仅 U盘变化/插拔时自动失效），解决车机每次启动都全量扫描的问题，启动秒开
 
 ### v1.0.6.5 (2026-08)
 #### 修复
@@ -396,6 +400,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.6.6 (2026-08)
+#### 优化
+- 音乐扫描缓存优化——去除缓存时间过期机制，手动扫描前一直有效（仅 U盘变化/插拔时自动失效），启动秒开
 
 ### v1.0.6.5 (2026-08)
 #### 修复
@@ -801,6 +809,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.6.6 (2026-08)
+#### Improvements
+- Music scan cache optimization — removed cache time expiry, cache valid until manual scan (auto-invalidates on USB change/plug), instant startup
 
 ### v1.0.6.5 (2026-08)
 #### Bug Fixes
