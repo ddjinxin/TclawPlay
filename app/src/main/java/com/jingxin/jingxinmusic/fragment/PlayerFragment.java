@@ -749,9 +749,14 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onPause() {
         super.onPause();
-        // 乐酷悬浮模式下 Activity 被推到后台但 Fragment 视图仍在悬浮窗中可见，不能停频谱
-        if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating()) return;
-        stopSpectrum();
+        // 不在 onPause 停频谱：分屏/车机系统会频繁触发 onPause/onResume 循环
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        // 不在 onStop 停频谱：车机系统会疯狂循环 onResume/onStop（间隔 20-50ms），每次停掉重建导致频谱闪一下就消失
+        // 频谱只由以下场景停止：ACTION_SERVICE_CLAIM（悬浮窗抢占）、切歌重建、用户关开关、onDestroyView
     }
 
     @Override
@@ -880,6 +885,8 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void startSpectrumWithPermission() {
         if (!SettingsFragment.isSpectrumEnabled(requireContext())) return;
+        // 频谱正在用 Visualizer 正常运行，不重复启动（防止 stop→start 死循环）
+        if (spectrumRunning && useVisualizer) return;
         // 乐酷悬浮模式或 Activity resumed 时才启动频谱
         if (!com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() && !isResumed()) return;
         // Visualizer 只需要 MODIFY_AUDIO_SETTINGS（安装即授予），不需要 RECORD_AUDIO
@@ -2217,7 +2224,9 @@ public class PlayerFragment extends BaseFloatFragment {
      * 尝试用 Visualizer 启动频谱，sessionId=0 时延迟重试
      */
     private void tryStartVisualizer() {
-        if (!spectrumRunning) return;
+        if (!spectrumRunning) {
+            return;
+        }
         if (bound && playerBinder != null) {
             try {
                 int sessionId = playerBinder.getAudioSessionId();
@@ -2275,7 +2284,6 @@ public class PlayerFragment extends BaseFloatFragment {
                         return;
                     }
                     // 超过重试次数，降级到 AudioRecord
-                    Log.w(TAG, "Visualizer 重试 " + SPECTRUM_MAX_RETRIES + " 次仍无 sessionId，降级到 AudioRecord");
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Visualizer 初始化失败，降级到 AudioRecord: " + e.getMessage());

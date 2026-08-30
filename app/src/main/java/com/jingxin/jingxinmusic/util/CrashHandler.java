@@ -1,7 +1,9 @@
 package com.jingxin.jingxinmusic.util;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
+import android.os.Process;
 import android.util.Log;
 
 import java.io.File;
@@ -16,7 +18,7 @@ import java.util.Locale;
  * 崩溃捕获处理器
  *
  * 崩溃时将完整堆栈写入本地日志文件（私有目录，无权限要求）
- * 对系统框架级可恢复异常（如 BadTokenException）记录日志但不退出进程
+ * 对系统框架级可恢复异常（如 BadTokenException）记录日志并重启进程
  * 其他异常记录日志后调用系统默认 handler 退出进程
  */
 public class CrashHandler implements Thread.UncaughtExceptionHandler {
@@ -45,9 +47,10 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
         // 1. 写入本地崩溃日志
         writeCrashFile(t, e);
 
-        // 2. 系统框架级可恢复异常：记录日志但不退出进程
+        // 2. 系统框架级可恢复异常：记录日志并重启进程
         if (isRecoverableSystemException(e)) {
-            Log.w(TAG, "系统框架异常已拦截，应用继续运行: " + e.getClass().getSimpleName());
+            Log.w(TAG, "系统框架异常已拦截，重启进程: " + e.getClass().getSimpleName());
+            restartApp();
             return;
         }
 
@@ -59,8 +62,7 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
 
     /**
      * 判断是否为系统框架级可恢复异常
-     * 这类异常通常由 Activity 生命周期时序问题引起，不影响应用核心逻辑
-     * 拦截后应用可继续运行，无需退出
+     * 这类异常通常由 Activity 生命周期时序问题引起（如车机分屏 Activity 重建时窗口 token 失效）
      */
     private boolean isRecoverableSystemException(Throwable e) {
         while (e != null) {
@@ -74,6 +76,25 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
             e = e.getCause();
         }
         return false;
+    }
+
+    /**
+     * 重启应用进程
+     * 杀掉当前进程后重新启动 MainActivity，让 Activity 干净重建
+     */
+    private void restartApp() {
+        try {
+            Intent intent = appContext.getPackageManager()
+                    .getLaunchIntentForPackage(appContext.getPackageName());
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_NEW_TASK);
+                appContext.startActivity(intent);
+            }
+        } catch (Exception ex) {
+            Log.e(TAG, "重启应用失败: " + ex.getMessage());
+        }
+        Process.killProcess(Process.myPid());
     }
 
     // ==================== 本地写文件 ====================
