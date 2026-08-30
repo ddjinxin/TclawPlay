@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '9232cd9a-2fc4-496f-ab7f-c0ff97cdde08'
-  PropagateID: '9232cd9a-2fc4-496f-ab7f-c0ff97cdde08'
-  ReservedCode1: 'b64477e5-179c-42e5-87e7-b5426f91edea'
-  ReservedCode2: 'b64477e5-179c-42e5-87e7-b5426f91edea'
+  ProduceID: '83321fed-7b45-4215-acb1-eb0e5a3fafad'
+  PropagateID: '83321fed-7b45-4215-acb1-eb0e5a3fafad'
+  ReservedCode1: '414e9e8e-05c4-4bfb-8b0f-a6a342074db0'
+  ReservedCode2: '414e9e8e-05c4-4bfb-8b0f-a6a342074db0'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,7 +24,12 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.6.4)
+## 📢 最新版本 (v1.0.6.5)
+
+### v1.0.6.5 (2026-08)
+#### 修复
+- **频谱分屏停止** — startSpectrumWithPermission 新增守卫防止广播死循环；onPause/onStop 不再停止频谱，避免车机系统 onResume↔onStop 循环反复销毁 Visualizer
+- **CrashHandler 崩溃恢复优化** — BadTokenException 从「吞掉不退出」改为「重启进程」，解决车机 Activity 重建后分屏黑屏问题
 
 ### v1.0.6.4 (2026-08)
 #### 新功能
@@ -84,7 +89,12 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.6.4)
+## 📢 Latest Version (v1.0.6.5)
+
+### v1.0.6.5 (2026-08)
+#### Bug Fixes
+- **Spectrum stops in split-screen** — Added guard in startSpectrumWithPermission to prevent broadcast loop; onPause/onStop no longer stop spectrum, fixing Visualizer destruction by car system's onResume↔onStop cycle
+- **CrashHandler crash recovery** — BadTokenException changed from "swallow and continue" to "restart process", fixing black screen after car Activity relaunch
 
 ### v1.0.6.4 (2026-08)
 #### New Features
@@ -387,6 +397,11 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 更新日志
 
+### v1.0.6.5 (2026-08)
+#### 修复
+- 频谱分屏停止——startSpectrumWithPermission 守卫防止广播死循环；onPause/onStop 不再停止频谱，避免车机系统 onResume↔onStop 循环反复销毁 Visualizer
+- CrashHandler 崩溃恢复优化——BadTokenException 从「吞掉不退出」改为「重启进程」，解决车机 Activity 重建后分屏黑屏
+
 ### v1.0.6.4 (2026-08)
 #### 新功能
 - 本地崩溃日志（CrashHandler 落盘，系统框架异常只记录不退出）
@@ -523,9 +538,14 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.6)
+## 📢 Latest Version (v1.0.6.5)
 
-### New Features
+### v1.0.6.5 (2026-08)
+#### Bug Fixes
+- **Spectrum stops in split-screen** — Added guard in startSpectrumWithPermission to prevent broadcast loop; onPause/onStop no longer stop spectrum, fixing Visualizer destruction by car system's onResume↔onStop cycle
+- **CrashHandler crash recovery** — BadTokenException changed from "swallow and continue" to "restart process", fixing black screen after car Activity relaunch
+
+### v1.0.6.4 (2026-08)
 - Leco Desktop floating display with drag-to-resize
 - Single Activity + Fragment architecture
 - Player page lyrics search (multi-source + duration matching)
@@ -781,6 +801,11 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.6.5 (2026-08)
+#### Bug Fixes
+- Spectrum stops in split-screen — startSpectrumWithPermission guard prevents broadcast loop; onPause/onStop no longer stop spectrum, fixing Visualizer destruction by car system's onResume↔onStop cycle
+- CrashHandler crash recovery — BadTokenException changed from "swallow and continue" to "restart process", fixing black screen after car Activity relaunch
 
 ### v1.0.6.4 (2026-08)
 #### New Features
