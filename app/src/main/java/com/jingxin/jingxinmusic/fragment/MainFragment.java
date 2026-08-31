@@ -1604,9 +1604,13 @@ public class MainFragment extends BaseFloatFragment {
     private void requestOverlayPermissionIfNeeded() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             if (!android.provider.Settings.canDrawOverlays(requireContext())) {
-                showPermissionDeniedDialog("悬浮窗权限",
-                        "后台播放时需要悬浮窗权限来显示迷你播放窗口。是否前往设置开启？",
-                        () -> {
+                SharedPreferences prefs = requireContext().getSharedPreferences("overlay_permission", Context.MODE_PRIVATE);
+                if (prefs.getBoolean("never_ask", false)) return;
+
+                new android.app.AlertDialog.Builder(requireContext())
+                        .setTitle("悬浮窗权限")
+                        .setMessage("后台播放时需要悬浮窗权限来显示迷你播放窗口。是否前往设置开启？")
+                        .setPositiveButton("去设置", (dialog, which) -> {
                             try {
                                 Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                         Uri.parse("package:" + requireContext().getPackageName()));
@@ -1616,7 +1620,12 @@ public class MainFragment extends BaseFloatFragment {
                                 intent.setData(Uri.fromParts("package", requireContext().getPackageName(), null));
                                 startActivity(intent);
                             }
-                        });
+                        })
+                        .setNegativeButton("暂不", null)
+                        .setNeutralButton("不再提示", (dialog, which) -> {
+                            prefs.edit().putBoolean("never_ask", true).apply();
+                        })
+                        .show();
             }
         }
     }

@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '6cfe335b-ffc9-4d30-a5c5-75dd9e63a768'
-  PropagateID: '6cfe335b-ffc9-4d30-a5c5-75dd9e63a768'
-  ReservedCode1: 'cc315f0f-8df5-4a8e-bce3-80d364713684'
-  ReservedCode2: 'cc315f0f-8df5-4a8e-bce3-80d364713684'
+  ProduceID: 'c9a6e47d-9e68-418c-a555-b21ca460b462'
+  PropagateID: 'c9a6e47d-9e68-418c-a555-b21ca460b462'
+  ReservedCode1: '3005add8-1bcf-41ee-9655-c94d812edbbe'
+  ReservedCode2: '3005add8-1bcf-41ee-9655-c94d812edbbe'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,7 +24,11 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.6.6)
+## 📢 最新版本 (v1.0.6.7)
+
+### v1.0.6.7 (2026-08)
+#### 优化
+- **悬浮窗权限对话框新增「不再提示」按钮** — 部分车机无法设置悬浮窗权限，点「不再提示」后不再弹出，避免反复打扰用户
 
 ### v1.0.6.6 (2026-08)
 #### 优化
@@ -400,6 +404,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.6.7 (2026-08)
+#### 优化
+- 悬浮窗权限对话框新增「不再提示」按钮——部分车机无法设置悬浮窗权限，点「不再提示」后不再弹出
 
 ### v1.0.6.6 (2026-08)
 #### 优化
@@ -809,6 +817,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.6.7 (2026-08)
+#### Improvements
+- Float permission dialog adds "Never ask" button — some car head units cannot configure overlay permission, prevents repeated prompts
 
 ### v1.0.6.6 (2026-08)
 #### Improvements
