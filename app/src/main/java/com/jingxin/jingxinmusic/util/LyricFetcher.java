@@ -126,7 +126,6 @@ public class LyricFetcher {
             });
         }
 
-        Log.d(TAG, "搜索到 " + list.size() + " 个歌词候选，已按时长排序");
         return list;
     }
 
@@ -159,7 +158,6 @@ public class LyricFetcher {
                     if (base64Content != null) {
                         File krcFile = new File(lyricsDir, fileBaseName + ".krc");
                         KrcParser.saveKrcFromBase64(base64Content, krcFile);
-                        Log.d(TAG, "手动选择 KRC 已保存: " + krcFile.getName());
                         if (context != null) LyricPublicUtil.copyToPublicDir(context, krcFile);
 
                         // 同时下载LRC
@@ -210,14 +208,12 @@ public class LyricFetcher {
                     // 保存LRC
                     File lrcFile = new File(lyricsDir, fileBaseName + ".lrc");
                     FileUtil.writeFile(lrcFile, lrcText);
-                    Log.d(TAG, "手动选择 LRC 已保存: " + lrcFile.getName());
                     if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcFile);
 
                     // 删除旧KRC（避免使用旧歌词）和.tried标记
                     File krcFile = new File(lyricsDir, fileBaseName + ".krc");
                     if (krcFile.exists()) {
                         krcFile.delete();
-                        Log.d(TAG, "已删除旧 KRC: " + krcFile.getName());
                     }
                     new File(lyricsDir, fileBaseName + ".tried").delete();
 
@@ -266,7 +262,6 @@ public class LyricFetcher {
                         && new File(filePath).exists();
                 if (!skipKrc) {
                 if (krcFile.exists()) {
-                    Log.d(TAG, "找到本地 KRC: " + krcFile.getName());
                     KrcParser.LyricData data = KrcParser.parseKrcFile(krcFile);
                     if (data != null && data.lines != null && !data.lines.isEmpty()) {
                         if (context != null) {
@@ -282,7 +277,6 @@ public class LyricFetcher {
                                 if (lrcText != null && !lrcText.isEmpty()) {
                                     FileUtil.writeFile(newLrcFile, lrcText);
                                     LyricPublicUtil.copyToPublicDir(context, newLrcFile);
-                                    Log.d(TAG, "从 KRC 生成 LRC: " + newLrcFile.getName());
                                 }
                             }
                         }
@@ -304,7 +298,6 @@ public class LyricFetcher {
                             if (dotIdx > 0) rawName = rawName.substring(0, dotIdx);
                             File localLrc = new File(songDir, rawName + ".lrc");
                             if (localLrc.exists()) {
-                                Log.d(TAG, "找到歌曲同目录 LRC: " + localLrc.getAbsolutePath());
                                 String lrcText = FileUtil.readFileWithNewlines(localLrc);
                                 if (lrcText != null) {
                                     // 统一CRLF→LF
@@ -315,7 +308,6 @@ public class LyricFetcher {
                         File lrcCopy = new File(lyricsDir, fileBaseName + ".lrc");
                         if (!lrcCopy.exists()) {
                             FileUtil.writeFile(lrcCopy, lrcText);
-                            Log.d(TAG, "LRC 已复制到歌词目录: " + lrcCopy.getName());
                             // 额外复制到公共下载目录
                             if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcCopy);
                         }
@@ -332,7 +324,6 @@ public class LyricFetcher {
                 // 2. 查本地 LRC
                 File lrcFile = findLyricFile(lyricsDir, fileBaseName, artistName, ".lrc");
                 if (lrcFile.exists()) {
-                    Log.d(TAG, "找到本地 LRC: " + lrcFile.getName());
                     String lrcText = FileUtil.readFileWithNewlines(lrcFile);
                     if (lrcText != null) {
                         KrcParser.LyricData data = LrcParser.parse(lrcText);
@@ -354,20 +345,15 @@ public class LyricFetcher {
                         try { triedTime = Long.parseLong(triedContent.trim()); } catch (Exception ignored) {}
                     }
                     if (triedTime > 0 && (System.currentTimeMillis() - triedTime) < 24 * 60 * 60 * 1000L) {
-                        Log.d(TAG, ".tried 标记未过期（剩余 " +
-                                ((24 * 60 * 60 * 1000L - (System.currentTimeMillis() - triedTime)) / 1000 / 60) +
-                                " 分钟），跳过在线获取: " + fileBaseName);
                         callback.onError("已尝试过，24小时内跳过");
                         return;
                     } else {
                         // 过期，删除标记重新尝试
                         triedFile.delete();
-                        Log.d(TAG, ".tried 标记已过期，重新尝试获取: " + fileBaseName);
                     }
                 }
 
                 // 4. 在线获取 KRC（酷狗）
-                Log.d(TAG, "开始在线获取 KRC: " + songTitle + " - " + artistName);
                 String[] kugouResult = fetchKugouLyricInfo(songTitle);
                 if (kugouResult != null) {
                     String id = kugouResult[0];
@@ -378,7 +364,6 @@ public class LyricFetcher {
                     if (base64Content != null) {
                         // 保存 KRC 到本地
                         KrcParser.saveKrcFromBase64(base64Content, krcFile);
-                        Log.d(TAG, "KRC 保存到本地: " + krcFile.getName());
                         // 额外复制KRC到公共下载目录
                         if (context != null) LyricPublicUtil.copyToPublicDir(context, krcFile);
 
@@ -394,7 +379,6 @@ public class LyricFetcher {
                             if (context != null) {
                                 LyricPublicUtil.copyToPublicDir(context, lrcLocalFile);
                             }
-                            Log.d(TAG, "酷狗LRC已保存: " + fileBaseName + ".lrc");
                         }
 
                         KrcParser.LyricData data = KrcParser.parseKrcFromBase64(base64Content);
@@ -407,14 +391,12 @@ public class LyricFetcher {
                 }
 
                 // 5. 酷狗失败，备用网易云获取 LRC
-                Log.d(TAG, "酷狗 KRC 获取失败，尝试网易云 LRC: " + songTitle + " - " + artistName);
                 String lrcText = fetchNeteaseLrc(songTitle, artistName);
                 if (lrcText != null && !lrcText.isEmpty()) {
                     // 统一CRLF→LF，保证其他应用兼容
                     lrcText = lrcText.replace("\r\n", "\n");
                     // 保存 LRC 到本地
                     FileUtil.writeFile(lrcFile, lrcText);
-                    Log.d(TAG, "LRC 保存到本地: " + lrcFile.getName());
                     // 额外复制到公共下载目录
                     if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcFile);
 
@@ -428,7 +410,6 @@ public class LyricFetcher {
 
                 // 6. 全部失败，写 .tried 标记（时间戳，24小时后过期）
                 FileUtil.writeFile(triedFile, String.valueOf(System.currentTimeMillis()));
-                Log.d(TAG, "所有歌词源均失败，写入 .tried 标记: " + fileBaseName);
                 callback.onError("所有歌词源均失败");
 
             } catch (Exception e) {
@@ -582,7 +563,6 @@ public class LyricFetcher {
             lrcText = lrcText.replace("\r\n", "\n");
             return lrcText;
         } catch (Exception e) {
-            Log.d(TAG, "酷狗LRC下载失败: " + e.getMessage());
             return null;
         }
     }
@@ -664,7 +644,6 @@ public class LyricFetcher {
         intent.setPackage(context.getPackageName());
         context.sendBroadcast(intent);
 
-        Log.d(TAG, "歌词就绪广播: " + safeName + " lrc=" + (lrcPath != null) + " krc=" + (krcPath != null));
     }
 
     /**

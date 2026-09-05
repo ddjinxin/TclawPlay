@@ -64,7 +64,6 @@ public class CoverLoader {
                 }
             }
         } catch (Exception e) {
-            Log.d(TAG, "缓存封面查找失败: " + e.getMessage());
         }
         return null;
     }
@@ -191,7 +190,6 @@ public class CoverLoader {
 
                 @Override
                 public void onError(String errorMessage) {
-                    Log.d(TAG, "在线封面获取失败: " + errorMessage);
                     uiHandler.post(() -> callback.onCoverFailed());
                 }
             });

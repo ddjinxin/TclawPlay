@@ -118,7 +118,6 @@ public class BiliOfflineSaver {
                         coverJpg = new byte[(int) cachedCover.length()];
                         fis.read(coverJpg);
                         fis.close();
-                        Log.d(TAG, "读取缓存封面: " + coverName);
                     } catch (Exception e) {
                         Log.w(TAG, "读取封面字节失败: " + e.getMessage());
                     }
@@ -139,7 +138,6 @@ public class BiliOfflineSaver {
             if (coverJpg != null || (lrcContent != null && !lrcContent.isEmpty())) {
                 boolean embedded = M4aMetadataWriter.embedMetadata(finalM4a, coverJpg, lrcContent);
                 if (embedded) {
-                    Log.d(TAG, "封面和歌词已内嵌到m4a");
                     // 内嵌成功后删除外部封面/歌词文件（如果有）
                     coverJpg = null;
                     lrcContent = null;
@@ -155,7 +153,6 @@ public class BiliOfflineSaver {
                 if (callback != null) callback.onFailed("写入公共目录失败");
                 return;
             }
-            Log.d(TAG, "音频已保存到 Download/music/" + baseName + ".m4a");
 
             // 内嵌失败时保存外部封面和歌词
             if (coverJpg != null) {

@@ -72,9 +72,6 @@ public class LocalDirectoryScanner {
         items.addAll(subDirs.values());
         items.addAll(songsInDir);
 
-        Log.d(TAG, "列出目录 " + (dirPath != null ? dirPath : "根") + " : "
-                + subDirs.size() + "个子目录, " + songsInDir.size() + "首歌曲");
-
         return items;
     }
 

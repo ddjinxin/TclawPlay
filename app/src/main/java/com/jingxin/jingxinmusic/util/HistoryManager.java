@@ -75,7 +75,6 @@ public class HistoryManager {
         }
 
         saveHistory(historyDir, list);
-        Log.d(TAG, "记录播放历史: " + item.getDisplayName());
     }
 
     /**
@@ -116,7 +115,6 @@ public class HistoryManager {
         File file = new File(historyDir, "history.json");
         if (file.exists()) {
             file.delete();
-            Log.d(TAG, "播放历史已清空");
         }
     }
 

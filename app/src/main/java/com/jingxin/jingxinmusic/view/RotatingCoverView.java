@@ -152,11 +152,9 @@ public class RotatingCoverView extends AppCompatImageView {
     
     public void startRotation() {
         if (userPaused) {
-            Log.d(TAG, "用户已手动暂停旋转，跳过 startRotation");
             return;
         }
         if (!isRotating) {
-            Log.d(TAG, "开始旋转封面");
             isRotating = true;
             if (rotationAnimator.isPaused()) {
                 rotationAnimator.resume();
@@ -168,7 +166,6 @@ public class RotatingCoverView extends AppCompatImageView {
     
     public void stopRotation() {
         if (isRotating) {
-            Log.d(TAG, "停止旋转封面");
             isRotating = false;
             rotationAnimator.pause();
         }

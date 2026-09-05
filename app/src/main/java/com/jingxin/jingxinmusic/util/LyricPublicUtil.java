@@ -102,7 +102,6 @@ public class LyricPublicUtil {
             while ((len = is.read(buffer)) > 0) {
                 os.write(buffer, 0, len);
             }
-            Log.d(TAG, existingUri != null ? "歌词已覆盖: " + fileName : "歌词已复制到公共目录: " + fileName);
         } catch (Exception e) {
             Log.e(TAG, "写入公共目录失败: " + e.getMessage());
             // 新插入的条目写入失败则清理
@@ -149,7 +148,6 @@ public class LyricPublicUtil {
             while ((len = is.read(buffer)) > 0) {
                 os.write(buffer, 0, len);
             }
-            Log.d(TAG, "歌词已复制到公共目录: " + srcFile.getName());
         } catch (Exception e) {
             Log.e(TAG, "File API 复制失败: " + e.getMessage());
         }

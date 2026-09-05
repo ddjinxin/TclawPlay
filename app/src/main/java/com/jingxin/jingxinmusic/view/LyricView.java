@@ -186,7 +186,6 @@ public class LyricView extends View {
 
     public void setWideScreen(boolean wideScreen) {
         this.isWideScreen = wideScreen;
-        Log.d(TAG, "设置宽屏模式: " + wideScreen);
     }
     
     /**
@@ -205,7 +204,6 @@ public class LyricView extends View {
         if (modeChangeListener != null) {
             modeChangeListener.onModeChanged(mode);
         }
-        Log.d(TAG, "设置歌词模式: " + mode);
     }
 
     /**
@@ -224,13 +222,11 @@ public class LyricView extends View {
         if (modeChangeListener != null) {
             modeChangeListener.onModeChanged(currentMode);
         }
-        Log.d(TAG, "切换歌词模式: " + currentMode);
         return currentMode;
     }
     
     public void setThemeMode(ThemeMode theme) {
         this.currentTheme = theme;
-        Log.d(TAG, "切换主题模式: " + theme);
         
         // 读取自定义歌词高亮颜色，fallback 到默认值
         SharedPreferences prefs = getContext().getSharedPreferences("theme", Context.MODE_PRIVATE);

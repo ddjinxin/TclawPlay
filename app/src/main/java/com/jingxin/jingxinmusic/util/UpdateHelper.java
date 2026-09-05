@@ -110,7 +110,6 @@ public class UpdateHelper {
      */
     public void checkOnLaunch(Activity activity) {
         if (launchChecked) {
-            Log.d(TAG, "本次启动已检查过更新，跳过");
             return;
         }
         launchChecked = true;
@@ -130,7 +129,6 @@ public class UpdateHelper {
      */
     private void checkAndDownload(final Activity activity, final boolean force) {
         if (isChecking) {
-            Log.d(TAG, "已有检查任务在运行，跳过");
             if (force) {
                 mainHandler.post(() ->
                     Toast.makeText(activity, "正在检查更新，请稍候...", Toast.LENGTH_SHORT).show());
@@ -491,7 +489,6 @@ public class UpdateHelper {
                 fos.write(buf, 0, n);
                 downloaded += n;
                 if (total > 0) {
-                    Log.d(TAG, "下载进度: " + (downloaded * 100 / total) + "%");
                 }
             }
             fos.flush();

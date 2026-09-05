@@ -41,7 +41,6 @@ public class ThemeHelper {
         // 高德导航刚触发过：保留高德的设置，不覆盖
         boolean amapTriggered = prefs.getBoolean("amapTriggered", false);
         if (amapTriggered) {
-            Log.d(TAG, "高德导航已设置主题，跳过时间判断");
             return;
         }
 
@@ -49,7 +48,6 @@ public class ThemeHelper {
         boolean nightByTime = isNightByTime(prefs);
         boolean currentNight = prefs.getBoolean("isNight", true);
         if (nightByTime != currentNight) {
-            Log.d(TAG, "时间判断切换主题: " + (currentNight ? "夜间" : "白天") + " → " + (nightByTime ? "夜间" : "白天"));
             prefs.edit().putBoolean("isNight", nightByTime).apply();
         }
     }

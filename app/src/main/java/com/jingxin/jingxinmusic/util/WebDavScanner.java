@@ -159,11 +159,8 @@ public class WebDavScanner {
             // 确保目录URL以/结尾
             url = ensureTrailingSlash(url);
 
-            Log.d(TAG, "listDirectory: url=" + url);
-
             // 使用depth=1列出直接子项
             List<DavResource> resources = sardine.list(url, 1);
-            Log.d(TAG, "listDirectory: 返回资源数=" + (resources != null ? resources.size() : 0));
             if (resources == null) return items;
 
             // 获取服务器基础URL（协议+域名+端口）
@@ -191,10 +188,6 @@ public class WebDavScanner {
                 // 解码显示名称（中文目录名可能是URL编码的）
                 String displayName = decodeName(name);
 
-                Log.d(TAG, "  item: name=" + name + " displayName=" + displayName
-                        + " isDir=" + isDir + " href=" + res.getHref() + " path=" + hrefPath
-                        + " resUrl=" + resUrl);
-
                 // 对URL路径中的中文等特殊字符进行编码，确保播放时可用
                 if (!isDir) {
                     resUrl = encodeUrlPath(resUrl);
@@ -214,7 +207,6 @@ public class WebDavScanner {
                 }
             }
 
-            Log.d(TAG, "列出目录 " + url + " 共 " + items.size() + " 项");
         } catch (Exception e) {
             Log.e(TAG, "列出目录失败: " + e.getMessage(), e);
         }

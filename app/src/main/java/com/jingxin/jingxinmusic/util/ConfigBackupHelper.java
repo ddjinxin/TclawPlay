@@ -41,7 +41,6 @@ public class ConfigBackupHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             for (String name : fileNames) {
                 if (findBackupUri(context, name) != null) {
-                    Log.d(TAG, "hasBackup: found readable backup: " + name);
                     return true;
                 }
             }
@@ -54,7 +53,6 @@ public class ConfigBackupHelper {
             for (String name : fileNames) {
                 File f = getLegacyFile(name);
                 if (f.exists() && f.canRead()) {
-                    Log.d(TAG, "hasBackup: found readable backup: " + name);
                     return true;
                 }
             }

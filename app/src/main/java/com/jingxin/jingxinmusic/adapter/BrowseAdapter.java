@@ -196,7 +196,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                         }
                     }
                 } catch (Exception e) {
-                    Log.d(TAG, "本地封面查找失败: " + e.getMessage());
                 }
             }
 
@@ -208,7 +207,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                             context.getContentResolver().openInputStream(
                                     android.net.Uri.parse(item.song.albumArt)));
                 } catch (Exception e) {
-                    Log.d(TAG, "albumArt加载失败: " + e.getMessage());
                 }
             }
 
@@ -242,7 +240,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                             }
                         }
                     } catch (Exception e) {
-                        Log.d(TAG, "保存封面缓存失败: " + e.getMessage());
                     }
                     synchronized (loadingCovers) { loadingCovers.remove(coverKey); }
                     uiHandler.post(() -> {
@@ -321,7 +318,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             if (firstTitle != null && !firstTitle.isEmpty()) {
                 Bitmap cached = CoverLoader.findCachedCoverByName(context, firstTitle);
                 if (cached != null) {
-                    Log.d(TAG, "B站目录命中封面缓存: " + bvid + " title=" + firstTitle);
                     return cached;
                 }
             }
@@ -331,12 +327,10 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             if (coverUrl != null && !coverUrl.isEmpty()) {
                 Bitmap cover = com.jingxin.jingxinmusic.util.HttpUtil.getBitmap(coverUrl);
                 if (cover != null) {
-                    Log.d(TAG, "B站目录用视频封面: " + bvid);
                     return cover;
                 }
             }
         } catch (Exception e) {
-            Log.d(TAG, "B站目录封面查找失败: " + e.getMessage());
         }
         return null;
     }
@@ -358,7 +352,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 if (cacheFile.exists() && cacheFile.length() > 0) {
                     Bitmap cached = BitmapUtil.decodeSampledFromFile(cacheFile.getAbsolutePath(), 200, 200);
                     if (cached != null) {
-                        Log.d(TAG, "命中WebDAV封面缓存: " + dirUrl);
                         return cached;
                     }
                 }
@@ -383,7 +376,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 }
             }
         } catch (Exception e) {
-            Log.d(TAG, "WebDAV封面查找失败: " + e.getMessage());
         }
         return null;
     }
@@ -428,9 +420,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             FileOutputStream fos = new FileOutputStream(outputFile);
             scaled.compress(Bitmap.CompressFormat.JPEG, 85, fos);
             fos.close();
-            Log.d(TAG, "保存封面缓存: " + outputFile.getName());
         } catch (Exception e) {
-            Log.d(TAG, "保存封面缓存失败: " + e.getMessage());
         }
     }
 
@@ -457,7 +447,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 }
             }
         } catch (Exception e) {
-            Log.d(TAG, "WebDAV扫描失败: " + e.getMessage());
         }
         return null;
     }
@@ -477,7 +466,6 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         if (cacheFile.exists() && cacheFile.length() > 0) {
             Bitmap cached = BitmapUtil.decodeSampledFromFile(cacheFile.getAbsolutePath(), 200, 200);
             if (cached != null) {
-                Log.d(TAG, "命中封面缓存: " + dir.getName());
                 return cached;
             }
         }

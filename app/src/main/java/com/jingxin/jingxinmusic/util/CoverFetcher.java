@@ -45,7 +45,6 @@ public class CoverFetcher {
                 callback.onCoverFetched(bitmap);
                 return;
             }
-            Log.d(TAG, "酷狗封面获取失败，尝试网易云: " + songTitle + " - " + artistName);
             
             // 2. 网易云备用
             bitmap = fetchFromNetease(songTitle, artistName);
@@ -71,7 +70,6 @@ public class CoverFetcher {
                     continue;
                 }
 
-                Log.d(TAG, sourceName + "封面 URL: " + coverUrl);
                 Bitmap coverBitmap = HttpUtil.getBitmap(coverUrl);
                 if (coverBitmap == null) {
                     Log.e(TAG, sourceName + "下载封面失败（第" + (retry + 1) + "次）");
@@ -194,12 +192,10 @@ public class CoverFetcher {
             if (data != null && data.length > 0) {
                 Bitmap bmp = BitmapFactory.decodeByteArray(data, 0, data.length);
                 if (bmp != null) {
-                    Log.d(TAG, "提取内嵌封面成功: " + bmp.getWidth() + "x" + bmp.getHeight());
                 }
                 return bmp;
             }
         } catch (Exception e) {
-            Log.d(TAG, "提取内嵌封面失败: " + e.getMessage());
         } finally {
             try { retriever.release(); } catch (Exception ignored) {}
         }

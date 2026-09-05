@@ -501,16 +501,13 @@ public class SpectrumView extends View {
         switch (ringSubMode) {
             case RING_COLUMNAR:
                 ringSubMode = RING_BOMB;
-                Log.d(TAG, "圆环切换到爆炸模式");
                 break;
             case RING_BOMB:
                 ringSubMode = RING_WAVE;
-                Log.d(TAG, "圆环切换到波形模式");
                 break;
             case RING_WAVE:
             default:
                 ringSubMode = RING_COLUMNAR;
-                Log.d(TAG, "圆环切换到柱状模式");
                 break;
         }
         postInvalidate();
@@ -561,7 +558,6 @@ public class SpectrumView extends View {
     public void toggleVisibility() {
         visible = !visible;
         super.setVisibility(visible ? VISIBLE : GONE);
-        Log.d(TAG, "频谱" + (visible ? "显示" : "隐藏"));
     }
     
     /**

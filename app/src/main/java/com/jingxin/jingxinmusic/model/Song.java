@@ -187,7 +187,6 @@ public class Song {
                 clearPending.put(MediaStore.Images.Media.IS_PENDING, 0);
                 resolver.update(uri, clearPending, null, null);
 
-                Log.d(TAG, "封面已保存到公共目录: " + uri);
                 return uri;
             } catch (Exception e) {
                 Log.e(TAG, "保存公共封面失败: " + e.getMessage());
@@ -204,7 +203,6 @@ public class Song {
                 java.io.FileOutputStream fos = new java.io.FileOutputStream(destFile);
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
                 fos.close();
-                Log.d(TAG, "封面已保存到公共目录: " + destFile.getAbsolutePath());
                 return Uri.fromFile(destFile);
             } catch (Exception e) {
                 Log.e(TAG, "保存公共封面失败(File API): " + e.getMessage());

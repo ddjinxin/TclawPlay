@@ -27,7 +27,6 @@ public class M4aMetadataWriter {
      */
     public static boolean embedMetadata(File m4aFile, byte[] coverJpg, String lyrics) {
         if ((coverJpg == null || coverJpg.length == 0) && (lyrics == null || lyrics.isEmpty())) {
-            Log.d(TAG, "无封面也无歌词，跳过嵌入");
             return true;
         }
 
@@ -110,9 +109,6 @@ public class M4aMetadataWriter {
                 return false;
             }
 
-            Log.d(TAG, "元数据嵌入成功: " + m4aFile.getName()
-                    + " 封面=" + (coverJpg != null ? coverJpg.length + "B" : "无")
-                    + " 歌词=" + (lyrics != null ? lyrics.length() + "字" : "无"));
             return true;
 
         } catch (Exception e) {
@@ -293,7 +289,6 @@ public class M4aMetadataWriter {
                 long oldOffset = readInt32BE(data, offsetPos) & 0xFFFFFFFFL;
                 writeInt32BE(data, offsetPos, (int) (oldOffset + delta));
             }
-            Log.d(TAG, "修正stco: " + entryCount + " entries, delta=" + delta);
         } catch (Exception e) {
             Log.w(TAG, "修正stco失败: " + e.getMessage());
         }
@@ -312,7 +307,6 @@ public class M4aMetadataWriter {
                 long oldOffset = readInt64BE(data, offsetPos);
                 writeInt64BE(data, offsetPos, oldOffset + delta);
             }
-            Log.d(TAG, "修正co64: " + entryCount + " entries, delta=" + delta);
         } catch (Exception e) {
             Log.w(TAG, "修正co64失败: " + e.getMessage());
         }

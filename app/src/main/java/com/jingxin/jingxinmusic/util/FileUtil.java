@@ -61,7 +61,6 @@ public class FileUtil {
                     .onUnmappableCharacter(CodingErrorAction.REPORT);
             return decoder.decode(ByteBuffer.wrap(bytes, offset, bytes.length - offset)).toString();
         } catch (CharacterCodingException e) {
-            Log.d(TAG, "文件非 UTF-8 编码，回退 GBK 读取: " + file.getName());
         }
 
         // GBK 回退（兼容 GB2312/GBK/ANSI）

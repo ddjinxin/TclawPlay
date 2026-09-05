@@ -692,7 +692,6 @@ public class BiliApi {
                             info.audioUrl = dolbyUrl;
                             info.audioQuality = 30250; // 杜比全景声
                             info.audioQualityName = "杜比全景声";
-                            Log.d(TAG, "选择杜比全景声音频流");
                         }
                     }
                 }
@@ -708,7 +707,6 @@ public class BiliApi {
                                 info.audioUrl = flacUrl;
                                 info.audioQuality = 30251; // Hi-Res无损
                                 info.audioQualityName = "Hi-Res无损";
-                                Log.d(TAG, "选择Hi-Res无损音频流");
                             }
                         }
                     }
@@ -733,8 +731,6 @@ public class BiliApi {
                             info.audioUrl = extractAudioUrl(bestAudio);
                             info.audioQuality = bestAudio.optInt("id", 0);
                             info.audioQualityName = audioQualityName(info.audioQuality);
-                            Log.d(TAG, "选择普通音频流: quality=" + info.audioQuality
-                                    + " bandwidth=" + bestBandwidth);
                         }
                     }
                 }

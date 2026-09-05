@@ -49,7 +49,6 @@ public class FavoriteManager {
 
         list.add(0, song);
         saveFavorites(favDir, list);
-        Log.d(TAG, "收藏: " + song.title + " - " + song.artist);
     }
 
     /**
@@ -69,7 +68,6 @@ public class FavoriteManager {
         }
 
         saveFavorites(favDir, list);
-        Log.d(TAG, "取消收藏: " + song.title);
     }
 
     /**

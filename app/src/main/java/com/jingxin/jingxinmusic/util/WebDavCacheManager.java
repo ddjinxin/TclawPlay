@@ -44,15 +44,12 @@ public class WebDavCacheManager {
 
         try {
             cache = new SimpleCache(cacheDir, evictor);
-            Log.d(TAG, "缓存初始化成功: max=" + formatSize(maxBytes)
-                    + ", 当前占用=" + formatSize(cache.getCacheSpace()));
         } catch (Exception e) {
             Log.e(TAG, "缓存初始化失败，清空重试: " + e.getMessage());
             deleteRecursive(cacheDir);
             cacheDir.mkdirs();
             try {
                 cache = new SimpleCache(cacheDir, evictor);
-                Log.d(TAG, "缓存重试成功");
             } catch (Exception e2) {
                 Log.e(TAG, "缓存重试仍失败: " + e2.getMessage());
                 cache = null;
@@ -121,7 +118,6 @@ public class WebDavCacheManager {
                         cache.removeSpan(span);
                     }
                 }
-                Log.d(TAG, "缓存已清除");
             } catch (Exception e) {
                 Log.e(TAG, "清除缓存失败: " + e.getMessage());
             }

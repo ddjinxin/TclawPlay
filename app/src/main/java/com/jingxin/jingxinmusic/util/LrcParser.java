@@ -94,7 +94,6 @@ public class LrcParser {
             }
         }
 
-        Log.d(TAG, "LRC 解析完成，共 " + data.lines.size() + " 行");
         return data;
     }
 }
