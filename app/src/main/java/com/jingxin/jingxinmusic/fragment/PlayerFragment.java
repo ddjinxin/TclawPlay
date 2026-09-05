@@ -85,6 +85,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private List<Song> allSongs;
     private String playlistMode = "all"; // "all" 或 "favorites"
     private boolean resumePlay = false; // 从 mini 播放条跳转，不重新播放
+    private long resumePosition = 0; // 自动恢复时的播放进度（毫秒），仅首次 playSong 使用
 
     private View mRootView;
 
@@ -402,6 +403,7 @@ public class PlayerFragment extends BaseFloatFragment {
             playlistMode = args.getString("playlist_mode");
             if (playlistMode == null) playlistMode = "all";
             resumePlay = args.getBoolean("resume_play", false);
+            resumePosition = args.getLong("resume_position", 0L);
         }
     }
 
@@ -808,6 +810,11 @@ public class PlayerFragment extends BaseFloatFragment {
                     }
                 }
                 position = realPos >= 0 ? realPos : 0;
+            }
+            // 恢复播放进度：仅首次调用时设置，之后清零避免切歌误 seek
+            if (resumePosition > 0 && playerBinder != null) {
+                playerBinder.setPendingSeekPosition(resumePosition);
+                resumePosition = 0;
             }
             playerBinder.playSong(song, position);
             btnPlayPause.setImageResource(R.drawable.ic_pause);

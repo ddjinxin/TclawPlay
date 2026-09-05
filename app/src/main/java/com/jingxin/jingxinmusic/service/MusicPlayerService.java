@@ -149,6 +149,9 @@ public class MusicPlayerService extends Service {
 
     private Player.Listener playerListener;
 
+    // 恢复播放进度：收到 playSong 请求时暂存，等 ExoPlayer prepare 完成后 seekTo
+    private long pendingSeekPosition = 0;
+
     // ========== PendingIntent 工厂方法 ==========
 
     private PendingIntent createActionIntent(String action, int requestCode) {
@@ -211,7 +214,6 @@ public class MusicPlayerService extends Service {
             lastAmapThemeTime = now;
 
             boolean isNight = (extraState == EXTRA_STATE_NIGHT);
-            Log.d(TAG, "高德日夜模式: " + (isNight ? "夜间" : "白天"));
 
             // 写入 SharedPreferences
             getSharedPreferences("theme", MODE_PRIVATE)
@@ -233,7 +235,6 @@ public class MusicPlayerService extends Service {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (!ACTION_LYRIC_AVAILABLE.equals(intent.getAction())) return;
-            Log.d(TAG, "收到歌词就绪广播，重新更新 MediaSession");
             if (mediaSessionFallback != null) handler.removeCallbacks(mediaSessionFallback);
             deferMediaSessionUpdate = false;
             doUpdateMediaSessionMetadata();
@@ -245,7 +246,6 @@ public class MusicPlayerService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "MusicPlayerService 创建");
 
         notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         createNotificationChannel();
@@ -274,7 +274,6 @@ public class MusicPlayerService extends Service {
                     if (currentSong != null && exoPlayer != null) {
                         long realDuration = exoPlayer.getDuration();
                         if (realDuration != C.TIME_UNSET && realDuration > 0 && currentSong.duration != realDuration) {
-                            Log.d(TAG, "更新歌曲duration: " + currentSong.duration + " -> " + realDuration + " (" + currentSong.title + ")");
                             currentSong.duration = realDuration;
                             // duration变了，必须刷新MediaSession metadata，其他应用才能拿到正确的时长
                             updateMediaSessionMetadata();
@@ -284,11 +283,9 @@ public class MusicPlayerService extends Service {
                 updateNotification();
                 sendPlayStateBroadcast();
                 if (playbackState == Player.STATE_ENDED) {
-                    Log.d(TAG, "歌曲播放结束，自动下一首");
                     // B站异步获取URL期间不自动切歌，避免旧播放器结束后
                     // 还在等待fetch的竞态导致播放与显示不一致
                     if (biliFetching) {
-                        Log.d(TAG, "B站音频流获取中，跳过本次自动切歌");
                         return;
                     }
                     playNext();
@@ -346,7 +343,6 @@ public class MusicPlayerService extends Service {
                 if (currentSong != null && !isFallbackMode) {
                     String playUri = getLocalPlayUri(currentSong);
                     if (playUri != null) {
-                        Log.d(TAG, "ExoPlayer播放失败，尝试MediaPlayer兜底: " + currentSong.title);
                         startFallbackPlayback(currentSong, playUri, currentIndex);
                         return;
                     }
@@ -406,7 +402,6 @@ public class MusicPlayerService extends Service {
                     .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, lastSong.album)
                     .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, lastSong.duration);
             mediaSession.setMetadata(initBuilder.build());
-            Log.d(TAG, "onCreate: 预填充 MediaSession metadata: " + lastSong.title + " - " + lastSong.artist);
         }
 
         // 注册通知按钮动作
@@ -457,7 +452,7 @@ public class MusicPlayerService extends Service {
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
+        savePlaybackPosition();
         stopPlaybackStateUpdater();
         releaseFallbackPlayer();
         if (exoPlayer != null) {
@@ -487,7 +482,30 @@ public class MusicPlayerService extends Service {
         try {
             unregisterReceiver(amapThemeReceiver);
         } catch (Exception ignored) {}
-        Log.d(TAG, "MusicPlayerService 销毁");
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        savePlaybackPosition();
+        super.onTaskRemoved(rootIntent);
+    }
+
+    /**
+     * 保存当前播放进度到 SharedPreferences，下次启动时可恢复
+     */
+    private void savePlaybackPosition() {
+        try {
+            if (currentIndex >= 0 && playlist != null && !playlist.isEmpty()
+                    && currentIndex < playlist.size()) {
+                long pos = getCurrentPosition();
+                getSharedPreferences("last_played", MODE_PRIVATE)
+                        .edit()
+                        .putLong("play_position", pos)
+                        .apply();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "保存播放进度失败: " + e.getMessage());
+        }
     }
 
     // ========== Binder 供 Activity 调用 ==========
@@ -495,6 +513,13 @@ public class MusicPlayerService extends Service {
     public class MusicPlayerBinder extends Binder {
         public void playSong(Song song, int position) {
             MusicPlayerService.this.playSong(song, position);
+        }
+
+        /**
+         * 设置恢复播放进度（毫秒），在下一次 playSong 的 prepare 完成后 seekTo
+         */
+        public void setPendingSeekPosition(long positionMs) {
+            MusicPlayerService.this.pendingSeekPosition = positionMs;
         }
 
         public void togglePlayPause() {
@@ -593,14 +618,11 @@ public class MusicPlayerService extends Service {
             }
             if (realPos >= 0) {
                 position = realPos;
-                Log.d(TAG, "playSong: position越界修正 " + position + "->" + realPos);
             } else {
                 position = 0;
-                Log.d(TAG, "playSong: 未在playlist中找到歌曲，position修正为0");
             }
         }
         this.currentIndex = position;
-        Log.d(TAG, "playSong: " + song.title + ", position=" + position + ", playlist.size=" + playlist.size());
 
         // B站歌曲：异步获取音频流URL后再播放
         // 备用判断：filePath以"bili://"开头也视为B站歌曲（兼容旧版保存的播放列表）
@@ -613,7 +635,6 @@ public class MusicPlayerService extends Service {
 
         // 优先使用 Content URI（不受 Scoped Storage 限制），fallback 到文件路径
         String playUri = song.contentUri != null ? song.contentUri : song.filePath;
-        Log.d(TAG, "playSong: playUri=" + playUri);
 
         // URL校验：WebDAV URL必须以http开头
         if (playUri != null && playUri.startsWith("http")) {
@@ -621,7 +642,6 @@ public class MusicPlayerService extends Service {
             if (!dataSourceHasAuth) {
                 WebDavConfig cfg = new WebDavConfig(this);
                 if (cfg.isConfigured()) {
-                    Log.d(TAG, "检测到WebDAV配置，重建DataSource注入认证头");
                     rebuildDataSourceFactory();
                 }
             }
@@ -668,12 +688,19 @@ public class MusicPlayerService extends Service {
                     .setUri(Uri.parse(playUri))
                     .setMimeType(mimeType)
                     .build();
-            Log.d(TAG, "startPlayback: 设置MIME类型=" + mimeType + " uri=" + playUri);
         } else {
             mediaItem = MediaItem.fromUri(Uri.parse(playUri));
         }
         exoPlayer.setMediaItem(mediaItem);
         exoPlayer.prepare();
+
+        // 恢复播放进度
+        if (pendingSeekPosition > 0) {
+            long seekPos = pendingSeekPosition;
+            pendingSeekPosition = 0;
+            exoPlayer.seekTo(seekPos);
+        }
+
         exoPlayer.play();
 
         // 播放成功，重置连续错误计数
@@ -681,7 +708,6 @@ public class MusicPlayerService extends Service {
 
         logPlayHistory(song);
 
-        Log.d(TAG, "开始播放: " + song.title + " - " + song.artist);
         updateNotification();
 
         // 通知 Activity 歌曲切换了
@@ -696,7 +722,6 @@ public class MusicPlayerService extends Service {
         if ((song.bvid == null || song.bvid.isEmpty()) && song.filePath != null && song.filePath.startsWith("bili://")) {
             song.bvid = song.filePath.substring(7);
         }
-        Log.d(TAG, "playBiliSong: " + song.title);
 
         // 检查缓存的URL是否有效
         if (song.audioUrl != null && !song.audioUrl.isEmpty()
@@ -733,7 +758,6 @@ public class MusicPlayerService extends Service {
             song.audioUrlExpire = playInfo.expireTime;
             song.cid = playInfo.cid;
 
-            Log.d(TAG, "B站音频流就绪");
             handler.post(() -> {
                 biliFetching = false;
                 startBiliPlayback(song, position);
@@ -770,6 +794,14 @@ public class MusicPlayerService extends Service {
             MediaItem mediaItem = MediaItem.fromUri(Uri.parse(song.audioUrl));
             exoPlayer.setMediaSource(mediaSourceFactory.createMediaSource(mediaItem));
             exoPlayer.prepare();
+
+            // 恢复播放进度
+            if (pendingSeekPosition > 0) {
+                long seekPos = pendingSeekPosition;
+                pendingSeekPosition = 0;
+                exoPlayer.seekTo(seekPos);
+            }
+
             exoPlayer.play();
 
         consecutiveErrors = 0;
@@ -812,7 +844,6 @@ public class MusicPlayerService extends Service {
 
     private void playNext() {
         if (playlist.isEmpty()) return;
-        Log.d(TAG, "playNext: playOrder=" + playOrder + ", currentIndex=" + currentIndex + ", playlist.size=" + playlist.size());
         playAdjacent(1);
     }
 
@@ -894,7 +925,6 @@ public class MusicPlayerService extends Service {
     private void setPlaylist(List<Song> songs) {
         this.playlist = new ArrayList<>(songs);
         this.currentIndex = -1;
-        Log.d(TAG, "setPlaylist: size=" + songs.size());
     }
 
     private void setPlayOrder(int order) {
@@ -905,7 +935,6 @@ public class MusicPlayerService extends Service {
         intent.putExtra(EXTRA_PLAY_ORDER, order);
         sendBroadcast(intent);
         String[] names = {"顺序播放", "随机播放", "单曲循环"};
-        Log.d(TAG, "播放顺序: " + names[order]);
     }
 
     // ========== MediaSession 更新 ==========
@@ -962,7 +991,6 @@ public class MusicPlayerService extends Service {
             builder.putString(MediaMetadataCompat.METADATA_KEY_ART_URI, currentSong.albumArt);
         }
 
-        Log.d(TAG, "setMetadata: forceRefresh=" + forceRefresh + " title=" + currentSong.title + " artist=" + artist);
         mediaSession.setMetadata(builder.build());
     }
 
@@ -982,6 +1010,7 @@ public class MusicPlayerService extends Service {
     private void startPlaybackStateUpdater() {
         stopPlaybackStateUpdater();
         playbackStateUpdater = new Runnable() {
+            long lastSaveTime = 0;
             @Override
             public void run() {
                 if (isPlaying()) {
@@ -990,6 +1019,12 @@ public class MusicPlayerService extends Service {
                     // 乐酷桌面不主动读已有 metadata，只靠被动回调
                     if (!deferMediaSessionUpdate) {
                         doUpdateMediaSessionMetadata(true);
+                    }
+                    // 每5秒周期性保存播放进度，确保退出时进度不丢失
+                    long now = System.currentTimeMillis();
+                    if (now - lastSaveTime > 5000) {
+                        savePlaybackPosition();
+                        lastSaveTime = now;
                     }
                     handler.postDelayed(this, PLAYBACK_STATE_UPDATE_INTERVAL);
                 }
@@ -1029,7 +1064,6 @@ public class MusicPlayerService extends Service {
      */
     private void rebuildDataSourceFactory() {
         if (exoPlayer == null) return;
-        Log.d(TAG, "重建ExoPlayer（WebDAV配置已变更）");
         // 保存当前状态
         boolean wasPlaying = exoPlayer.isPlaying();
         Song currentSong = getCurrentSong();
@@ -1127,8 +1161,6 @@ public class MusicPlayerService extends Service {
             }
             sendBroadcast(intent);
         }
-        Log.d(TAG, "播放状态: " + (isPlaying() ? "播放中" : "暂停") + " - " +
-                (currentSong != null ? currentSong.title : "无歌曲"));
     }
 
     private void sendSongChangedBroadcast(Song song, int index) {
@@ -1174,7 +1206,6 @@ public class MusicPlayerService extends Service {
             if (mediaSessionFallback != null) handler.removeCallbacks(mediaSessionFallback);
             mediaSessionFallback = () -> {
                 if (deferMediaSessionUpdate) {
-                    Log.d(TAG, "5秒兜底：歌词未就绪，强制更新 MediaSession");
                     syncLyricToPublicDir(song);
                     deferMediaSessionUpdate = false;
                     doUpdateMediaSessionMetadata();
@@ -1182,8 +1213,6 @@ public class MusicPlayerService extends Service {
             };
             handler.postDelayed(mediaSessionFallback, 5000);
         }
-
-        Log.d(TAG, "歌曲切换: " + song.title + " - " + song.artist);
 
         // Service 自己也加载封面（PlayerActivity 不在前台时保证封面也能加载到缓存）
         ensureCoverCached(song);
@@ -1200,7 +1229,6 @@ public class MusicPlayerService extends Service {
         File cacheCoverFile = new File(com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this), coverName);
         if (cacheCoverFile.exists() && cacheCoverFile.length() > 0) return; // 已有缓存无需加载
 
-        Log.d(TAG, "封面缓存不存在，Service 异步加载: " + coverName);
         // CoverLoader.load 内部通过 executor 异步加载，回调在主线程
         boolean preferLocal = com.jingxin.jingxinmusic.fragment.SettingsFragment.isLocalCoverPriority(this);
         com.jingxin.jingxinmusic.util.CoverLoader.load(this, song, 200, 200, true, preferLocal,
@@ -1208,7 +1236,6 @@ public class MusicPlayerService extends Service {
                 new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
                     @Override
                     public void onCoverLoaded(Bitmap bitmap) {
-                        Log.d(TAG, "Service 封面加载成功，刷新 metadata: " + coverName);
                         // 封面已写入缓存文件，立即刷新 metadata
                         if (!deferMediaSessionUpdate) {
                             doUpdateMediaSessionMetadata(true);
@@ -1217,7 +1244,6 @@ public class MusicPlayerService extends Service {
 
                     @Override
                     public void onCoverFailed() {
-                        Log.d(TAG, "Service 封面加载失败: " + coverName);
                     }
                 });
     }
@@ -1414,7 +1440,6 @@ public class MusicPlayerService extends Service {
                 if (info.isEncoder()) continue;
                 for (String type : info.getSupportedTypes()) {
                     if ("audio/alac".equals(type)) {
-                        Log.d(TAG, "检测到ALAC硬件解码器: " + info.getName());
                         return true;
                     }
                 }
@@ -1445,9 +1470,7 @@ public class MusicPlayerService extends Service {
             } else {
                 fallbackPlayer.setDataSource(dataSource);
             }
-            Log.d(TAG, "MediaPlayer兜底: dataSource=" + dataSource);
             fallbackPlayer.setOnCompletionListener(mp -> {
-                Log.d(TAG, "MediaPlayer兜底播放结束，自动下一首");
                 playNext();
             });
             fallbackPlayer.setOnErrorListener((mp, what, extra) -> {
@@ -1459,8 +1482,15 @@ public class MusicPlayerService extends Service {
                 return true;
             });
             fallbackPlayer.prepare();
+
+            // 恢复播放进度
+            if (pendingSeekPosition > 0) {
+                long seekPos = pendingSeekPosition;
+                pendingSeekPosition = 0;
+                fallbackPlayer.seekTo((int) seekPos);
+            }
+
             fallbackPlayer.start();
-            Log.d(TAG, "MediaPlayer兜底播放: " + song.title + " uri=" + playUri);
 
             // 播放成功，重置连续错误计数
             consecutiveErrors = 0;
@@ -1540,7 +1570,6 @@ public class MusicPlayerService extends Service {
     private void handlePlaybackError() {
         consecutiveErrors++;
         if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
-            Log.d(TAG, "播放错误(" + consecutiveErrors + "/" + MAX_CONSECUTIVE_ERRORS + ")，尝试下一首");
             playNext();
         } else {
             Log.w(TAG, "连续" + MAX_CONSECUTIVE_ERRORS + "首播放失败，停止自动切歌");

@@ -234,7 +234,6 @@ public class MainFragment extends BaseFloatFragment {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (MusicScanner.ACTION_SCAN_COMPLETE.equals(intent.getAction())) {
-                Log.d(TAG, "收到手动扫描完成广播，刷新列表");
                 isManualScanning = false;
                 Context ctx = context.getApplicationContext();
                 executor.execute(() -> {
@@ -297,10 +296,8 @@ public class MainFragment extends BaseFloatFragment {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && pendingScanAfterStoragePermission) {
                         pendingScanAfterStoragePermission = false;
                         if (Environment.isExternalStorageManager()) {
-                            Log.d(TAG, "MANAGE_EXTERNAL_STORAGE 已授权");
                             clearCacheAndScan();
                         } else {
-                            Log.d(TAG, "MANAGE_EXTERNAL_STORAGE 用户拒绝");
                             scanMusic();
                         }
                     }
@@ -598,10 +595,8 @@ public class MainFragment extends BaseFloatFragment {
                 if (Intent.ACTION_MEDIA_MOUNTED.equals(action)) {
                     if (!firstMountReceived) {
                         firstMountReceived = true;
-                        Log.d(TAG, "MEDIA_MOUNTED 首次(sticky)，忽略");
                         return;
                     }
-                    Log.d(TAG, "MEDIA_MOUNTED: U盘/SD卡挂载，延迟2秒后重扫");
                     isScanning = false;
                     scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
                     scanDebounceHandler.postDelayed(() -> {
@@ -611,7 +606,6 @@ public class MainFragment extends BaseFloatFragment {
                 } else if (Intent.ACTION_MEDIA_EJECT.equals(action) ||
                            Intent.ACTION_MEDIA_REMOVED.equals(action) ||
                            Intent.ACTION_MEDIA_BAD_REMOVAL.equals(action)) {
-                    Log.d(TAG, "存储移除: " + action + "，延迟1秒后刷新");
                     scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
                     scanDebounceHandler.postDelayed(() -> {
                         MusicScanner.clearCache(context);
@@ -633,7 +627,6 @@ public class MainFragment extends BaseFloatFragment {
             @Override
             public void onChange(boolean selfChange) {
                 if (System.currentTimeMillis() - MusicScanner.lastMediaScanTime < SELF_SCAN_IGNORE_MS) {
-                    Log.d(TAG, "MediaStore onChange：自身扫描触发，忽略");
                     return;
                 }
                 scanDebounceHandler.removeCallbacks(scanDebounceRunnable);
@@ -711,7 +704,6 @@ public class MainFragment extends BaseFloatFragment {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
                 && pendingScanAfterStoragePermission
                 && Environment.isExternalStorageManager()) {
-            Log.d(TAG, "onResume: 检测到文件访问权限已授权，触发重扫");
             pendingScanAfterStoragePermission = false;
             clearCacheAndScan();
         }
@@ -1667,7 +1659,6 @@ public class MainFragment extends BaseFloatFragment {
     private void scanMusic(boolean tryAutoResume) {
         synchronized (scanLock) {
             if (isScanning) {
-                Log.d(TAG, "正在扫描中，跳过重复请求");
                 return;
             }
             isScanning = true;
@@ -1677,7 +1668,6 @@ public class MainFragment extends BaseFloatFragment {
         List<Song> cached = MusicScanner.loadCache(ctx);
 
         if (cached != null && !cached.isEmpty()) {
-            Log.d(TAG, "使用缓存立即显示 " + cached.size() + " 首歌曲");
             applyScanResult(cached, ctx);
             if (tryAutoResume) autoResumeLastPlayed(cached);
             // 缓存有效，无需后台全量扫描，避免返回列表页时重复刷新
@@ -1708,7 +1698,6 @@ public class MainFragment extends BaseFloatFragment {
     }
 
     private final Runnable scanDebounceRunnable = () -> {
-        Log.d(TAG, "MediaStore onChange，重新扫描音乐");
         scanMusic(false);
     };
 
@@ -1745,7 +1734,6 @@ public class MainFragment extends BaseFloatFragment {
         Set<String> current = getStorageSnapshot();
         if (lastStorageSnapshot != null) {
             if (!current.equals(lastStorageSnapshot)) {
-                Log.d(TAG, "存储卷变化检测: " + lastStorageSnapshot + " → " + current);
                 MusicScanner.clearCache(requireContext());
                 isScanning = false;
                 scanMusic(false);
@@ -1763,7 +1751,6 @@ public class MainFragment extends BaseFloatFragment {
         if (!cacheFile.exists()) return;
         long currentMod = cacheFile.lastModified();
         if (lastShownCacheTime > 0 && currentMod > lastShownCacheTime) {
-            Log.d(TAG, "缓存已被更新（手动扫描），重新加载");
             Context ctx = requireContext();
             executor.execute(() -> {
                 List<Song> songs = MusicScanner.loadCache(ctx);
@@ -1784,13 +1771,11 @@ public class MainFragment extends BaseFloatFragment {
 
     private boolean autoResumeLastPlayed(List<Song> songs) {
         if (hasAutoResumed) {
-            Log.d(TAG, "autoResumeLastPlayed: already resumed, skip");
             return false;
         }
 
         // 检查是否开启启动直达播放
         if (!SettingsFragment.isAutoResumeEnabled(requireContext())) {
-            Log.d(TAG, "autoResumeLastPlayed: auto resume disabled, skip");
             return false;
         }
 
@@ -1817,6 +1802,12 @@ public class MainFragment extends BaseFloatFragment {
         }
 
         Bundle args = buildPlayerArgs(resumeSong, foundPosition, savedPlaylistMode);
+
+        // 传递上次播放进度，供 PlayerFragment 恢复 seekTo
+        long savedPosition = prefs.getLong("play_position", 0L);
+        if (savedPosition > 0) {
+            args.putLong("resume_position", savedPosition);
+        }
 
         if ("folder".equals(savedPlaylistMode)) {
             java.util.Set<String> pathSet = prefs.getStringSet("folder_song_paths", null);
@@ -1941,7 +1932,6 @@ public class MainFragment extends BaseFloatFragment {
                     }
                 }
             } catch (Exception e) {
-                Log.d(TAG, "迷你封面查找失败: " + e.getMessage());
             }
             if (coverBitmap != null) {
                 int size = Math.min(coverBitmap.getWidth(), coverBitmap.getHeight());
