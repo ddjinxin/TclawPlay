@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'c9a6e47d-9e68-418c-a555-b21ca460b462'
-  PropagateID: 'c9a6e47d-9e68-418c-a555-b21ca460b462'
-  ReservedCode1: '3005add8-1bcf-41ee-9655-c94d812edbbe'
-  ReservedCode2: '3005add8-1bcf-41ee-9655-c94d812edbbe'
+  ProduceID: '34e7bce4-fc95-4753-a84b-ee4968df5a18'
+  PropagateID: '34e7bce4-fc95-4753-a84b-ee4968df5a18'
+  ReservedCode1: 'dc6115ff-70ad-4f9d-ac50-80b1faaf8031'
+  ReservedCode2: 'dc6115ff-70ad-4f9d-ac50-80b1faaf8031'
 ---
 
 # 静心音乐 / TclawPlay
@@ -24,7 +24,13 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.6.7)
+## 📢 最新版本 (v1.0.6.8)
+
+### v1.0.6.8 (2026-09)
+#### 新功能
+- **播放进度记忆** — 重启 App 后从上次播放位置继续播放，无需手动拖拽进度条
+#### 优化
+- **清除全部调试日志** — 移除 157 处 Log.d 调试输出，保留 Log.w/Log.e，减少不必要的日志开销
 
 ### v1.0.6.7 (2026-08)
 #### 优化
