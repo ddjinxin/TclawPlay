@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '34e7bce4-fc95-4753-a84b-ee4968df5a18'
-  PropagateID: '34e7bce4-fc95-4753-a84b-ee4968df5a18'
-  ReservedCode1: 'dc6115ff-70ad-4f9d-ac50-80b1faaf8031'
-  ReservedCode2: 'dc6115ff-70ad-4f9d-ac50-80b1faaf8031'
+  ProduceID: '43c0baf0-6b2a-4c01-a459-3bbd1344b0a8'
+  PropagateID: '43c0baf0-6b2a-4c01-a459-3bbd1344b0a8'
+  ReservedCode1: '5c192e8d-af49-4639-b1b3-aab5f99e7ab4'
+  ReservedCode2: '5c192e8d-af49-4639-b1b3-aab5f99e7ab4'
 ---
 
 # 静心音乐 / TclawPlay
@@ -528,7 +528,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## DEMO
 
-> https://pd.qq.com/s/b9cqkneco?b=2
+> https://pd.qq.com/s/a8mi9wmfs?b=2
 
 ## 作者
 
@@ -941,7 +941,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## DEMO
 
-> https://pd.qq.com/s/b9cqkneco?b=2
+> https://pd.qq.com/s/a8mi9wmfs?b=2
 
 ## Author
 
