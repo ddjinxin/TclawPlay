@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '3a939cfc-6e0e-45bd-9f32-7f3d3afdba95'
-  PropagateID: '3a939cfc-6e0e-45bd-9f32-7f3d3afdba95'
-  ReservedCode1: '065d6442-e882-4e3b-8b8c-d28bfd0a7f69'
-  ReservedCode2: '065d6442-e882-4e3b-8b8c-d28bfd0a7f69'
+  ProduceID: '2bbf76b5-dc34-479f-83d4-1655ffca28fd'
+  PropagateID: '2bbf76b5-dc34-479f-83d4-1655ffca28fd'
+  ReservedCode1: 'bda5f634-b9a6-494d-a019-eba52cdd08c0'
+  ReservedCode2: 'bda5f634-b9a6-494d-a019-eba52cdd08c0'
 ---
 
 # 静心音乐 / TclawPlay
@@ -107,7 +107,21 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.6.5)
+## 📢 Latest Version (v1.0.6.8)
+
+### v1.0.6.8 (2026-09)
+#### New Features
+- **Playback progress memory** — Resume from last played position after app restart, no manual seeking needed
+#### Improvements
+- **Debug log cleanup** — Removed 157 Log.d debug outputs, kept Log.w/Log.e, reducing unnecessary logging overhead
+
+### v1.0.6.7 (2026-08)
+#### Improvements
+- **Float permission dialog adds "Never ask" button** — Some car head units cannot configure overlay permission; "Never ask" stops repeated prompts
+
+### v1.0.6.6 (2026-08)
+#### Improvements
+- **Music scan cache optimization** — Removed cache time expiry, cache valid until manual scan (auto-invalidates on USB change/plug), instant startup
 
 ### v1.0.6.5 (2026-08)
 #### Bug Fixes
@@ -564,7 +578,21 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.6.5)
+## 📢 Latest Version (v1.0.6.8)
+
+### v1.0.6.8 (2026-09)
+#### New Features
+- **Playback progress memory** — Resume from last played position after app restart, no manual seeking needed
+#### Improvements
+- **Debug log cleanup** — Removed 157 Log.d debug outputs, kept Log.w/Log.e, reducing unnecessary logging overhead
+
+### v1.0.6.7 (2026-08)
+#### Improvements
+- **Float permission dialog adds "Never ask" button** — Some car head units cannot configure overlay permission; "Never ask" stops repeated prompts
+
+### v1.0.6.6 (2026-08)
+#### Improvements
+- **Music scan cache optimization** — Removed cache time expiry, cache valid until manual scan (auto-invalidates on USB change/plug), instant startup
 
 ### v1.0.6.5 (2026-08)
 #### Bug Fixes
@@ -827,6 +855,13 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.6.8 (2026-09)
+#### New Features
+- Playback progress memory — resume from last played position after app restart
+
+#### Improvements
+- Debug log cleanup — removed 157 Log.d outputs, kept Log.w/Log.e
 
 ### v1.0.6.7 (2026-08)
 #### Improvements
