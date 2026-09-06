@@ -1,26 +1,16 @@
 package com.jingxin.jingxinmusic.model;
 
-import android.content.ContentResolver;
-import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
-import android.net.Uri;
-import android.os.Environment;
-import android.provider.MediaStore;
 import android.util.Log;
 
 import org.json.JSONObject;
-
-import java.io.File;
-import java.io.OutputStream;
 
 /**
  * 歌曲数据模型
  */
 public class Song {
     private static final String TAG = "Song";
-    private static final String COVER_FOLDER = "jingxinmusic/cover";
 
     // Intent / SharedPreferences 序列化 key（公开供跨类引用）
     public static final String KEY_ID             = "song_id";
@@ -128,87 +118,6 @@ public class Song {
         song.title = cleanTitle;
         song.displayName = song.title;
         return song;
-    }
-
-    /**
-     * 保存封面到公共 Pictures/静心音乐/ 目录（通过 MediaStore API）
-     * 其他应用可通过返回的 URI 读取封面
-     * @return 公共 content URI，失败返回 null
-     */
-    public static Uri saveCoverToPublic(android.content.Context ctx, String fileName, Bitmap bitmap) {
-        // 先保存到应用缓存目录
-        File cacheDir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(ctx);
-        File cacheFile = new File(cacheDir, fileName);
-        try {
-            java.io.FileOutputStream fos = new java.io.FileOutputStream(cacheFile);
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
-            fos.close();
-        } catch (Exception e) {
-            Log.e(TAG, "保存缓存封面失败: " + e.getMessage());
-        }
-
-        // 写入公共目录
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            // API 29+: MediaStore API（RELATIVE_PATH、IS_PENDING 是 API 29 常量）
-            try {
-                ContentResolver resolver = ctx.getContentResolver();
-
-                // 先查询是否已有同名封面，有则覆盖写入，避免产生重复文件
-                Uri existingUri = getCoverPublicUri(ctx, fileName);
-                Uri uri;
-                if (existingUri != null) {
-                    // 复用已有记录，覆盖写入
-                    uri = existingUri;
-                } else {
-                    // 不存在，新建
-                    ContentValues values = new ContentValues();
-                    values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
-                    values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                    values.put(MediaStore.Images.Media.RELATIVE_PATH,
-                            Environment.DIRECTORY_DOWNLOADS + "/" + COVER_FOLDER);
-                    values.put(MediaStore.Images.Media.IS_PENDING, 1);
-
-                    uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-                    if (uri == null) {
-                        Log.e(TAG, "MediaStore insert 失败: " + fileName);
-                        return null;
-                    }
-                }
-
-                try (OutputStream os = resolver.openOutputStream(uri)) {
-                    if (os != null) {
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, os);
-                        os.flush();
-                    }
-                }
-
-                // 写完后清除 IS_PENDING，让文件对其他应用可见
-                ContentValues clearPending = new ContentValues();
-                clearPending.put(MediaStore.Images.Media.IS_PENDING, 0);
-                resolver.update(uri, clearPending, null, null);
-
-                return uri;
-            } catch (Exception e) {
-                Log.e(TAG, "保存公共封面失败: " + e.getMessage());
-                return null;
-            }
-        } else {
-            // API 21-28: File API 直接写入 Pictures 目录
-            try {
-                File picturesDir = Environment.getExternalStoragePublicDirectory(
-                        Environment.DIRECTORY_PICTURES);
-                File coverDir = new File(picturesDir, COVER_FOLDER);
-                if (!coverDir.exists()) coverDir.mkdirs();
-                File destFile = new File(coverDir, fileName);
-                java.io.FileOutputStream fos = new java.io.FileOutputStream(destFile);
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
-                fos.close();
-                return Uri.fromFile(destFile);
-            } catch (Exception e) {
-                Log.e(TAG, "保存公共封面失败(File API): " + e.getMessage());
-                return null;
-            }
-        }
     }
 
     /**
@@ -355,44 +264,6 @@ public class Song {
             Log.e(TAG, "Song toJson 失败: " + e.getMessage());
         }
         return obj;
-    }
-
-    /**
-     * 查询公共目录中已有的封面 URI（如果存在）
-     * @return 公共 content URI，不存在返回 null
-     */
-    public static Uri getCoverPublicUri(android.content.Context ctx, String fileName) {
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            // API 29+: MediaStore 查询（RELATIVE_PATH 是 API 29 常量）
-            try {
-                ContentResolver resolver = ctx.getContentResolver();
-                String selection = MediaStore.Images.Media.DISPLAY_NAME + " = ? AND " +
-                        MediaStore.Images.Media.RELATIVE_PATH + " LIKE ? ";
-                String[] selectionArgs = new String[]{fileName,
-                        "%" + Environment.DIRECTORY_DOWNLOADS + "/" + COVER_FOLDER + "%"};
-                Uri queryUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-                android.database.Cursor cursor = resolver.query(queryUri,
-                        new String[]{MediaStore.Images.Media._ID},
-                        selection, selectionArgs, null);
-                if (cursor != null && cursor.moveToFirst()) {
-                    long id = cursor.getLong(0);
-                    cursor.close();
-                    return Uri.withAppendedPath(queryUri, String.valueOf(id));
-                }
-                if (cursor != null) cursor.close();
-            } catch (Exception e) {
-                Log.e(TAG, "查询公共封面失败: " + e.getMessage());
-            }
-            return null;
-        } else {
-            // API 21-28: File 路径查询
-            File picturesDir = Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_DOWNLOADS);
-            File coverDir = new File(picturesDir, COVER_FOLDER);
-            File file = new File(coverDir, fileName);
-            if (file.exists()) return Uri.fromFile(file);
-            return null;
-        }
     }
 
     /**

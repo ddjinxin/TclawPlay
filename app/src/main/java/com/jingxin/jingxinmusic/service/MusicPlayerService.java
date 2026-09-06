@@ -972,14 +972,6 @@ public class MusicPlayerService extends Service {
         String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(currentSong.title, currentSong.artist) + ".jpg";
         File cacheCoverFile = new File(com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this), coverName);
         if (cacheCoverFile.exists() && cacheCoverFile.length() > 0) {
-            // 优先用 MediaStore 公共 URI（其他应用可读）
-            Uri publicUri = com.jingxin.jingxinmusic.model.Song.getCoverPublicUri(this, coverName);
-            if (publicUri != null) {
-                builder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, publicUri.toString());
-                builder.putString(MediaMetadataCompat.METADATA_KEY_ART_URI, publicUri.toString());
-                builder.putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON_URI, publicUri.toString());
-            }
-            // 同时提供 Bitmap（兼容 getBitmap 读取方式）
             Bitmap coverBitmap = com.jingxin.jingxinmusic.util.BitmapUtil.decodeSampledFromFile(cacheCoverFile.getAbsolutePath(), 200, 200);
             if (coverBitmap != null) {
                 builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, coverBitmap);

@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '2bbf76b5-dc34-479f-83d4-1655ffca28fd'
-  PropagateID: '2bbf76b5-dc34-479f-83d4-1655ffca28fd'
-  ReservedCode1: 'bda5f634-b9a6-494d-a019-eba52cdd08c0'
-  ReservedCode2: 'bda5f634-b9a6-494d-a019-eba52cdd08c0'
+  ProduceID: '0a388c66-07ac-4ead-bd4c-fed6ce170179'
+  PropagateID: '0a388c66-07ac-4ead-bd4c-fed6ce170179'
+  ReservedCode1: '8b5e51c5-ecba-4dd1-8542-a46477021e08'
+  ReservedCode2: '8b5e51c5-ecba-4dd1-8542-a46477021e08'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,11 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.6.8)
+## 📢 最新版本 (v1.0.6.9)
+
+### v1.0.6.9 (2026-09)
+#### 优化
+- **封面公共目录优化** — 封面不再复制到公共目录 Download/jingxinmusic/cover/，只存储应用私有缓存；MediaSession metadata 去掉 URI 字段只保留 Bitmap，减少公共目录 IO，简化封面传输链路
 
 ### v1.0.6.8 (2026-09)
 #### 新功能
@@ -428,6 +432,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.6.9 (2026-09)
+#### 优化
+- 封面公共目录优化——封面不再复制到公共目录 Download/jingxinmusic/cover/，只存储应用私有缓存；MediaSession metadata 去掉 URI 字段只保留 Bitmap，减少公共目录 IO，简化封面传输链路
 
 ### v1.0.6.7 (2026-08)
 #### 优化
@@ -855,6 +863,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.6.9 (2026-09)
+#### Improvements
+- Cover public directory optimization — album art no longer copied to public Download/jingxinmusic/cover/, stored only in app private cache; MediaSession metadata drops URI fields keeping Bitmap only, reducing public directory IO and simplifying cover delivery chain
 
 ### v1.0.6.8 (2026-09)
 #### New Features

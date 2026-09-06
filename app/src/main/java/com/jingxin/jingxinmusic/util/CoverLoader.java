@@ -126,13 +126,7 @@ public class CoverLoader {
                 if (embedded != null) {
                     if (saveCache) {
                         String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
-                        File cacheDir = context.getExternalFilesDir("covers");
-                        if (cacheDir != null) {
-                            File f = new File(cacheDir, coverName);
-                            if (!f.exists()) {
-                                Song.saveCoverToPublic(context, coverName, embedded);
-                            }
-                        }
+                        saveCoverToCache(context, coverName, embedded);
                     }
                     if (reqWidth > 0 && reqHeight > 0) {
                         Bitmap sampled = BitmapUtil.decodeSampledFromBytes(
@@ -177,13 +171,7 @@ public class CoverLoader {
                 public void onCoverFetched(Bitmap coverBitmap) {
                     if (saveCache) {
                         String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
-                        File cacheDir = context.getExternalFilesDir("covers");
-                        if (cacheDir != null) {
-                            File f = new File(cacheDir, coverName);
-                            if (!f.exists()) {
-                                Song.saveCoverToPublic(context, coverName, coverBitmap);
-                            }
-                        }
+                        saveCoverToCache(context, coverName, coverBitmap);
                     }
                     uiHandler.post(() -> callback.onCoverLoaded(coverBitmap));
                 }
@@ -194,6 +182,23 @@ public class CoverLoader {
                 }
             });
         });
+    }
+
+    /**
+     * 将封面 Bitmap 保存到应用私有缓存目录
+     */
+    private static void saveCoverToCache(Context context, String coverName, Bitmap bitmap) {
+        File cacheDir = getCoverDir(context);
+        if (cacheDir == null) return;
+        File f = new File(cacheDir, coverName);
+        if (f.exists()) return;
+        try {
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+            fos.close();
+        } catch (Exception e) {
+            Log.e(TAG, "保存缓存封面失败: " + e.getMessage());
+        }
     }
 
     /**
