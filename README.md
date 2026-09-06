@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '43c0baf0-6b2a-4c01-a459-3bbd1344b0a8'
-  PropagateID: '43c0baf0-6b2a-4c01-a459-3bbd1344b0a8'
-  ReservedCode1: '5c192e8d-af49-4639-b1b3-aab5f99e7ab4'
-  ReservedCode2: '5c192e8d-af49-4639-b1b3-aab5f99e7ab4'
+  ProduceID: '3a939cfc-6e0e-45bd-9f32-7f3d3afdba95'
+  PropagateID: '3a939cfc-6e0e-45bd-9f32-7f3d3afdba95'
+  ReservedCode1: '065d6442-e882-4e3b-8b8c-d28bfd0a7f69'
+  ReservedCode2: '065d6442-e882-4e3b-8b8c-d28bfd0a7f69'
 ---
 
 # 静心音乐 / TclawPlay
@@ -20,6 +20,10 @@ AIGC:
 
 <p align="center">
   完全通过 AI 对话生成，作者不看代码，只对话。
+</p>
+
+<p align="center">
+  🎬 <a href="https://pd.qq.com/s/a8mi9wmfs?b=2">项目演示视频</a>
 </p>
 
 ---
