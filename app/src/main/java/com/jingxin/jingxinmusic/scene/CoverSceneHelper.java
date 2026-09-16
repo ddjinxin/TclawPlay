@@ -169,6 +169,13 @@ public class CoverSceneHelper {
         int bottomMargin = Math.max(8, (int) (height * 0.01f));
         int sidePadding = (int) (density * 8); // 与底部按钮区 marginStart/End 一致
 
+        // 按钮高度按屏幕高度等比缩放，设上下限防止极端尺寸
+        // 下限 = 原 XML 固定值，上限 ≈ 1.8 倍，保证低 density 高分辨率车机上按钮不偏小
+        int topBtnSize = (int) clamp(height * 0.055f, density * 40, density * 72);   // 返回按钮 40~72dp
+        int topRightBtnSize = (int) clamp(height * 0.050f, density * 36, density * 64); // 顶部右侧三按钮 36~64dp
+        int bottomBtnSize = (int) clamp(height * 0.055f, density * 40, density * 72);   // 底部普通按钮 40~72dp
+        int playBtnSize = (int) clamp(height * 0.067f, density * 48, density * 96);     // 底部播放暂停 48~96dp
+
         // 顶部按钮栏
         if (topButtonsBar != null) {
             FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) topButtonsBar.getLayoutParams();
@@ -177,12 +184,44 @@ public class CoverSceneHelper {
             topButtonsBar.setPadding(sidePadding, 0, sidePadding, 0);
         }
 
+        // 返回按钮（父容器是 LinearLayout）
+        if (btnBack != null) {
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(topBtnSize, topBtnSize);
+            btnBack.setLayoutParams(params);
+            btnBack.setPadding((int)(topBtnSize * 0.15f), (int)(topBtnSize * 0.15f),
+                    (int)(topBtnSize * 0.15f), (int)(topBtnSize * 0.15f));
+        }
+
         // 右侧3按钮组：占页面宽度35%
         if (rightButtonsGroup != null) {
             LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) rightButtonsGroup.getLayoutParams();
             params.width = (int) (width * 0.35f);
+            params.height = topRightBtnSize;
             params.weight = 0;
             rightButtonsGroup.setLayoutParams(params);
+        }
+
+        // 顶部右侧三按钮高度+padding
+        int topRightPadding = (int)(topRightBtnSize * 0.22f);
+        if (btnSpectrum != null) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btnSpectrum.getLayoutParams();
+            p.height = topRightBtnSize; p.weight = 1;
+            btnSpectrum.setLayoutParams(p);
+            btnSpectrum.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
+        }
+        if (btnOutfit != null) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btnOutfit.getLayoutParams();
+            p.height = topRightBtnSize; p.weight = 1;
+            btnOutfit.setLayoutParams(p);
+            btnOutfit.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
+        }
+        // 歌词搜索按钮也在右侧组里
+        ImageView btnLyricSearch = rootLayout.findViewById(R.id.lyric_search_button);
+        if (btnLyricSearch != null) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btnLyricSearch.getLayoutParams();
+            p.height = topRightBtnSize; p.weight = 1;
+            btnLyricSearch.setLayoutParams(p);
+            btnLyricSearch.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
         }
 
         // 底部按钮容器
@@ -191,6 +230,33 @@ public class CoverSceneHelper {
             params.bottomMargin = bottomMargin;
             controlButtons.setLayoutParams(params);
         }
+
+        // 底部按钮高度+padding
+        int bottomPadding6 = (int)(bottomBtnSize * 0.15f);  // 原 6dp 按钮
+        int bottomPadding8 = (int)(bottomBtnSize * 0.20f);  // 原 8dp 按钮
+        resizeBottomButton(R.id.previous_button, bottomBtnSize, bottomPadding6);
+        resizeBottomButton(R.id.play_pause_button, playBtnSize, bottomPadding6);
+        resizeBottomButton(R.id.next_button, bottomBtnSize, bottomPadding6);
+        resizeBottomButton(R.id.play_order_button, bottomBtnSize, bottomPadding6);
+        resizeBottomButton(R.id.history_button, bottomBtnSize, bottomPadding8);
+        resizeBottomButton(R.id.mode_button, bottomBtnSize, bottomPadding8);
+        resizeBottomButton(R.id.download_button, bottomBtnSize, bottomPadding8);
+    }
+
+    /** 设置底部按钮高度和 padding */
+    private void resizeBottomButton(int viewId, int size, int padding) {
+        ImageView btn = rootLayout.findViewById(viewId);
+        if (btn != null) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btn.getLayoutParams();
+            p.height = size; p.weight = 1;
+            btn.setLayoutParams(p);
+            btn.setPadding(padding, padding, padding, padding);
+        }
+    }
+
+    /** 值域约束 */
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     /**
