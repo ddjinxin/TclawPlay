@@ -1148,10 +1148,9 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private void updateCoverPlaceholder() {
         int screenHeight = getAvailableScreenHeight();
-        float density = getResources().getDisplayMetrics().density;
         int coverSize = (int) (screenHeight * 0.25f);
-        int coverMarginTop = (int) (density * 56) + (sceneHelper != null ? sceneHelper.systemTopInset : 0);
-        int coverNameGap = (int) (density * 16);
+        int coverMarginTop = (int) (screenHeight * 0.056f) + (sceneHelper != null ? sceneHelper.systemTopInset : 0);
+        int coverNameGap = (int) (screenHeight * 0.016f);
         coverPlaceholder.setVisibility(View.VISIBLE);
         android.widget.LinearLayout.LayoutParams placeholderParams =
                 (android.widget.LinearLayout.LayoutParams) coverPlaceholder.getLayoutParams();

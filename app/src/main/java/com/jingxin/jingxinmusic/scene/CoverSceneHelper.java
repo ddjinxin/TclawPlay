@@ -169,12 +169,23 @@ public class CoverSceneHelper {
         int bottomMargin = Math.max(8, (int) (height * 0.01f));
         int sidePadding = (int) (density * 8); // 与底部按钮区 marginStart/End 一致
 
-        // 按钮高度按屏幕高度等比缩放，设上下限防止极端尺寸
-        // 下限 = 原 XML 固定值，上限 ≈ 1.8 倍，保证低 density 高分辨率车机上按钮不偏小
-        int topBtnSize = (int) clamp(height * 0.055f, density * 40, density * 72);   // 返回按钮 40~72dp
-        int topRightBtnSize = (int) clamp(height * 0.050f, density * 36, density * 64); // 顶部右侧三按钮 36~64dp
-        int bottomBtnSize = (int) clamp(height * 0.055f, density * 40, density * 72);   // 底部普通按钮 40~72dp
-        int playBtnSize = (int) clamp(height * 0.067f, density * 48, density * 96);     // 底部播放暂停 48~96dp
+        // 按钮高度按屏幕高度比例缩放 + 宽高比修正
+        // 1. 按屏高像素分三档定基础比例
+        // 2. 宽高比修正系数: 以16:9(1.78)为基准, 超宽屏按钮高度补偿
+        //    aspectFactor = 1 + max(0, (w/h - 1.78) / 3), 平滑过渡无跳变
+        float rBack, rRight, rPlay;
+        if (height < 700) {
+            rBack = 0.048f; rRight = 0.043f; rPlay = 0.058f;
+        } else if (height <= 1200) {
+            rBack = 0.055f; rRight = 0.050f; rPlay = 0.067f;
+        } else {
+            rBack = 0.060f; rRight = 0.055f; rPlay = 0.075f;
+        }
+        float aspectFactor = 1f + Math.max(0f, (width / (float) height - 1.78f) / 3f);
+        int topBtnSize = (int) (height * rBack * aspectFactor);
+        int topRightBtnSize = (int) (height * rRight * aspectFactor);
+        int bottomBtnSize = (int) (height * rBack * aspectFactor);
+        int playBtnSize = (int) (height * rPlay * aspectFactor);
 
         // 顶部按钮栏
         if (topButtonsBar != null) {
@@ -376,7 +387,7 @@ public class CoverSceneHelper {
         tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
 
         // 歌名字号：基于横屏信息区宽度独立计算，避免竖屏→横屏切换时LyricView尚未resize导致字号错误
-        float songNameSize = Math.max(32f, Math.min(50f, infoWidth * 0.048f));
+        float songNameSize = infoWidth * 0.048f;
         float artistSize = songNameSize * 0.7f;
         tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, artistSize);

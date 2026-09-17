@@ -70,20 +70,20 @@ public class PortraitClassicScene implements CoverScene {
         h.applyButtonMargins(height, width, false);
         // info_panel 全宽
         h.setLayoutInfoPanelFullWidth();
-        // 歌名 topMargin = 16dp
+        // 歌名 topMargin = 屏高×1.6%
         LinearLayout.LayoutParams nameParams =
                 (LinearLayout.LayoutParams) h.tvSongName.getLayoutParams();
-        nameParams.topMargin = (int) (h.density * 16);
+        nameParams.topMargin = (int) (height * 0.016f);
         h.tvSongName.setLayoutParams(nameParams);
         h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
-        // 歌名字号
-        float songNameSize = Math.max(32f, Math.min(50f, width * 0.048f));
+        // 歌名字号：纯比例，无上下限
+        float songNameSize = width * 0.048f;
         h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
         // 封面：顶部居中，25%屏幕高度
         int coverSize = (int) (height * 0.25f);
-        int coverMarginTop = (int) (h.density * 56) + h.systemTopInset;
+        int coverMarginTop = (int) (height * 0.056f) + h.systemTopInset;
         FrameLayout.LayoutParams coverParams =
                 new FrameLayout.LayoutParams(coverSize, coverSize);
         coverParams.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
@@ -102,6 +102,10 @@ public class PortraitClassicScene implements CoverScene {
         int coverCenterX = width / 2;
         int coverCenterY = coverMarginTop + coverSize / 2;
         h.applySpectrumPosition(false, coverCenterX, coverCenterY, coverSize, height, getSpectrumHeightRatio());
+        // 进度条时间文字：屏高×1.2%
+        float timeTextSize = height * 0.012f;
+        h.tvCurrentTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
+        h.tvTotalTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
         // 唱臂位置（唱片机子类覆盖此方法添加唱臂逻辑）
         onLayoutTonearm();
     }

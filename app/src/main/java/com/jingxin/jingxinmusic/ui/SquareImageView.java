@@ -24,7 +24,6 @@ public class SquareImageView extends ImageView {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        // 让高度等于宽度，实现正方形
         super.onMeasure(widthMeasureSpec, widthMeasureSpec);
     }
 }

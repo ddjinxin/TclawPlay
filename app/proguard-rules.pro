@@ -102,6 +102,10 @@
 # BrowseAdapter - 公共字段被外部访问
 -keep class com.jingxin.jingxinmusic.adapter.BrowseAdapter { *; }
 
+# SquareImageView / FolderCoverView - 自定义 onMeasure，不能混淆
+-keep class com.jingxin.jingxinmusic.ui.SquareImageView { *; }
+-keep class com.jingxin.jingxinmusic.ui.FolderCoverView { *; }
+
 # MusicPlayerService - Binder 被跨进程使用
 -keep class com.jingxin.jingxinmusic.service.MusicPlayerService { *; }
 -keep class com.jingxin.jingxinmusic.service.MusicPlayerService$MusicBinder { *; }

@@ -313,10 +313,6 @@ public class LyricView extends View {
             textSizeKaraoke = Math.min(textSizeKaraoke, maxTextSizeForHeight * 1.25f);
         }
         
-        textSizeNormal = Math.max(TEXT_SIZE_MIN, Math.min(TEXT_SIZE_MAX, textSizeNormal));
-        textSizeCurrent = Math.max(TEXT_SIZE_MIN * 1.33f, Math.min(60f, textSizeCurrent));
-        textSizeKaraoke = Math.max(TEXT_SIZE_MIN * 1.5f, Math.min(TEXT_SIZE_MAX * 1.5f, textSizeKaraoke));
-        
         // 歌词行间距：不同时间戳行之间的间隔
         // 默认行距 = 字号的 1.0 倍；有区域高度约束时，按可用高度缩放
         if (maxLyricAreaHeight < Float.MAX_VALUE) {

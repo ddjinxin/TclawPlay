@@ -69,8 +69,8 @@ public class PortraitCarouselScene extends AbstractCarouselScene {
         h.tvSongName.setLayoutParams(nameParams);
         h.tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         h.tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);
-        // 歌名字号
-        float songNameSize = Math.max(32f, Math.min(50f, width * 0.048f));
+        // 歌名字号：纯比例，无上下限
+        float songNameSize = width * 0.048f;
         h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
         // 歌词：恢复全宽 match_parent，清除横屏残留的宽度和高度约束

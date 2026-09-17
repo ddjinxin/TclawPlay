@@ -98,11 +98,10 @@ public class LandscapeCarouselScene extends AbstractCarouselScene {
         }
         // 歌名字号：基于65%宽度，同时受高度约束（横屏低高度时字号不能太大）
         float infoWidth = width * 0.65f;
-        float songNameSizeByWidth = Math.max(32f, Math.min(50f, infoWidth * 0.048f));
+        float songNameSizeByWidth = infoWidth * 0.048f;
         // 高度约束：歌名+歌手+间距合计不超过 H×8%
         float songNameMaxForHeight = height * 0.08f * 0.55f;
         float songNameSize = Math.min(songNameSizeByWidth, songNameMaxForHeight);
-        songNameSize = Math.max(24f, songNameSize); // 下限24px，保证可读
         h.tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         h.tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize * 0.7f);
         // 歌词：marginTop 用 1.5% 比例，字号和行距由 Scene 直接控制（与歌名字号关联）

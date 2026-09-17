@@ -119,6 +119,7 @@ public class MainFragment extends BaseFloatFragment {
     private TextView tvBrowsePath;
     private ImageView btnWebDavSettings;
     private ImageView btnBiliSettings;
+    private View searchBarContainer;
     private RecyclerView rvBrowse;
     private View webdavSetupArea;
     private View browseLoading;
@@ -380,6 +381,7 @@ public class MainFragment extends BaseFloatFragment {
         tvBrowsePath = view.findViewById(R.id.tv_browse_path);
         btnWebDavSettings = view.findViewById(R.id.btn_webdav_settings);
         btnBiliSettings = view.findViewById(R.id.btn_bili_settings);
+        searchBarContainer = view.findViewById(R.id.search_bar_container);
         rvBrowse = view.findViewById(R.id.rv_browse);
         webdavSetupArea = view.findViewById(R.id.webdav_setup_area);
         browseLoading = view.findViewById(R.id.loading_layout);
@@ -717,7 +719,10 @@ public class MainFragment extends BaseFloatFragment {
                 if (isActivityGone()) return;
                 applyLandscapeProportionalLayout();
                 if (rvBrowse != null) rvBrowse.requestLayout();
-                if (browseAdapter != null) browseAdapter.notifyDataSetChanged();
+                if (browseAdapter != null) {
+                    browseAdapter.resetItemFontSize();
+                    browseAdapter.notifyDataSetChanged();
+                }
             });
         }
     }
@@ -2032,12 +2037,33 @@ public class MainFragment extends BaseFloatFragment {
         float density = getResources().getDisplayMetrics().density;
 
         if (isLandscape) {
-            int titleBarH = Math.max(36, (int) (height * 0.12f));
+            int titleBarH = Math.max(36, (int) (height * 0.10f));
             if (titleBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
                 lp.height = titleBarH;
                 lp.topMargin = systemTopInset;
                 titleBar.setLayoutParams(lp);
+                // 顶部图标按标题栏高度等比缩放，下限36dp上限1.2倍
+                int iconSize = (int) Math.max(36 * density, titleBarH * 0.72f);
+                if (ivAppIcon != null) {
+                    android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) ivAppIcon.getLayoutParams();
+                    lp2.width = iconSize; lp2.height = iconSize;
+                    ivAppIcon.setLayoutParams(lp2);
+                }
+                if (btnClose != null) {
+                    android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) btnClose.getLayoutParams();
+                    lp2.width = iconSize; lp2.height = iconSize;
+                    lp2.leftMargin = (int) (12 * density);
+                    btnClose.setLayoutParams(lp2);
+                    btnClose.setPadding((int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f));
+                }
+                if (btnHelp != null) {
+                    android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) btnHelp.getLayoutParams();
+                    lp2.width = iconSize; lp2.height = iconSize;
+                    lp2.rightMargin = (int) (12 * density);
+                    btnHelp.setLayoutParams(lp2);
+                    btnHelp.setPadding((int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f));
+                }
             }
             int tabBarH = Math.max(28, (int) (height * 0.10f));
             if (tabBar != null) {
@@ -2120,84 +2146,115 @@ public class MainFragment extends BaseFloatFragment {
             }
         } else {
             if (titleBar != null) {
+                int titleBarH = Math.max((int)(56 * density), (int)(height * 0.08f));
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
-                lp.height = (int) (56 * density);
+                lp.height = titleBarH;
                 lp.topMargin = systemTopInset;
                 titleBar.setLayoutParams(lp);
+                // 顶部图标按标题栏高度等比缩放，下限36dp
+                int iconSize = Math.max((int)(36 * density), (int)(titleBarH * 0.72f));
+                if (ivAppIcon != null) {
+                    android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) ivAppIcon.getLayoutParams();
+                    lp2.width = iconSize; lp2.height = iconSize;
+                    ivAppIcon.setLayoutParams(lp2);
+                }
+                if (btnClose != null) {
+                    android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) btnClose.getLayoutParams();
+                    lp2.width = iconSize; lp2.height = iconSize;
+                    lp2.leftMargin = (int) (12 * density);
+                    btnClose.setLayoutParams(lp2);
+                    btnClose.setPadding((int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f));
+                }
+                if (btnHelp != null) {
+                    android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) btnHelp.getLayoutParams();
+                    lp2.width = iconSize; lp2.height = iconSize;
+                    lp2.rightMargin = (int) (12 * density);
+                    btnHelp.setLayoutParams(lp2);
+                    btnHelp.setPadding((int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f));
+                }
             }
             if (tabBar != null) {
+                int tabBarH = Math.max((int)(56 * density), (int)(height * 0.08f));
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tabBar.getLayoutParams();
-                lp.height = (int) (56 * density);
+                lp.height = tabBarH;
                 tabBar.setLayoutParams(lp);
-                float tabDefaultSize = Math.max(8f, 56 * density * 0.3f);
-                if (tabLocal != null) tabLocal.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
-                if (tabCloud != null) tabCloud.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
-                if (tabBili != null) tabBili.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
-                if (tabFavorite != null) tabFavorite.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabDefaultSize);
-                int dividerDefault = (int) (20 * density);
-                if (tabDivider1 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider1.getLayoutParams(); lp2.height = dividerDefault; tabDivider1.setLayoutParams(lp2); }
-                if (tabDivider2 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider2.getLayoutParams(); lp2.height = dividerDefault; tabDivider2.setLayoutParams(lp2); }
+                float tabTextSize = Math.max(14f * density, tabBarH * 0.25f);
+                if (tabLocal != null) tabLocal.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
+                if (tabCloud != null) tabCloud.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
+                if (tabBili != null) tabBili.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
+                if (tabFavorite != null) tabFavorite.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
+                int dividerH = Math.max((int)(20 * density), (int)(tabBarH * 0.35f));
+                if (tabDivider1 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider1.getLayoutParams(); lp2.height = dividerH; tabDivider1.setLayoutParams(lp2); }
+                if (tabDivider2 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider2.getLayoutParams(); lp2.height = dividerH; tabDivider2.setLayoutParams(lp2); }
             }
             if (tvCopyright != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tvCopyright.getLayoutParams();
-                lp.topMargin = (int) (8 * density);
-                lp.bottomMargin = (int) (12 * density);
+                lp.topMargin = Math.max((int)(8 * density), (int)(height * 0.006f));
+                lp.bottomMargin = Math.max((int)(12 * density), (int)(height * 0.008f));
                 tvCopyright.setLayoutParams(lp);
-                tvCopyright.setTextSize(11);
+                tvCopyright.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(11f * density, height * 0.016f));
             }
+            int miniH = Math.max((int)(58 * density), (int)(height * 0.10f));
             if (miniPlayerWrap != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniPlayerWrap.getLayoutParams();
-                lp.height = (int) (58 * density);
+                lp.height = miniH;
                 miniPlayerWrap.setLayoutParams(lp);
             }
             if (miniPlayer != null) {
                 android.widget.FrameLayout.LayoutParams lp = (android.widget.FrameLayout.LayoutParams) miniPlayer.getLayoutParams();
-                lp.height = (int) (56 * density);
+                lp.height = miniH - 2;
                 miniPlayer.setLayoutParams(lp);
             }
-            int coverDefault = (int) (42 * density);
+            int miniCoverSize = Math.max((int)(42 * density), (int)(miniH * 0.72f));
             if (miniCover != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniCover.getLayoutParams();
-                lp.width = coverDefault; lp.height = coverDefault;
-                lp.leftMargin = (int) (12 * density); lp.rightMargin = (int) (8 * density);
+                lp.width = miniCoverSize; lp.height = miniCoverSize;
+                lp.leftMargin = Math.max((int)(12 * density), (int)(miniH * 0.15f)); lp.rightMargin = Math.max((int)(8 * density), (int)(miniH * 0.1f));
                 miniCover.setLayoutParams(lp);
             }
-            int btnDefault = (int) (44 * density);
+            int btnSize = Math.max((int)(44 * density), (int)(miniH * 0.76f));
             if (miniPlayPause != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) miniPlayPause.getLayoutParams();
-                lp.width = btnDefault; lp.height = btnDefault;
-                lp.rightMargin = (int) (12 * density);
+                lp.width = btnSize; lp.height = btnSize;
+                lp.rightMargin = Math.max((int)(12 * density), (int)(miniH * 0.15f));
                 miniPlayPause.setLayoutParams(lp);
             }
-            if (miniSongTitle != null) miniSongTitle.setTextSize(14);
-            if (miniSongArtist != null) miniSongArtist.setTextSize(12);
+            if (miniSongTitle != null) miniSongTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(14f * density, miniH * 0.24f));
+            if (miniSongArtist != null) miniSongArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(12f * density, miniH * 0.2f));
             if (pathBar != null) {
+                int pathBarH = Math.max((int)(56 * density), (int)(height * 0.08f));
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) pathBar.getLayoutParams();
-                lp.height = (int) (56 * density);
+                lp.height = pathBarH;
                 pathBar.setLayoutParams(lp);
-                int pathBarH = (int) (56 * density);
-                int iconDefault = Math.max(20, (int) (pathBarH * 0.7f));
+                int iconSize = Math.max((int)(20 * density), (int)(pathBarH * 0.7f));
                 if (btnNavigateBack != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnNavigateBack.getLayoutParams();
-                    lp2.width = iconDefault; lp2.height = iconDefault;
+                    lp2.width = iconSize; lp2.height = iconSize;
                     btnNavigateBack.setLayoutParams(lp2);
                 }
                 if (btnWebDavSettings != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnWebDavSettings.getLayoutParams();
-                    lp2.width = iconDefault; lp2.height = iconDefault;
+                    lp2.width = iconSize; lp2.height = iconSize;
                     btnWebDavSettings.setLayoutParams(lp2);
                 }
                 if (btnBiliSettings != null) {
                     android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) btnBiliSettings.getLayoutParams();
-                    lp2.width = iconDefault; lp2.height = iconDefault;
+                    lp2.width = iconSize; lp2.height = iconSize;
                     btnBiliSettings.setLayoutParams(lp2);
                 }
-                if (tvBrowsePath != null) tvBrowsePath.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(8f, pathBarH * 0.3f));
+                if (tvBrowsePath != null) tvBrowsePath.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(13f * density, pathBarH * 0.3f));
             }
-            if (etSearch != null) {
-                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) etSearch.getLayoutParams();
-                lp.height = (int) (40 * density);
-                etSearch.setLayoutParams(lp);
+            if (searchBarContainer != null) {
+                int searchBarH = Math.max((int)(40 * density), (int)(height * 0.08f));
+                android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) searchBarContainer.getLayoutParams();
+                lp.height = searchBarH;
+                searchBarContainer.setLayoutParams(lp);
+                if (etSearch != null) {
+                    etSearch.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(14f * density, searchBarH * 0.28f));
+                }
+                if (tvSongCount != null) {
+                    tvSongCount.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Math.max(12f * density, searchBarH * 0.24f));
+                }
             }
         }
     }

@@ -50,6 +50,14 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
     private OnItemClickListener listener;
     private Context context;
     private boolean isNightMode = true;
+    // 歌名字号：按屏高比例计算，横竖屏不同比例，下限=12sp等效像素
+    private float itemNamePx = 0;
+    private boolean itemFontSizeInited = false;
+
+    /** 横竖屏切换时重置，使下次 onBind 重新按当前方向计算字号 */
+    public void resetItemFontSize() {
+        itemFontSizeInited = false;
+    }
 
     public void setNightMode(boolean night) {
         if (this.isNightMode != night) {
@@ -84,6 +92,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         context = parent.getContext();
+        initItemFontSize();
         View view = LayoutInflater.from(context)
                 .inflate(R.layout.item_webdav, parent, false);
         return new ViewHolder(view);
@@ -104,6 +113,9 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
 
         // 名称文字颜色
         holder.tvName.setTextColor(ThemeColors.themedColor(isNightMode, 0xFF333333, 0xFFDDDDDD));
+        // 名称字号：按屏高×2.5%，下限=12sp等效像素
+        initItemFontSize();
+        holder.tvName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, itemNamePx);
 
         // 图片
         if (item.isDirectory) {
@@ -143,6 +155,24 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 listener.onItemClick(item, holder.getAdapterPosition());
             }
         });
+    }
+
+    /**
+     * 根据屏幕高度计算歌名字号（PX）
+     * 竖屏：max(12sp等效像素, 屏高 × 2%)
+     * 横屏：max(12sp等效像素, 屏高 × 1.8%)
+     */
+    private void initItemFontSize() {
+        if (itemFontSizeInited || context == null) return;
+        android.util.DisplayMetrics dm = context.getResources().getDisplayMetrics();
+        int screenHeight = dm.heightPixels;
+        float density = dm.density;
+        float minPx = 12f * density;
+        boolean isLandscape = context.getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        float ratio = isLandscape ? 0.018f : 0.02f;
+        itemNamePx = Math.max(minPx, screenHeight * ratio);
+        itemFontSizeInited = true;
     }
 
     private void loadCover(ViewHolder holder, BrowseItem item) {
