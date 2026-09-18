@@ -204,6 +204,14 @@ public class PlayerFragment extends BaseFloatFragment {
                     startSpectrumWithPermission();
                 }
             } else if (MusicPlayerService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
+                // 连续播放失败：服务停止自动切歌，向用户说明原因
+                if (intent.getBooleanExtra("play_error", false)) {
+                    String msg = intent.getStringExtra("error_message");
+                    android.widget.Toast.makeText(requireContext(),
+                            msg != null ? msg : "连续播放失败，请检查网络或音乐文件",
+                            android.widget.Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
                 updatePlayPauseButton(playing);
             } else if (MusicPlayerService.ACTION_PLAY_ORDER_CHANGED.equals(action)) {

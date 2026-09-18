@@ -159,19 +159,16 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
 
     /**
      * 根据屏幕高度计算歌名字号（PX）
-     * 竖屏：max(12sp等效像素, 屏高 × 2%)
-     * 横屏：max(12sp等效像素, 屏高 × 1.8%)
+     * 纯比例缩放，无下限：竖屏 屏高×2%，横屏 屏高×2.5%
      */
     private void initItemFontSize() {
         if (itemFontSizeInited || context == null) return;
         android.util.DisplayMetrics dm = context.getResources().getDisplayMetrics();
         int screenHeight = dm.heightPixels;
-        float density = dm.density;
-        float minPx = 12f * density;
         boolean isLandscape = context.getResources().getConfiguration().orientation
                 == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
-        float ratio = isLandscape ? 0.018f : 0.02f;
-        itemNamePx = Math.max(minPx, screenHeight * ratio);
+        float ratio = isLandscape ? 0.025f : 0.02f;
+        itemNamePx = screenHeight * ratio;
         itemFontSizeInited = true;
     }
 

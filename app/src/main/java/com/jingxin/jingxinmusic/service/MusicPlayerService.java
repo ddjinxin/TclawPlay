@@ -137,6 +137,10 @@ public class MusicPlayerService extends Service {
     private int consecutiveErrors = 0;
     private static final int MAX_CONSECUTIVE_ERRORS = 3;
 
+    // 瞬态错误（IO/解码器初始化类）重试一次，避免偶发失败被误判为格式不支持
+    private boolean transientRetryUsed = false;
+    private static final long TRACK_RECHECK_DELAY = 500; // onTracksChanged 误判二次确认延时ms
+
     // B站异步获取音频流URL期间设为true，阻止自动切歌避免竞态
     private volatile boolean biliFetching = false;
 
@@ -312,19 +316,27 @@ public class MusicPlayerService extends Service {
                 // isTypeSelected 检查指定类型的轨道是否被选中
                 if (!tracks.isTypeSelected(C.TRACK_TYPE_AUDIO)
                         && exoPlayer.getPlaybackState() == Player.STATE_READY) {
-                    Log.w(TAG, "ExoPlayer静默跳过音频轨道（可能不支持该编码），尝试MediaPlayer兜底");
-                    Song currentSong = getCurrentSong();
-                    if (currentSong != null) {
-                        String playUri = getLocalPlayUri(currentSong);
-                        if (playUri != null) {
-                            startFallbackPlayback(currentSong, playUri, currentIndex);
-                            return;
+                    // 轨道选择是异步的：刚 prepare/切歌时可能先收到空回调再选中轨道，
+                    // 延迟二次确认仍未选中才判格式不支持，避免竞态误判
+                    handler.postDelayed(() -> {
+                        if (isFallbackMode || exoPlayer == null) return;
+                        Tracks cur = exoPlayer.getCurrentTracks();
+                        if (cur.isTypeSelected(C.TRACK_TYPE_AUDIO)) return; // 后续已选中，误判
+                        if (exoPlayer.getPlaybackState() != Player.STATE_READY) return; // 状态已变，交给状态回调
+                        Log.w(TAG, "ExoPlayer静默跳过音频轨道（可能不支持该编码），尝试MediaPlayer兜底");
+                        Song currentSong = getCurrentSong();
+                        if (currentSong != null) {
+                            String playUri = getLocalPlayUri(currentSong);
+                            if (playUri != null) {
+                                startFallbackPlayback(currentSong, playUri, currentIndex);
+                                return;
+                            }
                         }
-                    }
-                    // 兜底也走不通，跳到下一首
-                    Log.w(TAG, "无法播放此格式，自动切歌");
-                    showToast("当前设备不支持播放此音频格式");
-                    playNext();
+                        // 兜底也走不通，跳到下一首
+                        Log.w(TAG, "无法播放此格式，自动切歌");
+                        showToast("当前设备不支持播放此音频格式");
+                        playNext();
+                    }, TRACK_RECHECK_DELAY);
                 }
             }
 
@@ -337,7 +349,17 @@ public class MusicPlayerService extends Service {
 
             @Override
             public void onPlayerError(PlaybackException error) {
-                Log.e(TAG, "播放错误: " + error.getMessage());
+                Log.e(TAG, "播放错误: code=" + error.errorCode + " - " + error.getMessage());
+                int code = error.errorCode;
+                // 瞬态错误（IO类/解码器初始化失败）：重试一次再兜底
+                // 车机常见场景：解码器被其他应用占用、上一次异步释放未完成、网络抖动
+                if (isTransientError(code) && !transientRetryUsed) {
+                    transientRetryUsed = true;
+                    Log.w(TAG, "瞬态播放错误，重试一次");
+                    retryCurrentPlayback();
+                    return;
+                }
+                transientRetryUsed = false;
                 // ExoPlayer 播放失败：尝试用 MediaPlayer 兜底（可能是 ALAC 等不支持的格式）
                 Song currentSong = getCurrentSong();
                 if (currentSong != null && !isFallbackMode) {
@@ -346,6 +368,10 @@ public class MusicPlayerService extends Service {
                         startFallbackPlayback(currentSong, playUri, currentIndex);
                         return;
                     }
+                }
+                // 网络类错误给出真实原因，不再统一报"格式不支持"
+                if (isIoError(code)) {
+                    showToast("网络异常，暂时无法播放");
                 }
                 handlePlaybackError();
             }
@@ -703,8 +729,9 @@ public class MusicPlayerService extends Service {
 
         exoPlayer.play();
 
-        // 播放成功，重置连续错误计数
+        // 播放成功，重置连续错误计数和瞬态重试标记
         consecutiveErrors = 0;
+        transientRetryUsed = false;
 
         logPlayHistory(song);
 
@@ -1401,6 +1428,10 @@ public class MusicPlayerService extends Service {
         // 有 ALAC 解码器的设备（如部分三星/小米真机），ExoPlayer 能正常播放
         // 无 ALAC 解码器的设备（如模拟器），ExoPlayer 会静默无声，必须走 MediaPlayer
         if (lower.endsWith(".m4a") || lower.endsWith(".mp4")) {
+            // WebDAV 歌曲不走 MediaPlayer 兜底（setDataSource 无法携带认证头，会 401 失败）
+            if (playUri != null && playUri.startsWith("http")) {
+                return false;
+            }
             return !hasAlacDecoder();
         }
         // AIFF / WMA 等罕见格式，直接兜底
@@ -1484,8 +1515,9 @@ public class MusicPlayerService extends Service {
 
             fallbackPlayer.start();
 
-            // 播放成功，重置连续错误计数
+            // 播放成功，重置连续错误计数和瞬态重试标记
             consecutiveErrors = 0;
+            transientRetryUsed = false;
 
             logPlayHistory(song);
 
@@ -1570,6 +1602,48 @@ public class MusicPlayerService extends Service {
             errorIntent.putExtra("play_error", true);
             errorIntent.putExtra("error_message", "连续播放失败，请检查网络或音乐文件");
             sendBroadcast(errorIntent);
+        }
+    }
+
+    /**
+     * 瞬态错误：IO类（网络/文件读取）和解码器初始化失败。
+     * 这类错误重试通常可恢复，不应直接判定为格式不支持。
+     */
+    private boolean isTransientError(int errorCode) {
+        // IO 类（网络抖动、连接失败、超时、HTTP错误）
+        if (errorCode >= PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+                && errorCode <= PlaybackException.ERROR_CODE_IO_UNSPECIFIED) {
+            return true;
+        }
+        // 解码器初始化失败（资源被占用、上一次异步释放未完成）
+        if (errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED) {
+            return true;
+        }
+        // 解码格式错误偶发也可能恢复，但保守起见只重试 IO 和 init 失败
+        return false;
+    }
+
+    /**
+     * IO 类错误（网络/文件读取），用于给出真实原因提示
+     */
+    private boolean isIoError(int errorCode) {
+        return errorCode >= PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+                && errorCode <= PlaybackException.ERROR_CODE_IO_UNSPECIFIED;
+    }
+
+    /**
+     * 重试当前歌曲：stop 后重新 prepare（重建 MediaCodec 实例/重连网络源）
+     */
+    private void retryCurrentPlayback() {
+        Song currentSong = getCurrentSong();
+        if (currentSong == null || exoPlayer == null) return;
+        try {
+            exoPlayer.pause();
+            exoPlayer.prepare(); // 重新 prepare 重建数据源和渲染器
+            exoPlayer.play();
+        } catch (Exception e) {
+            Log.e(TAG, "重试播放失败: " + e.getMessage());
+            handlePlaybackError();
         }
     }
 

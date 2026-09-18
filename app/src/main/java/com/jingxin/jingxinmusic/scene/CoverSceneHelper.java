@@ -170,7 +170,7 @@ public class CoverSceneHelper {
         int sidePadding = (int) (density * 8); // 与底部按钮区 marginStart/End 一致
 
         // 按钮高度按屏幕高度比例缩放 + 宽高比修正
-        // 1. 按屏高像素分三档定基础比例
+        // 1. 按屏高像素分三档定基础比例（横屏顶部按钮在此基础上+0.5%，底部按钮不动）
         // 2. 宽高比修正系数: 以16:9(1.78)为基准, 超宽屏按钮高度补偿
         //    aspectFactor = 1 + max(0, (w/h - 1.78) / 3), 平滑过渡无跳变
         float rBack, rRight, rPlay;
@@ -181,9 +181,12 @@ public class CoverSceneHelper {
         } else {
             rBack = 0.060f; rRight = 0.055f; rPlay = 0.075f;
         }
+        // 横屏：返回按钮和右侧三按钮各+0.5%屏高，底部按钮维持原比例
+        float rBackTop = isLandscape ? rBack + 0.005f : rBack;
+        float rRightTop = isLandscape ? rRight + 0.005f : rRight;
         float aspectFactor = 1f + Math.max(0f, (width / (float) height - 1.78f) / 3f);
-        int topBtnSize = (int) (height * rBack * aspectFactor);
-        int topRightBtnSize = (int) (height * rRight * aspectFactor);
+        int topBtnSize = (int) (height * rBackTop * aspectFactor);
+        int topRightBtnSize = (int) (height * rRightTop * aspectFactor);
         int bottomBtnSize = (int) (height * rBack * aspectFactor);
         int playBtnSize = (int) (height * rPlay * aspectFactor);
 
