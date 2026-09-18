@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '3a163824-0c53-489b-85e0-633c82693dde'
-  PropagateID: '3a163824-0c53-489b-85e0-633c82693dde'
-  ReservedCode1: 'ca189cbe-ee37-4ab4-982f-d5985d6d1681'
-  ReservedCode2: 'ca189cbe-ee37-4ab4-982f-d5985d6d1681'
+  ProduceID: '9902c316-e01f-4b02-bb13-b267588b74b8'
+  PropagateID: '9902c316-e01f-4b02-bb13-b267588b74b8'
+  ReservedCode1: '0565c2a4-22db-4535-8238-b2e9bc908ea3'
+  ReservedCode2: '0565c2a4-22db-4535-8238-b2e9bc908ea3'
 ---
 
 # 静心音乐 / TclawPlay
@@ -31,15 +31,18 @@ AIGC:
 ## 📢 最新版本 (v1.0.7.0)
 
 ### v1.0.7.0 (2026-09)
+#### 优化
+- **全页面纯比例缩放改造** — 首页横竖屏所有区域按屏高比例缩放：顶部栏/Tab栏/路径栏 8%、Mini播放条 10%、搜索栏 8%、版权文字 1.6%；搜索栏改缩放父容器高度，文字随容器比例缩放；播放页歌名/封面边距、进度时间文字全部改比例值
+- **播放页歌名/歌词字号纯比例** — 所有场景（经典/沉浸/轮播、横竖屏）歌名字号统一按宽度比例缩放，歌词字号按 viewWidth 比例缩放，全部去除固定像素上下限
+- **播放页按钮按屏高分档缩放** — 按屏高像素三档定比例 + 超宽屏宽高比修正，低 density 高分辨率车机不再按钮偏小
+- **网格歌名优化** — 按屏高比例缩放（竖屏 2%、横屏 2.5%）并去除 sp 下限，改单行显示，横竖屏切换自动重算字号
+- **横屏播放页顶部按钮放大** — 返回按钮和右侧三按钮占屏高比例各 +0.5%（底部按钮不变）
+
 #### 修复
 - **偶发"格式不支持"误判** — 网络抖动、解码器被占用等瞬态错误不再直接判定为格式不支持：IO/解码器初始化类错误自动重试一次，重试成功继续播放；Toast 按真实原因分类提示（网络/格式），不再一律报"不支持此音频格式"
 - **轨道选择竞态误判** — 切歌瞬间音频轨道尚未选中不再误触发 MediaPlayer 兜底，延迟 500ms 二次确认后才判定格式不支持
 - **连续播放失败无提示** — 连续 3 首失败停止自动切歌时，播放页 Toast 告知用户原因（此前该广播无人接收，静默停止）
 - **WebDAV m4a 播放失败** — 无 ALAC 解码器设备上 WebDAV m4a 走 MediaPlayer 兜底因无法携带认证头 401 必败，改为 ExoPlayer 直接播放
-
-#### 优化
-- **横屏播放页顶部按钮放大** — 返回按钮和右侧三按钮占屏高比例各 +0.5%（底部按钮不变）
-- **网格歌名横屏放大** — 横屏歌名字号占屏高从 1.8% 提升至 2.5%（竖屏 2% 不变），并去除 sp 下限实现纯比例缩放
 
 ### v1.0.6.9 (2026-09)
 #### 优化
@@ -445,15 +448,17 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ## 更新日志
 
 ### v1.0.7.0 (2026-09)
+#### 优化
+- 全页面纯比例缩放改造——首页横竖屏所有区域按屏高比例缩放（顶部栏/Tab栏/路径栏 8%、Mini播放条 10%、搜索栏 8%、版权 1.6%），搜索栏改缩放父容器；播放页歌名/歌词字号纯比例无固定上下限
+- 播放页按钮按屏高分档缩放+超宽屏修正——低 density 高分辨率车机不再按钮偏小
+- 网格歌名按屏高比例缩放（竖屏 2%、横屏 2.5%），去除 sp 下限，改单行显示，横竖屏切换自动重算
+- 横屏播放页顶部按钮占屏高比例各 +0.5%（底部按钮不变）
+
 #### 修复
 - 偶发"格式不支持"误判——瞬态错误（网络抖动/解码器被占用）自动重试一次，Toast 按真实原因分类提示
 - 轨道选择竞态误判——延迟 500ms 二次确认后才判定格式不支持
 - 连续播放失败无提示——停止自动切歌时播放页 Toast 告知用户原因
 - WebDAV m4a 播放失败——无 ALAC 解码器设备不再走 MediaPlayer 兜底（401 认证失败），改由 ExoPlayer 直接播放
-
-#### 优化
-- 横屏播放页顶部按钮占屏高比例各 +0.5%（底部按钮不变）
-- 网格歌名横屏字号占屏高 1.8% → 2.5%（竖屏不变），去除 sp 下限实现纯比例缩放
 
 ### v1.0.6.9 (2026-09)
 #### 优化
@@ -887,15 +892,17 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ## Changelog
 
 ### v1.0.7.0 (2026-09)
+#### Improvements
+- Full-page pure proportional scaling — all home page regions scale by screen height ratio in both orientations (top bar/tab bar/path bar 8%, mini player bar 10%, search bar 8%, copyright 1.6%), search bar scales parent container; player page song title/lyric fonts now pure proportional without fixed pixel limits
+- Player buttons scale by screen-height tiers with ultrawide correction — no more undersized buttons on low-density high-resolution car head units
+- Grid song titles scale by screen height (portrait 2%, landscape 2.5%), sp minimum removed, single-line display, auto-recalculated on orientation change
+- Landscape player top buttons +0.5% screen height each (bottom buttons unchanged)
+
 #### Bug Fixes
 - Occasional "format unsupported" false positive — transient errors (network jitter/decoder occupied) now auto-retry once; Toast shows real cause (network/format) instead of blanket "unsupported audio format"
 - Track selection race condition — 500ms delayed re-check before declaring format unsupported, preventing false MediaPlayer fallback on song switch
 - Silent stop after consecutive failures — playback page now shows Toast explaining why auto-skip stopped (broadcast was previously never received)
 - WebDAV m4a playback failure — devices without ALAC decoder no longer route to MediaPlayer fallback (401 auth failure), ExoPlayer plays directly
-
-#### Improvements
-- Landscape player top buttons +0.5% screen height each (bottom buttons unchanged)
-- Grid song title landscape font 1.8% → 2.5% screen height (portrait unchanged), sp minimum removed for pure proportional scaling
 
 ### v1.0.6.9 (2026-09)
 #### Improvements
