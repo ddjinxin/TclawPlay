@@ -1,5 +1,7 @@
 package com.jingxin.jingxinmusic.scene;
 
+import android.view.View;
+
 /**
  * 竖屏唱片机模式——继承竖屏经典，仅覆盖黑胶/唱臂相关逻辑
  */
@@ -22,6 +24,20 @@ public class PortraitRecordScene extends PortraitClassicScene {
     @Override
     public void exit() {
         h.recordExit();
+    }
+
+    @Override
+    public void onLyricModeChanged(boolean isFullScreen) {
+        super.onLyricModeChanged(isFullScreen);
+        // 全屏歌词时隐藏唱臂，退出全屏恢复（黑胶封面仍在下方，唱臂需要复位）
+        if (isFullScreen) {
+            h.tonearmView.setVisibility(View.GONE);
+        } else {
+            h.tonearmView.setVisibility(View.VISIBLE);
+            h.tonearmView.setLandscapeMode(h.isLandscapeMode);
+            h.tonearmView.refreshAngle();
+            h.callback.markTonearmNeedsUpdate();
+        }
     }
 
     @Override

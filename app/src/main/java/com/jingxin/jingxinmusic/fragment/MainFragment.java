@@ -146,6 +146,8 @@ public class MainFragment extends BaseFloatFragment {
     private int currentTab = 0;
 
     private boolean returningFromPlayer = false;
+    /** onCreateView 已执行过（popBackStack 返回时实例保留，应恢复离开时的 tab 而非读 last_played） */
+    private boolean viewCreatedOnce = false;
 
     // 主题
     private boolean isNightMode = true;
@@ -555,6 +557,9 @@ public class MainFragment extends BaseFloatFragment {
             if (host.pendingTab >= 0) {
                 initialTab = host.pendingTab;
                 host.pendingTab = -1;
+            } else if (viewCreatedOnce) {
+                // popBackStack 返回（同实例重建视图）：恢复离开时的 tab，不读 last_played
+                initialTab = currentTab;
             } else {
                 // 悬浮模式返回时 new MainFragment()，从 last_played 恢复 tab
                 String savedMode = ctx.getSharedPreferences("last_played", Context.MODE_PRIVATE)
@@ -563,6 +568,7 @@ public class MainFragment extends BaseFloatFragment {
                 else if ("webdav".equals(savedMode)) initialTab = 1;
             }
         }
+        viewCreatedOnce = true;
         switchTab(initialTab);
 
         // 点击 mini 播放条
@@ -671,19 +677,22 @@ public class MainFragment extends BaseFloatFragment {
 
         // 从播放页返回时，根据上次播放来源恢复 tab
         // 不依赖 returningFromPlayer 实例变量（replace 会销毁重建 MainFragment 导致丢失）
+        // 但从设置页返回时（popBackStack，同一实例）不应恢复 tab，否则会把当前 tab 覆盖成上次播放来源
         boolean tabChanged = false;
-        SharedPreferences playPrefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
-        String savedPlaylistMode = playPrefs.getString("playlist_mode", "all");
-        if ("bili".equals(savedPlaylistMode) && currentTab != 2) {
-            currentTab = 2;
-            String biliNavUrl = playPrefs.getString("bili_nav_url", "");
-            if (!biliNavUrl.isEmpty()) {
-                biliCurrentUrl = biliNavUrl;
+        if (returningFromPlayer) {
+            SharedPreferences playPrefs = requireContext().getSharedPreferences("last_played", Context.MODE_PRIVATE);
+            String savedPlaylistMode = playPrefs.getString("playlist_mode", "all");
+            if ("bili".equals(savedPlaylistMode) && currentTab != 2) {
+                currentTab = 2;
+                String biliNavUrl = playPrefs.getString("bili_nav_url", "");
+                if (!biliNavUrl.isEmpty()) {
+                    biliCurrentUrl = biliNavUrl;
+                }
+                tabChanged = true;
+            } else if ("webdav".equals(savedPlaylistMode) && currentTab != 1) {
+                currentTab = 1;
+                tabChanged = true;
             }
-            tabChanged = true;
-        } else if ("webdav".equals(savedPlaylistMode) && currentTab != 1) {
-            currentTab = 1;
-            tabChanged = true;
         }
         returningFromPlayer = false;
 
