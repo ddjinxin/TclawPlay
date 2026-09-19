@@ -1,6 +1,8 @@
 package com.jingxin.jingxinmusic.scene;
 
 import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -239,8 +241,8 @@ public class CoverSceneHelper {
             rightButtonsGroup.setLayoutParams(params);
         }
 
-        // 顶部右侧三按钮高度+padding
-        int topRightPadding = (int)(topRightBtnSize * 0.22f);
+        // 顶部右侧三按钮高度+padding（横屏无padding，竖屏保留22%）
+        int topRightPadding = isLandscape ? (int)(topRightBtnSize * 0.05f) : (int)(topRightBtnSize * 0.22f);
         if (btnSpectrum != null) {
             LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btnSpectrum.getLayoutParams();
             p.height = topRightBtnSize; p.weight = 1;
@@ -402,7 +404,7 @@ public class CoverSceneHelper {
      * 横屏公共布局：info_panel 左65% + 歌名/歌手定位 + 字号动态调整
      * 横屏经典和横屏沉浸共用
      */
-    public void layoutLandscapeBase(int width) {
+    public void layoutLandscapeBase(int width, int height) {
         // info_panel 占左 65%
         int infoWidth = (int) (width * 0.65f);
         FrameLayout.LayoutParams infoParams =
@@ -428,6 +430,32 @@ public class CoverSceneHelper {
         float artistSize = songNameSize * 0.7f;
         tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, songNameSize);
         tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, artistSize);
+        // 横屏进度条比例缩放
+        applyProgressScaling(height, width);
+    }
+
+    /**
+     * 进度条比例缩放：圆球（屏高2%）+ 时间文字（屏高2%）+ 轨道高度（屏高0.5%）
+     * 横竖屏通用，超宽屏按 aspectFactor 补偿
+     */
+    public void applyProgressScaling(int height, int width) {
+        float aspectFactor = 1f + Math.max(0f, (width / (float) height - 1.78f) / 3f);
+        // 圆球直径 = 屏高 × 2%
+        int thumbSize = Math.max(8, (int) (height * 0.02f * aspectFactor));
+        GradientDrawable thumb = new GradientDrawable();
+        thumb.setShape(GradientDrawable.OVAL);
+        thumb.setColor(Color.parseColor("#FFD54F"));
+        thumb.setSize(thumbSize, thumbSize);
+        seekBar.setThumb(thumb);
+        seekBar.setThumbOffset(thumbSize / 2);
+        // 轨道高度 = 屏高 × 0.5%
+        int trackHeight = Math.max(2, (int) (height * 0.005f * aspectFactor));
+        seekBar.setMinHeight(trackHeight);
+        seekBar.setMaxHeight(trackHeight);
+        // 时间文字 = 屏高 × 2%
+        float timeTextSize = height * 0.02f * aspectFactor;
+        tvCurrentTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
+        tvTotalTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
     }
 
     /**

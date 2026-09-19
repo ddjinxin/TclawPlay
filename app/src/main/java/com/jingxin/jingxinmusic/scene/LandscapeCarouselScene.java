@@ -77,6 +77,8 @@ public class LandscapeCarouselScene extends AbstractCarouselScene {
         h.applyButtonMargins(height, width, true);
         // info_panel 全宽（轮播模式横竖屏统一！）
         h.setLayoutInfoPanelFullWidth();
+        // 横屏进度条比例缩放
+        h.applyProgressScaling(height, width);
         // === 全比例高度分配（适配低高度横屏） ===
         // 顶部栏高度：纯比例计算（避免 getHeight() 读到旧值），不小于 6% 屏高
         int calcTop = h.calcTopBarHeight(height, width, true);

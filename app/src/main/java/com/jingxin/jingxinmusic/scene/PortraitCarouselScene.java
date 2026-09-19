@@ -119,6 +119,8 @@ public class PortraitCarouselScene extends AbstractCarouselScene {
         if (h.spectrumView != null) {
             h.spectrumView.getLayoutParams().height = (int) (height * getSpectrumHeightRatio());
         }
+        // 进度条比例缩放（圆球2% + 时间2% + 轨道0.5%）
+        h.applyProgressScaling(height, width);
     }
 
     @Override

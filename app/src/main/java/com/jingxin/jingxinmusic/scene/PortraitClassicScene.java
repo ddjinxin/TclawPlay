@@ -102,10 +102,8 @@ public class PortraitClassicScene implements CoverScene {
         int coverCenterX = width / 2;
         int coverCenterY = coverMarginTop + coverSize / 2;
         h.applySpectrumPosition(false, coverCenterX, coverCenterY, coverSize, height, getSpectrumHeightRatio());
-        // 进度条时间文字：屏高×1.2%
-        float timeTextSize = height * 0.012f;
-        h.tvCurrentTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
-        h.tvTotalTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
+        // 进度条比例缩放（圆球2% + 时间2% + 轨道0.5%）
+        h.applyProgressScaling(height, width);
         // 唱臂位置（唱片机子类覆盖此方法添加唱臂逻辑）
         onLayoutTonearm();
     }

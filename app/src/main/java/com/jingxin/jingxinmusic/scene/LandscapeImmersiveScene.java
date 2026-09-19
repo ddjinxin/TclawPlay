@@ -73,7 +73,7 @@ public class LandscapeImmersiveScene implements CoverScene {
         // 顶部/底部按钮间距按可用高度比例
         h.applyButtonMargins(height, width, true);
         // 横屏公共布局
-        h.layoutLandscapeBase(width);
+        h.layoutLandscapeBase(width, height);
 
         // immersiveOverlay 同步
         h.immersiveOverlay.setLandscapeMode(true);

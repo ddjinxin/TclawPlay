@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'fa2f323e-1ed7-46da-b453-402482257abd'
-  PropagateID: 'fa2f323e-1ed7-46da-b453-402482257abd'
-  ReservedCode1: '615789d4-69ab-404c-94e5-1ba01d32dbf5'
-  ReservedCode2: '615789d4-69ab-404c-94e5-1ba01d32dbf5'
+  ProduceID: 'f55855ea-1e4b-4695-b6d4-2e20b4a0eb8d'
+  PropagateID: 'f55855ea-1e4b-4695-b6d4-2e20b4a0eb8d'
+  ReservedCode1: 'c8188721-f616-45e8-bffd-01570fca2e4f'
+  ReservedCode2: 'c8188721-f616-45e8-bffd-01570fca2e4f'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,14 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.7.3)
+## 📢 最新版本 (v1.0.7.4)
+
+### v1.0.7.4 (2026-09)
+#### 优化
+- **播放页进度条比例缩放** — 圆球=屏高 2%、时间文字=屏高 2%、轨道=屏高 0.5%，超宽屏按宽高比补偿，覆盖横竖屏经典/唱机/沉浸/轮播全部模式，高分辨率车机进度条不再偏小
+- **横屏播放页顶部按钮边距调整** — 顶部右侧三按钮（频谱/换装/歌词搜索）padding 改为屏高 5%（原 22%），竖屏保持不变
+- **图标更新** — 歌词搜索（三行歌词样式）、换装（皮肤）、首页帮助（问号圆环）三处按钮图标替换为新绘制样式
+- **横屏首页顶部图标下限调整** — 图标尺寸下限从 36dp 降至 20dp，比例值（栏高 72%）在常见车机分辨率下正常生效
 
 ### v1.0.7.3 (2026-09)
 #### 优化
@@ -146,7 +153,14 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.7.3)
+## 📢 Latest Version (v1.0.7.4)
+
+### v1.0.7.4 (2026-09)
+#### Improvements
+- **Player progress bar proportional scaling** — Thumb 2%, time text 2%, track 0.5% of screen height, ultrawide aspect compensation, covers all modes in both orientations
+- **Landscape player top buttons padding** — Top-right three buttons (spectrum/outfit/lyric search) padding reduced to 5% screen height (was 22%); portrait unchanged
+- **Icon updates** — Lyric search, outfit, and help buttons replaced with new drawn styles
+- **Landscape home top icon lower bound** — Icon size floor reduced from 36dp to 20dp so the proportional value (72% of bar height) takes effect on common car screens
 
 ### v1.0.7.3 (2026-09)
 #### Improvements
@@ -676,7 +690,14 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.7.3)
+## 📢 Latest Version (v1.0.7.4)
+
+### v1.0.7.4 (2026-09)
+#### Improvements
+- **Player progress bar proportional scaling** — Thumb 2%, time text 2%, track 0.5% of screen height, ultrawide aspect compensation, covers all modes in both orientations
+- **Landscape player top buttons padding** — Top-right three buttons (spectrum/outfit/lyric search) padding reduced to 5% screen height (was 22%); portrait unchanged
+- **Icon updates** — Lyric search, outfit, and help buttons replaced with new drawn styles
+- **Landscape home top icon lower bound** — Icon size floor reduced from 36dp to 20dp so the proportional value (72% of bar height) takes effect on common car screens
 
 ### v1.0.7.3 (2026-09)
 #### Improvements

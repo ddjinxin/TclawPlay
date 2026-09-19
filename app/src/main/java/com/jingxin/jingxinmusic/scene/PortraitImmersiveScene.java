@@ -81,6 +81,8 @@ public class PortraitImmersiveScene implements CoverScene {
         }
         // 频谱位置：沉浸模式始终在底部
         h.applySpectrumPosition(true, 0, 0, 0, height, getSpectrumHeightRatio());
+        // 进度条比例缩放（圆球2% + 时间2% + 轨道0.5%）
+        h.applyProgressScaling(height, width);
     }
 
     @Override

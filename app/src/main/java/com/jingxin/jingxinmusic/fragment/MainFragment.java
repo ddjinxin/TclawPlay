@@ -2052,12 +2052,14 @@ public class MainFragment extends BaseFloatFragment {
                 lp.height = titleBarH;
                 lp.topMargin = systemTopInset;
                 titleBar.setLayoutParams(lp);
-                // 顶部图标按标题栏高度等比缩放，下限36dp上限1.2倍
-                int iconSize = (int) Math.max(36 * density, titleBarH * 0.72f);
+                // 顶部图标按标题栏高度等比缩放，下限20dp防极小屏（下限不得反超比例值）
+                int iconSize = (int) Math.max(20 * density, titleBarH * 0.72f);
                 if (ivAppIcon != null) {
                     android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) ivAppIcon.getLayoutParams();
                     lp2.width = iconSize; lp2.height = iconSize;
                     ivAppIcon.setLayoutParams(lp2);
+                    int appIconPadding = (int)(iconSize * 0.10f);
+                    ivAppIcon.setPadding(appIconPadding, appIconPadding, appIconPadding, appIconPadding);
                 }
                 if (btnClose != null) {
                     android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) btnClose.getLayoutParams();
