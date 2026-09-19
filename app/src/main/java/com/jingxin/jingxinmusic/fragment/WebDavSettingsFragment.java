@@ -74,6 +74,7 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
     private View dividerCache;
 
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    private float sf = 1f; // 比例缩放系数：1=保持原样
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
@@ -86,6 +87,15 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
         initViews(view);
         applyTheme();
         loadConfig();
+
+        // 比例缩放：布局完成后应用，尺寸变化（悬浮窗/分屏）时重应用
+        view.post(() -> { if (isAdded()) applyScaling(); });
+        view.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            int newW = right - left, newH = bottom - top, oldW = oldRight - oldLeft, oldH = oldBottom - oldTop;
+            if (newW > 0 && (oldW <= 0 || newW != oldW || newH != oldH)) {
+                v.post(() -> { if (isAdded()) applyScaling(); });
+            }
+        });
 
         return view;
     }
@@ -408,5 +418,126 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
         super.onResume();
         // 从权限设置页返回后刷新提取按钮状态
         updateImportButton();
+    }
+
+    // ==================== 比例缩放（高分辨率车机适配，横竖屏自适应） ====================
+
+    /**
+     * 计算缩放系数：竖屏以 16sp 标题 ≈ 1.88% 屏高、横屏以 16sp ≈ 3% 屏高为锚点；
+     * 小屏手机 sf=1 保持原样。横竖屏锚点不同，保证切换后字号视觉连续。
+     */
+    private void computeScaleFactor() {
+        sf = 1f;
+        int width = 0, height = 0;
+        if (rootView != null && rootView.getWidth() > 0 && rootView.getHeight() > 0) {
+            width = rootView.getWidth();
+            height = rootView.getHeight();
+        }
+        if (width <= 0 || height <= 0) {
+            width = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatWidth();
+            height = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatHeight();
+        }
+        if (width <= 0 || height <= 0) {
+            width = getResources().getDisplayMetrics().widthPixels;
+            height = getResources().getDisplayMetrics().heightPixels;
+        }
+        if (width <= 0 || height <= 0) return;
+        float basePx = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+        float ratio = (width > height * 1.1f) ? 0.03f : 0.0188f;
+        sf = Math.max(1f, height * ratio / basePx);
+    }
+
+    /** sp 原始值 × 缩放系数（px），sf=1 时与原 XML 尺寸一致 */
+    private float spScaled(float spValue) {
+        return android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, spValue, getResources().getDisplayMetrics()) * sf;
+    }
+
+    /** dp 原始值 × 缩放系数（px） */
+    private int dpScaled(float dpValue) {
+        return Math.round(dpValue * getResources().getDisplayMetrics().density * sf);
+    }
+
+    /** 应用比例缩放：小屏手机保持原样，高分辨率车机按屏高等比放大 */
+    private void applyScaling() {
+        if (rootView == null) return;
+        computeScaleFactor();
+
+        // 顶栏 48dp、返回键 36dp（padding 6dp）、标题 20sp
+        LinearLayout topBar = rootView.findViewById(R.id.top_bar);
+        LinearLayout.LayoutParams tlp = (LinearLayout.LayoutParams) topBar.getLayoutParams();
+        tlp.height = dpScaled(48);
+        topBar.setLayoutParams(tlp);
+        ImageView btnBack = rootView.findViewById(R.id.btn_back);
+        LinearLayout.LayoutParams blp = (LinearLayout.LayoutParams) btnBack.getLayoutParams();
+        blp.width = blp.height = dpScaled(36);
+        btnBack.setLayoutParams(blp);
+        int pad6 = dpScaled(6);
+        btnBack.setPadding(pad6, pad6, pad6, pad6);
+        tvTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(20));
+
+        // 标签 14sp（服务器地址/用户名/密码/音乐目录/缓存设置），上边距 16dp（缓存标签 24dp）
+        float labelSize = spScaled(14);
+        TextView[] labels = {tvLabelServer, tvLabelUsername, tvLabelPassword, tvLabelPath, tvLabelCache};
+        for (TextView l : labels) {
+            l.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, labelSize);
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) l.getLayoutParams();
+            p.topMargin = dpScaled(16);
+            l.setLayoutParams(p);
+        }
+        LinearLayout.LayoutParams clp = (LinearLayout.LayoutParams) tvLabelCache.getLayoutParams();
+        clp.topMargin = dpScaled(24);
+        tvLabelCache.setLayoutParams(clp);
+
+        // 输入框 48dp 高、16sp 文字、垂直内边距 12dp
+        float inputSize = spScaled(16);
+        int inputH = dpScaled(48);
+        int padV = dpScaled(12);
+        EditText[] inputs = {etServerUrl, etUsername, etPassword, etMusicPath};
+        for (EditText et : inputs) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) et.getLayoutParams();
+            p.height = inputH;
+            et.setLayoutParams(p);
+            et.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, inputSize);
+            et.setPadding(et.getPaddingLeft(), padV, et.getPaddingRight(), padV);
+        }
+
+        // 缓存行 48dp、缓存标签 16sp
+        LinearLayout cacheRow = (LinearLayout) tvCacheLabel.getParent();
+        LinearLayout.LayoutParams crlp = (LinearLayout.LayoutParams) cacheRow.getLayoutParams();
+        crlp.height = dpScaled(48);
+        crlp.topMargin = dpScaled(8);
+        cacheRow.setLayoutParams(crlp);
+        tvCacheLabel.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(16));
+
+        // 缓存用量 14sp、上边距 4dp
+        tvCacheUsed.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(14));
+        LinearLayout.LayoutParams culp = (LinearLayout.LayoutParams) tvCacheUsed.getLayoutParams();
+        culp.topMargin = dpScaled(4);
+        tvCacheUsed.setLayoutParams(culp);
+
+        // 清除缓存按钮 44dp/16sp、上边距 4dp
+        LinearLayout.LayoutParams cclp = (LinearLayout.LayoutParams) btnClearCache.getLayoutParams();
+        cclp.height = dpScaled(44);
+        cclp.topMargin = dpScaled(4);
+        btnClearCache.setLayoutParams(cclp);
+        btnClearCache.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(16));
+
+        // 操作按钮行：上边距 24dp、下边距 24dp、各按钮 48dp/16sp
+        LinearLayout btnRow = (LinearLayout) btnTestConnection.getParent();
+        LinearLayout.LayoutParams brlp = (LinearLayout.LayoutParams) btnRow.getLayoutParams();
+        brlp.topMargin = dpScaled(24);
+        brlp.bottomMargin = dpScaled(24);
+        btnRow.setLayoutParams(brlp);
+        int btnH = dpScaled(48);
+        float btnSize = spScaled(16);
+        Button[] btns = {btnTestConnection, btnSave, btnImport};
+        for (Button b : btns) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) b.getLayoutParams();
+            p.height = btnH;
+            b.setLayoutParams(p);
+            b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, btnSize);
+        }
     }
 }

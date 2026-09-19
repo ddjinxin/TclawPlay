@@ -34,6 +34,8 @@ public class HelpFragment extends BaseFloatFragment {
     private ScrollView rootScroll;
     private ImageView btnBack, btnSettings;
     private float density;
+    private View mRootView;
+    private float sf = 1f; // 比例缩放系数：1=保持原样
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
@@ -43,6 +45,8 @@ public class HelpFragment extends BaseFloatFragment {
         density = getResources().getDisplayMetrics().density;
         isNightMode = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE)
                 .getBoolean("isNight", true);
+        mRootView = view;
+        computeScaleFactor(); // 布局前以悬浮区域/屏幕尺寸计算，帮助内容按此缩放
 
         initViews(view);
         applyTheme();
@@ -63,6 +67,15 @@ public class HelpFragment extends BaseFloatFragment {
         btnBack.setOnClickListener(v -> requireActivity().onBackPressed());
 
         applyTopInset(rootScroll);
+
+        // XML 控件缩放：布局完成后应用，尺寸变化（悬浮窗/分屏）时重应用
+        view.post(() -> { if (isAdded()) applyPortraitScaling(); });
+        view.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            int newW = right - left, newH = bottom - top, oldW = oldRight - oldLeft, oldH = oldBottom - oldTop;
+            if (newW > 0 && (oldW <= 0 || newW != oldW || newH != oldH)) {
+                v.post(() -> { if (isAdded()) applyPortraitScaling(); });
+            }
+        });
 
         return view;
     }
@@ -125,12 +138,12 @@ public class HelpFragment extends BaseFloatFragment {
         TextView tv = new TextView(requireContext());
         tv.setText(title);
         tv.setTextColor(accentColor());
-        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16);
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(16));
         tv.setTypeface(null, android.graphics.Typeface.BOLD);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.topMargin = (int)(20 * density);
-        p.bottomMargin = (int)(6 * density);
+        p.topMargin = dpScaled(20);
+        p.bottomMargin = dpScaled(6);
         helpContent.addView(tv, p);
     }
 
@@ -141,11 +154,11 @@ public class HelpFragment extends BaseFloatFragment {
         TextView tv = new TextView(requireContext());
         tv.setText(text);
         tv.setTextColor(textColor());
-        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
-        tv.setLineSpacing((int)(2 * density), 1f);
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(14));
+        tv.setLineSpacing(dpScaled(2), 1f);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.bottomMargin = (int)(4 * density);
+        p.bottomMargin = dpScaled(4);
         tv.setLayoutParams(p);
         return tv;
     }
@@ -157,12 +170,12 @@ public class HelpFragment extends BaseFloatFragment {
         TextView tv = new TextView(requireContext());
         tv.setText(text);
         tv.setTextColor(textColor());
-        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
-        tv.setLineSpacing((int)(2 * density), 1f);
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(14));
+        tv.setLineSpacing(dpScaled(2), 1f);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.leftMargin = (int)(12 * density);
-        p.bottomMargin = (int)(3 * density);
+        p.leftMargin = dpScaled(12);
+        p.bottomMargin = dpScaled(3);
         tv.setLayoutParams(p);
         return tv;
     }
@@ -201,9 +214,10 @@ public class HelpFragment extends BaseFloatFragment {
     private void addDivider() {
         View v = new View(requireContext());
         v.setBackgroundColor(divColor());
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1);
-        p.topMargin = (int)(12 * density);
-        p.bottomMargin = (int)(4 * density);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, Math.round(sf)));
+        p.topMargin = dpScaled(12);
+        p.bottomMargin = dpScaled(4);
         helpContent.addView(v, p);
     }
 
@@ -312,5 +326,80 @@ public class HelpFragment extends BaseFloatFragment {
         addBullet("点击封面 — 调节面板");
         addBullet("双击 — 关闭悬浮窗");
         addBullet("双击频谱(卡拉OK) — 隐藏频谱");
+    }
+
+    // ==================== 比例缩放（高分辨率车机适配，横竖屏自适应） ====================
+
+    /**
+     * 计算缩放系数：竖屏以 16sp 节标题 ≈ 1.88% 屏高、横屏以 16sp ≈ 3% 屏高为锚点；
+     * 小屏手机 sf=1 保持原样。横竖屏锚点不同，保证切换后字号视觉连续。
+     */
+    private void computeScaleFactor() {
+        sf = 1f;
+        int width = 0, height = 0;
+        if (mRootView != null && mRootView.getWidth() > 0 && mRootView.getHeight() > 0) {
+            width = mRootView.getWidth();
+            height = mRootView.getHeight();
+        }
+        if (width <= 0 || height <= 0) {
+            width = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatWidth();
+            height = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatHeight();
+        }
+        if (width <= 0 || height <= 0) {
+            width = getResources().getDisplayMetrics().widthPixels;
+            height = getResources().getDisplayMetrics().heightPixels;
+        }
+        if (width <= 0 || height <= 0) return;
+        float basePx = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+        float ratio = (width > height * 1.1f) ? 0.03f : 0.0188f;
+        sf = Math.max(1f, height * ratio / basePx);
+    }
+
+    /** sp 原始值 × 缩放系数（px），sf=1 时与原尺寸一致 */
+    private float spScaled(float spValue) {
+        return android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, spValue, getResources().getDisplayMetrics()) * sf;
+    }
+
+    /** dp 原始值 × 缩放系数（px） */
+    private int dpScaled(float dpValue) {
+        return Math.round(dpValue * density * sf);
+    }
+
+    /** XML 静态控件缩放（顶栏/图标/底部按钮/版本号）；sf 变化时重建动态帮助内容（横竖屏自适应） */
+    private void applyPortraitScaling() {
+        if (mRootView == null) return;
+        float oldSf = sf;
+        computeScaleFactor();
+        if (oldSf != sf && helpContent != null) {
+            helpContent.removeAllViews();
+            buildHelpContent();
+        }
+
+        LinearLayout topBar = mRootView.findViewById(R.id.top_bar);
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) topBar.getLayoutParams();
+        lp.height = dpScaled(48);
+        topBar.setLayoutParams(lp);
+
+        int iconSize = dpScaled(36);
+        int pad6 = dpScaled(6);
+        for (ImageView iv : new ImageView[]{btnBack, btnSettings}) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) iv.getLayoutParams();
+            p.width = iconSize;
+            p.height = iconSize;
+            iv.setLayoutParams(p);
+            iv.setPadding(pad6, pad6, pad6, pad6);
+        }
+        tvTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(20));
+
+        for (int id : new int[]{R.id.btn_contact, R.id.btn_check_update, R.id.btn_return}) {
+            Button btn = mRootView.findViewById(id);
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btn.getLayoutParams();
+            p.height = dpScaled(48);
+            btn.setLayoutParams(p);
+            btn.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(15));
+        }
+        tvVersion.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(12));
     }
 }

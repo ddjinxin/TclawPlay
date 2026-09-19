@@ -14,6 +14,7 @@
 
         <!-- 顶部栏 -->
         <LinearLayout
+            android:id="@+id/top_bar"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:gravity="center_vertical"
@@ -98,10 +99,12 @@
                     android:orientation="vertical">
 
                     <ProgressBar
+                        android:id="@+id/loading_progress"
                         android:layout_width="32dp"
                         android:layout_height="32dp" />
 
                     <TextView
+                        android:id="@+id/tv_loading_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="生成二维码..."
@@ -146,6 +149,7 @@
 
             <!-- 用户信息卡片 -->
             <LinearLayout
+                android:id="@+id/user_row"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"

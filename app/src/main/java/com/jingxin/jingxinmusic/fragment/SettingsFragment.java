@@ -17,6 +17,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+import android.util.TypedValue;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -48,6 +49,7 @@ public class SettingsFragment extends BaseFloatFragment {
     private boolean isNightMode;
     private ScrollView rootScroll;
     private TextView tvTitle;
+    private LinearLayout topBar;
     private View dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7;
     private ImageView btnBack;
     private TextView[] styleTabs = new TextView[4];
@@ -65,6 +67,9 @@ public class SettingsFragment extends BaseFloatFragment {
     // 文件访问权限
     private TextView btnStoragePerm;
     private TextView tvStoragePermTitle, tvStoragePermDesc;
+
+    private View mRootView;
+    private float sf = 1f; // 比例缩放系数：1=保持原样
 
     /** 设置项标题颜色：白天黑色，夜间白色 */
     private int titleColor() {
@@ -148,12 +153,23 @@ public class SettingsFragment extends BaseFloatFragment {
 
         applyTopInset(rootScroll);
 
+        // 比例缩放：布局完成后应用，尺寸变化（悬浮窗/分屏）时重应用
+        view.post(() -> { if (isAdded()) applyPortraitScaling(); });
+        view.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            int newW = right - left, newH = bottom - top, oldW = oldRight - oldLeft, oldH = oldBottom - oldTop;
+            if (newW > 0 && (oldW <= 0 || newW != oldW || newH != oldH)) {
+                v.post(() -> { if (isAdded()) applyPortraitScaling(); });
+            }
+        });
+
         return view;
     }
 
     private void initViews(View view) {
+        mRootView = view;
         rootScroll = view.findViewById(R.id.root_scroll);
         tvTitle = view.findViewById(R.id.tv_title);
+        topBar = view.findViewById(R.id.top_bar);
         dividerTop = view.findViewById(R.id.divider_top);
         dividerMid = view.findViewById(R.id.divider_mid);
         dividerMid2 = view.findViewById(R.id.divider_mid2);
@@ -202,6 +218,8 @@ public class SettingsFragment extends BaseFloatFragment {
         } else {
             btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
         }
+        // 日夜变化时统一刷新全部开关颜色（初始化阶段未创建的开关自动跳过）
+        applyAllSwitchTints();
     }
 
     private void setupStoragePermission(View view) {
@@ -313,13 +331,6 @@ public class SettingsFragment extends BaseFloatFragment {
                     .apply();
             isNightMode = isChecked;
             applyTheme();
-            applySwitchTint(switchNight);
-            applySwitchTint(switchFloat);
-            applySwitchTint(switchSpectrum);
-            applySwitchTint(switchLocalCover);
-            applySwitchTint(switchLocalLyric);
-            applySwitchTint(switchAutoResume);
-            applySwitchTint(switchAutoTheme);
             Toast.makeText(requireContext(), isChecked ? "夜间模式" : "白天模式", Toast.LENGTH_SHORT).show();
         });
     }
@@ -349,8 +360,6 @@ public class SettingsFragment extends BaseFloatFragment {
             themePrefs.edit().putBoolean(ThemeHelper.KEY_AUTO_THEME, isChecked).apply();
             timeSelectorRow.setVisibility(isChecked ? View.VISIBLE : View.GONE);
             updateNightSwitchEnabled(!isChecked);
-            applySwitchTint(switchAutoTheme);
-            applySwitchTint(switchNight);
             if (isChecked) {
                 // 立即应用一次时间判断
                 ThemeHelper.applyAutoTheme(requireContext());
@@ -361,7 +370,6 @@ public class SettingsFragment extends BaseFloatFragment {
                     themePrefs.edit().putBoolean("isNight", checked).putBoolean("amapTriggered", false).apply();
                     isNightMode = checked;
                     applyTheme();
-                    applySwitchTint(switchNight);
                 });
                 isNightMode = nowNight;
                 applyTheme();
@@ -422,8 +430,20 @@ public class SettingsFragment extends BaseFloatFragment {
         dialog.show();
     }
 
+    /** 全部设置开关集合（初始化前为 null，调用方需判空） */
+    private SwitchCompat[] allSwitches() {
+        return new SwitchCompat[]{switchNight, switchAutoTheme, switchFloat, switchSpectrum,
+                switchLocalCover, switchLocalLyric, switchAutoResume};
+    }
+
+    /** 按当前日夜模式刷新全部开关颜色 */
+    private void applyAllSwitchTints() {
+        for (SwitchCompat sw : allSwitches()) applySwitchTint(sw);
+    }
+
     /** 统一设置 SwitchCompat 开关外观 */
     private void applySwitchTint(SwitchCompat switchView) {
+        if (switchView == null) return;
         int thumbColor = isNightMode ? 0xFFCCCCCC : 0xFFFFFFFF;
         int trackColor = isNightMode ? 0xFFFFFFFF : 0xFF000000;
         int[][] states = {{android.R.attr.state_checked}, {}};
@@ -606,5 +626,151 @@ public class SettingsFragment extends BaseFloatFragment {
             nightBar.setColor(DEFAULT_NIGHT_LYRIC_COLOR);
             tvNightLabel.setTextColor(DEFAULT_NIGHT_LYRIC_COLOR);
         });
+    }
+
+    // ==================== 比例缩放（高分辨率车机适配） ====================
+
+    /**
+     * 计算缩放系数：竖屏以 16sp 条目标题 ≈ 1.88% 屏高、横屏以 16sp ≈ 3% 屏高为锚点；
+     * 小屏手机 sf=1 保持原样。
+     */
+    private void computeScaleFactor() {
+        sf = 1f;
+        int width = 0, height = 0;
+        if (mRootView != null && mRootView.getWidth() > 0 && mRootView.getHeight() > 0) {
+            width = mRootView.getWidth();
+            height = mRootView.getHeight();
+        }
+        if (width <= 0 || height <= 0) {
+            width = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatWidth();
+            height = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatHeight();
+        }
+        if (width <= 0 || height <= 0) {
+            width = getResources().getDisplayMetrics().widthPixels;
+            height = getResources().getDisplayMetrics().heightPixels;
+        }
+        if (width <= 0 || height <= 0) return;
+        float basePx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+        // 横竖屏锚点不同：保证同一车机横竖屏切换后字号视觉连续，避免横屏用竖屏锚点导致字过大
+        float ratio = (width > height * 1.1f) ? 0.03f : 0.0188f;
+        sf = Math.max(1f, height * ratio / basePx);
+    }
+
+    /** sp 原始值 × 缩放系数（px），sf=1 时与原 XML 尺寸一致 */
+    private float spScaled(float spValue) {
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, spValue, getResources().getDisplayMetrics()) * sf;
+    }
+
+    /** dp 原始值 × 缩放系数（px） */
+    private int dpScaled(float dpValue) {
+        return Math.round(dpValue * getResources().getDisplayMetrics().density * sf);
+    }
+
+    /** 应用比例缩放：小屏手机保持原样，高分辨率车机按屏高等比放大（横竖屏自适应） */
+    private void applyPortraitScaling() {
+        if (mRootView == null || topBar == null) return;
+        computeScaleFactor();
+
+        // 顶部栏 48dp、返回键 36dp（padding 6dp）、标题 20sp
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) topBar.getLayoutParams();
+        lp.height = dpScaled(48);
+        topBar.setLayoutParams(lp);
+        LinearLayout.LayoutParams blp = (LinearLayout.LayoutParams) btnBack.getLayoutParams();
+        blp.width = blp.height = dpScaled(36);
+        btnBack.setLayoutParams(blp);
+        int pad6 = dpScaled(6);
+        btnBack.setPadding(pad6, pad6, pad6, pad6);
+        tvTitle.setTextSize(TypedValue.COMPLEX_UNIT_PX, spScaled(20));
+
+        // 各条目行 paddingVertical 12dp
+        int itemPad = dpScaled(12);
+        int[] itemIds = {R.id.item_scan_music, R.id.item_storage_permission, R.id.item_night_mode,
+                R.id.item_auto_theme, R.id.item_style, R.id.item_float_window, R.id.item_spectrum,
+                R.id.item_auto_resume, R.id.item_local_cover, R.id.item_local_lyric, R.id.item_lyric_color};
+        for (int id : itemIds) {
+            View item = mRootView.findViewById(id);
+            if (item != null) item.setPadding(item.getPaddingLeft(), itemPad, item.getPaddingRight(), itemPad);
+        }
+
+        // 条目标题 16sp、描述 12sp（含描述上边距 2dp）
+        TextView[] titles = {tvScanTitle, tvStoragePermTitle, tvNightTitle, tvAutoThemeTitle, tvStyleTitle,
+                tvFloatTitle, tvSpectrumTitle, tvAutoResumeTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvLyricTitle};
+        TextView[] descs = {tvScanDesc, tvStoragePermDesc, tvNightDesc, tvAutoThemeDesc, tvStyleDesc,
+                tvFloatDesc, tvSpectrumDesc, tvAutoResumeDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvLyricDesc};
+        float titleSize = spScaled(16);
+        float descSize = spScaled(12);
+        for (TextView t : titles) if (t != null) t.setTextSize(TypedValue.COMPLEX_UNIT_PX, titleSize);
+        for (TextView d : descs) {
+            if (d == null) continue;
+            d.setTextSize(TypedValue.COMPLEX_UNIT_PX, descSize);
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) d.getLayoutParams();
+            p.topMargin = dpScaled(2);
+            d.setLayoutParams(p);
+        }
+        // 风格/歌词颜色描述下边距 8dp
+        for (TextView d : new TextView[]{tvStyleDesc, tvLyricDesc}) {
+            if (d == null) continue;
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) d.getLayoutParams();
+            p.bottomMargin = dpScaled(8);
+            d.setLayoutParams(p);
+        }
+
+        // 操作文字 14sp：扫描/去授权、时间选择行、白天/夜间标签
+        float actionSize = spScaled(14);
+        TextView[] actions = {btnScan, btnStoragePerm, tvDayStartLabel, tvDayStartValue, tvTimeSeparator,
+                tvNightStartLabel, tvNightStartValue};
+        for (TextView a : actions) if (a != null) a.setTextSize(TypedValue.COMPLEX_UNIT_PX, actionSize);
+        TextView tvDayLabel = mRootView.findViewById(R.id.tv_day_label);
+        TextView tvNightLabel = mRootView.findViewById(R.id.tv_night_label);
+        if (tvDayLabel != null) tvDayLabel.setTextSize(TypedValue.COMPLEX_UNIT_PX, actionSize);
+        if (tvNightLabel != null) tvNightLabel.setTextSize(TypedValue.COMPLEX_UNIT_PX, actionSize);
+
+        // 时间选择行上边距 10dp、时间值内边距 4dp
+        LinearLayout.LayoutParams trp = (LinearLayout.LayoutParams) timeSelectorRow.getLayoutParams();
+        trp.topMargin = dpScaled(10);
+        timeSelectorRow.setLayoutParams(trp);
+        int pad4 = dpScaled(4);
+        tvDayStartValue.setPadding(pad4, pad4, pad4, pad4);
+        tvNightStartValue.setPadding(pad4, pad4, pad4, pad4);
+
+        // 扫描进度圈 20dp
+        LinearLayout.LayoutParams pbp = (LinearLayout.LayoutParams) scanProgress.getLayoutParams();
+        pbp.width = pbp.height = dpScaled(20);
+        scanProgress.setLayoutParams(pbp);
+
+        // 风格选择条 36dp、tab 12sp；歌词颜色条 36dp、“默认”按钮 12sp
+        LinearLayout styleSelector = mRootView.findViewById(R.id.style_selector);
+        LinearLayout.LayoutParams slp = (LinearLayout.LayoutParams) styleSelector.getLayoutParams();
+        slp.height = dpScaled(36);
+        styleSelector.setLayoutParams(slp);
+        float tabSize = spScaled(12);
+        for (TextView tab : styleTabs) if (tab != null) tab.setTextSize(TypedValue.COMPLEX_UNIT_PX, tabSize);
+        for (int id : new int[]{R.id.day_color_bar, R.id.night_color_bar}) {
+            View bar = mRootView.findViewById(id);
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) bar.getLayoutParams();
+            p.height = dpScaled(36);
+            bar.setLayoutParams(p);
+        }
+        if (btnDayReset != null) btnDayReset.setTextSize(TypedValue.COMPLEX_UNIT_PX, descSize);
+        if (btnNightReset != null) btnNightReset.setTextSize(TypedValue.COMPLEX_UNIT_PX, descSize);
+
+        // 开关整体按 sf 放大（SwitchCompat 尺寸由内部 thumb/track 决定，scale 不改布局占位）
+        // 缩放轴心设为右边缘：右缘保持原位置不被父容器裁剪，向左扩展；并加等量左边距避免遮挡文字
+        for (SwitchCompat sw : allSwitches()) {
+            if (sw == null) continue;
+            sw.setPivotX(sw.getWidth());
+            sw.setPivotY(sw.getHeight() / 2f);
+            sw.setScaleX(sf);
+            sw.setScaleY(sf);
+            if (sw.getWidth() > 0 && sf > 1f) {
+                LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) sw.getLayoutParams();
+                p.leftMargin = (int) (sw.getWidth() * (sf - 1f));
+                sw.setLayoutParams(p);
+            } else if (sw.getWidth() > 0) {
+                LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) sw.getLayoutParams();
+                p.leftMargin = 0;
+                sw.setLayoutParams(p);
+            }
+        }
     }
 }

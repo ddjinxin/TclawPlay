@@ -17,6 +17,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -76,6 +77,7 @@ public class BiliSettingsFragment extends BaseFloatFragment {
 
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private float sf = 1f; // 比例缩放系数：1=保持原样
 
     // 扫码轮询相关
     private String currentQrcodeKey;
@@ -103,6 +105,15 @@ public class BiliSettingsFragment extends BaseFloatFragment {
         } else {
             showLoginArea();
         }
+
+        // 比例缩放：布局完成后应用，尺寸变化（悬浮窗/分屏）时重应用
+        view.post(() -> { if (isAdded()) applyScaling(); });
+        view.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            int newW = right - left, newH = bottom - top, oldW = oldRight - oldLeft, oldH = oldBottom - oldTop;
+            if (newW > 0 && (oldW <= 0 || newW != oldW || newH != oldH)) {
+                v.post(() -> { if (isAdded()) applyScaling(); });
+            }
+        });
 
         return view;
     }
@@ -449,5 +460,106 @@ public class BiliSettingsFragment extends BaseFloatFragment {
                 uiHandler.post(() -> ivAvatar.setImageBitmap(bitmap));
             }
         });
+    }
+
+    // ==================== 比例缩放（高分辨率车机适配，横竖屏自适应） ====================
+
+    /**
+     * 计算缩放系数：竖屏以 16sp 标题 ≈ 1.88% 屏高、横屏以 16sp ≈ 3% 屏高为锚点；
+     * 小屏手机 sf=1 保持原样。横竖屏锚点不同，保证切换后字号视觉连续。
+     */
+    private void computeScaleFactor() {
+        sf = 1f;
+        int width = 0, height = 0;
+        if (rootView != null && rootView.getWidth() > 0 && rootView.getHeight() > 0) {
+            width = rootView.getWidth();
+            height = rootView.getHeight();
+        }
+        if (width <= 0 || height <= 0) {
+            width = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatWidth();
+            height = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatHeight();
+        }
+        if (width <= 0 || height <= 0) {
+            width = getResources().getDisplayMetrics().widthPixels;
+            height = getResources().getDisplayMetrics().heightPixels;
+        }
+        if (width <= 0 || height <= 0) return;
+        float basePx = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+        float ratio = (width > height * 1.1f) ? 0.03f : 0.0188f;
+        sf = Math.max(1f, height * ratio / basePx);
+    }
+
+    /** sp 原始值 × 缩放系数（px），sf=1 时与原 XML 尺寸一致 */
+    private float spScaled(float spValue) {
+        return android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, spValue, getResources().getDisplayMetrics()) * sf;
+    }
+
+    /** dp 原始值 × 缩放系数（px） */
+    private int dpScaled(float dpValue) {
+        return Math.round(dpValue * getResources().getDisplayMetrics().density * sf);
+    }
+
+    /** 应用比例缩放：小屏手机保持原样，高分辨率车机按屏高等比放大 */
+    private void applyScaling() {
+        if (rootView == null) return;
+        computeScaleFactor();
+
+        // 顶栏 48dp、返回键 36dp（padding 6dp）、标题 20sp
+        LinearLayout topBar = rootView.findViewById(R.id.top_bar);
+        LinearLayout.LayoutParams tlp = (LinearLayout.LayoutParams) topBar.getLayoutParams();
+        tlp.height = dpScaled(48);
+        topBar.setLayoutParams(tlp);
+        ImageView btnBack = rootView.findViewById(R.id.btn_back);
+        LinearLayout.LayoutParams blp = (LinearLayout.LayoutParams) btnBack.getLayoutParams();
+        blp.width = blp.height = dpScaled(36);
+        btnBack.setLayoutParams(blp);
+        int pad6 = dpScaled(6);
+        btnBack.setPadding(pad6, pad6, pad6, pad6);
+        tvTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(20));
+
+        // 未登录扫码区：标签 16sp、提示 13sp、二维码容器 240dp（padding 8dp）、加载遮罩、刷新按钮 40dp/14sp
+        TextView tvLabelQrcode = rootView.findViewById(R.id.tv_label_qrcode);
+        tvLabelQrcode.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(16));
+        tvScanHint.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(13));
+        LinearLayout.LayoutParams qrlp = (LinearLayout.LayoutParams) layoutQrcodeContainer.getLayoutParams();
+        qrlp.width = qrlp.height = dpScaled(240);
+        layoutQrcodeContainer.setLayoutParams(qrlp);
+        int pad8 = dpScaled(8);
+        layoutQrcodeContainer.setPadding(pad8, pad8, pad8, pad8);
+        ProgressBar loadingProgress = rootView.findViewById(R.id.loading_progress);
+        LinearLayout.LayoutParams plp = (LinearLayout.LayoutParams) loadingProgress.getLayoutParams();
+        plp.width = plp.height = dpScaled(32);
+        loadingProgress.setLayoutParams(plp);
+        TextView tvLoadingText = rootView.findViewById(R.id.tv_loading_text);
+        tvLoadingText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(13));
+        LinearLayout.LayoutParams rlp = (LinearLayout.LayoutParams) btnRefreshQrcode.getLayoutParams();
+        rlp.height = dpScaled(40);
+        btnRefreshQrcode.setLayoutParams(rlp);
+        btnRefreshQrcode.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(14));
+        tvScanStatus.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(14));
+
+        // 已登录区：头像 48dp、昵称 16sp、UID 13sp、退出按钮 36dp/13sp、去播放 48dp/16sp
+        LinearLayout.LayoutParams alp = (LinearLayout.LayoutParams) ivAvatar.getLayoutParams();
+        alp.width = alp.height = dpScaled(48);
+        ivAvatar.setLayoutParams(alp);
+        tvNickname.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(16));
+        tvUid.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(13));
+        LinearLayout.LayoutParams lglp = (LinearLayout.LayoutParams) btnLogout.getLayoutParams();
+        lglp.height = dpScaled(36);
+        btnLogout.setLayoutParams(lglp);
+        btnLogout.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(13));
+        LinearLayout.LayoutParams gplp = (LinearLayout.LayoutParams) btnGoPlay.getLayoutParams();
+        gplp.height = dpScaled(48);
+        btnGoPlay.setLayoutParams(gplp);
+        btnGoPlay.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(16));
+
+        // 二维码已显示时按新尺寸重绘（WebView 内 JS 以 224px 为基准）
+        if (currentQrcodeKey != null && webViewQrcode.getVisibility() == View.VISIBLE) {
+            int qrSize = Math.round(224 * sf);
+            String js = "if (typeof window.qrUrl !== 'undefined') generateQRCode(window.qrUrl, " + qrSize + ", '#000000', '#ffffff');";
+            webViewQrcode.evaluateJavascript(js, null);
+        }
     }
 }

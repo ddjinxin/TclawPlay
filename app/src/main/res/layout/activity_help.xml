@@ -16,6 +16,7 @@
 
         <!-- 顶部栏 -->
         <LinearLayout
+            android:id="@+id/top_bar"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:gravity="center_vertical"
