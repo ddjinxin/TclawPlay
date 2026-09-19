@@ -669,7 +669,10 @@ public class CoverSceneHelper {
     public void recordOnStyleEnter() {
         coverView.setVinylMode(true);
         if (tonearmView != null) {
-            tonearmView.setVisibility(View.VISIBLE);
+            // 竖屏全屏歌词时唱臂隐藏（横屏全屏设计保留唱臂）
+            boolean fullLyricPortrait = !isLandscapeMode && lyricView != null &&
+                    lyricView.getDisplayMode() == LyricView.DisplayMode.FULL;
+            tonearmView.setVisibility(fullLyricPortrait ? View.GONE : View.VISIBLE);
             tonearmView.setLandscapeMode(isLandscapeMode);
             tonearmView.setNightMode(isNightMode);
             tonearmView.setPlaying(isPlaying);

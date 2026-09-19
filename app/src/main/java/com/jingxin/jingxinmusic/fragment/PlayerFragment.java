@@ -136,6 +136,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private com.jingxin.jingxinmusic.view.ImmersiveOverlayView immersiveOverlay;
     private android.widget.PopupWindow spectrumPickerPopup; // 频谱选择浮窗
     private android.widget.PopupWindow lyricSearchPopup; // 歌词搜索浮窗
+    private android.widget.PopupWindow historyPopup; // 播放历史浮窗
 
     // 横屏模式
     private boolean isLandscapeMode = false; // 宽>高*1.2 时为横屏
@@ -779,6 +780,9 @@ public class PlayerFragment extends BaseFloatFragment {
         if (lyricSearchPopup != null && lyricSearchPopup.isShowing()) {
             lyricSearchPopup.dismiss();
         }
+        if (historyPopup != null && historyPopup.isShowing()) {
+            historyPopup.dismiss();
+        }
         // 延迟一帧再检测，确保 DisplayMetrics 已更新
         uiHandler.post(() -> {
             boolean wasLandscape = isLandscapeMode;
@@ -1264,6 +1268,11 @@ public class PlayerFragment extends BaseFloatFragment {
             currentScene.onStyleExit();
             currentScene.exit();
             currentScene = target;
+            // 进入沉浸模式：不支持全屏歌词，若当前为全屏则降级为多行
+            if (coverStyle == COVER_STYLE_IMMERSIVE && lyricView != null
+                    && lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL) {
+                lyricView.setDisplayMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode.MULTI_LINE);
+            }
             currentScene.enter();
             currentScene.onStyleEnter();
             return true;
@@ -1509,7 +1518,7 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 显示播放历史列表
+     * 显示播放历史列表（自定义浮窗，随页面分辨率缩放）
      */
     private void showHistoryDialog() {
         executor.execute(() -> {
@@ -1528,42 +1537,132 @@ public class PlayerFragment extends BaseFloatFragment {
             }
 
             uiHandler.post(() -> {
-                String[] items = new String[history.size()];
-                for (int i = 0; i < history.size(); i++) {
-                    HistoryManager.HistoryItem item = history.get(i);
-                    items[i] = item.getDisplayName();
+                float density = getResources().getDisplayMetrics().density;
+                Context ctx = requireContext();
+
+                // 缩放系数：小屏手机保持原样(sf=1)，高分辨率车机按屏高等比放大（横竖屏自适应）
+                // 基准：16sp，竖屏锚点屏高×1.88%，横屏锚点屏高×3%（与频谱/歌词弹窗一致）
+                int viewH = getAvailableScreenHeight();
+                if (viewH <= 0) viewH = getResources().getDisplayMetrics().heightPixels;
+                float basePx = android.util.TypedValue.applyDimension(
+                        android.util.TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+                boolean pickerLandscape = getLayoutWidth() > viewH * 1.2f;
+                float sf = Math.max(1f, viewH * (pickerLandscape ? 0.03f : 0.0188f) / basePx);
+
+                // 外层容器
+                android.widget.LinearLayout container = new android.widget.LinearLayout(ctx);
+                container.setOrientation(android.widget.LinearLayout.VERTICAL);
+                container.setPadding(
+                        (int)(12 * density * sf), (int)(12 * density * sf),
+                        (int)(12 * density * sf), (int)(12 * density * sf));
+                // 半透明深色背景
+                android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+                float r = 16 * density * sf;
+                if (isLandscapeMode) {
+                    bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
+                } else {
+                    bg.setCornerRadius(r);
+                }
+                bg.setColor(Color.argb(102, 30, 30, 30));  // 透明度40%
+                container.setBackground(bg);
+
+                // 标题
+                android.widget.TextView title = new android.widget.TextView(ctx);
+                title.setText("播放历史");
+                title.setTextColor(ThemeColors.sparkColor(isNightMode));
+                title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 16 * density * sf);
+                title.setGravity(android.view.Gravity.CENTER);
+                title.setPadding(0, 0, 0, (int)(10 * density * sf));
+                container.addView(title);
+
+                // 列表容器（ScrollView + LinearLayout）
+                android.widget.ScrollView scroll = new android.widget.ScrollView(ctx);
+                android.widget.LinearLayout listContainer = new android.widget.LinearLayout(ctx);
+                listContainer.setOrientation(android.widget.LinearLayout.VERTICAL);
+                scroll.addView(listContainer);
+                container.addView(scroll);
+
+                for (int idx = 0; idx < history.size(); idx++) {
+                    final HistoryManager.HistoryItem item = history.get(idx);
+                    android.widget.TextView itemView = new android.widget.TextView(ctx);
+                    itemView.setText(item.getDisplayName());
+                    itemView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 13 * density * sf);
+                    itemView.setTextColor(0xFFDDDDDD);
+                    itemView.setSingleLine(true);
+                    itemView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    itemView.setPadding(
+                            (int)(12 * density * sf), (int)(10 * density * sf),
+                            (int)(12 * density * sf), (int)(10 * density * sf));
+
+                    android.graphics.drawable.GradientDrawable itemBg = new android.graphics.drawable.GradientDrawable();
+                    itemBg.setColor(Color.argb(30, 68, 68, 68));
+                    itemBg.setCornerRadius(8 * density * sf);
+                    itemView.setBackground(itemBg);
+                    android.widget.LinearLayout.LayoutParams itemLp = new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+                    itemLp.setMargins(0, (int)(3 * density * sf), 0, (int)(3 * density * sf));
+                    itemView.setLayoutParams(itemLp);
+
+                    itemView.setOnClickListener(v -> {
+                        if (historyPopup != null) historyPopup.dismiss();
+                        Song s = item.song;
+                        song = s;
+                        tvSongName.setText(s.title);
+                        tvArtist.setText(s.artist);
+                        tvCurrentTime.setText("00:00");
+                        tvTotalTime.setText(Song.formatDuration(s.duration));
+                        loadCover();
+                        fetchLyrics();
+
+                        if (bound && playerBinder != null) {
+                            List<Song> historySongs = new ArrayList<>();
+                            for (HistoryManager.HistoryItem h : history) {
+                                historySongs.add(h.song);
+                            }
+                            playerBinder.setPlaylist(historySongs);
+                            playerBinder.playSong(s, history.indexOf(item));
+                            btnPlayPause.setImageResource(R.drawable.ic_pause);
+                            coverView.startRotation();
+                            startSpectrumWithPermission();
+                        }
+                    });
+
+                    listContainer.addView(itemView);
                 }
 
-                new AlertDialog.Builder(requireContext())
-                        .setTitle("播放历史")
-                        .setItems(items, (dialog, which) -> {
-                            HistoryManager.HistoryItem item = history.get(which);
-                            Song s = item.song;
+                // 清空历史按钮
+                android.widget.TextView clearBtn = new android.widget.TextView(ctx);
+                clearBtn.setText("清空历史");
+                clearBtn.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 14 * density * sf);
+                clearBtn.setTextColor(ThemeColors.sparkColor(isNightMode));
+                clearBtn.setGravity(android.view.Gravity.CENTER);
+                clearBtn.setPadding(0, (int)(8 * density * sf), 0, 0);
+                clearBtn.setOnClickListener(v -> {
+                    if (historyPopup != null) historyPopup.dismiss();
+                    HistoryManager.clearHistory(historyDir);
+                });
+                container.addView(clearBtn);
 
-                            song = s;
-                            tvSongName.setText(s.title);
-                            tvArtist.setText(s.artist);
-                            tvCurrentTime.setText("00:00");
-                            tvTotalTime.setText(Song.formatDuration(s.duration));
-                            loadCover();
-                            fetchLyrics();
+                // 弹窗尺寸：竖屏宽度80%，横屏宽度65%（与歌词搜索一致）
+                int screenWidth = mRootView.getWidth();
+                float widthRatio = isLandscapeMode ? 0.65f : 0.8f;
+                int popupWidth = (int)(screenWidth * widthRatio);
+                int popupHeight = (int)(280 * density * sf);  // 高度固定比例兜底
+                if (popupHeight > viewH - (int)(100 * density * sf)) {
+                    popupHeight = viewH - (int)(100 * density * sf);
+                }
 
-                            if (bound && playerBinder != null) {
-                                List<Song> historySongs = new ArrayList<>();
-                                for (HistoryManager.HistoryItem h : history) {
-                                    historySongs.add(h.song);
-                                }
-                                playerBinder.setPlaylist(historySongs);
-                                playerBinder.playSong(s, which);
-                                btnPlayPause.setImageResource(R.drawable.ic_pause);
-                                coverView.startRotation();
-                                startSpectrumWithPermission();
-                            }
-                        })
-                        .setNegativeButton("清空历史", (dialog, which) -> {
-                            HistoryManager.clearHistory(historyDir);
-                        })
-                        .show();
+                historyPopup = new android.widget.PopupWindow(container, popupWidth, popupHeight, true);
+                historyPopup.setOutsideTouchable(true);
+                historyPopup.setElevation(8 * density * sf);
+                if (isLandscapeMode) {
+                    historyPopup.showAtLocation(btnHistory,
+                            android.view.Gravity.TOP | android.view.Gravity.START, 0, (int)(60 * density * sf));
+                } else {
+                    historyPopup.showAtLocation(btnHistory,
+                            android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL, 0, (int)(60 * density * sf));
+                }
             });
         });
     }
@@ -1611,7 +1710,7 @@ public class PlayerFragment extends BaseFloatFragment {
             syncCarouselSongs();
         }
 
-        // 同步歌词模式到沉浸遮罩
+        // 同步歌词模式到沉浸遮罩（切换进沉浸时若为全屏，switchScene 已降级为多行）
         if (coverStyle == COVER_STYLE_IMMERSIVE && lyricView != null) {
             immersiveOverlay.setFullScreenMode(
                     lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
@@ -1729,15 +1828,25 @@ public class PlayerFragment extends BaseFloatFragment {
         float density = getResources().getDisplayMetrics().density;
         Context ctx = requireContext();
 
+        // 缩放系数：小屏手机保持原样(sf=1)，高分辨率车机按屏高等比放大（横竖屏自适应）
+        // 基准：16sp，竖屏锚点屏高×1.88%，横屏锚点屏高×3%（与 SettingsFragment 一致）
+        int viewH = getAvailableScreenHeight();
+        if (viewH <= 0) viewH = getResources().getDisplayMetrics().heightPixels;
+        float basePx = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+        boolean pickerLandscape = getLayoutWidth() > viewH * 1.2f;
+        float pickerRatio = pickerLandscape ? 0.03f : 0.0188f;
+        float sf = Math.max(1f, viewH * pickerRatio / basePx);
+
         // 外层容器
         android.widget.LinearLayout container = new android.widget.LinearLayout(ctx);
         container.setOrientation(android.widget.LinearLayout.VERTICAL);
         container.setPadding(
-                (int)(10 * density), (int)(10 * density),
-                (int)(10 * density), (int)(10 * density));
+                (int)(10 * density * sf), (int)(10 * density * sf),
+                (int)(10 * density * sf), (int)(10 * density * sf));
         // 左直角右圆角背景
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        float r = 16 * density;
+        float r = 16 * density * sf;
         bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});  // 左上0, 右上r, 右下r, 左下0
         bg.setColor(Color.argb(51, 30, 30, 30));  // 透明度20%
         container.setBackground(bg);
@@ -1746,18 +1855,18 @@ public class PlayerFragment extends BaseFloatFragment {
         android.widget.TextView title = new android.widget.TextView(ctx);
         title.setText("频谱选择");
         title.setTextColor(ThemeColors.sparkColor(isNightMode));
-        title.setTextSize(18);
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 18 * density * sf);
         title.setGravity(android.view.Gravity.CENTER);
-        title.setPadding(0, 0, 0, (int)(12 * density));
+        title.setPadding(0, 0, 0, (int)(12 * density * sf));
         container.addView(title);
 
         // 竖屏2列5行，横屏5列2行
-        boolean isLandscape = getLayoutWidth() > getAvailableScreenHeight() * 1.2f;
+        boolean isLandscape = pickerLandscape;
         int columns = isLandscape ? 5 : 2;
 
         int itemWidth = isLandscape
-                ? (int)(120 * density)
-                : (int)(140 * density);
+                ? (int)(120 * density * sf)
+                : (int)(140 * density * sf);
 
         android.widget.GridLayout grid = new android.widget.GridLayout(ctx);
         grid.setColumnCount(columns);
@@ -1766,16 +1875,16 @@ public class PlayerFragment extends BaseFloatFragment {
             final int style = i;
             android.widget.TextView item = new android.widget.TextView(ctx);
             item.setText(names[i]);
-            item.setTextSize(16);
+            item.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 16 * density * sf);
             item.setGravity(android.view.Gravity.CENTER);
             item.setPadding(
-                    (int)(20 * density), (int)(14 * density),
-                    (int)(20 * density), (int)(14 * density));
+                    (int)(20 * density * sf), (int)(14 * density * sf),
+                    (int)(20 * density * sf), (int)(14 * density * sf));
 
             android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams();
             lp.width = itemWidth;
             lp.height = android.widget.GridLayout.LayoutParams.WRAP_CONTENT;
-            lp.setMargins((int)(6 * density), (int)(4 * density), (int)(6 * density), (int)(4 * density));
+            lp.setMargins((int)(6 * density * sf), (int)(4 * density * sf), (int)(6 * density * sf), (int)(4 * density * sf));
             item.setLayoutParams(lp);
 
             // 沉浸模式下圆环类灰色不可选
@@ -1816,7 +1925,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 true);
         spectrumPickerPopup.setOutsideTouchable(true);
-        spectrumPickerPopup.setElevation(8 * density);
+        spectrumPickerPopup.setElevation(8 * density * sf);
         // 左边距0，垂直居中
         spectrumPickerPopup.showAtLocation(btnSpectrum, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
                 0, 0);
@@ -1838,15 +1947,24 @@ public class PlayerFragment extends BaseFloatFragment {
         float density = getResources().getDisplayMetrics().density;
         Context ctx = requireContext();
 
+        // 缩放系数：小屏手机保持原样(sf=1)，高分辨率车机按屏高等比放大（横竖屏自适应）
+        // 基准：16sp，竖屏锚点屏高×1.88%，横屏锚点屏高×3%（与 SettingsFragment/频谱弹窗一致）
+        int viewH = getAvailableScreenHeight();
+        if (viewH <= 0) viewH = getResources().getDisplayMetrics().heightPixels;
+        float basePx = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+        boolean pickerLandscape = getLayoutWidth() > viewH * 1.2f;
+        float sf = Math.max(1f, viewH * (pickerLandscape ? 0.03f : 0.0188f) / basePx);
+
         // 外层容器
         android.widget.LinearLayout container = new android.widget.LinearLayout(ctx);
         container.setOrientation(android.widget.LinearLayout.VERTICAL);
         container.setPadding(
-                (int)(12 * density), (int)(12 * density),
-                (int)(12 * density), (int)(12 * density));
+                (int)(12 * density * sf), (int)(12 * density * sf),
+                (int)(12 * density * sf), (int)(12 * density * sf));
         // 半透明深色背景，竖屏四角圆角，横屏左直角右圆角
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        float r = 16 * density;
+        float r = 16 * density * sf;
         if (isLandscapeMode) {
             bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
         } else {
@@ -1860,9 +1978,9 @@ public class PlayerFragment extends BaseFloatFragment {
         String cleanTitle = Song.cleanSongTitle(song.title, song.artist);
         title.setText("搜索「" + (cleanTitle.length() > 12 ? cleanTitle.substring(0, 12) + "…" : cleanTitle) + "」歌词");
         title.setTextColor(ThemeColors.sparkColor(isNightMode));
-        title.setTextSize(16);
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 16 * density * sf);
         title.setGravity(android.view.Gravity.CENTER);
-        title.setPadding(0, 0, 0, (int)(10 * density));
+        title.setPadding(0, 0, 0, (int)(10 * density * sf));
         container.addView(title);
 
         // 加载提示
@@ -1873,8 +1991,8 @@ public class PlayerFragment extends BaseFloatFragment {
         android.widget.TextView loadingText = new android.widget.TextView(ctx);
         loadingText.setText("搜索中…");
         loadingText.setTextColor(0xFFCCCCCC);
-        loadingText.setTextSize(14);
-        loadingText.setPadding((int)(8 * density), 0, 0, 0);
+        loadingText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 14 * density * sf);
+        loadingText.setPadding((int)(8 * density * sf), 0, 0, 0);
         loadingRow.addView(loading);
         loadingRow.addView(loadingText);
         android.widget.LinearLayout.LayoutParams loadingLp = new android.widget.LinearLayout.LayoutParams(
@@ -1895,9 +2013,9 @@ public class PlayerFragment extends BaseFloatFragment {
         android.widget.TextView emptyText = new android.widget.TextView(ctx);
         emptyText.setText("未找到歌词候选");
         emptyText.setTextColor(0xFFCCCCCC);
-        emptyText.setTextSize(14);
+        emptyText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 14 * density * sf);
         emptyText.setGravity(android.view.Gravity.CENTER);
-        emptyText.setPadding(0, (int)(16 * density), 0, (int)(16 * density));
+        emptyText.setPadding(0, (int)(16 * density * sf), 0, (int)(16 * density * sf));
         emptyText.setVisibility(android.view.View.GONE);
         container.addView(emptyText);
 
@@ -1909,7 +2027,7 @@ public class PlayerFragment extends BaseFloatFragment {
         int popupTop = songNameLoc[1];
         int spectrumBottom = spectrumLoc[1] + spectrumView.getHeight();
         int popupHeight = spectrumBottom - popupTop;
-        if (popupHeight < (int)(200 * density)) popupHeight = (int)(200 * density);
+        if (popupHeight < (int)(200 * density * sf)) popupHeight = (int)(200 * density * sf);
         int screenWidth = mRootView.getWidth();
         float widthRatio = isLandscapeMode ? 0.65f : 0.8f;
         int popupWidth = (int)(screenWidth * widthRatio);
@@ -1919,7 +2037,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 popupHeight,
                 true);
         lyricSearchPopup.setOutsideTouchable(true);
-        lyricSearchPopup.setElevation(8 * density);
+        lyricSearchPopup.setElevation(8 * density * sf);
         if (isLandscapeMode) {
             lyricSearchPopup.showAtLocation(btnLyricSearch,
                     android.view.Gravity.TOP | android.view.Gravity.START, 0, popupTop);
@@ -1930,6 +2048,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
         // 异步搜索（传入当前歌曲时长用于排序，优先用ExoPlayer真实时长）
         final String searchTitle = cleanTitle;
+        final float scaleFactor = sf;   // 供异步线程中候选条目尺寸使用
         long realDuration = 0;
         if (bound && playerBinder != null) {
             int dur = playerBinder.getDuration();
@@ -1988,13 +2107,13 @@ public class PlayerFragment extends BaseFloatFragment {
                     if (!durationStr.isEmpty()) suffix += "  " + durationStr;
                     if (isBestMatch) suffix += "  ★";
                     item.setText(displayName + suffix);
-                    item.setTextSize(13);
+                    item.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 13 * density * scaleFactor);
                     item.setTextColor(isBestMatch ? ThemeColors.sparkColor(isNightMode) : 0xFFDDDDDD);
                     item.setSingleLine(true);
                     item.setEllipsize(android.text.TextUtils.TruncateAt.END);
                     item.setPadding(
-                            (int)(12 * density), (int)(10 * density),
-                            (int)(12 * density), (int)(10 * density));
+                            (int)(12 * density * scaleFactor), (int)(10 * density * scaleFactor),
+                            (int)(12 * density * scaleFactor), (int)(10 * density * scaleFactor));
 
                     android.graphics.drawable.GradientDrawable itemBg = new android.graphics.drawable.GradientDrawable();
                     if (isBestMatch) {
@@ -2002,12 +2121,12 @@ public class PlayerFragment extends BaseFloatFragment {
                     } else {
                         itemBg.setColor(Color.argb(30, 68, 68, 68));
                     }
-                    itemBg.setCornerRadius(8 * density);
+                    itemBg.setCornerRadius(8 * density * scaleFactor);
                     item.setBackground(itemBg);
                     android.widget.LinearLayout.LayoutParams itemLp = new android.widget.LinearLayout.LayoutParams(
                             android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
-                    itemLp.setMargins(0, (int)(3 * density), 0, (int)(3 * density));
+                    itemLp.setMargins(0, (int)(3 * density * scaleFactor), 0, (int)(3 * density * scaleFactor));
                     item.setLayoutParams(itemLp);
 
                     item.setOnClickListener(v -> {

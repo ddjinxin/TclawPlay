@@ -71,6 +71,18 @@ public class LyricView extends View {
     private float maxTextSizeForHeight = Float.MAX_VALUE;  // 高度约束上限（横屏低高度时由 Scene 设置）
     private float maxLyricAreaHeight = Float.MAX_VALUE;   // 歌词区域可用像素高度（横屏低高度时由 Scene 设置）
     private boolean sceneSizingActive = false;            // Scene 直接控制字号时为 true，跳过内部计算
+    private int horizontalMarginPx = 0;                    // 左右 margin 之和（像素），竖屏字号基数需加回与歌名对齐
+
+    /** 屏幕方向判断：竖屏播放页里 LyricView 自身"宽矮"（高<宽），不能用宽高比判断 */
+    private boolean isPortraitScreen() {
+        return getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_PORTRAIT;
+    }
+
+    /** 竖屏字号基数：viewWidth 加回水平 margin，与歌名（全屏宽）同基数；横屏仍用 viewWidth */
+    private float baseWidthForSize() {
+        return isPortraitScreen() ? (viewWidth + horizontalMarginPx) : viewWidth;
+    }
 
     /** 获取当前行歌词字体大小（像素），供外部动态调整歌名字号 */
     public float getTextSizeCurrent() { return textSizeCurrent; }
@@ -288,6 +300,10 @@ public class LyricView extends View {
         super.onSizeChanged(w, h, oldw, oldh);
         viewWidth = w;
         viewHeight = h;
+        // 记录左右水平 margin 之和，供竖屏字号基数对齐歌名（全屏宽）使用
+        android.view.ViewGroup.MarginLayoutParams mp =
+                (android.view.ViewGroup.MarginLayoutParams) getLayoutParams();
+        horizontalMarginPx = (mp != null) ? mp.leftMargin + mp.rightMargin : 0;
         textPadding = (int) (TEXT_PADDING_DP * getResources().getDisplayMetrics().density);
         textAreaWidth = viewWidth - 2 * textPadding;
         if (textAreaWidth < 100) textAreaWidth = viewWidth; // 安全下限
@@ -302,9 +318,10 @@ public class LyricView extends View {
         // Scene 直接控制字号时，跳过内部计算
         if (sceneSizingActive) return;
         
-        textSizeNormal = viewWidth * TEXT_SIZE_NORMAL_RATIO;
-        textSizeCurrent = viewWidth * TEXT_SIZE_CURRENT_RATIO;
-        textSizeKaraoke = viewWidth * TEXT_SIZE_KARAOKE_RATIO;
+        float baseWidth = baseWidthForSize();
+        textSizeNormal = baseWidth * TEXT_SIZE_NORMAL_RATIO;
+        textSizeCurrent = baseWidth * TEXT_SIZE_CURRENT_RATIO;
+        textSizeKaraoke = baseWidth * TEXT_SIZE_KARAOKE_RATIO;
         
         // 高度约束：横屏低高度时由 Scene 设置上限，竖屏不设（MAX_VALUE）
         if (maxTextSizeForHeight < Float.MAX_VALUE) {
@@ -633,19 +650,25 @@ public class LyricView extends View {
     private void drawFullMode(Canvas canvas) {
         if (lines.isEmpty()) return;
         
+        // 竖屏全屏：当前行 6%、其他行 5%（基数含 margin，与歌名对齐）；横屏全屏与非全屏一致
+        boolean portrait = isPortraitScreen();
+        float sizeBase = baseWidthForSize();
+        float currentSize = portrait ? sizeBase * 0.06f : textSizeCurrent;
+        float otherSize = portrait ? sizeBase * 0.05f : textSizeNormal;
+        
         // 当前行未确定时，降级为从顶部开始显示歌词，第一行作为当前行高亮
         if (currentLineIndex < 0) {
             float y = viewHeight * 0.3f;
             for (int i = 0; i < lines.size(); i++) {
-                float h = getWrappedHeight(lines.get(i).text, i == 0 ? textSizeCurrent : textSizeCurrent);
+                float h = getWrappedHeight(lines.get(i).text, i == 0 ? currentSize : otherSize);
                 if (y + h > -50 && y < viewHeight + 50) {
                     if (i == 0) {
                         // 第一行用当前行样式（黄色高亮）
-                        StaticLayout layout = buildCurrentLineLayout(lines.get(i), textSizeCurrent, textColorNormal);
+                        StaticLayout layout = buildCurrentLineLayout(lines.get(i), currentSize, textColorNormal);
                         drawLayoutAt(canvas, layout, y);
                     } else {
                         float alpha = Math.max(0.15f, 1.0f - i * 0.1f);
-                        StaticLayout layout = buildSimpleLayout(lines.get(i), textSizeCurrent,
+                        StaticLayout layout = buildSimpleLayout(lines.get(i), otherSize,
                                 ColorUtil.adjustAlpha(getFadedTextColor(), alpha));
                         drawLayoutAt(canvas, layout, y);
                     }
@@ -656,15 +679,13 @@ public class LyricView extends View {
             return;
         }
         
-        float textSize = textSizeCurrent;
-        
-        // 计算当前行之前所有行的累积高度
+        // 计算当前行之前所有行的累积高度（按其他行字号）
         float contentBeforeCurrent = 0;
         for (int i = 0; i < currentLineIndex; i++) {
-            contentBeforeCurrent += getWrappedHeight(lines.get(i).text, textSize) + lineSpacing;
+            contentBeforeCurrent += getWrappedHeight(lines.get(i).text, otherSize) + lineSpacing;
         }
         
-        float currentH = getWrappedHeight(lines.get(currentLineIndex).text, textSize);
+        float currentH = getWrappedHeight(lines.get(currentLineIndex).text, currentSize);
         float currentCenter = contentBeforeCurrent + currentH / 2;
         
         // 偏移量：让当前行居中于视图
@@ -673,19 +694,20 @@ public class LyricView extends View {
         // 绘制可见行
         float y = offsetY;
         for (int i = 0; i < lines.size(); i++) {
-            float h = getWrappedHeight(lines.get(i).text, textSize);
+            boolean isCurrent = (i == currentLineIndex);
+            float size = isCurrent ? currentSize : otherSize;
+            float h = getWrappedHeight(lines.get(i).text, size);
             
             // 只绘制在视图范围内（含少量余量）的行
             if (y + h > -50 && y < viewHeight + 50) {
-                boolean isCurrent = (i == currentLineIndex);
                 if (isCurrent) {
-                    StaticLayout layout = buildCurrentLineLayout(lines.get(i), textSize, textColorNormal);
+                    StaticLayout layout = buildCurrentLineLayout(lines.get(i), currentSize, textColorNormal);
                     drawLayoutAt(canvas, layout, y);
                 } else {
                     int dist = Math.abs(i - currentLineIndex);
                     float alpha = Math.max(0.15f, 1.0f - dist * 0.18f);
                     int color = ColorUtil.adjustAlpha(getFadedTextColor(), alpha);
-                    StaticLayout layout = buildSimpleLayout(lines.get(i), textSize, color);
+                    StaticLayout layout = buildSimpleLayout(lines.get(i), otherSize, color);
                     drawLayoutAt(canvas, layout, y);
                 }
             }
