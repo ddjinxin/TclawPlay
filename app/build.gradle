@@ -25,8 +25,8 @@ android {
         applicationId "com.jingxin.jingxinmusic"
         minSdk 21
         targetSdk 36
-        versionCode 1072
-        versionName "1.0.7.2"
+        versionCode 1073
+        versionName "1.0.7.3"
     }
 
     buildTypes {

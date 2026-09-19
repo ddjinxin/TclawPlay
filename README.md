@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'd8fd8c2b-24fe-47f1-91d6-2d7e95a53fe7'
-  PropagateID: 'd8fd8c2b-24fe-47f1-91d6-2d7e95a53fe7'
-  ReservedCode1: 'ca833340-415c-4d88-8781-6e096fa849eb'
-  ReservedCode2: 'ca833340-415c-4d88-8781-6e096fa849eb'
+  ProduceID: 'fa2f323e-1ed7-46da-b453-402482257abd'
+  PropagateID: 'fa2f323e-1ed7-46da-b453-402482257abd'
+  ReservedCode1: '615789d4-69ab-404c-94e5-1ba01d32dbf5'
+  ReservedCode2: '615789d4-69ab-404c-94e5-1ba01d32dbf5'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,11 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.7.2)
+## 📢 最新版本 (v1.0.7.3)
+
+### v1.0.7.3 (2026-09)
+#### 优化
+- **竖屏非全屏歌词字号调大** — 当前行屏宽 6%（原 4.8%）、非当前行 4.5%（原 3.6%），与全屏模式当前行统一，横屏比例不变
 
 ### v1.0.7.2 (2026-09)
 #### 优化
@@ -142,7 +146,28 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.6.8)
+## 📢 Latest Version (v1.0.7.3)
+
+### v1.0.7.3 (2026-09)
+#### Improvements
+- **Portrait non-fullscreen lyrics font enlarged** — Current line 6% screen width (was 4.8%), other lines 4.5% (was 3.6%), matching fullscreen current line size; landscape ratios unchanged
+
+### v1.0.7.2 (2026-09)
+#### Improvements
+- **Player back button enlarged** — Top-left back button scaled up 30% in both orientations, padding unchanged
+- **Carousel orientation switch margin fix** — Cover position uses pure-ratio top bar height calculation, no longer depends on getHeight()
+- **Leco floating lyrics direction consistency** — Lyrics direction detection unified with song title data source
+
+### v1.0.7.1 (2026-09)
+#### Improvements
+- Portrait fullscreen lyrics font tiering — current line 6%, other lines 5%
+- Landscape fullscreen lyrics font unified with non-fullscreen
+- Player page dialogs scale with resolution
+
+#### Bug Fixes
+- Portrait lyrics font size mismatch with song title
+- Classic fullscreen → immersive mode lyrics residual
+- Classic fullscreen → record mode tonearm residual
 
 ### v1.0.6.8 (2026-09)
 #### New Features
@@ -464,6 +489,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 更新日志
 
+### v1.0.7.3 (2026-09)
+#### 优化
+- 竖屏非全屏歌词字号调大——当前行屏宽 6%（原 4.8%）、非当前行 4.5%（原 3.6%），横屏不变
+
 ### v1.0.7.2 (2026-09)
 #### 优化
 - 播放页返回按钮调大——横竖屏均放大 30%，内边距不变
@@ -647,7 +676,28 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.6.8)
+## 📢 Latest Version (v1.0.7.3)
+
+### v1.0.7.3 (2026-09)
+#### Improvements
+- **Portrait non-fullscreen lyrics font enlarged** — Current line 6% screen width (was 4.8%), other lines 4.5% (was 3.6%), matching fullscreen current line size; landscape ratios unchanged
+
+### v1.0.7.2 (2026-09)
+#### Improvements
+- **Player back button enlarged** — Top-left back button scaled up 30% in both orientations, padding unchanged
+- **Carousel orientation switch margin fix** — Cover position uses pure-ratio top bar height calculation, no longer depends on getHeight()
+- **Leco floating lyrics direction consistency** — Lyrics direction detection unified with song title data source
+
+### v1.0.7.1 (2026-09)
+#### Improvements
+- Portrait fullscreen lyrics font tiering — current line 6%, other lines 5%
+- Landscape fullscreen lyrics font unified with non-fullscreen
+- Player page dialogs scale with resolution
+
+#### Bug Fixes
+- Portrait lyrics font size mismatch with song title
+- Classic fullscreen → immersive mode lyrics residual
+- Classic fullscreen → record mode tonearm residual
 
 ### v1.0.6.8 (2026-09)
 #### New Features
@@ -924,6 +974,16 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.7.3 (2026-09)
+#### Improvements
+- Portrait non-fullscreen lyrics font enlarged — current line 6% screen width (was 4.8%), other lines 4.5% (was 3.6%); landscape unchanged
+
+### v1.0.7.2 (2026-09)
+#### Improvements
+- Player back button enlarged — scaled up 30% in both orientations, padding unchanged
+- Carousel orientation switch margin fix — pure-ratio top bar height calculation
+- Leco floating lyrics direction consistency
 
 ### v1.0.7.1 (2026-09)
 #### Improvements

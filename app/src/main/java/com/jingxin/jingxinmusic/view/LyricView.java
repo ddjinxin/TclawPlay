@@ -335,14 +335,17 @@ public class LyricView extends View {
         if (sceneSizingActive) return;
         
         float baseWidth = baseWidthForSize();
-        textSizeNormal = baseWidth * TEXT_SIZE_NORMAL_RATIO;
-        textSizeCurrent = baseWidth * TEXT_SIZE_CURRENT_RATIO;
+        boolean portrait = isPortraitScreen();
+        float currentRatio = portrait ? 0.06f : TEXT_SIZE_CURRENT_RATIO;
+        float normalRatio = portrait ? 0.045f : TEXT_SIZE_NORMAL_RATIO;
+        textSizeNormal = baseWidth * normalRatio;
+        textSizeCurrent = baseWidth * currentRatio;
         textSizeKaraoke = baseWidth * TEXT_SIZE_KARAOKE_RATIO;
         
         // 高度约束：横屏低高度时由 Scene 设置上限，竖屏不设（MAX_VALUE）
         if (maxTextSizeForHeight < Float.MAX_VALUE) {
             textSizeCurrent = Math.min(textSizeCurrent, maxTextSizeForHeight);
-            textSizeNormal = Math.min(textSizeNormal, maxTextSizeForHeight * (TEXT_SIZE_NORMAL_RATIO / TEXT_SIZE_CURRENT_RATIO));
+            textSizeNormal = Math.min(textSizeNormal, maxTextSizeForHeight * (normalRatio / currentRatio));
             textSizeKaraoke = Math.min(textSizeKaraoke, maxTextSizeForHeight * 1.25f);
         }
         
