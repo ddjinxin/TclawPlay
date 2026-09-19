@@ -73,8 +73,24 @@ public class LyricView extends View {
     private boolean sceneSizingActive = false;            // Scene 直接控制字号时为 true，跳过内部计算
     private int horizontalMarginPx = 0;                    // 左右 margin 之和（像素），竖屏字号基数需加回与歌名对齐
 
-    /** 屏幕方向判断：竖屏播放页里 LyricView 自身"宽矮"（高<宽），不能用宽高比判断 */
+    /** 渲染区域方向判断（与 PlayerFragment.detectAndApplyLandscapeMode 同源）：
+     *  悬浮模式下优先用乐酷悬浮区域尺寸；否则用本视图实际渲染区域；
+     *  判定规则统一：宽 > 高 × 1.1 为横屏。
+     *  注意不能用系统 Configuration：乐酷悬浮是覆盖窗口，系统方向恒为整屏方向，与悬浮区域方向无关 */
     private boolean isPortraitScreen() {
+        int w = viewWidth;
+        int h = viewHeight;
+        // 悬浮模式：优先取乐酷下发的悬浮区域尺寸
+        int floatW = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatWidth();
+        int floatH = com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().getFloatHeight();
+        if (floatW > 0 && floatH > 0) {
+            w = floatW;
+            h = floatH;
+        }
+        if (w > 0 && h > 0) {
+            return w <= h * 1.1f;
+        }
+        // 兜底：系统方向
         return getResources().getConfiguration().orientation
                 == android.content.res.Configuration.ORIENTATION_PORTRAIT;
     }

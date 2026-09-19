@@ -35,10 +35,11 @@ public class LandscapeCarouselScene extends AbstractCarouselScene {
         h.setLayoutInfoPanelFullWidth();
         // 显示封面占位，并预设高度防止闪跳（精确值在 layout() 中更新）
         h.coverPlaceholder.setVisibility(View.VISIBLE);
+        int estHeight = h.rootLayout.getHeight();
+        int estWidth = h.rootLayout.getWidth();
         int estimatedTopBarHeight = Math.max(
-                (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
-                        ? h.topButtonsBar.getHeight() : (int) (h.density * 48),
-                (int) (h.rootLayout.getHeight() * 0.06f));
+                h.calcTopBarHeight(estHeight, estWidth, true),
+                (int) (estHeight * 0.06f));
         int estimatedCoverSize = (int) (h.rootLayout.getHeight() * 0.28f);
         if (estimatedCoverSize > 0) {
             LinearLayout.LayoutParams placeholderParams =
@@ -77,10 +78,9 @@ public class LandscapeCarouselScene extends AbstractCarouselScene {
         // info_panel 全宽（轮播模式横竖屏统一！）
         h.setLayoutInfoPanelFullWidth();
         // === 全比例高度分配（适配低高度横屏） ===
-        // 顶部栏高度：6% 比例，但不小于实际按钮高度（避免遮挡）
-        int actualTopBarHeight = (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
-                ? h.topButtonsBar.getHeight() : (int) (h.density * 48);
-        int topBarHeight = Math.max(actualTopBarHeight, (int) (height * 0.06f));
+        // 顶部栏高度：纯比例计算（避免 getHeight() 读到旧值），不小于 6% 屏高
+        int calcTop = h.calcTopBarHeight(height, width, true);
+        int topBarHeight = Math.max(calcTop, (int) (height * 0.06f));
         // 歌名 topMargin：1.5% 比例
         int songNameMargin = Math.max(4, (int) (height * 0.015f));
         LinearLayout.LayoutParams nameParams =

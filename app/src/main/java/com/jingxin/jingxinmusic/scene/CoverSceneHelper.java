@@ -163,6 +163,20 @@ public class CoverSceneHelper {
      * 竖屏：返回按钮左对齐底部第一个按钮，右3按钮占35%宽度右对齐底部最后一个按钮
      * 横屏：返回按钮左对齐底部第一个按钮，右3按钮占35%宽度，右边距=左边距（对称）
      */
+
+    /**
+     * 纯比例计算顶部按钮栏高度（不依赖 getHeight()，避免横竖屏切换首帧读到旧值）
+     * = topMargin(systemTopInset + height×1%) + topBtnSize(按三档比例×aspectFactor×1.3)
+     */
+    public int calcTopBarHeight(int height, int width, boolean isLandscape) {
+        int topMargin = systemTopInset + Math.max(4, (int) (height * 0.01f));
+        float rBack = (height < 700) ? 0.048f : (height <= 1200) ? 0.055f : 0.060f;
+        float rBackTop = isLandscape ? rBack + 0.005f : rBack;
+        float aspectFactor = 1f + Math.max(0f, (width / (float) height - 1.78f) / 3f);
+        int topBtnSize = (int) (height * rBackTop * aspectFactor * 1.3f);
+        return topMargin + topBtnSize;
+    }
+
     public void applyButtonMargins(int height, int width, boolean isLandscape) {
         // 顶部 marginTop = 状态栏实际高度 + height × 1%（车机全屏无状态栏时 inset=0，不影响）
         int topMargin = systemTopInset + Math.max(4, (int) (height * 0.01f));
@@ -173,22 +187,32 @@ public class CoverSceneHelper {
         // 1. 按屏高像素分三档定基础比例（横屏顶部按钮在此基础上+0.5%，底部按钮不动）
         // 2. 宽高比修正系数: 以16:9(1.78)为基准, 超宽屏按钮高度补偿
         //    aspectFactor = 1 + max(0, (w/h - 1.78) / 3), 平滑过渡无跳变
+        // 底部按钮分三类比例：上一曲/下一曲 +21%（1.1×1.1）、播放暂停 +50%、其他不变
         float rBack, rRight, rPlay;
+        float rPrevNext;   // 上一曲/下一曲：普通按钮 × 1.21
+        float rPlayBig;     // 播放/暂停：原始播放比例 × 1.5（先×1.25再×1.2）
         if (height < 700) {
             rBack = 0.048f; rRight = 0.043f; rPlay = 0.058f;
+            rPrevNext = 0.048f * 1.21f;   // 0.05808
+            rPlayBig = 0.058f * 1.5f;     // 0.087
         } else if (height <= 1200) {
             rBack = 0.055f; rRight = 0.050f; rPlay = 0.067f;
+            rPrevNext = 0.055f * 1.21f;   // 0.06655
+            rPlayBig = 0.067f * 1.5f;     // 0.1005
         } else {
             rBack = 0.060f; rRight = 0.055f; rPlay = 0.075f;
+            rPrevNext = 0.060f * 1.21f;   // 0.0726
+            rPlayBig = 0.075f * 1.5f;     // 0.1125
         }
         // 横屏：返回按钮和右侧三按钮各+0.5%屏高，底部按钮维持原比例
         float rBackTop = isLandscape ? rBack + 0.005f : rBack;
         float rRightTop = isLandscape ? rRight + 0.005f : rRight;
         float aspectFactor = 1f + Math.max(0f, (width / (float) height - 1.78f) / 3f);
-        int topBtnSize = (int) (height * rBackTop * aspectFactor);
+        int topBtnSize = (int) (height * rBackTop * aspectFactor * 1.3f); // 返回按钮调大30%
         int topRightBtnSize = (int) (height * rRightTop * aspectFactor);
         int bottomBtnSize = (int) (height * rBack * aspectFactor);
-        int playBtnSize = (int) (height * rPlay * aspectFactor);
+        int prevNextBtnSize = (int) (height * rPrevNext * aspectFactor);
+        int playBtnSize = (int) (height * rPlayBig * aspectFactor);
 
         // 顶部按钮栏
         if (topButtonsBar != null) {
@@ -202,8 +226,8 @@ public class CoverSceneHelper {
         if (btnBack != null) {
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(topBtnSize, topBtnSize);
             btnBack.setLayoutParams(params);
-            btnBack.setPadding((int)(topBtnSize * 0.15f), (int)(topBtnSize * 0.15f),
-                    (int)(topBtnSize * 0.15f), (int)(topBtnSize * 0.15f));
+            int backPadding = (int)(topBtnSize / 1.3f * 0.15f);
+            btnBack.setPadding(backPadding, backPadding, backPadding, backPadding);
         }
 
         // 右侧3按钮组：占页面宽度35%
@@ -246,11 +270,16 @@ public class CoverSceneHelper {
         }
 
         // 底部按钮高度+padding
+        // padding 统一基于普通按钮尺寸，不随上一曲/下一曲/播放暂停的比例放大而变
+        // 这样放大的按钮图标区域 = 按钮高 - 固定padding，视觉上图标真正变大
         int bottomPadding6 = (int)(bottomBtnSize * 0.15f);  // 原 6dp 按钮
         int bottomPadding8 = (int)(bottomBtnSize * 0.20f);  // 原 8dp 按钮
-        resizeBottomButton(R.id.previous_button, bottomBtnSize, bottomPadding6);
-        resizeBottomButton(R.id.play_pause_button, playBtnSize, bottomPadding6);
-        resizeBottomButton(R.id.next_button, bottomBtnSize, bottomPadding6);
+        // 上一曲/下一曲 weight：竖屏=1.5（格子加宽，图标不被宽度钳制），横屏=1（保持原状）
+        float prevNextWeight = isLandscape ? 1f : 1.5f;
+        resizeBottomButton(R.id.previous_button, prevNextBtnSize, bottomPadding6, prevNextWeight);
+        // 播放键 weight：竖屏=2（格子宽度加倍，图标不被宽度钳制），横屏=1（保持原状）
+        resizeBottomButton(R.id.play_pause_button, playBtnSize, bottomPadding6, isLandscape ? 1f : 2f);
+        resizeBottomButton(R.id.next_button, prevNextBtnSize, bottomPadding6, prevNextWeight);
         resizeBottomButton(R.id.play_order_button, bottomBtnSize, bottomPadding6);
         resizeBottomButton(R.id.history_button, bottomBtnSize, bottomPadding8);
         resizeBottomButton(R.id.mode_button, bottomBtnSize, bottomPadding8);
@@ -259,10 +288,15 @@ public class CoverSceneHelper {
 
     /** 设置底部按钮高度和 padding */
     private void resizeBottomButton(int viewId, int size, int padding) {
+        resizeBottomButton(viewId, size, padding, 1f);
+    }
+
+    /** 设置底部按钮高度、padding、宽度权重（weight 越大分到的格子越宽） */
+    private void resizeBottomButton(int viewId, int size, int padding, float weight) {
         ImageView btn = rootLayout.findViewById(viewId);
         if (btn != null) {
             LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btn.getLayoutParams();
-            p.height = size; p.weight = 1;
+            p.height = size; p.weight = weight;
             btn.setLayoutParams(p);
             btn.setPadding(padding, padding, padding, padding);
         }

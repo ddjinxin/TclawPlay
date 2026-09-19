@@ -87,8 +87,7 @@ public class PortraitCarouselScene extends AbstractCarouselScene {
             h.lyricView.refreshTextSize();
         }
         // 轮播封面区域：在顶部按钮栏下方
-        int topBarHeight = (h.topButtonsBar != null && h.topButtonsBar.getHeight() > 0)
-                ? h.topButtonsBar.getHeight() : (int) (h.density * 56);
+        int topBarHeight = h.calcTopBarHeight(height, width, false);
         // 中间卡片尺寸：和经典模式封面一致，height * 25%
         int coverSize = (int) (height * 0.25f);
         // 轮播容器高度 = coverSize + 上下边距

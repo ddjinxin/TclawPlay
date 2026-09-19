@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '23aaebb5-8789-4b12-8fb4-b9db319f1776'
-  PropagateID: '23aaebb5-8789-4b12-8fb4-b9db319f1776'
-  ReservedCode1: '3830dae3-1f48-4825-b694-7d8b9842213b'
-  ReservedCode2: '3830dae3-1f48-4825-b694-7d8b9842213b'
+  ProduceID: 'd8fd8c2b-24fe-47f1-91d6-2d7e95a53fe7'
+  PropagateID: 'd8fd8c2b-24fe-47f1-91d6-2d7e95a53fe7'
+  ReservedCode1: 'ca833340-415c-4d88-8781-6e096fa849eb'
+  ReservedCode2: 'ca833340-415c-4d88-8781-6e096fa849eb'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,13 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.7.1)
+## 📢 最新版本 (v1.0.7.2)
+
+### v1.0.7.2 (2026-09)
+#### 优化
+- **播放页返回按钮调大** — 顶部左侧返回按钮横竖屏均放大 30%，内边距不变，其他按钮不受影响
+- **轮播模式横竖屏切换边距修复** — 封面位置改用纯比例计算顶栏高度，不再依赖 getHeight() 实时值，横屏轮播切竖屏首帧边距不再偏小
+- **乐酷悬浮区域歌词方向一致性** — 歌词方向判断与歌名统一数据源（悬浮时优先用悬浮区域宽高），修复悬浮区域模式下两者不一致的问题
 
 ### v1.0.7.1 (2026-09)
 #### 优化
@@ -457,6 +463,12 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.7.2 (2026-09)
+#### 优化
+- 播放页返回按钮调大——横竖屏均放大 30%，内边距不变
+- 轮播模式横竖屏切换边距修复——封面位置改用纯比例计算顶栏高度，横屏切竖屏首帧边距不再偏小
+- 乐酷悬浮区域歌词方向一致性——歌词方向判断与歌名统一数据源
 
 ### v1.0.7.1 (2026-09)
 #### 优化
@@ -912,6 +924,17 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.7.1 (2026-09)
+#### Improvements
+- Portrait fullscreen lyrics font tiering — current line 6% screen width, other lines 5%, clearer visual hierarchy
+- Landscape fullscreen lyrics font unified with non-fullscreen — current line 4.8%, other lines 3.6%
+- Player page dialogs (spectrum/lyrics search/history) scale with resolution, history converted to custom floating window
+
+#### Bug Fixes
+- Portrait lyrics font size mismatch with song title — base size adjusted to match by adding horizontal margin, orientation detection switched to Configuration
+- Classic fullscreen → immersive mode lyrics residual — immersive mode doesn't support fullscreen, auto-downgrades to multi-line
+- Classic fullscreen → record mode tonearm residual — auto-hide on enter, restore on exit
 
 ### v1.0.7.0 (2026-09)
 #### Improvements
