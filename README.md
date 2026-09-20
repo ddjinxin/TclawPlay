@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'f55855ea-1e4b-4695-b6d4-2e20b4a0eb8d'
-  PropagateID: 'f55855ea-1e4b-4695-b6d4-2e20b4a0eb8d'
-  ReservedCode1: 'c8188721-f616-45e8-bffd-01570fca2e4f'
-  ReservedCode2: 'c8188721-f616-45e8-bffd-01570fca2e4f'
+  ProduceID: 'db427cb9-975b-409e-870c-681f30dd3c3b'
+  PropagateID: 'db427cb9-975b-409e-870c-681f30dd3c3b'
+  ReservedCode1: '8f02506a-b293-4277-8e86-07e33320e84b'
+  ReservedCode2: '8f02506a-b293-4277-8e86-07e33320e84b'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,11 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.7.4)
+## 📢 最新版本 (v1.0.7.5)
+
+### v1.0.7.5 (2026-09)
+#### 修复
+- **Android 8.1 进入播放页闪退** — v1.0.7.4 进度条缩放使用 setMinHeight/setMaxHeight，该方法在部分 Android 8.1 ROM 上不存在导致崩溃；改用轨道 drawable 高度实现，全版本兼容
 
 ### v1.0.7.4 (2026-09)
 #### 优化
@@ -153,7 +157,11 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.7.4)
+## 📢 Latest Version (v1.0.7.5)
+
+### v1.0.7.5 (2026-09)
+#### Fix
+- **Android 8.1 player crash** — v1.0.7.4 progress bar scaling used setMinHeight/setMaxHeight, which does not exist on some Android 8.1 ROMs causing a crash; replaced with track drawable height, compatible with all versions
 
 ### v1.0.7.4 (2026-09)
 #### Improvements
@@ -690,7 +698,11 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.7.4)
+## 📢 Latest Version (v1.0.7.5)
+
+### v1.0.7.5 (2026-09)
+#### Fix
+- **Android 8.1 player crash** — v1.0.7.4 progress bar scaling used setMinHeight/setMaxHeight, which does not exist on some Android 8.1 ROMs causing a crash; replaced with track drawable height, compatible with all versions
 
 ### v1.0.7.4 (2026-09)
 #### Improvements

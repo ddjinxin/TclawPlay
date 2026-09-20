@@ -448,10 +448,12 @@ public class CoverSceneHelper {
         thumb.setSize(thumbSize, thumbSize);
         seekBar.setThumb(thumb);
         seekBar.setThumbOffset(thumbSize / 2);
-        // 轨道高度 = 屏高 × 0.5%
+        // 轨道高度 = 屏高 × 0.5%（setMinHeight 在 Android 8.1 不存在，改用 track drawable 高度）
         int trackHeight = Math.max(2, (int) (height * 0.005f * aspectFactor));
-        seekBar.setMinHeight(trackHeight);
-        seekBar.setMaxHeight(trackHeight);
+        android.graphics.drawable.Drawable trackDrawable = seekBar.getProgressDrawable();
+        if (trackDrawable != null) {
+            trackDrawable.setBounds(0, 0, seekBar.getWidth() > 0 ? seekBar.getWidth() : 1080, trackHeight);
+        }
         // 时间文字 = 屏高 × 2%
         float timeTextSize = height * 0.02f * aspectFactor;
         tvCurrentTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
