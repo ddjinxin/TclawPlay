@@ -135,6 +135,7 @@ public class AuroraGradientView extends View {
     public void setNightMode(boolean night) {
         if (isNightMode != night) {
             isNightMode = night;
+            lutDirty = true; // 日夜切换会改变白天提亮，需重建 LUT
             invalidate();
         }
     }
@@ -299,13 +300,37 @@ public class AuroraGradientView extends View {
             lutPixels2 = new int[LUT_SIZE * LUT_SIZE];
         }
 
-        // 椭圆1：alpha=0.45, firstColor
-        generateLUTInternal(lutPixels1, firstColor, 0.45f);
+        // 椭圆1：alpha=0.45, firstColor（白天模式提亮 20%、透明度降 10%）
+        generateLUTInternal(lutPixels1, getDisplayColor(firstColor), getDisplayAlpha(0.45f));
         lutBitmap1.setPixels(lutPixels1, 0, LUT_SIZE, 0, 0, LUT_SIZE, LUT_SIZE);
 
-        // 椭圆2：alpha=0.40, secondColor
-        generateLUTInternal(lutPixels2, secondColor, 0.40f);
+        // 椭圆2：alpha=0.40, secondColor（白天模式提亮 20%、透明度降 10%）
+        generateLUTInternal(lutPixels2, getDisplayColor(secondColor), getDisplayAlpha(0.40f));
         lutBitmap2.setPixels(lutPixels2, 0, LUT_SIZE, 0, 0, LUT_SIZE, LUT_SIZE);
+    }
+
+    /**
+     * 获取用于绘制的光晕颜色。
+     * 白天模式：亮度提升 20%（HSV 的 V 值 ×1.2，保留色相/饱和度），使光晕更明亮通透；
+     * 夜间模式：亮度降低 15%（HSV 的 V 值 ×0.85），使光晕更暗沉柔和。
+     */
+    private int getDisplayColor(int color) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        float v = hsv[2] * (isNightMode ? 0.85f : 1.2f);
+        if (v > 1f) v = 1f;
+        hsv[2] = v;
+        return Color.HSVToColor(Color.alpha(color), hsv);
+    }
+
+    /**
+     * 获取用于绘制的光晕透明度。
+     * 白天模式：透明度降低 10%（×0.9），使光晕更柔和淡雅；
+     * 夜间模式：使用原始透明度，不调整。
+     */
+    private float getDisplayAlpha(float alpha) {
+        if (isNightMode) return alpha;
+        return alpha * 0.9f;
     }
 
     /**
