@@ -237,4 +237,55 @@ public class CoverColorExtractor {
         c2[1] += 0.2f;
         c2[2] -= 0.04f;
     }
+
+    // ===== 歌词高亮色色相映射（1:1 移植 QQ 音乐 q() 方法） =====
+
+    /**
+     * 根据封面提取色，按色相区间映射到预定义歌词高亮色。
+     * 对应 QQ 音乐 LyricDropEffectPlayerInfoViewModel.q(color, isDay)。
+     *
+     * 白天（isDay=true）取浅色，夜间（isDay=false）取深色。
+     * 灰色或低饱和色返回 #E4E4E4。
+     *
+     * @param coverColor 封面提取的主色（ARGB）
+     * @param isDay      白天=true 用浅色，夜间=false 用深色
+     * @return 歌词高亮色（ARGB）
+     */
+    public static int getLyricHighlightColor(int coverColor, boolean isDay) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(coverColor, hsv);
+        float h = hsv[0];
+        float s = hsv[1];
+        float v = hsv[2];
+
+        // 灰色或极暗色 → 浅灰
+        if (s <= 0.05f || v <= 0.05f) {
+            return Color.parseColor("#E4E4E4");
+        }
+
+        int hue = (int) h;
+
+        if (hue >= 21 && hue < 76) {
+            return Color.parseColor(isDay ? "#FAD9AE" : "#D1984B");       // 橙黄
+        }
+        if (hue >= 76 && hue < 156) {
+            return Color.parseColor(isDay ? "#BEFAC2" : "#5FA764");       // 黄绿
+        }
+        if (hue >= 156 && hue < 191) {
+            return Color.parseColor(isDay ? "#BEF0FA" : "#2FB3CD");       // 青
+        }
+        if (hue >= 191 && hue < 257) {
+            return Color.parseColor(isDay ? "#BED4FA" : "#7FAAFF");       // 蓝
+        }
+        if (hue >= 257 && hue < 296) {
+            return Color.parseColor(isDay ? "#FABEF5" : "#B849AE");       // 紫
+        }
+        if (hue >= 296 && hue < 361) {
+            return Color.parseColor(isDay ? "#FFC7F2" : "#873E76");      // 品红
+        }
+        if (hue >= 1 && hue < 21) {
+            return Color.parseColor(isDay ? "#FFC7F2" : "#873E76");      // 红
+        }
+        return Color.parseColor("#E4E4E4");                               // 兜底
+    }
 }

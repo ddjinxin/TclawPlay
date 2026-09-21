@@ -274,6 +274,18 @@ public class LyricView extends View {
         paintHint.setColor(textColorNormal);
         invalidate();
     }
+
+    /** 双色光晕皮肤专用：按封面色相动态设置歌词高亮色（覆盖 setThemeMode 的自定义色） */
+    public void setHighlightColor(int color) {
+        textColorPlayed = color;
+        textColorCurrent = color;
+        invalidate();
+    }
+
+    /** 双色光晕皮肤专用：恢复为 setThemeMode 的自定义高亮色（切回默认皮肤时调用） */
+    public void restoreHighlightColor() {
+        setThemeMode(currentTheme);
+    }
     
     public void updatePosition(long positionMs) {
         this.currentPosition = positionMs;

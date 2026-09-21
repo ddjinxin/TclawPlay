@@ -134,6 +134,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private int coverStyle = COVER_STYLE_CLASSIC;
     private com.jingxin.jingxinmusic.view.AuroraGradientView auroraBackgroundView;
     private int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
+    private int lastAuroraCoverColor = 0; // 光晕模式最近一次封面提取色（用于日夜切换重新映射歌词色）
+    private volatile int coverColorToken = 0; // 封面取色竞态防护token，每次setCoverBitmap递增
     private TonearmView tonearmView;
     private boolean tonearmNeedsUpdate = false; // 标记唱臂需要更新（等封面 layout 完成后触发）
     private com.jingxin.jingxinmusic.view.ImmersiveOverlayView immersiveOverlay;
@@ -236,7 +238,12 @@ public class PlayerFragment extends BaseFloatFragment {
                                     com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT :
                                     com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
                         }
-                        updateThemeUI();
+                            // 双色光晕模式：日夜切换后重新映射歌词高亮色（QQ固定用深色）
+                            if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC && lyricView != null && lastAuroraCoverColor != 0) {
+                                int lyricColor = CoverColorExtractor.getLyricHighlightColor(lastAuroraCoverColor, false);
+                                lyricView.setHighlightColor(lyricColor);
+                            }
+                            updateThemeUI();
                     }
                 }
             } else if (ACTION_SERVICE_CLAIM.equals(action)) {
@@ -724,13 +731,20 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onResume() {
         super.onResume();
-        // 从设置页返回时重读背景皮肤，切换即时生效
+        // 从设置页返回时重读背景皮肤和封面风格，切换即时生效
         int savedBgSkin = SettingsFragment.getBgSkin(requireContext());
-        if (savedBgSkin != bgSkinMode) {
+        int savedCoverStyle = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC);
+        boolean skinOrStyleChanged = savedBgSkin != bgSkinMode || savedCoverStyle != coverStyle;
+        if (skinOrStyleChanged) {
             bgSkinMode = savedBgSkin;
+            coverStyle = savedCoverStyle;
             sceneHelper.bgSkinMode = bgSkinMode;
             sceneHelper.coverStyle = coverStyle;
             updateThemeUI();
+            // 不在「双色光晕+经典」组合时，恢复自定义歌词高亮色
+            if (!(bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC) && lyricView != null) {
+                lyricView.restoreHighlightColor();
+            }
             loadCover();
         }
         // 从列表页返回时同步主题（列表页可能切换了日夜模式）
@@ -741,6 +755,11 @@ public class PlayerFragment extends BaseFloatFragment {
             lyricView.setThemeMode(isNightMode
                     ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
                     : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
+            // 双色光晕模式：日夜切换后重新映射歌词高亮色（QQ固定用深色）
+            if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC && lyricView != null && lastAuroraCoverColor != 0) {
+                int lyricColor = CoverColorExtractor.getLyricHighlightColor(lastAuroraCoverColor, false);
+                lyricView.setHighlightColor(lyricColor);
+            }
         }
         // 频谱开关：关闭时隐藏频谱View并停止，开启时恢复
         boolean spectrumEnabled = SettingsFragment.isSpectrumEnabled(requireContext());
@@ -1491,15 +1510,27 @@ public class PlayerFragment extends BaseFloatFragment {
         currentScene.setCover(bitmap);
         // 通知 Service 更新 MediaSession metadata（含封面）
         notifyMetadataUpdate();
-        // 双色光晕模式（仅经典模式）：从封面提取双色，更新光晕 View
+        // 双色光晕模式（仅经典模式）：从封面提取双色，更新光晕 View + 歌词高亮色
         if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC && auroraBackgroundView != null) {
+            final int token = ++coverColorToken; // 每次取色递增token，回调时校验防竞态
             executor.execute(() -> {
                 try {
                     CoverColorExtractor.ColorPair colors = CoverColorExtractor.extract(bitmap);
+                    // token不匹配说明期间已切歌，丢弃本次结果
+                    if (token != coverColorToken) return;
+                    // 按封面第二色色相映射出歌词高亮色（QQ固定用深色，不分日夜）
+                    int lyricColor = CoverColorExtractor.getLyricHighlightColor(colors.bottom, false);
+                    lastAuroraCoverColor = colors.bottom;
                     if (!isActivityGone()) {
                         uiHandler.post(() -> {
+                            // 主线程再次校验token，确保最终应用的是最新歌曲的颜色
+                            if (token != coverColorToken) return;
                             if (auroraBackgroundView != null) {
                                 auroraBackgroundView.setColors(colors.top, colors.bottom);
+                            }
+                            // 再次检查当前仍为光晕+经典模式，防止异步期间用户切换了模式
+                            if (lyricView != null && bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC) {
+                                lyricView.setHighlightColor(lyricColor);
                             }
                         });
                     }
@@ -1732,6 +1763,10 @@ public class PlayerFragment extends BaseFloatFragment {
 
         syncSceneState();
         switchScene();
+        // 切换封面风格后，若不在「双色光晕+经典」组合则恢复自定义歌词高亮色
+        if (!(bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC) && lyricView != null) {
+            lyricView.restoreHighlightColor();
+        }
         int width = getLayoutWidth();
         int height = getAvailableScreenHeight();
         currentScene.layout(width, height);
@@ -2218,6 +2253,11 @@ public class PlayerFragment extends BaseFloatFragment {
             lyricView.setThemeMode(isNightMode
                     ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
                     : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
+        }
+        // 双色光晕模式：日夜切换后按新主题重新映射歌词高亮色（QQ固定用深色）
+        if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC && lyricView != null && lastAuroraCoverColor != 0) {
+            int lyricColor = CoverColorExtractor.getLyricHighlightColor(lastAuroraCoverColor, false);
+            lyricView.setHighlightColor(lyricColor);
         }
         android.widget.Toast.makeText(requireContext(), isNightMode ? "夜间模式" : "白天模式", android.widget.Toast.LENGTH_SHORT).show();
     }
