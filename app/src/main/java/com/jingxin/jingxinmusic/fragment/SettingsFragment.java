@@ -39,6 +39,9 @@ public class SettingsFragment extends BaseFloatFragment {
     public static final String KEY_LOCAL_COVER_PRIORITY = "local_cover_priority";
     public static final String KEY_LOCAL_LYRIC_PRIORITY = "local_lyric_priority";
     public static final String KEY_AUTO_RESUME = "auto_resume";
+    public static final String KEY_BG_SKIN = "bg_skin";
+    public static final int BG_SKIN_DEFAULT = 0;
+    public static final int BG_SKIN_AURORA = 1;
 
     // 歌词高亮颜色 preferences 存在 "theme" SharedPreferences 中
     public static final String KEY_DAY_LYRIC_COLOR = "day_lyric_color";
@@ -55,8 +58,10 @@ public class SettingsFragment extends BaseFloatFragment {
     private TextView[] styleTabs = new TextView[4];
     private int currentStyleIndex = 0;
     private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoTheme;
-    private TextView tvNightTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoThemeTitle;
-    private TextView tvNightDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoThemeDesc;
+    private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoThemeTitle;
+    private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoThemeDesc;
+    private TextView[] bgSkinTabs = new TextView[2];
+    private int currentBgSkinIndex = 0;
     private TextView tvDayStartLabel, tvDayStartValue, tvNightStartLabel, tvNightStartValue, tvTimeSeparator;
     private View timeSelectorRow;
     private TextView btnDayReset, btnNightReset;
@@ -111,6 +116,12 @@ public class SettingsFragment extends BaseFloatFragment {
                 .getBoolean(KEY_LOCAL_LYRIC_PRIORITY, true);
     }
 
+    /** 读取背景皮肤模式（默认0=默认模式） */
+    public static int getBgSkin(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(KEY_BG_SKIN, BG_SKIN_DEFAULT);
+    }
+
     /** 读取启动直达播放开关状态（默认开启） */
     public static boolean isAutoResumeEnabled(Context context) {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -144,6 +155,7 @@ public class SettingsFragment extends BaseFloatFragment {
         setupNightModeSwitch(view);
         setupAutoTheme(view);
         setupStyleSelector(view);
+        setupBgSkinSelector(view);
         setupFloatWindowSwitch(view);
         setupSpectrumSwitch(view);
         setupLocalCoverSwitch(view);
@@ -183,6 +195,8 @@ public class SettingsFragment extends BaseFloatFragment {
         styleTabs[1] = view.findViewById(R.id.style_tab_1);
         styleTabs[2] = view.findViewById(R.id.style_tab_2);
         styleTabs[3] = view.findViewById(R.id.style_tab_3);
+        bgSkinTabs[0] = view.findViewById(R.id.bg_skin_tab_0);
+        bgSkinTabs[1] = view.findViewById(R.id.bg_skin_tab_1);
         // 时间选择行的 TextView 提前到 initViews 初始化，确保 applyTheme 能覆盖颜色
         tvDayStartLabel = view.findViewById(R.id.tv_day_start_label);
         tvDayStartValue = view.findViewById(R.id.tv_day_start_value);
@@ -198,11 +212,11 @@ public class SettingsFragment extends BaseFloatFragment {
         int ts = secondaryColor();
         tvTitle.setTextColor(tc);
         // 刷新所有标题
-        TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvFloatTitle, tvSpectrumTitle,
+        TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle,
                 tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle};
         for (TextView t : titles) if (t != null) t.setTextColor(tc);
         // 刷新所有描述
-        TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvFloatDesc, tvSpectrumDesc,
+        TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc,
                 tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc};
         for (TextView d : descs) if (d != null) d.setTextColor(ts);
         // 时间选择行文字
@@ -210,6 +224,8 @@ public class SettingsFragment extends BaseFloatFragment {
         for (TextView t : timeTexts) if (t != null) t.setTextColor(ts);
         // 风格 tab 颜色
         updateStyleTabColors();
+        // 背景皮肤 tab 颜色
+        updateBgSkinTabColors();
         int divColor = isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider();
         View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7};
         for (View d : dividers) d.setBackgroundColor(divColor);
@@ -484,6 +500,39 @@ public class SettingsFragment extends BaseFloatFragment {
         }
     }
 
+    private void setupBgSkinSelector(View view) {
+        tvBgSkinTitle = view.findViewById(R.id.tv_bg_skin_title);
+        tvBgSkinDesc = view.findViewById(R.id.tv_bg_skin_desc);
+        applyItemTheme(tvBgSkinTitle, tvBgSkinDesc);
+
+        currentBgSkinIndex = getBgSkin(requireContext());
+        updateBgSkinTabColors();
+
+        for (int i = 0; i < 2; i++) {
+            final int index = i;
+            bgSkinTabs[i].setOnClickListener(v -> {
+                if (index == currentBgSkinIndex) return;
+                SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                prefs.edit().putInt(KEY_BG_SKIN, index).apply();
+                currentBgSkinIndex = index;
+                updateBgSkinTabColors();
+                String[] names = {"默认模式", "双色光晕"};
+                Toast.makeText(requireContext(), names[index], Toast.LENGTH_SHORT).show();
+            });
+        }
+    }
+
+    private void updateBgSkinTabColors() {
+        if (tvBgSkinTitle == null) return;
+        int activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
+        int inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
+        for (int i = 0; i < 2; i++) {
+            boolean selected = (i == currentBgSkinIndex);
+            bgSkinTabs[i].setTextColor(selected ? activeColor : inactiveColor);
+            bgSkinTabs[i].setTypeface(null, selected ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        }
+    }
+
     private void setupFloatWindowSwitch(View view) {
         switchFloat = view.findViewById(R.id.switch_float_window);
         tvFloatDesc = view.findViewById(R.id.tv_float_window_desc);
@@ -685,7 +734,7 @@ public class SettingsFragment extends BaseFloatFragment {
         // 各条目行 paddingVertical 12dp
         int itemPad = dpScaled(12);
         int[] itemIds = {R.id.item_scan_music, R.id.item_storage_permission, R.id.item_night_mode,
-                R.id.item_auto_theme, R.id.item_style, R.id.item_float_window, R.id.item_spectrum,
+                R.id.item_auto_theme, R.id.item_style, R.id.item_bg_skin, R.id.item_float_window, R.id.item_spectrum,
                 R.id.item_auto_resume, R.id.item_local_cover, R.id.item_local_lyric, R.id.item_lyric_color};
         for (int id : itemIds) {
             View item = mRootView.findViewById(id);
@@ -694,9 +743,9 @@ public class SettingsFragment extends BaseFloatFragment {
 
         // 条目标题 16sp、描述 12sp（含描述上边距 2dp）
         TextView[] titles = {tvScanTitle, tvStoragePermTitle, tvNightTitle, tvAutoThemeTitle, tvStyleTitle,
-                tvFloatTitle, tvSpectrumTitle, tvAutoResumeTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvLyricTitle};
+                tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvAutoResumeTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvLyricTitle};
         TextView[] descs = {tvScanDesc, tvStoragePermDesc, tvNightDesc, tvAutoThemeDesc, tvStyleDesc,
-                tvFloatDesc, tvSpectrumDesc, tvAutoResumeDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvLyricDesc};
+                tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvAutoResumeDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvLyricDesc};
         float titleSize = spScaled(16);
         float descSize = spScaled(12);
         for (TextView t : titles) if (t != null) t.setTextSize(TypedValue.COMPLEX_UNIT_PX, titleSize);
@@ -707,8 +756,8 @@ public class SettingsFragment extends BaseFloatFragment {
             p.topMargin = dpScaled(2);
             d.setLayoutParams(p);
         }
-        // 风格/歌词颜色描述下边距 8dp
-        for (TextView d : new TextView[]{tvStyleDesc, tvLyricDesc}) {
+        // 风格/背景皮肤/歌词颜色描述下边距 8dp
+        for (TextView d : new TextView[]{tvStyleDesc, tvBgSkinDesc, tvLyricDesc}) {
             if (d == null) continue;
             LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) d.getLayoutParams();
             p.bottomMargin = dpScaled(8);
@@ -745,6 +794,14 @@ public class SettingsFragment extends BaseFloatFragment {
         styleSelector.setLayoutParams(slp);
         float tabSize = spScaled(12);
         for (TextView tab : styleTabs) if (tab != null) tab.setTextSize(TypedValue.COMPLEX_UNIT_PX, tabSize);
+        // 背景皮肤选择条
+        LinearLayout bgSkinSelector = mRootView.findViewById(R.id.bg_skin_selector);
+        if (bgSkinSelector != null) {
+            LinearLayout.LayoutParams bslp = (LinearLayout.LayoutParams) bgSkinSelector.getLayoutParams();
+            bslp.height = dpScaled(36);
+            bgSkinSelector.setLayoutParams(bslp);
+        }
+        for (TextView tab : bgSkinTabs) if (tab != null) tab.setTextSize(TypedValue.COMPLEX_UNIT_PX, tabSize);
         for (int id : new int[]{R.id.day_color_bar, R.id.night_color_bar}) {
             View bar = mRootView.findViewById(id);
             LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) bar.getLayoutParams();

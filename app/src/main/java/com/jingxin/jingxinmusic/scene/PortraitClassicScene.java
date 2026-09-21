@@ -28,10 +28,12 @@ public class PortraitClassicScene implements CoverScene {
     public void enter() {
         // 隐藏沉浸相关 View
         h.hideImmersiveViews();
-        // 显示非沉浸遮罩
+        // 显示非沉浸遮罩（双色光晕+经典模式时跳过，由 updateThemeUI 统一管理）
         h.overlayView.setVisibility(View.GONE);
-        h.whiteOverlay.setVisibility(View.VISIBLE);
-        h.whiteOverlay.setAlpha(0.7f);
+        if (!(h.bgSkinMode == 1 && h.coverStyle == h.COVER_STYLE_CLASSIC)) {
+            h.whiteOverlay.setVisibility(View.VISIBLE);
+            h.whiteOverlay.setAlpha(0.7f);
+        }
         // 封面
         h.coverView.setVisibility(View.VISIBLE);
         setupCoverStyle();

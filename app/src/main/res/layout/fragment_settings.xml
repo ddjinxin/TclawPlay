@@ -364,6 +364,64 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- 背景皮肤选择 -->
+        <LinearLayout
+            android:id="@+id/item_bg_skin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingVertical="12dp">
+
+            <TextView
+                android:id="@+id/tv_bg_skin_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="背景皮肤"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/tv_bg_skin_desc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="选择播放页背景效果"
+                android:textSize="12sp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:id="@+id/bg_skin_selector"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:orientation="horizontal"
+                android:weightSum="2">
+
+                <TextView
+                    android:id="@+id/bg_skin_tab_0"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="默认模式"
+                    android:textSize="12sp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless" />
+
+                <TextView
+                    android:id="@+id/bg_skin_tab_1"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="双色光晕"
+                    android:textSize="12sp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless" />
+
+            </LinearLayout>
+        </LinearLayout>
+
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"

@@ -71,6 +71,9 @@ public class CoverSceneHelper {
     public boolean isNightMode;
     public boolean isPlaying;
     public boolean isLandscapeMode;
+    public int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
+    public static final int COVER_STYLE_CLASSIC = 0;
+    public int coverStyle = COVER_STYLE_CLASSIC;
     public MusicPlayerService.MusicPlayerBinder playerBinder;
     public CoverBorderGradientDrawable coverBorderGradient;
     public LandscapeGradientOverlay landscapeGradientOverlay;
@@ -471,6 +474,8 @@ public class CoverSceneHelper {
             coverView.setVisibility(android.view.View.VISIBLE);
         }
         coverView.setImageBitmap(bitmap);
+        // 双色光晕+经典模式：跳过模糊背景，由光晕 View 接管
+        if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC) return;
         blurBackground.setScaleType(ImageView.ScaleType.CENTER_CROP);
         executor.execute(() -> {
             Bitmap blurred = BlurUtil.blur(rootLayout.getContext(), bitmap, 10f);
@@ -664,6 +669,8 @@ public class CoverSceneHelper {
      * 轮播模式：仅更新模糊背景（封面由 carousel adapter 自行管理）
      */
     public void applyBlurBackground(Bitmap bitmap) {
+        // 双色光晕+经典模式：跳过模糊背景
+        if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC) return;
         blurBackground.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
         executor.execute(() -> {
             Bitmap blurred = com.jingxin.jingxinmusic.util.BlurUtil.blur(

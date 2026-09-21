@@ -57,6 +57,7 @@ import com.jingxin.jingxinmusic.util.HistoryManager;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.util.LyricFetcher;
 import com.jingxin.jingxinmusic.util.MusicScanner;
+import com.jingxin.jingxinmusic.util.CoverColorExtractor;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.LyricView;
 import com.jingxin.jingxinmusic.view.RotatingCoverView;
@@ -131,6 +132,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int COVER_STYLE_RECORD = 2;
     private static final int COVER_STYLE_CAROUSEL = 3;
     private int coverStyle = COVER_STYLE_CLASSIC;
+    private com.jingxin.jingxinmusic.view.AuroraGradientView auroraBackgroundView;
+    private int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
     private TonearmView tonearmView;
     private boolean tonearmNeedsUpdate = false; // 标记唱臂需要更新（等封面 layout 完成后触发）
     private com.jingxin.jingxinmusic.view.ImmersiveOverlayView immersiveOverlay;
@@ -274,6 +277,8 @@ public class PlayerFragment extends BaseFloatFragment {
 
             // 读缓存或扫描歌曲列表（不触发 triggerMediaScan）
             executor.execute(() -> {
+                // 同步播放模式图标（进程重启后服务已恢复持久化值，但不广播，需主动读取）
+                updatePlayOrderIcon(playerBinder.getPlayOrder());
                 allSongs = MusicScanner.loadCache(requireContext());
                 if (allSongs == null || allSongs.isEmpty()) {
                     allSongs = MusicScanner.scanMusic(requireContext());
@@ -424,6 +429,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
         // 初始化视图
         blurBackground = view.findViewById(R.id.blur_background);
+        auroraBackgroundView = view.findViewById(R.id.aurora_background);
          coverView = view.findViewById(R.id.cover_view);
          coverView.setBackgroundResource(R.drawable.circle_cover_background);
         tonearmView = view.findViewById(R.id.tonearm_view);
@@ -550,6 +556,9 @@ public class PlayerFragment extends BaseFloatFragment {
         Context ctx = requireContext();
         isNightMode = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE).getBoolean("isNight", true);
         coverStyle = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC);
+        bgSkinMode = SettingsFragment.getBgSkin(ctx);
+        sceneHelper.bgSkinMode = bgSkinMode; // 同步到 helper，确保 enter() 能正确判断
+        sceneHelper.coverStyle = coverStyle;
         // 在初始化场景前先检测横竖屏（OnGlobalLayoutListener是异步的，会太晚）
         detectAndApplyLandscapeMode();
         ThemeColors.init(ctx);
@@ -715,6 +724,15 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onResume() {
         super.onResume();
+        // 从设置页返回时重读背景皮肤，切换即时生效
+        int savedBgSkin = SettingsFragment.getBgSkin(requireContext());
+        if (savedBgSkin != bgSkinMode) {
+            bgSkinMode = savedBgSkin;
+            sceneHelper.bgSkinMode = bgSkinMode;
+            sceneHelper.coverStyle = coverStyle;
+            updateThemeUI();
+            loadCover();
+        }
         // 从列表页返回时同步主题（列表页可能切换了日夜模式）
         boolean savedNight = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).getBoolean("isNight", true);
         if (savedNight != isNightMode) {
@@ -1189,6 +1207,8 @@ public class PlayerFragment extends BaseFloatFragment {
                 mRootView.findViewById(R.id.right_buttons_group),
                 tonearmView,
                 getResources().getDisplayMetrics().density);
+        sceneHelper.bgSkinMode = bgSkinMode;
+        sceneHelper.coverStyle = coverStyle;
         sceneHelper.callback = new CoverSceneHelper.Callback() {
             @Override public void loadCover() { PlayerFragment.this.loadCover(); }
             @Override public void updateCoverPlaceholder() { PlayerFragment.this.updateCoverPlaceholder(); }
@@ -1275,6 +1295,10 @@ public class PlayerFragment extends BaseFloatFragment {
             }
             currentScene.enter();
             currentScene.onStyleEnter();
+            // 非经典+光晕模式：隐藏光晕 View，避免遮挡其他模式
+            if (!(bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC) && auroraBackgroundView != null) {
+                auroraBackgroundView.setVisibility(View.GONE);
+            }
             return true;
         }
         return false;
@@ -1289,6 +1313,8 @@ public class PlayerFragment extends BaseFloatFragment {
         sceneHelper.isLandscapeMode = isLandscapeMode;
         sceneHelper.playerBinder = playerBinder;
         sceneHelper.executor = executor;
+        sceneHelper.bgSkinMode = bgSkinMode;
+        sceneHelper.coverStyle = coverStyle;
         // 双向同步：helper可能由scene创建了实例，不能被activity的null覆盖
         if (coverBorderGradient != null) {
             sceneHelper.coverBorderGradient = coverBorderGradient;
@@ -1465,6 +1491,23 @@ public class PlayerFragment extends BaseFloatFragment {
         currentScene.setCover(bitmap);
         // 通知 Service 更新 MediaSession metadata（含封面）
         notifyMetadataUpdate();
+        // 双色光晕模式（仅经典模式）：从封面提取双色，更新光晕 View
+        if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC && auroraBackgroundView != null) {
+            executor.execute(() -> {
+                try {
+                    CoverColorExtractor.ColorPair colors = CoverColorExtractor.extract(bitmap);
+                    if (!isActivityGone()) {
+                        uiHandler.post(() -> {
+                            if (auroraBackgroundView != null) {
+                                auroraBackgroundView.setColors(colors.top, colors.bottom);
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "封面取色失败", e);
+                }
+            });
+        }
     }
 
     /**
@@ -2188,6 +2231,31 @@ public class PlayerFragment extends BaseFloatFragment {
         if (tonearmView != null) {
             tonearmView.setNightMode(isNightMode);
             tonearmView.setLandscapeMode(isLandscapeMode);
+        }
+
+        // 双色光晕模式（仅经典模式生效）：显示光晕 View，隐藏模糊封面和遮罩
+        if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC && auroraBackgroundView != null) {
+            auroraBackgroundView.setNightMode(isNightMode);
+            auroraBackgroundView.setVisibility(View.VISIBLE);
+            blurBackground.setVisibility(View.GONE);
+            immersiveOverlay.setVisibility(View.GONE);
+            whiteOverlay.setVisibility(View.GONE);
+            overlayView.setVisibility(View.GONE);
+            immersiveDarkOverlay.setVisibility(View.GONE);
+            // 文字和按钮颜色完全沿用原有日夜逻辑，不做任何改动
+            if (isNightMode) {
+                applyTextTheme(true);
+                applyButtonTheme(true);
+            } else {
+                applyTextTheme(false);
+                applyButtonTheme(false);
+            }
+            return;
+        }
+
+        // 非经典模式或默认皮肤：隐藏光晕 View
+        if (auroraBackgroundView != null) {
+            auroraBackgroundView.setVisibility(View.GONE);
         }
 
         if (coverStyle == COVER_STYLE_IMMERSIVE) {

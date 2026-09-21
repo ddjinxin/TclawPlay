@@ -5,6 +5,13 @@
     android:layout_height="match_parent"
     android:background="@color/player_bg">
 
+    <!-- 双色光晕背景（仅经典模式，默认隐藏） -->
+    <com.jingxin.jingxinmusic.view.AuroraGradientView
+        android:id="@+id/aurora_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
     <!-- 沉浸封面背景（封面原图铺满） -->
     <ImageView
         android:id="@+id/blur_background"

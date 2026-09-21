@@ -27,7 +27,7 @@ public class LandscapeClassicScene implements CoverScene {
     public void enter() {
         // 隐藏沉浸相关
         h.hideImmersiveViews();
-        // 非沉浸遮罩
+        // 非沉浸遮罩（由 updateThemeUI 统一管理，光晕模式会在那里分流）
         h.callback.updateThemeUI();
         // 封面显示
         h.coverView.setVisibility(View.VISIBLE);

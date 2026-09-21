@@ -251,6 +251,10 @@ public class MusicPlayerService extends Service {
     public void onCreate() {
         super.onCreate();
 
+        // 恢复上次播放模式（顺序/随机/单曲循环）
+        this.playOrder = getSharedPreferences("last_played", MODE_PRIVATE)
+                .getInt("play_order", PLAY_ORDER_SEQUENTIAL);
+
         notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         createNotificationChannel();
 
@@ -956,12 +960,13 @@ public class MusicPlayerService extends Service {
 
     private void setPlayOrder(int order) {
         this.playOrder = order;
+        // 持久化，重启后恢复播放模式
+        getSharedPreferences("last_played", MODE_PRIVATE).edit().putInt("play_order", order).apply();
         // 通知 UI
         Intent intent = new Intent(ACTION_PLAY_ORDER_CHANGED);
         intent.setPackage(getPackageName());
         intent.putExtra(EXTRA_PLAY_ORDER, order);
         sendBroadcast(intent);
-        String[] names = {"顺序播放", "随机播放", "单曲循环"};
     }
 
     // ========== MediaSession 更新 ==========
