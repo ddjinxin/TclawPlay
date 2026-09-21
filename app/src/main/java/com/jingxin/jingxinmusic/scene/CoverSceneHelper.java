@@ -73,6 +73,7 @@ public class CoverSceneHelper {
     public boolean isLandscapeMode;
     public int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
     public static final int COVER_STYLE_CLASSIC = 0;
+    public static final int COVER_STYLE_IMMERSIVE = 1;
     public int coverStyle = COVER_STYLE_CLASSIC;
     public MusicPlayerService.MusicPlayerBinder playerBinder;
     public CoverBorderGradientDrawable coverBorderGradient;
@@ -452,10 +453,17 @@ public class CoverSceneHelper {
         seekBar.setThumb(thumb);
         seekBar.setThumbOffset(thumbSize / 2);
         // 轨道高度 = 屏高 × 0.5%（setMinHeight 在 Android 8.1 不存在，改用 track drawable 高度）
+        // bounds 必须按系统 updateThumbAndTrackPos 同款公式垂直居中，
+        // 否则 top=0 会把轨道贴顶绘制，切换模式时与圆球错位（轨道上跳）
         int trackHeight = Math.max(2, (int) (height * 0.005f * aspectFactor));
         android.graphics.drawable.Drawable trackDrawable = seekBar.getProgressDrawable();
         if (trackDrawable != null) {
-            trackDrawable.setBounds(0, 0, seekBar.getWidth() > 0 ? seekBar.getWidth() : 1080, trackHeight);
+            int trackWidth = seekBar.getWidth() - seekBar.getPaddingLeft() - seekBar.getPaddingRight();
+            if (trackWidth <= 0) trackWidth = 1080;
+            int paddedHeight = seekBar.getHeight() - seekBar.getPaddingTop() - seekBar.getPaddingBottom();
+            int sysTrackHeight = Math.min(trackHeight, Math.max(0, paddedHeight));
+            int trackOffset = Math.max(0, (paddedHeight - sysTrackHeight) / 2);
+            trackDrawable.setBounds(0, trackOffset, trackWidth, trackOffset + sysTrackHeight);
         }
         // 时间文字 = 屏高 × 2%
         float timeTextSize = height * 0.02f * aspectFactor;
@@ -474,8 +482,8 @@ public class CoverSceneHelper {
             coverView.setVisibility(android.view.View.VISIBLE);
         }
         coverView.setImageBitmap(bitmap);
-        // 双色光晕+经典模式：跳过模糊背景，由光晕 View 接管
-        if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC) return;
+        // 双色光晕+非沉浸模式：跳过模糊背景，由光晕 View 接管
+        if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) return;
         blurBackground.setScaleType(ImageView.ScaleType.CENTER_CROP);
         executor.execute(() -> {
             Bitmap blurred = BlurUtil.blur(rootLayout.getContext(), bitmap, 10f);
@@ -669,8 +677,8 @@ public class CoverSceneHelper {
      * 轮播模式：仅更新模糊背景（封面由 carousel adapter 自行管理）
      */
     public void applyBlurBackground(Bitmap bitmap) {
-        // 双色光晕+经典模式：跳过模糊背景
-        if (bgSkinMode == 1 && coverStyle == COVER_STYLE_CLASSIC) return;
+        // 双色光晕+非沉浸模式：跳过模糊背景
+        if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) return;
         blurBackground.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
         executor.execute(() -> {
             Bitmap blurred = com.jingxin.jingxinmusic.util.BlurUtil.blur(

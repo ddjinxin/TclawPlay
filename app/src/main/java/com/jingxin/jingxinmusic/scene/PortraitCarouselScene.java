@@ -22,10 +22,12 @@ public class PortraitCarouselScene extends AbstractCarouselScene {
     public void enter() {
         // 隐藏沉浸相关 View
         h.hideImmersiveViews();
-        // 非沉浸遮罩
+        // 非沉浸遮罩（双色光晕+非沉浸模式跳过，由 updateThemeUI 统一管理）
         h.overlayView.setVisibility(View.GONE);
-        h.whiteOverlay.setVisibility(View.VISIBLE);
-        h.whiteOverlay.setAlpha(0.7f);
+        if (!(h.bgSkinMode == 1 && h.coverStyle != h.COVER_STYLE_IMMERSIVE)) {
+            h.whiteOverlay.setVisibility(View.VISIBLE);
+            h.whiteOverlay.setAlpha(0.7f);
+        }
         // 关键：rootLayout 不裁剪子View，叠加溢出可见
         h.rootLayout.setClipChildren(false);
         h.rootLayout.setClipToPadding(false);
