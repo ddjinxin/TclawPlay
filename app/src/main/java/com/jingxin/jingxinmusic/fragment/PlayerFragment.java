@@ -2264,6 +2264,8 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     private void updateThemeUI() {
+        // 同步日夜模式到 sceneHelper，确保 applyProgressScaling 创建圆球时颜色正确
+        if (sceneHelper != null) sceneHelper.isNightMode = isNightMode;
         // 频谱日夜模式
         if (spectrumView != null) {
             spectrumView.setNightMode(isNightMode);
@@ -2382,7 +2384,6 @@ public class PlayerFragment extends BaseFloatFragment {
             } else {
                 btnFavorite.clearColorFilter();
             }
-            applySeekBarThemeColor(ThemeColors.nightTextPrimary());
         } else {
             int buttonColor = ThemeColors.dayTextPrimary();
             for (ImageView btn : buttons) btn.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
@@ -2392,7 +2393,12 @@ public class PlayerFragment extends BaseFloatFragment {
             } else {
                 btnFavorite.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
             }
-            applySeekBarThemeColor(ThemeColors.dayTextPrimary());
+        }
+        // 光晕模式下用专用进度条配色，非光晕模式用原逻辑
+        if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) {
+            applyAuroraSeekBarTheme(isNight);
+        } else {
+            applySeekBarThemeColor(isNight ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());
         }
     }
 
@@ -2405,6 +2411,44 @@ public class PlayerFragment extends BaseFloatFragment {
                 if (bg != null) {
                     bg.setColorFilter(color, PorterDuff.Mode.SRC_IN);
                 }
+                // 清除光晕模式残留：progress 恢复默认黄色
+                Drawable progress = layerDrawable.findDrawableByLayerId(android.R.id.progress);
+                if (progress != null) {
+                    progress.clearColorFilter();
+                }
+            }
+            // 清除光晕模式残留：thumb 恢复默认黄色
+            Drawable thumb = seekBar.getThumb();
+            if (thumb != null) {
+                thumb.mutate().clearColorFilter();
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /** 中性浅灰轨道（光晕模式专用） */
+    private static final int AURORA_TRACK_GRAY = 0xFFC8C8C8;
+
+    /**
+     * 双色光晕模式专用：进度条已播放部分和圆球跟随按钮色（白天黑/夜间白），轨道浅灰
+     */
+    private void applyAuroraSeekBarTheme(boolean isNight) {
+        int accent = isNight ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
+        try {
+            Drawable progressDrawable = seekBar.getProgressDrawable().mutate();
+            if (progressDrawable instanceof LayerDrawable) {
+                LayerDrawable layerDrawable = (LayerDrawable) progressDrawable;
+                Drawable bg = layerDrawable.findDrawableByLayerId(android.R.id.background);
+                if (bg != null) {
+                    bg.setColorFilter(AURORA_TRACK_GRAY, PorterDuff.Mode.SRC_IN);
+                }
+                Drawable progress = layerDrawable.findDrawableByLayerId(android.R.id.progress);
+                if (progress != null) {
+                    progress.setColorFilter(accent, PorterDuff.Mode.SRC_IN);
+                }
+            }
+            Drawable thumb = seekBar.getThumb();
+            if (thumb != null) {
+                thumb.mutate().setColorFilter(accent, PorterDuff.Mode.SRC_IN);
             }
         } catch (Exception ignored) {}
     }

@@ -448,7 +448,12 @@ public class CoverSceneHelper {
         int thumbSize = Math.max(8, (int) (height * 0.02f * aspectFactor));
         GradientDrawable thumb = new GradientDrawable();
         thumb.setShape(GradientDrawable.OVAL);
-        thumb.setColor(Color.parseColor("#FFD54F"));
+        // 光晕模式：圆球跟随按钮色（白天黑/夜间白），其他模式保持黄色
+        if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) {
+            thumb.setColor(isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());
+        } else {
+            thumb.setColor(Color.parseColor("#FFD54F"));
+        }
         thumb.setSize(thumbSize, thumbSize);
         seekBar.setThumb(thumb);
         seekBar.setThumbOffset(thumbSize / 2);
