@@ -27,6 +27,7 @@ import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.util.MusicScanner;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.ThemeHelper;
+import com.jingxin.jingxinmusic.view.DynamicBgView;
 import com.jingxin.jingxinmusic.view.LyricColorBar;
 
 import java.util.List;
@@ -50,7 +51,10 @@ public class SettingsFragment extends BaseFloatFragment {
     public static final int DEFAULT_NIGHT_LYRIC_COLOR = 0xFFFFEB3B; // 默认夜间高亮黄色
 
     private boolean isNightMode;
+    private boolean dynamicBgEnabled = false;
     private ScrollView rootScroll;
+    private DynamicBgView dynamicBgView;
+    private View rootLayout;
     private TextView tvTitle;
     private LinearLayout topBar;
     private View dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7;
@@ -76,13 +80,15 @@ public class SettingsFragment extends BaseFloatFragment {
     private View mRootView;
     private float sf = 1f; // 比例缩放系数：1=保持原样
 
-    /** 设置项标题颜色：白天黑色，夜间白色 */
+    /** 设置项标题颜色 */
     private int titleColor() {
+        if (dynamicBgEnabled) return isNightMode ? 0xFFFFFFFF : 0xFF222222;
         return isNightMode ? 0xFFFFFFFF : 0xFF000000;
     }
 
     /** 设置项描述/次要文字颜色 */
     private int secondaryColor() {
+        if (dynamicBgEnabled) return isNightMode ? 0xFFAAAAAA : 0xFF666666;
         return isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary();
     }
 
@@ -147,6 +153,8 @@ public class SettingsFragment extends BaseFloatFragment {
 
         isNightMode = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE)
                 .getBoolean("isNight", true);
+        ThemeColors.init(requireContext());
+        dynamicBgEnabled = (ThemeColors.getStyleIndex() == 0);
 
         initViews(view);
         applyTheme();
@@ -180,6 +188,8 @@ public class SettingsFragment extends BaseFloatFragment {
     private void initViews(View view) {
         mRootView = view;
         rootScroll = view.findViewById(R.id.root_scroll);
+        rootLayout = view.findViewById(R.id.root_layout);
+        dynamicBgView = view.findViewById(R.id.dynamic_bg_view);
         tvTitle = view.findViewById(R.id.tv_title);
         topBar = view.findViewById(R.id.top_bar);
         dividerTop = view.findViewById(R.id.divider_top);
@@ -207,9 +217,22 @@ public class SettingsFragment extends BaseFloatFragment {
     }
 
     private void applyTheme() {
-        rootScroll.setBackground(ThemeColors.bgGradient(isNightMode));
+        if (dynamicBgEnabled) {
+            // 动态模式：DynamicBgView 底色+左下蒙版（无右上渐变）
+            dynamicBgView.setVisibility(View.VISIBLE);
+            dynamicBgView.setNightMode(isNightMode);
+            dynamicBgView.setGradientEnabled(false);
+            dynamicBgView.setTintColor(ThemeColors.getDominantColor());
+            rootScroll.setBackgroundColor(0x00000000);
+        } else {
+            dynamicBgView.setVisibility(View.GONE);
+            rootScroll.setBackground(ThemeColors.bgGradient(isNightMode));
+        }
         int tc = titleColor();
         int ts = secondaryColor();
+        int divColor = dynamicBgEnabled
+                ? (isNightMode ? 0xFF2A2A2E : 0xFFE0E0E0)
+                : (isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider());
         tvTitle.setTextColor(tc);
         // 刷新所有标题
         TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle,
@@ -226,13 +249,21 @@ public class SettingsFragment extends BaseFloatFragment {
         updateStyleTabColors();
         // 背景皮肤 tab 颜色
         updateBgSkinTabColors();
-        int divColor = isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider();
         View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7};
         for (View d : dividers) d.setBackgroundColor(divColor);
-        if (isNightMode) {
-            btnBack.clearColorFilter();
+        if (dynamicBgEnabled) {
+            // 动态模式：图标用黑白
+            if (isNightMode) {
+                btnBack.clearColorFilter();
+            } else {
+                btnBack.setColorFilter(0xFF222222, PorterDuff.Mode.SRC_IN);
+            }
         } else {
-            btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+            if (isNightMode) {
+                btnBack.clearColorFilter();
+            } else {
+                btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+            }
         }
         // 日夜变化时统一刷新全部开关颜色（初始化阶段未创建的开关自动跳过）
         applyAllSwitchTints();

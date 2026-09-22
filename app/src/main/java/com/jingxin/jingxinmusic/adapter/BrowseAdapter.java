@@ -50,6 +50,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
     private OnItemClickListener listener;
     private Context context;
     private boolean isNightMode = true;
+    private boolean dynamicBgMode = false;
     // 歌名字号：按屏高比例计算，横竖屏不同比例，下限=12sp等效像素
     private float itemNamePx = 0;
     private boolean itemFontSizeInited = false;
@@ -64,6 +65,10 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             this.isNightMode = night;
             notifyDataSetChanged();
         }
+    }
+
+    public void setDynamicBgMode(boolean dynamic) {
+        this.dynamicBgMode = dynamic;
     }
 
     // 封面加载
@@ -111,8 +116,10 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             holder.tvName.setText(displayName);
         }
 
-        // 名称文字颜色
-        holder.tvName.setTextColor(ThemeColors.themedColor(isNightMode, 0xFF333333, 0xFFDDDDDD));
+        // 名称文字颜色：动态模式白/黑，非动态模式原逻辑
+        holder.tvName.setTextColor(dynamicBgMode
+                ? (isNightMode ? 0xFFFFFFFF : 0xFF222222)
+                : ThemeColors.themedColor(isNightMode, 0xFF333333, 0xFFDDDDDD));
         // 名称字号：按屏高×2.5%，下限=12sp等效像素
         initItemFontSize();
         holder.tvName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, itemNamePx);

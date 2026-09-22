@@ -31,6 +31,7 @@ import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.WebDavCacheManager;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
 import com.jingxin.jingxinmusic.util.WebDavScanner;
+import com.jingxin.jingxinmusic.view.DynamicBgView;
 
 /**
  * WebDAV 设置页面 Fragment
@@ -43,9 +44,11 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
 
     private WebDavConfig config;
     private boolean isNightMode;
+    private boolean dynamicBgEnabled = false;
     private View rootView;
 
     private ScrollView rootScroll;
+    private DynamicBgView dynamicBgView;
     private LinearLayout contentLayout;
     private EditText etServerUrl;
     private EditText etUsername;
@@ -102,6 +105,7 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
 
     private void initViews(View view) {
         rootScroll = view.findViewById(R.id.root_scroll);
+        dynamicBgView = view.findViewById(R.id.dynamic_bg_view);
         contentLayout = view.findViewById(R.id.content_layout);
         etServerUrl = view.findViewById(R.id.et_server_url);
         etUsername = view.findViewById(R.id.et_username);
@@ -178,6 +182,7 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
         SharedPreferences themePrefs = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE);
         isNightMode = themePrefs.getBoolean("isNight", true);
         ThemeColors.init(requireContext());
+        dynamicBgEnabled = (ThemeColors.getStyleIndex() == 0);
 
         int textPrimary = isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
         int textSecondary = isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary();
@@ -185,8 +190,23 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
         int dividerColor = isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider();
         int hintColor = isNightMode ? 0xFF555570 : 0xFF999999;
 
-        // 背景渐变
-        rootScroll.setBackground(ThemeColors.bgGradient(isNightMode));
+        if (dynamicBgEnabled) {
+            // 动态模式：DynamicBgView 底色+左下蒙版（无右上渐变）
+            dynamicBgView.setVisibility(View.VISIBLE);
+            dynamicBgView.setNightMode(isNightMode);
+            dynamicBgView.setGradientEnabled(false);
+            dynamicBgView.setTintColor(ThemeColors.getDominantColor());
+            rootScroll.setBackgroundColor(0x00000000);
+            // 动态模式：文字黑白
+            textPrimary = isNightMode ? 0xFFFFFFFF : 0xFF222222;
+            textSecondary = isNightMode ? 0xFFAAAAAA : 0xFF666666;
+            textTertiary = isNightMode ? 0xFF888888 : 0xFF999999;
+            dividerColor = isNightMode ? 0xFF2A2A2E : 0xFFE0E0E0;
+            hintColor = isNightMode ? 0xFF555566 : 0xFF999999;
+        } else {
+            dynamicBgView.setVisibility(View.GONE);
+            rootScroll.setBackground(ThemeColors.bgGradient(isNightMode));
+        }
 
         // 标题
         tvTitle.setTextColor(textPrimary);

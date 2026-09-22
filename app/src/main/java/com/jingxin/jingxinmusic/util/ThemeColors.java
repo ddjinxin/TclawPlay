@@ -95,6 +95,49 @@ public class ThemeColors {
     /** 频谱选择弹窗普通文字色 */
     public static final int SPECTRUM_POPUP_NORMAL_TEXT = 0xFFCCCCCC;
 
+    // ========== 动态主色（封面取色） ==========
+
+    /** 当前封面提取的主色（ARGB），-1 表示未设置 */
+    private static int dominantColor = -1;
+
+    /** 封面提取的原始主色（查表前），-1 表示未设置 */
+    private static int rawDominantColor = -1;
+
+    /** 设置封面主色，-1 表示清除 */
+    public static void setDominantColor(int color) {
+        dominantColor = color;
+    }
+
+    /** 获取当前封面主色，-1 表示未设置 */
+    public static int getDominantColor() {
+        return dominantColor;
+    }
+
+    /** 是否已有动态主色 */
+    public static boolean hasDominantColor() {
+        return dominantColor != -1;
+    }
+
+    /** 清除动态主色 */
+    public static void clearDominantColor() {
+        dominantColor = -1;
+        rawDominantColor = -1;
+        cachedDynamicSource = -2;  // 动态 6 色缓存失效
+    }
+
+    /** 设置原始封面主色（查表前），同时使动态 6 色缓存失效 */
+    public static void setRawDominantColor(int color) {
+        rawDominantColor = color;
+        if (cachedDynamicSource != color) {
+            cachedDynamicSource = -2;  // 基色变化，缓存失效
+        }
+    }
+
+    /** 获取原始封面主色（查表前），-1 表示未设置 */
+    public static int getRawDominantColor() {
+        return rawDominantColor;
+    }
+
     // ========== 渐变 Drawable 工厂方法 ==========
 
     /** 主背景渐变 — 夜间从上到下微绿，白天左上奶白→右下柔青绿 */
@@ -139,6 +182,41 @@ public class ThemeColors {
                 GradientDrawable.Orientation.LEFT_RIGHT,
                 new int[]{ night ? currentStyle.nightMiniBg : currentStyle.dayMiniBg,
                            night ? currentStyle.nightMiniBgEnd : currentStyle.dayMiniBgEnd });
+    }
+
+    /**
+     * 动态主色背景渐变（QQ Music 全景声/高品质风格）
+     * 右上角主色 → 左下角透明，对角线方向（TR_BL）
+     * 夜间：主色压暗到 50%，满不透明度，终止色用极暗主色兜底（非纯透明）
+     * 白天：主色原色 + 70% 不透明度，终止色透明
+     * @param night 是否夜间模式
+     * @param color 封面提取的主色（ARGB）
+     * @return 对角线渐变 Drawable
+     */
+    public static GradientDrawable bgGradientDynamic(boolean night, int color) {
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
+        int startColor, endColor;
+        if (night) {
+            // 夜间：主色压暗 50%，满不透明；终止色=主色极暗兜底（非透明，保证底色有色彩感）
+            int dr = (int) (r * 0.5f);
+            int dg = (int) (g * 0.5f);
+            int db = (int) (b * 0.5f);
+            startColor = (0xFF << 24) | (dr << 16) | (dg << 8) | db;
+            // 终止色：再压暗一半，作为底色
+            int er = (int) (r * 0.12f);
+            int eg = (int) (g * 0.12f);
+            int eb = (int) (b * 0.12f);
+            endColor = (0xFF << 24) | (er << 16) | (eg << 8) | eb;
+        } else {
+            // 白天：主色原色 70% 不透明，终止色透明
+            startColor = (0xB3 << 24) | (r << 16) | (g << 8) | b;
+            endColor = 0x00000000;
+        }
+        return new GradientDrawable(
+                GradientDrawable.Orientation.TR_BL,
+                new int[]{ startColor, endColor });
     }
 
     // ========== 纯色获取方法 ==========
@@ -283,15 +361,73 @@ public class ThemeColors {
 
     /**
      * 获取文件夹卡片渐变Drawable
+     * 动态背景模式且有封面主色时：以主色为基色生成同色系 6 色循环；否则回退固定色表
      * @param index 文件夹位置（会自动 mod 6 循环）
      * @param night 是否夜间模式
      */
     public static GradientDrawable folderGradient(int index, boolean night) {
         int i = ((index % 6) + 6) % 6;  // 确保正数
+        // 动态模式：封面主色派生 6 色
+        if (rawDominantColor != -1) {
+            int[][] dynamic = dynamicFolderGradients(night);
+            if (dynamic != null) {
+                return new GradientDrawable(
+                        GradientDrawable.Orientation.TL_BR,
+                        new int[]{ dynamic[i][0], dynamic[i][1] });
+            }
+        }
         int styleIdx = currentStyleIndex;
         int[][] gradients = night ? NIGHT_FOLDER_GRADIENTS[styleIdx] : DAY_FOLDER_GRADIENTS[styleIdx];
         return new GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 new int[]{ gradients[i][0], gradients[i][1] });
+    }
+
+    /** 动态 6 色缓存（避免每次 onBind 重算 HSV） */
+    private static int[][] cachedDynamicDay = null;
+    private static int[][] cachedDynamicNight = null;
+    private static int cachedDynamicSource = -2;  // 基色标记，-2 表示无效
+
+    /**
+     * 以封面原始主色为基色派生同色系 6 组双色渐变
+     * 算法：HSV 空间 6 档色相微旋转（±12° 步进），白天降饱和提亮，夜间压暗压饱和
+     */
+    private static int[][] dynamicFolderGradients(boolean night) {
+        int base = rawDominantColor;
+        if (base == -1) return null;
+        if (cachedDynamicSource == base && cachedDynamicDay != null && cachedDynamicNight != null) {
+            return night ? cachedDynamicNight : cachedDynamicDay;
+        }
+        float[] hsv = new float[3];
+        android.graphics.Color.colorToHSV(base, hsv);
+        float h = hsv[0], s = hsv[1], v = hsv[2];
+        int[][] day = new int[6][2];
+        int[][] nightTable = new int[6][2];
+        for (int i = 0; i < 6; i++) {
+            // 6 档色相旋转：-30° ~ +30°，12° 步进
+            float hi = (h + (i - 2.5f) * 12f + 360f) % 360f;
+            // 白天：低饱和柔和（0.15~0.225），亮度偏高（0.82~0.92）
+            float sDay = clamp(s * 0.55f * 0.5f, 0.15f, 0.225f);
+            float vDay = 0.86f - i * 0.015f;
+            int cDay1 = android.graphics.Color.HSVToColor(new float[]{hi, sDay, vDay});
+            int cDay2 = android.graphics.Color.HSVToColor(new float[]{hi, sDay * 1.15f, vDay - 0.10f});
+            day[i][0] = cDay1;
+            day[i][1] = cDay2;
+            // 夜间：同色相深色（亮度 0.16~0.26，饱和度 0.175~0.25）
+            float sNight = clamp(s * 0.7f * 0.5f, 0.175f, 0.25f);
+            float vNight = 0.24f - i * 0.012f;
+            int cNight1 = android.graphics.Color.HSVToColor(new float[]{hi, sNight, vNight});
+            int cNight2 = android.graphics.Color.HSVToColor(new float[]{hi, sNight * 1.1f, vNight + 0.07f});
+            nightTable[i][0] = cNight1;
+            nightTable[i][1] = cNight2;
+        }
+        cachedDynamicDay = day;
+        cachedDynamicNight = nightTable;
+        cachedDynamicSource = base;
+        return night ? nightTable : day;
+    }
+
+    private static float clamp(float v, float min, float max) {
+        return Math.min(Math.max(v, min), max);
     }
 }

@@ -31,6 +31,7 @@ import com.jingxin.jingxinmusic.util.BiliApi;
 import com.jingxin.jingxinmusic.util.BiliConfig;
 import com.jingxin.jingxinmusic.util.HttpUtil;
 import com.jingxin.jingxinmusic.util.ThemeColors;
+import com.jingxin.jingxinmusic.view.DynamicBgView;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -49,10 +50,12 @@ public class BiliSettingsFragment extends BaseFloatFragment {
 
     private BiliConfig config;
     private boolean isNightMode;
+    private boolean dynamicBgEnabled = false;
     private View rootView;
 
     // 根布局
     private ScrollView rootScroll;
+    private DynamicBgView dynamicBgView;
 
     // 未登录区域
     private LinearLayout layoutLogin;
@@ -94,6 +97,8 @@ public class BiliSettingsFragment extends BaseFloatFragment {
         config = new BiliConfig(requireContext());
         isNightMode = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE)
                 .getBoolean("isNight", true);
+        ThemeColors.init(requireContext());
+        dynamicBgEnabled = (ThemeColors.getStyleIndex() == 0);
 
         initViews(view);
         applyTheme();
@@ -135,6 +140,7 @@ public class BiliSettingsFragment extends BaseFloatFragment {
 
     private void initViews(View view) {
         rootScroll = view.findViewById(R.id.root_scroll);
+        dynamicBgView = view.findViewById(R.id.dynamic_bg_view);
 
         // 未登录
         layoutLogin = view.findViewById(R.id.layout_login);
@@ -178,12 +184,25 @@ public class BiliSettingsFragment extends BaseFloatFragment {
 
     private void applyTheme() {
         if (rootView == null) return;
-        int bgColor = isNightMode ? ThemeColors.nightBg() : ThemeColors.dayBg();
         int textColor = isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
         int subTextColor = isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary();
         int dividerColor = isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider();
 
-        rootScroll.setBackgroundColor(bgColor);
+        if (dynamicBgEnabled) {
+            // 动态模式：DynamicBgView 底色+左下蒙版（无右上渐变）
+            dynamicBgView.setVisibility(View.VISIBLE);
+            dynamicBgView.setNightMode(isNightMode);
+            dynamicBgView.setGradientEnabled(false);
+            dynamicBgView.setTintColor(ThemeColors.getDominantColor());
+            rootScroll.setBackgroundColor(0x00000000);
+            textColor = isNightMode ? 0xFFFFFFFF : 0xFF222222;
+            subTextColor = isNightMode ? 0xFFAAAAAA : 0xFF666666;
+            dividerColor = isNightMode ? 0xFF2A2A2E : 0xFFE0E0E0;
+        } else {
+            dynamicBgView.setVisibility(View.GONE);
+            rootScroll.setBackgroundColor(isNightMode ? ThemeColors.nightBg() : ThemeColors.dayBg());
+        }
+
         tvTitle.setTextColor(textColor);
         dividerTop.setBackgroundColor(dividerColor);
 

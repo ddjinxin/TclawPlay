@@ -57,10 +57,15 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     // 主题（只设字段，不触发 notifyDataSetChanged）
     private boolean isNightMode = true;
+    private boolean dynamicBgMode = false;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public void setNightMode(boolean night) {
         isNightMode = night;
+    }
+
+    public void setDynamicBgMode(boolean dynamic) {
+        dynamicBgMode = dynamic;
     }
 
     // ========== 封面文件工具 ==========
@@ -282,11 +287,13 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         holder.tvCount.setText(fi.songs.size() + " 首");
         // 箭头旋转
         holder.ivArrow.setRotation(fi.expanded ? 90 : 0);
-        // 主题颜色
-        holder.itemView.setBackgroundColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayItemBg(), ThemeColors.nightItemBg()));
-        holder.tvName.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextPrimary(), ThemeColors.nightTextPrimary()));
-        holder.tvCount.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary()));
-        holder.ivArrow.setColorFilter(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary()));
+        // 主题颜色：动态模式透明背景+白/黑文字
+        holder.itemView.setBackgroundColor(dynamicBgMode ? 0x00000000 : ThemeColors.themedColor(isNightMode, ThemeColors.dayItemBg(), ThemeColors.nightItemBg()));
+        int titleClr = dynamicBgMode ? (isNightMode ? 0xFFFFFFFF : 0xFF222222) : ThemeColors.themedColor(isNightMode, ThemeColors.dayTextPrimary(), ThemeColors.nightTextPrimary());
+        int subClr = dynamicBgMode ? (isNightMode ? 0x99FFFFFF : 0x99222222) : ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary());
+        holder.tvName.setTextColor(titleClr);
+        holder.tvCount.setTextColor(subClr);
+        holder.ivArrow.setColorFilter(subClr);
         // 封面：内嵌封面 → 本地缓存文件 → 在线获取
         holder.ivCover.setImageResource(R.drawable.bg_folder_cover);
         Bitmap localCover = null;
@@ -330,11 +337,14 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         holder.tvTitle.setText(song.title);
         holder.tvArtist.setText(song.artist);
         holder.tvDuration.setText(Song.formatDuration(song.duration));
-        // 主题颜色
-        holder.itemView.setBackgroundColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayItemBg(), ThemeColors.nightItemBg()));
-        holder.tvTitle.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextPrimary(), ThemeColors.nightTextPrimary()));
-        holder.tvArtist.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary()));
-        holder.tvDuration.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextTertiary()));
+        // 主题颜色：动态模式透明背景+白/黑文字
+        holder.itemView.setBackgroundColor(dynamicBgMode ? 0x00000000 : ThemeColors.themedColor(isNightMode, ThemeColors.dayItemBg(), ThemeColors.nightItemBg()));
+        int titleClr = dynamicBgMode ? (isNightMode ? 0xFFFFFFFF : 0xFF222222) : ThemeColors.themedColor(isNightMode, ThemeColors.dayTextPrimary(), ThemeColors.nightTextPrimary());
+        int subClr = dynamicBgMode ? (isNightMode ? 0x99FFFFFF : 0x99222222) : ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary());
+        int durClr = dynamicBgMode ? (isNightMode ? 0x66FFFFFF : 0x66222222) : ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextTertiary());
+        holder.tvTitle.setTextColor(titleClr);
+        holder.tvArtist.setTextColor(subClr);
+        holder.tvDuration.setTextColor(durClr);
         holder.itemView.setOnClickListener(v -> {
             if (songListener != null) songListener.onSongClick(song);
         });

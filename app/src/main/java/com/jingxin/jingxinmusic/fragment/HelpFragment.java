@@ -22,17 +22,22 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.util.MagicColor;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.UpdateHelper;
+import com.jingxin.jingxinmusic.view.DynamicBgView;
 
 public class HelpFragment extends BaseFloatFragment {
 
     private boolean isNightMode;
+    private boolean dynamicBgEnabled = false;
     private LinearLayout helpContent;
     private TextView tvTitle, tvVersion;
     private View dividerTop;
     private ScrollView rootScroll;
     private ImageView btnBack, btnSettings;
+    private DynamicBgView dynamicBgView;
+    private View rootLayout;
     private float density;
     private View mRootView;
     private float sf = 1f; // 比例缩放系数：1=保持原样
@@ -46,6 +51,8 @@ public class HelpFragment extends BaseFloatFragment {
         isNightMode = requireContext().getSharedPreferences("theme", android.content.Context.MODE_PRIVATE)
                 .getBoolean("isNight", true);
         mRootView = view;
+        ThemeColors.init(requireContext());
+        dynamicBgEnabled = (ThemeColors.getStyleIndex() == 0);
         computeScaleFactor(); // 布局前以悬浮区域/屏幕尺寸计算，帮助内容按此缩放
 
         initViews(view);
@@ -82,6 +89,8 @@ public class HelpFragment extends BaseFloatFragment {
 
     private void initViews(View view) {
         rootScroll = view.findViewById(R.id.root_scroll);
+        rootLayout = view.findViewById(R.id.root_layout);
+        dynamicBgView = view.findViewById(R.id.dynamic_bg_view);
         helpContent = view.findViewById(R.id.help_content);
         tvTitle = view.findViewById(R.id.tv_title);
         dividerTop = view.findViewById(R.id.divider_top);
@@ -103,19 +112,43 @@ public class HelpFragment extends BaseFloatFragment {
     }
 
     private void applyTheme() {
-        rootScroll.setBackground(ThemeColors.bgGradient(isNightMode));
-        if (isNightMode) {
-            tvTitle.setTextColor(ThemeColors.nightTextPrimary());
-            dividerTop.setBackgroundColor(ThemeColors.nightDivider());
-            tvVersion.setTextColor(ThemeColors.nightTextTertiary());
-            btnBack.clearColorFilter();
-            btnSettings.clearColorFilter();
+        if (dynamicBgEnabled) {
+            // 动态模式：DynamicBgView 底色+左下蒙版（无右上渐变），文字黑白
+            dynamicBgView.setVisibility(View.VISIBLE);
+            dynamicBgView.setNightMode(isNightMode);
+            dynamicBgView.setGradientEnabled(false);
+            dynamicBgView.setTintColor(ThemeColors.getDominantColor());
+            rootScroll.setBackgroundColor(0x00000000);
+            int tc = isNightMode ? 0xFFFFFFFF : 0xFF222222;
+            int ts = isNightMode ? 0xFFAAAAAA : 0xFF666666;
+            int td = isNightMode ? 0xFF2A2A2E : 0xFFE0E0E0;
+            tvTitle.setTextColor(tc);
+            dividerTop.setBackgroundColor(td);
+            tvVersion.setTextColor(ts);
+            if (isNightMode) {
+                btnBack.clearColorFilter();
+                btnSettings.clearColorFilter();
+            } else {
+                btnBack.setColorFilter(tc, PorterDuff.Mode.SRC_IN);
+                btnSettings.setColorFilter(tc, PorterDuff.Mode.SRC_IN);
+            }
         } else {
-            tvTitle.setTextColor(ThemeColors.dayTextPrimary());
-            dividerTop.setBackgroundColor(ThemeColors.dayDivider());
-            tvVersion.setTextColor(ThemeColors.dayTextSecondary());
-            btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
-            btnSettings.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+            // 非动态模式：原 ThemeColors 渐变背景
+            dynamicBgView.setVisibility(View.GONE);
+            rootScroll.setBackground(ThemeColors.bgGradient(isNightMode));
+            if (isNightMode) {
+                tvTitle.setTextColor(ThemeColors.nightTextPrimary());
+                dividerTop.setBackgroundColor(ThemeColors.nightDivider());
+                tvVersion.setTextColor(ThemeColors.nightTextTertiary());
+                btnBack.clearColorFilter();
+                btnSettings.clearColorFilter();
+            } else {
+                tvTitle.setTextColor(ThemeColors.dayTextPrimary());
+                dividerTop.setBackgroundColor(ThemeColors.dayDivider());
+                tvVersion.setTextColor(ThemeColors.dayTextSecondary());
+                btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+                btnSettings.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+            }
         }
     }
 
@@ -129,10 +162,10 @@ public class HelpFragment extends BaseFloatFragment {
 
     // ========== 帮助内容 ==========
 
-    private int textColor() { return isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary(); }
-    private int secColor() { return isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary(); }
-    private int accentColor() { return isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive(); }
-    private int divColor() { return isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider(); }
+    private int textColor() { return dynamicBgEnabled ? (isNightMode ? 0xFFFFFFFF : 0xFF222222) : (isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary()); }
+    private int secColor() { return dynamicBgEnabled ? (isNightMode ? 0xFFAAAAAA : 0xFF666666) : (isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary()); }
+    private int accentColor() { return dynamicBgEnabled ? (isNightMode ? 0xFFFFFFFF : 0xFF222222) : (isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive()); }
+    private int divColor() { return dynamicBgEnabled ? (isNightMode ? 0xFF2A2A2E : 0xFFE0E0E0) : (isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider()); }
 
     private void addSection(String title) {
         TextView tv = new TextView(requireContext());

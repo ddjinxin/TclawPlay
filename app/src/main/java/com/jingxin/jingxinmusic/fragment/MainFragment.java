@@ -28,6 +28,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageView;
+import com.jingxin.jingxinmusic.view.DynamicBgView;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -89,11 +90,12 @@ public class MainFragment extends BaseFloatFragment {
     private ImageView btnClose;
     private ImageView btnHelp;
     private View rootLayout;
+    private DynamicBgView dynamicBgView;
     private View tabBar;
     private View titleBar;
     private int systemTopInset = 0;
-    private View tabDivider1;
-    private View tabDivider2;
+    private View tabIndicator;
+    private View tabBottomLine;
     private View indicatorLocal;
     private View indicatorCloud;
     private View indicatorBili;
@@ -105,11 +107,16 @@ public class MainFragment extends BaseFloatFragment {
     private RecyclerView rvList;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    // Tab views
-    private TextView tabLocal;
-    private TextView tabCloud;
-    private TextView tabBili;
-    private TextView tabFavorite;
+    // Tab views（LinearLayout 容器）
+    private View tabLocal;
+    private View tabCloud;
+    private View tabBili;
+    private View tabFavorite;
+    // Tab 子文字（小标题 + 大标题）
+    private TextView tabLocalTop, tabLocalTitle;
+    private TextView tabCloudTop, tabCloudTitle;
+    private TextView tabBiliTop, tabBiliTitle;
+    private TextView tabFavoriteTop, tabFavoriteTitle;
 
     // Browse area
     private View browseArea;
@@ -198,6 +205,9 @@ public class MainFragment extends BaseFloatFragment {
     private MusicPlayerBinder playerBinder;
     private boolean bound = false;
 
+    // 动态主色背景：是否已启用（仅春意盎然风格）
+    private boolean dynamicBgEnabled = false;
+
     // 监听播放状态变化的广播接收器
     private BroadcastReceiver playStateReceiver = new BroadcastReceiver() {
         @Override
@@ -212,6 +222,10 @@ public class MainFragment extends BaseFloatFragment {
                 if (shimmerAnimator != null && !shimmerAnimator.isRunning()) shimmerAnimator.start();
                 loadMiniCover(title, artist);
                 startCoverRotation();
+                // 春意盎然风格：提取封面主色更新首页背景
+                if (dynamicBgEnabled) {
+                    extractAndApplyMagicBgColor(title, artist);
+                }
             } else if (MusicPlayerService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
                 miniPlayPause.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play);
@@ -348,6 +362,7 @@ public class MainFragment extends BaseFloatFragment {
         ivAppIcon = view.findViewById(R.id.iv_app_icon);
         etSearch = view.findViewById(R.id.et_search);
         rootLayout = view.findViewById(R.id.root_layout);
+        dynamicBgView = view.findViewById(R.id.dynamic_bg_view);
         tabBar = view.findViewById(R.id.tab_bar);
         titleBar = view.findViewById(R.id.title_bar);
 
@@ -364,8 +379,8 @@ public class MainFragment extends BaseFloatFragment {
             }
             return insets;
         });
-        tabDivider1 = view.findViewById(R.id.tab_divider_1);
-        tabDivider2 = view.findViewById(R.id.tab_divider_2);
+        tabIndicator = view.findViewById(R.id.tab_indicator);
+        tabBottomLine = view.findViewById(R.id.tab_bottom_line);
         indicatorLocal = view.findViewById(R.id.indicator_local);
         indicatorCloud = view.findViewById(R.id.indicator_cloud);
         indicatorBili = view.findViewById(R.id.indicator_bili);
@@ -426,6 +441,14 @@ public class MainFragment extends BaseFloatFragment {
         tabCloud = view.findViewById(R.id.tab_cloud);
         tabBili = view.findViewById(R.id.tab_bili);
         tabFavorite = view.findViewById(R.id.tab_favorite);
+        tabLocalTop = view.findViewById(R.id.tab_local_top);
+        tabLocalTitle = view.findViewById(R.id.tab_local_title);
+        tabCloudTop = view.findViewById(R.id.tab_cloud_top);
+        tabCloudTitle = view.findViewById(R.id.tab_cloud_title);
+        tabBiliTop = view.findViewById(R.id.tab_bili_top);
+        tabBiliTitle = view.findViewById(R.id.tab_bili_title);
+        tabFavoriteTop = view.findViewById(R.id.tab_favorite_top);
+        tabFavoriteTitle = view.findViewById(R.id.tab_favorite_title);
 
         webDavConfig = new WebDavConfig(ctx);
 
@@ -483,6 +506,19 @@ public class MainFragment extends BaseFloatFragment {
                 });
 
         updateThemeUI();
+
+        // 春意盎然风格：如果有当前播放歌曲，提取主色
+        checkDynamicBgStyle();
+        if (dynamicBgEnabled) {
+            view.post(() -> {
+                if (!isActivityGone() && bound && playerBinder != null) {
+                    Song currentSong = playerBinder.getCurrentSong();
+                    if (currentSong != null && currentSong.title != null) {
+                        extractAndApplyMagicBgColor(currentSong.title, currentSong.artist);
+                    }
+                }
+            });
+        }
 
         // 首次进入时如果横屏，立即应用比例布局
         view.post(() -> {
@@ -818,23 +854,52 @@ public class MainFragment extends BaseFloatFragment {
 
     private void updateTabUI() {
         int mode = currentTab;
-        int activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
-        int inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
-        tabLocal.setTextColor(mode == 0 ? activeColor : inactiveColor);
-        tabLocal.setTypeface(null, mode == 0 ? Typeface.BOLD : Typeface.NORMAL);
-        tabCloud.setTextColor(mode == 1 ? activeColor : inactiveColor);
-        tabCloud.setTypeface(null, mode == 1 ? Typeface.BOLD : Typeface.NORMAL);
-        tabBili.setTextColor(mode == 2 ? activeColor : inactiveColor);
-        tabBili.setTypeface(null, mode == 2 ? Typeface.BOLD : Typeface.NORMAL);
-        tabFavorite.setTextColor(mode == 3 ? activeColor : inactiveColor);
-        tabFavorite.setTypeface(null, mode == 3 ? Typeface.BOLD : Typeface.NORMAL);
+        boolean useDynamic = dynamicBgEnabled;
+        // Tab 颜色：白天用查表深色列（白底上要够深），夜间用浅色列（深底上要够亮）
+        int activeColor, inactiveColor;
+        if (useDynamic && ThemeColors.getRawDominantColor() != -1) {
+            int tint = com.jingxin.jingxinmusic.util.MagicColor.mapColor(
+                    ThemeColors.getRawDominantColor(), isNightMode);
+            activeColor = tint;
+            inactiveColor = com.jingxin.jingxinmusic.util.ColorUtil.adjustAlpha(tint, 0.5f);
+        } else if (useDynamic) {
+            activeColor = isNightMode ? 0xFFFFFFFF : 0xFF222222;
+            inactiveColor = isNightMode ? 0x66FFFFFF : 0x88222222;
+        } else {
+            activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
+            inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
+        }
 
-        int indicatorActive = isNightMode ? ThemeColors.nightTabIndicator() : ThemeColors.dayTabIndicator();
-        int indicatorInactive = 0x00000000;
-        indicatorLocal.setBackgroundColor(mode == 0 ? indicatorActive : indicatorInactive);
-        indicatorCloud.setBackgroundColor(mode == 1 ? indicatorActive : indicatorInactive);
-        indicatorBili.setBackgroundColor(mode == 2 ? indicatorActive : indicatorInactive);
-        indicatorFavorite.setBackgroundColor(mode == 3 ? indicatorActive : indicatorInactive);
+        // 双行 Tab 文字颜色
+        setTabColor(tabLocalTop, tabLocalTitle, mode == 0, activeColor, inactiveColor);
+        setTabColor(tabCloudTop, tabCloudTitle, mode == 1, activeColor, inactiveColor);
+        setTabColor(tabBiliTop, tabBiliTitle, mode == 2, activeColor, inactiveColor);
+        setTabColor(tabFavoriteTop, tabFavoriteTitle, mode == 3, activeColor, inactiveColor);
+
+        // 底部指示线 + 滑动指示器（与 Tab 文字同色）
+        int indicatorColor = activeColor;
+        int bottomLineColor = useDynamic
+                ? (isNightMode ? 0x22FFFFFF : 0x22222222)
+                : (isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider());
+        if (tabBottomLine != null) tabBottomLine.setBackgroundColor(bottomLineColor);
+        if (tabIndicator != null) {
+            tabIndicator.setBackgroundColor(indicatorColor);
+            // 滑动到当前 Tab 位置
+            tabIndicator.post(() -> {
+                View tabView = getTabView(mode);
+                if (tabView != null && tabIndicator.getWidth() > 0) {
+                    float tabWidth = tabView.getWidth();
+                    float indicatorWidth = tabIndicator.getWidth();
+                    float targetX = tabView.getX() + (tabWidth - indicatorWidth) / 2f;
+                    tabIndicator.animate().translationX(targetX).setDuration(200).start();
+                }
+            });
+        }
+        // 旧指示器（隐藏占位）
+        indicatorLocal.setBackgroundColor(0x00000000);
+        indicatorCloud.setBackgroundColor(0x00000000);
+        indicatorBili.setBackgroundColor(0x00000000);
+        indicatorFavorite.setBackgroundColor(0x00000000);
 
         if (mode == 3) {
             browseArea.setVisibility(View.GONE);
@@ -843,6 +908,22 @@ public class MainFragment extends BaseFloatFragment {
             browseArea.setVisibility(View.VISIBLE);
             favoriteArea.setVisibility(View.GONE);
         }
+    }
+
+    private void setTabColor(TextView top, TextView title, boolean selected, int activeColor, int inactiveColor) {
+        int color = selected ? activeColor : inactiveColor;
+        if (top != null) top.setTextColor(color);
+        if (title != null) {
+            title.setTextColor(color);
+            title.setTypeface(null, selected ? Typeface.BOLD : Typeface.NORMAL);
+        }
+    }
+
+    private View getTabView(int index) {
+        if (index == 0) return tabLocal;
+        if (index == 1) return tabCloud;
+        if (index == 2) return tabBili;
+        return tabFavorite;
     }
 
     private void switchTab(int mode) {
@@ -1361,81 +1442,134 @@ public class MainFragment extends BaseFloatFragment {
     // ==================== 主题 ====================
 
     private void updateThemeUI() {
-        if (isNightMode) {
-            rootLayout.setBackground(ThemeColors.bgGradient(true));
-            titleBar.setBackground(ThemeColors.barGradient(true));
-            tabBar.setBackground(ThemeColors.barGradient(true));
-            etSearch.setTextColor(ThemeColors.nightTextPrimary());
-            etSearch.setHintTextColor(ThemeColors.nightTextTertiary());
-            tvSongCount.setTextColor(ThemeColors.nightTextTertiary());
-            tvLoading.setTextColor(ThemeColors.nightTextTertiary());
-            tvCopyright.setTextColor(ThemeColors.nightTextCopyright());
-            tabDivider1.setBackgroundColor(ThemeColors.nightDivider());
-            tabDivider2.setBackgroundColor(ThemeColors.nightDivider());
-            btnClose.clearColorFilter();
-            btnHelp.clearColorFilter();
-            browseArea.setBackground(ThemeColors.bgGradient(true));
-            pathBar.setBackground(ThemeColors.barGradient(true));
-            tvBrowsePath.setTextColor(ThemeColors.nightTextSecondary());
-            btnNavigateBack.setColorFilter(ThemeColors.nightTextSecondary());
-            btnWebDavSettings.setColorFilter(ThemeColors.nightTextSecondary());
-            btnBiliSettings.setColorFilter(ThemeColors.nightTextSecondary());
-            btnGoWebDavSettings.setTextColor(ThemeColors.nightTabActive());
-            tvSetupMsg.setTextColor(ThemeColors.nightTextSecondary());
-            miniPlayer.setBackground(ThemeColors.miniGradient(true));
-            miniSongTitle.setTextColor(ThemeColors.nightTextPrimary());
-            miniSongArtist.setTextColor(ThemeColors.nightTextSecondary());
-            miniPlayPause.clearColorFilter();
-        } else {
-            rootLayout.setBackground(ThemeColors.bgGradient(false));
-            titleBar.setBackground(ThemeColors.barGradient(false));
-            tabBar.setBackground(ThemeColors.barGradient(false));
-            etSearch.setTextColor(ThemeColors.dayTextPrimary());
-            etSearch.setHintTextColor(ThemeColors.dayTextSecondary());
-            tvSongCount.setTextColor(ThemeColors.dayTextSecondary());
-            tvLoading.setTextColor(ThemeColors.dayTextSecondary());
-            tvCopyright.setTextColor(ThemeColors.dayTextCopyright());
-            tabDivider1.setBackgroundColor(ThemeColors.dayDivider());
-            tabDivider2.setBackgroundColor(ThemeColors.dayDivider());
-            btnClose.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
-            btnHelp.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
-            browseArea.setBackground(ThemeColors.bgGradient(false));
-            pathBar.setBackground(ThemeColors.barGradient(false));
-            tvBrowsePath.setTextColor(ThemeColors.dayTextSecondary());
-            btnNavigateBack.setColorFilter(ThemeColors.dayTextSecondary());
-            btnWebDavSettings.setColorFilter(ThemeColors.dayTextSecondary());
-            btnBiliSettings.setColorFilter(ThemeColors.dayTextSecondary());
-            btnGoWebDavSettings.setTextColor(ThemeColors.dayTabActive());
-            tvSetupMsg.setTextColor(ThemeColors.dayTextSecondary());
-            miniPlayer.setBackground(ThemeColors.miniGradient(false));
-            miniSongTitle.setTextColor(ThemeColors.dayTextPrimary());
-            miniSongArtist.setTextColor(ThemeColors.dayTextSecondary());
-            miniPlayPause.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+        checkDynamicBgStyle();
+        // 日夜切换时用原始封面主色重新查表（白天浅色/夜间深色）
+        int rawDominant = ThemeColors.getRawDominantColor();
+        if (rawDominant != -1) {
+            int retint = com.jingxin.jingxinmusic.util.MagicColor.mapColor(rawDominant, !isNightMode);
+            ThemeColors.setDominantColor(retint);
         }
-        int activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
-        int inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
-        tabLocal.setTextColor(currentTab == 0 ? activeColor : inactiveColor);
-        tabCloud.setTextColor(currentTab == 1 ? activeColor : inactiveColor);
-        tabBili.setTextColor(currentTab == 2 ? activeColor : inactiveColor);
-        tabFavorite.setTextColor(currentTab == 3 ? activeColor : inactiveColor);
-        int brandGreen = isNightMode ? ThemeColors.nightTabIndicator() : ThemeColors.dayTabIndicator();
-        android.graphics.drawable.GradientDrawable accentGradient = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{ 0x00000000, brandGreen, brandGreen, 0x00000000 });
-        titleAccentLine.setBackground(accentGradient);
-        int shimmerColor = brandGreen;
-        android.graphics.drawable.GradientDrawable shimmerGradient = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{ 0x00000000, shimmerColor, 0x00000000 });
-        miniShimmerLine.setBackground(shimmerGradient);
-        startMiniShimmerAnimation();
+        // 春意盎然风格：始终启用 DynamicBgView（有主色=渐变，无主色=纯底色）
+        boolean useDynamic = dynamicBgEnabled;
+
+        // 动态背景模式：DynamicBgView 可见并渲染，所有上层容器透明
+        View contentLayout = mRootView.findViewById(R.id.content_layout);
+        if (useDynamic) {
+            int color = ThemeColors.getDominantColor();
+            dynamicBgView.setVisibility(View.VISIBLE);
+            dynamicBgView.setNightMode(isNightMode);
+            dynamicBgView.setTintColor(color);  // -1 时只画底色
+            rootLayout.setBackgroundColor(0x00000000);
+            if (contentLayout != null) contentLayout.setBackgroundColor(0x00000000);
+        } else {
+            dynamicBgView.setVisibility(View.GONE);
+            dynamicBgView.setTintColor(-1);
+            if (contentLayout != null) contentLayout.setBackgroundColor(0x00000000);
+        }
+
+        if (isNightMode) {
+            // 非动态模式设背景，动态模式下全部透明
+            titleBar.setBackground(useDynamic ? null : ThemeColors.barGradient(true));
+            tabBar.setBackground(useDynamic ? null : ThemeColors.barGradient(true));
+            // 动态模式：统一白色文字/图标；非动态模式：用春意盎然主题色
+            etSearch.setTextColor(useDynamic ? 0xFFFFFFFF : ThemeColors.nightTextPrimary());
+            etSearch.setHintTextColor(useDynamic ? 0x66FFFFFF : ThemeColors.nightTextTertiary());
+            tvSongCount.setTextColor(useDynamic ? 0x88FFFFFF : ThemeColors.nightTextTertiary());
+            tvLoading.setTextColor(useDynamic ? 0x88FFFFFF : ThemeColors.nightTextTertiary());
+            tvCopyright.setTextColor(useDynamic ? 0x44FFFFFF : ThemeColors.nightTextCopyright());
+            // 顶部图标颜色同 Tab 大字
+            updateTopIconColors();
+            browseArea.setBackground(useDynamic ? null : ThemeColors.bgGradient(true));
+            pathBar.setBackground(useDynamic ? null : ThemeColors.barGradient(true));
+            tvBrowsePath.setTextColor(useDynamic ? 0x99FFFFFF : ThemeColors.nightTextSecondary());
+            btnNavigateBack.setColorFilter(useDynamic ? 0x99FFFFFF : ThemeColors.nightTextSecondary());
+            btnWebDavSettings.setColorFilter(useDynamic ? 0x99FFFFFF : ThemeColors.nightTextSecondary());
+            btnBiliSettings.setColorFilter(useDynamic ? 0x99FFFFFF : ThemeColors.nightTextSecondary());
+            btnGoWebDavSettings.setTextColor(useDynamic ? 0xFFFFFFFF : ThemeColors.nightTabActive());
+            tvSetupMsg.setTextColor(useDynamic ? 0x99FFFFFF : ThemeColors.nightTextSecondary());
+            miniPlayer.setBackground(useDynamic ? null : ThemeColors.miniGradient(true));
+            miniSongTitle.setTextColor(useDynamic ? 0xFFFFFFFF : ThemeColors.nightTextPrimary());
+            miniSongArtist.setTextColor(useDynamic ? 0x99FFFFFF : ThemeColors.nightTextSecondary());
+            miniPlayPause.clearColorFilter();
+            // 非动态模式恢复 rootLayout 渐变
+            if (!useDynamic) {
+                rootLayout.setBackground(ThemeColors.bgGradient(true));
+            }
+        } else {
+            titleBar.setBackground(useDynamic ? null : ThemeColors.barGradient(false));
+            tabBar.setBackground(useDynamic ? null : ThemeColors.barGradient(false));
+            // 动态模式：统一黑色文字/图标；非动态模式：用春意盎然主题色
+            etSearch.setTextColor(useDynamic ? 0xFF222222 : ThemeColors.dayTextPrimary());
+            etSearch.setHintTextColor(useDynamic ? 0x66222222 : ThemeColors.dayTextSecondary());
+            tvSongCount.setTextColor(useDynamic ? 0x88222222 : ThemeColors.dayTextSecondary());
+            tvLoading.setTextColor(useDynamic ? 0x88222222 : ThemeColors.dayTextSecondary());
+            tvCopyright.setTextColor(useDynamic ? 0x44222222 : ThemeColors.dayTextCopyright());
+            // 顶部图标颜色同 Tab 大字
+            updateTopIconColors();
+            browseArea.setBackground(useDynamic ? null : ThemeColors.bgGradient(false));
+            pathBar.setBackground(useDynamic ? null : ThemeColors.barGradient(false));
+            tvBrowsePath.setTextColor(useDynamic ? 0x99222222 : ThemeColors.dayTextSecondary());
+            btnNavigateBack.setColorFilter(useDynamic ? 0x99222222 : ThemeColors.dayTextSecondary());
+            btnWebDavSettings.setColorFilter(useDynamic ? 0x99222222 : ThemeColors.dayTextSecondary());
+            btnBiliSettings.setColorFilter(useDynamic ? 0x99222222 : ThemeColors.dayTextSecondary());
+            btnGoWebDavSettings.setTextColor(useDynamic ? 0xFF222222 : ThemeColors.dayTabActive());
+            tvSetupMsg.setTextColor(useDynamic ? 0x99222222 : ThemeColors.dayTextSecondary());
+            miniPlayer.setBackground(useDynamic ? null : ThemeColors.miniGradient(false));
+            miniSongTitle.setTextColor(useDynamic ? 0xFF222222 : ThemeColors.dayTextPrimary());
+            miniSongArtist.setTextColor(useDynamic ? 0x99222222 : ThemeColors.dayTextSecondary());
+            miniPlayPause.setColorFilter(useDynamic ? 0xFF222222 : ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+            if (!useDynamic) {
+                rootLayout.setBackground(ThemeColors.bgGradient(false));
+            }
+        }
+        // Tab 颜色：白天用查表深色列，夜间用浅色列（与背景相反，保证可读性）
+        int activeColor, inactiveColor;
+        if (useDynamic && ThemeColors.getRawDominantColor() != -1) {
+            int tint = com.jingxin.jingxinmusic.util.MagicColor.mapColor(
+                    ThemeColors.getRawDominantColor(), isNightMode);
+            activeColor = tint;
+            inactiveColor = com.jingxin.jingxinmusic.util.ColorUtil.adjustAlpha(tint, 0.5f);
+        } else if (useDynamic) {
+            activeColor = isNightMode ? 0xFFFFFFFF : 0xFF222222;
+            inactiveColor = isNightMode ? 0x66FFFFFF : 0x88222222;
+        } else {
+            activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
+            inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
+        }
+        setTabColor(tabLocalTop, tabLocalTitle, currentTab == 0, activeColor, inactiveColor);
+        setTabColor(tabCloudTop, tabCloudTitle, currentTab == 1, activeColor, inactiveColor);
+        setTabColor(tabBiliTop, tabBiliTitle, currentTab == 2, activeColor, inactiveColor);
+        setTabColor(tabFavoriteTop, tabFavoriteTitle, currentTab == 3, activeColor, inactiveColor);
+        // 底部指示线 + 滑动指示器（与 Tab 文字同色）
+        int indicatorColor = activeColor;
+        int bottomLineColor = useDynamic
+                ? (isNightMode ? 0x22FFFFFF : 0x22222222)
+                : (isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider());
+        if (tabBottomLine != null) tabBottomLine.setBackgroundColor(bottomLineColor);
+        if (tabIndicator != null) {
+            tabIndicator.setBackgroundColor(indicatorColor);
+            tabIndicator.post(() -> {
+                View tabView = getTabView(currentTab);
+                if (tabView != null && tabIndicator.getWidth() > 0) {
+                    float tabWidth = tabView.getWidth();
+                    float indicatorWidth = tabIndicator.getWidth();
+                    float targetX = tabView.getX() + (tabWidth - indicatorWidth) / 2f;
+                    tabIndicator.setTranslationX(targetX);
+                }
+            });
+        }
+        // 流光线颜色：动态模式有主色时取封面查表色（白天深/夜间浅，同 Tab 方向）；否则白/黑或主题色
+        updateShimmerLineColors();
         songAdapter.setNightMode(isNightMode);
+        songAdapter.setDynamicBgMode(useDynamic);
         browseAdapter.setNightMode(isNightMode);
+        browseAdapter.setDynamicBgMode(useDynamic);
         browseAdapter.notifyDataSetChanged();
         applyThemeToRecyclerViewItems();
     }
 
     private void applyThemeToRecyclerViewItems() {
+        boolean useDynamic = dynamicBgEnabled;
         rvList.post(() -> {
             int childCount = rvList.getChildCount();
             for (int i = 0; i < childCount; i++) {
@@ -1444,10 +1578,15 @@ public class MainFragment extends BaseFloatFragment {
                     TextView tvTitle = child.findViewById(R.id.tv_song_title);
                     TextView tvArtist = child.findViewById(R.id.tv_song_artist);
                     TextView tvDuration = child.findViewById(R.id.tv_song_duration);
-                    child.setBackgroundColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayItemBg(), ThemeColors.nightItemBg()));
-                    tvTitle.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextPrimary(), ThemeColors.nightTextPrimary()));
-                    tvArtist.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary()));
-                    tvDuration.setTextColor(ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextTertiary()));
+                    // 动态模式：列表项透明（让 DynamicBgView 底色透出）；非动态：用主题色
+                    child.setBackgroundColor(useDynamic ? 0x00000000 : ThemeColors.themedColor(isNightMode, ThemeColors.dayItemBg(), ThemeColors.nightItemBg()));
+                    // 动态模式：白天黑夜间白
+                    int titleColor = useDynamic ? (isNightMode ? 0xFFFFFFFF : 0xFF222222) : ThemeColors.themedColor(isNightMode, ThemeColors.dayTextPrimary(), ThemeColors.nightTextPrimary());
+                    int subColor = useDynamic ? (isNightMode ? 0x99FFFFFF : 0x99222222) : ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextSecondary());
+                    int durColor = useDynamic ? (isNightMode ? 0x66FFFFFF : 0x66222222) : ThemeColors.themedColor(isNightMode, ThemeColors.dayTextSecondary(), ThemeColors.nightTextTertiary());
+                    tvTitle.setTextColor(titleColor);
+                    tvArtist.setTextColor(subColor);
+                    tvDuration.setTextColor(durColor);
                 }
             }
         });
@@ -1852,6 +1991,10 @@ public class MainFragment extends BaseFloatFragment {
                 } else {
                     pauseCoverRotation();
                 }
+                // 春意盎然：服务连接时提取主色
+                if (dynamicBgEnabled) {
+                    extractAndApplyMagicBgColor(currentSong.title, currentSong.artist);
+                }
             }
         }
     }
@@ -1885,11 +2028,7 @@ public class MainFragment extends BaseFloatFragment {
 
     private void startTabBreathAnimation(int activeColor) {
         if (tabBreathAnimator != null) tabBreathAnimator.cancel();
-        View activeIndicator = null;
-        if (currentTab == 0) activeIndicator = indicatorLocal;
-        else if (currentTab == 1) activeIndicator = indicatorCloud;
-        else if (currentTab == 2) activeIndicator = indicatorBili;
-        else activeIndicator = indicatorFavorite;
+        View activeIndicator = tabIndicator;
         if (activeIndicator == null) return;
 
         activeIndicator.setBackgroundColor(activeColor);
@@ -1901,7 +2040,50 @@ public class MainFragment extends BaseFloatFragment {
         tabBreathAnimator.start();
     }
 
+    /** 更新顶部左右按钮图标颜色（同 Tab 大字查表色） */
+    private void updateTopIconColors() {
+        if (btnClose == null || btnHelp == null) return;
+        boolean useDynamic = dynamicBgEnabled;
+        int color;
+        if (useDynamic && ThemeColors.getRawDominantColor() != -1) {
+            color = com.jingxin.jingxinmusic.util.MagicColor.mapColor(
+                    ThemeColors.getRawDominantColor(), isNightMode);
+        } else if (useDynamic) {
+            color = isNightMode ? 0xFFFFFFFF : 0xFF222222;
+        } else {
+            color = isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
+        }
+        btnClose.setColorFilter(color, PorterDuff.Mode.SRC_IN);
+        btnHelp.setColorFilter(color, PorterDuff.Mode.SRC_IN);
+    }
+
     private android.animation.ObjectAnimator shimmerAnimator;
+    /** 更新两条流光线（标题栏+迷你播放栏）颜色：动态模式取封面查表色 */
+    private void updateShimmerLineColors() {
+        if (titleAccentLine == null || miniShimmerLine == null) return;
+        boolean useDynamic = dynamicBgEnabled;
+        int brandGreen;
+        if (useDynamic && ThemeColors.getRawDominantColor() != -1) {
+            brandGreen = com.jingxin.jingxinmusic.util.MagicColor.mapColor(
+                    ThemeColors.getRawDominantColor(), isNightMode);
+        } else if (useDynamic) {
+            brandGreen = isNightMode ? 0xCCFFFFFF : 0xCC222222;
+        } else {
+            brandGreen = isNightMode ? ThemeColors.nightTabIndicator() : ThemeColors.dayTabIndicator();
+        }
+        // 标题栏流光线：透明→色→色→透明
+        android.graphics.drawable.GradientDrawable accentGradient = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{ 0x00000000, brandGreen, brandGreen, 0x00000000 });
+        titleAccentLine.setBackground(accentGradient);
+        // 迷你播放栏流光线：透明→色→透明
+        android.graphics.drawable.GradientDrawable shimmerGradient = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{ 0x00000000, brandGreen, 0x00000000 });
+        miniShimmerLine.setBackground(shimmerGradient);
+        startMiniShimmerAnimation();
+    }
+
     private void startMiniShimmerAnimation() {
         if (miniShimmerLine == null) return;
         if (shimmerAnimator != null) shimmerAnimator.cancel();
@@ -1966,6 +2148,84 @@ public class MainFragment extends BaseFloatFragment {
         float density = getResources().getDisplayMetrics().density;
         int px = (int) (dpSize * density);
         return BitmapUtil.createScaledCircularBitmap(bitmap, px);
+    }
+
+    // ==================== 动态主色背景（春意盎然） ====================
+
+    /** 检查当前风格是否启用动态主色背景（仅春意盎然） */
+    private void checkDynamicBgStyle() {
+        dynamicBgEnabled = (ThemeColors.getStyleIndex() == 0);
+    }
+
+    /** 应用动态主色背景到首页 DynamicBgView */
+    private void applyDynamicBg() {
+        int color = ThemeColors.getDominantColor();
+        dynamicBgView.setVisibility(View.VISIBLE);
+        dynamicBgView.setNightMode(isNightMode);
+        dynamicBgView.setTintColor(color);  // -1 时只画底色
+        rootLayout.setBackgroundColor(0x00000000);
+        View contentLayout = mRootView.findViewById(R.id.content_layout);
+        if (contentLayout != null) contentLayout.setBackgroundColor(0x00000000);
+    }
+
+    /**
+     * 从封面提取主色并按 QQ Music 管线查表，应用到首页背景
+     * （MagicColor.extractDominant 8桶取色 → MagicColor.mapColor 色相查10档表）
+     */
+    private void extractAndApplyMagicBgColor(String title, String artist) {
+        if (title == null) return;
+        executor.execute(() -> {
+            android.graphics.Bitmap coverBitmap = null;
+            try {
+                File coverDir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(requireContext());
+                if (coverDir != null) {
+                    String coverName = Song.toFileName(title, artist != null ? artist : "") + ".jpg";
+                    File coverFile = new File(coverDir, coverName);
+                    if (coverFile.exists() && coverFile.length() > 0) {
+                        coverBitmap = BitmapUtil.decodeSampledFromFile(coverFile.getAbsolutePath(), 70, 70);
+                    }
+                    if (coverBitmap == null) {
+                        File[] coverFiles = coverDir.listFiles((dir, name) ->
+                                name.startsWith(title) && name.endsWith(".jpg"));
+                        if (coverFiles != null && coverFiles.length > 0) {
+                            coverBitmap = BitmapUtil.decodeSampledFromFile(coverFiles[0].getAbsolutePath(), 70, 70);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+            }
+            if (coverBitmap == null) {
+                // 无封面：清除动态主色，回退纯底色
+                ThemeColors.clearDominantColor();
+                runOnUi(() -> {
+                    if (!isActivityGone() && dynamicBgEnabled) {
+                        applyDynamicBg();
+                        updateTabUI();
+                        updateShimmerLineColors();
+                        updateTopIconColors();
+                    }
+                });
+                return;
+            }
+            // QQ Music 同款：70x70 缩图 → 8桶取主色 → 色相查表（白天浅色/夜间深色）
+            int dominant = com.jingxin.jingxinmusic.util.MagicColor.extractDominant(coverBitmap);
+            if (dominant != -1) {
+                ThemeColors.setRawDominantColor(dominant);
+                int tint = com.jingxin.jingxinmusic.util.MagicColor.mapColor(dominant, !isNightMode);
+                ThemeColors.setDominantColor(tint);
+            } else {
+                ThemeColors.setRawDominantColor(-1);
+                ThemeColors.setDominantColor(-1);
+            }
+            runOnUi(() -> {
+                if (!isActivityGone() && dynamicBgEnabled) {
+                    applyDynamicBg();
+                    updateTabUI();
+                    updateShimmerLineColors();
+                    updateTopIconColors();
+                }
+            });
+        });
     }
 
     /**
@@ -2081,14 +2341,16 @@ public class MainFragment extends BaseFloatFragment {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tabBar.getLayoutParams();
                 lp.height = tabBarH;
                 tabBar.setLayoutParams(lp);
-                float tabTextSize = Math.max(10f, tabBarH * 0.38f);
-                if (tabLocal != null) tabLocal.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
-                if (tabCloud != null) tabCloud.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
-                if (tabBili != null) tabBili.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
-                if (tabFavorite != null) tabFavorite.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
-                int dividerH = Math.max(1, (int) (tabBarH * 0.5f));
-                if (tabDivider1 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider1.getLayoutParams(); lp2.height = dividerH; tabDivider1.setLayoutParams(lp2); }
-                if (tabDivider2 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider2.getLayoutParams(); lp2.height = dividerH; tabDivider2.setLayoutParams(lp2); }
+                float tabTitleSize = Math.max(10f, tabBarH * 0.38f);
+                float tabTopSize = Math.max(4f, tabBarH * 0.16f);
+                if (tabLocalTitle != null) tabLocalTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabCloudTitle != null) tabCloudTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabBiliTitle != null) tabBiliTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabFavoriteTitle != null) tabFavoriteTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabLocalTop != null) tabLocalTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
+                if (tabCloudTop != null) tabCloudTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
+                if (tabBiliTop != null) tabBiliTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
+                if (tabFavoriteTop != null) tabFavoriteTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
             }
             if (tvCopyright != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tvCopyright.getLayoutParams();
@@ -2189,14 +2451,22 @@ public class MainFragment extends BaseFloatFragment {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tabBar.getLayoutParams();
                 lp.height = tabBarH;
                 tabBar.setLayoutParams(lp);
-                float tabTextSize = Math.max(14f * density, tabBarH * 0.25f);
-                if (tabLocal != null) tabLocal.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
-                if (tabCloud != null) tabCloud.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
-                if (tabBili != null) tabBili.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
-                if (tabFavorite != null) tabFavorite.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTextSize);
-                int dividerH = Math.max((int)(20 * density), (int)(tabBarH * 0.35f));
-                if (tabDivider1 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider1.getLayoutParams(); lp2.height = dividerH; tabDivider1.setLayoutParams(lp2); }
-                if (tabDivider2 != null) { android.widget.LinearLayout.LayoutParams lp2 = (android.widget.LinearLayout.LayoutParams) tabDivider2.getLayoutParams(); lp2.height = dividerH; tabDivider2.setLayoutParams(lp2); }
+                float tabTitleSize = Math.max(14f * density, tabBarH * 0.25f);
+                float tabTopSize = Math.max(6f * density, tabBarH * 0.11f);
+                if (tabLocalTitle != null) tabLocalTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabCloudTitle != null) tabCloudTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabBiliTitle != null) tabBiliTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabFavoriteTitle != null) tabFavoriteTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabLocalTop != null) tabLocalTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
+                if (tabCloudTop != null) tabCloudTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
+                if (tabBiliTop != null) tabBiliTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
+                if (tabFavoriteTop != null) tabFavoriteTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
+                // 指示器宽度 = Tab 宽度的 60%
+                if (tabIndicator != null) {
+                    android.widget.FrameLayout.LayoutParams ilp = (android.widget.FrameLayout.LayoutParams) tabIndicator.getLayoutParams();
+                    ilp.width = Math.max((int)(39 * density), (int)(tabBarH * 0.7f));
+                    tabIndicator.setLayoutParams(ilp);
+                }
             }
             if (tvCopyright != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tvCopyright.getLayoutParams();

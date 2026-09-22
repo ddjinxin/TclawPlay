@@ -1,10 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
-    android:orientation="vertical">
+    android:background="@color/background">
+
+    <!-- 动态背景层（春意盎然风格生效，其他风格隐藏） -->
+    <com.jingxin.jingxinmusic.view.DynamicBgView
+        android:id="@+id/dynamic_bg_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/content_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
     <!-- 顶部栏 -->
     <FrameLayout
@@ -53,7 +65,7 @@
         android:layout_width="match_parent"
         android:layout_height="2dp" />
 
-    <!-- Tab 栏 -->
+    <!-- Tab 栏（仿 QQ Music 高品质页：小标题+大标题+底部指示线） -->
     <LinearLayout
         android:id="@+id/tab_bar"
         android:layout_width="match_parent"
@@ -61,58 +73,152 @@
         android:gravity="center"
         android:orientation="horizontal">
 
-        <TextView
+        <!-- 本地 -->
+        <LinearLayout
             android:id="@+id/tab_local"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="本地"
-            android:textSize="14sp" />
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true">
 
-        <View
-            android:id="@+id/tab_divider_1"
-            android:layout_width="1dp"
-            android:layout_height="20dp" />
+            <TextView
+                android:id="@+id/tab_local_top"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="LOCAL"
+                android:textSize="6sp"
+                android:singleLine="true"
+                android:letterSpacing="0.1" />
 
-        <TextView
+            <TextView
+                android:id="@+id/tab_local_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3.5dp"
+                android:text="本地"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:singleLine="true" />
+        </LinearLayout>
+
+        <!-- WebDAV -->
+        <LinearLayout
             android:id="@+id/tab_cloud"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="WebDAV"
-            android:textSize="14sp" />
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true">
 
-        <View
-            android:id="@+id/tab_divider_2"
-            android:layout_width="1dp"
-            android:layout_height="20dp" />
+            <TextView
+                android:id="@+id/tab_cloud_top"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CLOUD"
+                android:textSize="6sp"
+                android:singleLine="true"
+                android:letterSpacing="0.1" />
 
-        <TextView
+            <TextView
+                android:id="@+id/tab_cloud_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3.5dp"
+                android:text="WebDAV"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:singleLine="true" />
+        </LinearLayout>
+
+        <!-- B站 -->
+        <LinearLayout
             android:id="@+id/tab_bili"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="B站"
-            android:textSize="14sp" />
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true">
 
-        <View
-            android:id="@+id/tab_divider_3"
-            android:layout_width="1dp"
-            android:layout_height="20dp" />
+            <TextView
+                android:id="@+id/tab_bili_top"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="BILIBILI"
+                android:textSize="6sp"
+                android:singleLine="true"
+                android:letterSpacing="0.1" />
 
-        <TextView
+            <TextView
+                android:id="@+id/tab_bili_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3.5dp"
+                android:text="B站"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:singleLine="true" />
+        </LinearLayout>
+
+        <!-- 收藏 -->
+        <LinearLayout
             android:id="@+id/tab_favorite"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="收藏"
-            android:textSize="14sp" />
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:id="@+id/tab_favorite_top"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="FAVORITE"
+                android:textSize="6sp"
+                android:singleLine="true"
+                android:letterSpacing="0.1" />
+
+            <TextView
+                android:id="@+id/tab_favorite_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3.5dp"
+                android:text="收藏"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:singleLine="true" />
+        </LinearLayout>
 
     </LinearLayout>
+
+    <!-- Tab 底部指示线区域（底线 + 滑动指示器） -->
+    <FrameLayout
+        android:id="@+id/tab_indicator_container"
+        android:layout_width="match_parent"
+        android:layout_height="4dp">
+
+        <!-- 全宽底线 -->
+        <View
+            android:id="@+id/tab_bottom_line"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_gravity="center_vertical" />
+
+        <!-- 滑动指示器 -->
+        <View
+            android:id="@+id/tab_indicator"
+            android:layout_width="39dp"
+            android:layout_height="3dp"
+            android:layout_gravity="center_vertical|start" />
+    </FrameLayout>
 
     <!-- Tab 指示线占位（隐藏） -->
     <LinearLayout
@@ -424,4 +530,6 @@
         android:textSize="14sp"
         android:visibility="gone" />
 
-</LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>
