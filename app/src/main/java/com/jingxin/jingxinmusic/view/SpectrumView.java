@@ -97,6 +97,7 @@ public class SpectrumView extends View {
     // WaveColumnformView模式状态（严格匹配原版WaveColumnformView）
     private Paint waveColumnPaint;
     private int waveColumnMainColor;        // 主色调 #F53F3F
+    private Integer waveColumnShaderColor = null; // 当前shader对应主色（null=未建，用于跟随色切换时重建）
     private int waveColumnSpacingOffset;    // 间距偏移（默认0）
     private int waveColumnCenterHolder;     // 中心保持距离（默认20）
     private static final int WAVECOLUMN_LAGER_OFFSET = 10; // 放大量（匹配原版LAGER_OFFSET）
@@ -422,6 +423,7 @@ public class SpectrumView extends View {
         }
         if (currentStyle != STYLE_WAVECOLUMN) {
             waveColumnPaint.setShader(null);
+            waveColumnShaderColor = null;
         }
         if (currentStyle == STYLE_AIVOICE) {
             setLayerType(LAYER_TYPE_SOFTWARE, null);
@@ -852,9 +854,10 @@ public class SpectrumView extends View {
                 break;
             }
             case STYLE_WAVECOLUMN: {
-                // WaveColumnformView静态：底部一排小圆角矩形
+                // WaveColumnformView静态：底部一排小圆角矩形（光晕模式仅白天跟随封面主色，夜间用白色）
                 float midY = getHeight() / 2f;
-                waveColumnPaint.setColor(Color.argb(80, 245, 63, 63));
+                waveColumnPaint.setColor(withAlpha((tintColors != null && !isNightMode) ? tintColors[0]
+                        : (tintColors != null ? Color.WHITE : waveColumnMainColor), 80));
                 int spacing = getWidth() / waveColumnCount + waveColumnSpacingOffset;
                 float left = 0f;
                 for (int i = 0; i < waveColumnCount && left < getWidth(); i++) {
@@ -1351,13 +1354,17 @@ public class SpectrumView extends View {
         int spacing = (int) (viewWidth / waveColumnCount) + waveColumnSpacingOffset;
         
         // 更新渐变shader（匹配原版onLayout中的水平渐变）
-        if (waveColumnPaint.getShader() == null && viewWidth > 0 && viewHeight > 0) {
+        // 光晕模式仅白天跟随封面主色，夜间用白色；用主色标记判断shader是否需要重建
+        int mainColor = (tintColors != null && !isNightMode) ? tintColors[0]
+                : (tintColors != null ? Color.WHITE : waveColumnMainColor);
+        if ((waveColumnPaint.getShader() == null || !Integer.valueOf(mainColor).equals(waveColumnShaderColor)) && viewWidth > 0 && viewHeight > 0) {
+            waveColumnShaderColor = mainColor;
             waveColumnPaint.setShader(new LinearGradient(0f, viewHeight / 2f, viewWidth, viewHeight / 2f,
                     new int[]{
-                            getColorWithAlpha(0.3f, waveColumnMainColor),
-                            getColorWithAlpha(1f, waveColumnMainColor),
-                            getColorWithAlpha(1f, waveColumnMainColor),
-                            getColorWithAlpha(0.3f, waveColumnMainColor)
+                            getColorWithAlpha(0.3f, mainColor),
+                            getColorWithAlpha(1f, mainColor),
+                            getColorWithAlpha(1f, mainColor),
+                            getColorWithAlpha(0.3f, mainColor)
                     },
                     new float[]{0, 0.1f, 0.9f, 1f},
                     Shader.TileMode.CLAMP));
