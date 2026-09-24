@@ -569,6 +569,15 @@ public class SpectrumView extends View {
         return (alpha << 24) | (color & 0x00FFFFFF);
     }
     
+    /**
+     * 圆环/扩散圆环跟随色取用：仅白天跟随封面色，夜间保持原版白色
+     * （夜间光晕背景下浅色圆环对比度更好）
+     */
+    private int ringTintOrWhite(int idx) {
+        if (isNightMode) return Color.WHITE;
+        return tintColors != null ? tintColors[idx] : Color.WHITE;
+    }
+    
     // 是否显示频谱
     private boolean visible = true;
     
@@ -780,11 +789,11 @@ public class SpectrumView extends View {
                 break;
             }
             case STYLE_RING: {
-                // 圆环静态：画一个细圆环基线（双色光晕模式跟随封面主色）
+                // 圆环静态：画一个细圆环基线（白天光晕跟随封面主色，夜间保持白色）
                 float cx = coverCenterX;
                 float cy = coverCenterY;
                 float radius = coverRadius + 4 * getResources().getDisplayMetrics().density;
-                ringPaint.setColor(withAlpha(tintColors != null ? tintColors[0] : Color.WHITE, 60));
+                ringPaint.setColor(withAlpha(ringTintOrWhite(0), 60));
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(1f);
                 canvas.drawCircle(cx, cy, radius, ringPaint);
@@ -858,12 +867,12 @@ public class SpectrumView extends View {
                 break;
             }
             case STYLE_DIFFUSION_RING: {
-                // DiffusionRingView静态：白色细圆环基线
+                // DiffusionRingView静态：细圆环基线（白天光晕跟随封面主色，夜间保持白色）
                 float dCx = coverCenterX;
                 float dCy = coverCenterY;
                 float dRadius = coverRadius + 4 * getResources().getDisplayMetrics().density;
                 diffusionPaint.setStyle(Paint.Style.STROKE);
-                diffusionPaint.setColor(Color.argb(60, 255, 255, 255));
+                diffusionPaint.setColor(withAlpha(ringTintOrWhite(0), 60));
                 canvas.drawCircle(dCx, dCy, dRadius, diffusionPaint);
                 break;
             }
@@ -976,7 +985,7 @@ public class SpectrumView extends View {
         float maxH = viewHeight * 0.9f;
         
         int[] colors = tintColors != null ? tintColors :
-                (isNightMode ? dotWaveNightColors : dotWaveColors);
+                (isNightMode ? nightGradientColors : gradientColors);
         
         // 更新平滑高度
         for (int i = 0; i < currentCount; i++) {
@@ -1013,7 +1022,7 @@ public class SpectrumView extends View {
         fillPath.lineTo(viewWidth, viewHeight);
         fillPath.close();
         
-        // 绘制渐变填充：深 → 亮（从上到下，光晕模式跟随封面双色）
+        // 绘制渐变填充：深金 → 亮金（从上到下，光晕模式跟随封面双色）
         waveFillPaint.setShader(new LinearGradient(0, 0, 0, viewHeight,
                 Color.argb(120, Color.red(colors[0]), Color.green(colors[0]), Color.blue(colors[0])),
                 Color.argb(30, Color.red(colors[1]), Color.green(colors[1]), Color.blue(colors[1])),
@@ -1031,7 +1040,7 @@ public class SpectrumView extends View {
         strokePath.quadTo(pointsX[currentCount - 1], pointsY[currentCount - 1],
                 pointsX[currentCount - 1], pointsY[currentCount - 1]);
         
-        // 绘制曲线描边（渐变跟随封面双色）
+        // 绘制曲线描边（金黄色渐变，光晕模式跟随封面双色）
         waveStrokePaint.setShader(new LinearGradient(0, 0, viewWidth, 0, colors[0], colors[1], Shader.TileMode.CLAMP));
         canvas.drawPath(strokePath, waveStrokePaint);
         
@@ -1505,7 +1514,7 @@ public class SpectrumView extends View {
      */
     private void drawRingColumnar(Canvas canvas, int total, float lineWidth,
                                    float[][] innerPoints, float[][] outerPoints) {
-        ringPaint.setColor(tintColors != null ? tintColors[0] : Color.WHITE);
+        ringPaint.setColor(ringTintOrWhite(0));
         ringPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStrokeWidth(lineWidth);
         
@@ -1523,7 +1532,7 @@ public class SpectrumView extends View {
     private void drawRingBomb(Canvas canvas, int total, float lineWidth,
                                float[][] innerPoints, float[][] outerPoints) {
         // 半透明线（原版: Color.argb((int)(ALPHA * 0.3f), RED, GREEN, BLUE) = argb(76, 255, 255, 255)）
-        ringPaint.setColor(withAlpha(tintColors != null ? tintColors[1] : Color.WHITE, 76));
+        ringPaint.setColor(withAlpha(ringTintOrWhite(1), 76));
         ringPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStrokeWidth(lineWidth);
         
@@ -1534,8 +1543,8 @@ public class SpectrumView extends View {
                 ringPaint);
         }
         
-        // 末端亮点（原版: drawPoint，白色，strokeWidth=lineWidth）
-        ringPaint.setColor(tintColors != null ? tintColors[0] : Color.WHITE);
+        // 末端亮点（原版: drawPoint，strokeWidth=lineWidth）
+        ringPaint.setColor(ringTintOrWhite(0));
         ringPaint.setStrokeWidth(lineWidth);
         
         for (int i = 0; i < total; i++) {
@@ -1550,7 +1559,7 @@ public class SpectrumView extends View {
                                    float[][] innerPoints, float[][] outerPoints) {
         // 原版波形：仅画相邻外端点连线，线宽=dp2px(1)=1个density像素，颜色半透明
         float density = getResources().getDisplayMetrics().density;
-        ringPaint.setColor(withAlpha(tintColors != null ? tintColors[1] : Color.WHITE, 76));
+        ringPaint.setColor(withAlpha(ringTintOrWhite(1), 76));
         ringPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStrokeWidth(density); // 匹配原版 Utils.dp2px(1)
         
@@ -1992,9 +2001,9 @@ public class SpectrumView extends View {
             }
         }
         
-        // 原版: 画基线圆（白色描边）
+        // 原版: 画基线圆（白色描边，白天光晕跟随封面主色，夜间保持白色）
         diffusionPaint.setStyle(Paint.Style.STROKE);
-        diffusionPaint.setColor(Color.WHITE);
+        diffusionPaint.setColor(ringTintOrWhite(0));
         canvas.drawCircle(cx, cy, baseRadius + DIFFUSION_START_RADIUS, diffusionPaint);
         
         // 原版: 遍历扩散圆环列表，每个ring: alpha-=5, radius+=5
@@ -2007,9 +2016,9 @@ public class SpectrumView extends View {
             }
             if (ring.enable) {
                 // 画扩散圆弧（原版: drawArc，STROKE，color=argb(alpha, RED, GREEN, BLUE)）
-                // 原版 AppConstant: ALPHA=255, RED=255, GREEN=255, BLUE=255
+                // 原版 AppConstant: ALPHA=255, RED=255, GREEN=255, BLUE=255，白天光晕跟随封面副色，夜间保持白色
                 diffusionPaint.setStyle(Paint.Style.STROKE);
-                diffusionPaint.setColor(Color.argb(ring.alpha, 255, 255, 255));
+                diffusionPaint.setColor(withAlpha(ringTintOrWhite(1), ring.alpha));
                 // 原版用 drawArc 画完整圆: left=top=cx-radius, right=bottom=cx+radius, 0~360
                 canvas.drawArc(cx - ring.radius, cy - ring.radius,
                         cx + ring.radius, cy + ring.radius,
@@ -2021,7 +2030,7 @@ public class SpectrumView extends View {
                 float pointX = (float) (cx + ring.radius * Math.cos(rad));
                 float pointY = (float) (cy + ring.radius * Math.sin(rad));
                 diffusionPaint.setStyle(Paint.Style.FILL);
-                diffusionPaint.setColor(Color.argb(ring.alpha, 255, 255, 255));
+                diffusionPaint.setColor(withAlpha(ringTintOrWhite(0), ring.alpha));
                 // 原版: drawArc(point.x-10, point.y-10, point.x+10, point.y+10, 0, 360, true)
                 canvas.drawArc(pointX - 10, pointY - 10,
                         pointX + 10, pointY + 10,

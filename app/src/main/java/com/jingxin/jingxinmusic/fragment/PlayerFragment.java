@@ -1565,7 +1565,8 @@ public class PlayerFragment extends BaseFloatFragment {
                                 auroraBackgroundView.setColors(colors.top, colors.bottom);
                             }
                             // 频谱颜色跟随封面双色（双色光晕模式下，竖条/圆点/波浪线/圆环生效）
-                            if (spectrumView != null) {
+                            // 二次校验模式：异步取色期间用户可能已退出光晕，clearTint后不可再注入
+                            if (spectrumView != null && bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) {
                                 spectrumView.setTint(colors.top, colors.bottom);
                             }
                             // 再次检查当前仍为光晕+非沉浸模式，防止异步期间用户切换了模式
