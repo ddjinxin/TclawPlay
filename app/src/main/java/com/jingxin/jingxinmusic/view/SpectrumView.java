@@ -180,7 +180,7 @@ public class SpectrumView extends View {
     
     // 圆环模式状态
     private int ringSubMode = RING_COLUMNAR;   // 圆环子模式
-    private int ringTintColors[] = null;      // 圆环动态跟随封面色（双色光晕模式注入；null=原版白色）
+    private int[] tintColors = null;          // 动态跟随封面双色（光晕模式注入；null=默认配色）
     private int ringCount = 64;                 // 圆环当前显示频段数（= RING_INPUT_COUNT - ringScope）
     private float ringRotation = 0f;            // 圆环旋转角度
     private Paint ringPaint;                    // 圆环画笔
@@ -545,21 +545,22 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 设置圆环频谱动态跟随色（双色光晕模式由封面双色注入，切歌自动变化）
-     * @param colorTop    主色（实心线/末端亮点/静止基线）
-     * @param colorBottom 副色（半透明线）
+     * 设置频谱动态跟随色（双色光晕模式由封面双色注入，切歌自动变化）
+     * 生效样式：竖条/圆点/波浪线/圆环（其余样式忽略）
+     * @param colorTop    主色（竖条高段/圆点高段/描边亮端/圆环实心线）
+     * @param colorBottom 副色（竖条低段/圆点低段/填充深端/圆环半透明线）
      */
-    public void setRingTint(int colorTop, int colorBottom) {
-        ringTintColors = new int[]{colorTop, colorBottom};
+    public void setTint(int colorTop, int colorBottom) {
+        tintColors = new int[]{colorTop, colorBottom};
         postInvalidate();
     }
     
     /**
-     * 清除圆环动态跟随色，恢复原版白色（退出双色光晕模式时调用）
+     * 清除动态跟随色，恢复默认配色（退出双色光晕模式时调用）
      */
-    public void clearRingTint() {
-        if (ringTintColors == null) return;
-        ringTintColors = null;
+    public void clearTint() {
+        if (tintColors == null) return;
+        tintColors = null;
         postInvalidate();
     }
     
@@ -746,11 +747,11 @@ public class SpectrumView extends View {
      */
     private void drawStatic(Canvas canvas) {
         boolean isGold = currentStyle == STYLE_BAR;
-        int staticColor = getGradientColor(0.05f, isGold);
+        int staticColor = tintColors != null ? tintColors[0]
+                : getGradientColor(0.05f, isGold);
         
         switch (currentStyle) {
             case STYLE_DOT: {
-                int[] colors = isNightMode ? dotWaveNightColors : dotWaveColors;
                 float spacing = getWidth() / DOT_COUNT;
                 barPaint.setColor(staticColor);
                 for (int i = 0; i < DOT_COUNT; i++) {
@@ -761,8 +762,9 @@ public class SpectrumView extends View {
                 break;
             }
             case STYLE_WAVE: {
-                // 波浪线静态：画一条平直线
-                int[] waveColors = isNightMode ? dotWaveNightColors : dotWaveColors;
+                // 波浪线静态：画一条平直线（光晕模式跟随封面双色）
+                int[] waveColors = tintColors != null ? tintColors :
+                        (isNightMode ? dotWaveNightColors : dotWaveColors);
                 float spacing = getWidth() / DOT_COUNT;
                 waveFillPaint.setShader(new LinearGradient(0, 0, 0, getHeight(), waveColors[0], waveColors[1], Shader.TileMode.CLAMP));
                 waveFillPaint.setColor(Color.argb(80, Color.red(waveColors[0]), Color.green(waveColors[0]), Color.blue(waveColors[0])));
@@ -782,7 +784,7 @@ public class SpectrumView extends View {
                 float cx = coverCenterX;
                 float cy = coverCenterY;
                 float radius = coverRadius + 4 * getResources().getDisplayMetrics().density;
-                ringPaint.setColor(withAlpha(ringTintColors != null ? ringTintColors[0] : Color.WHITE, 60));
+                ringPaint.setColor(withAlpha(tintColors != null ? tintColors[0] : Color.WHITE, 60));
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(1f);
                 canvas.drawCircle(cx, cy, radius, ringPaint);
@@ -878,7 +880,8 @@ public class SpectrumView extends View {
                 break;
             }
             default: {
-                int staticClr = customBarColors != null ? customBarColors[0] : staticColor;
+                int staticClr = tintColors != null ? tintColors[0] :
+                        (customBarColors != null ? customBarColors[0] : staticColor);
                 barPaint.setColor(staticClr);
                 for (int i = 0; i < currentCount; i++) {
                     float x = i * (barWidth + barSpacing);
@@ -894,7 +897,8 @@ public class SpectrumView extends View {
      */
     private void drawBars(Canvas canvas) {
         int[] colors = customBarColors != null ? customBarColors :
-                (isNightMode ? nightGradientColors : gradientColors);
+                (tintColors != null ? tintColors :
+                (isNightMode ? nightGradientColors : gradientColors));
         
         for (int i = 0; i < currentCount; i++) {
             barHeights[i] += (targetBarHeights[i] - barHeights[i]) * 0.5f;
@@ -922,9 +926,10 @@ public class SpectrumView extends View {
         float minH = radius * 2;
         float maxH = viewHeight * 0.9f;
         float centerIndex = (DOT_COUNT - 1) / 2f;
-        int[] colors = isNightMode ? nightGradientColors : gradientColors;
-        
-        int peakDotColor = isNightMode ? 0xFFFFCA28 : 0xFFFFD54F;
+        int[] colors = tintColors != null ? tintColors :
+                (isNightMode ? nightGradientColors : gradientColors);
+        int peakDotColor = tintColors != null ? tintColors[1] :
+                (isNightMode ? 0xFFFFCA28 : 0xFFFFD54F);
         peakPaint.setColor(peakDotColor);
         
         for (int i = 0; i < currentCount; i++) {
@@ -939,13 +944,13 @@ public class SpectrumView extends View {
             if (height > maxH) height = maxH;
             float cy = viewHeight - height;
             
-            // 颜色：低处金色，高处红色，根据跳动高度渐变
+            // 颜色：低处深、高处亮，根据跳动高度渐变（光晕模式跟随封面双色，超高段渐向主色亮端）
             float heightRatio = height / maxH;
             int color;
             if (heightRatio < 0.5f) {
                 color = interpolateColor(colors[0], colors[1], heightRatio * 2);
             } else {
-                color = interpolateColor(colors[1], 0xFFFF5252, (heightRatio - 0.5f) * 2);
+                color = interpolateColor(colors[1], tintColors != null ? tintColors[0] : 0xFFFF5252, (heightRatio - 0.5f) * 2);
             }
             barPaint.setColor(color);
             
@@ -970,7 +975,8 @@ public class SpectrumView extends View {
         float spacing = viewWidth / DOT_COUNT;
         float maxH = viewHeight * 0.9f;
         
-        int[] colors = isNightMode ? dotWaveNightColors : dotWaveColors;
+        int[] colors = tintColors != null ? tintColors :
+                (isNightMode ? dotWaveNightColors : dotWaveColors);
         
         // 更新平滑高度
         for (int i = 0; i < currentCount; i++) {
@@ -1007,11 +1013,10 @@ public class SpectrumView extends View {
         fillPath.lineTo(viewWidth, viewHeight);
         fillPath.close();
         
-        // 绘制渐变填充：深金 → 亮金（从上到下）
-        int[] goldColors = isNightMode ? nightGradientColors : gradientColors;
+        // 绘制渐变填充：深 → 亮（从上到下，光晕模式跟随封面双色）
         waveFillPaint.setShader(new LinearGradient(0, 0, 0, viewHeight,
-                Color.argb(120, Color.red(goldColors[0]), Color.green(goldColors[0]), Color.blue(goldColors[0])),
-                Color.argb(30, Color.red(goldColors[1]), Color.green(goldColors[1]), Color.blue(goldColors[1])),
+                Color.argb(120, Color.red(colors[0]), Color.green(colors[0]), Color.blue(colors[0])),
+                Color.argb(30, Color.red(colors[1]), Color.green(colors[1]), Color.blue(colors[1])),
                 Shader.TileMode.CLAMP));
         canvas.drawPath(fillPath, waveFillPaint);
         
@@ -1026,12 +1031,13 @@ public class SpectrumView extends View {
         strokePath.quadTo(pointsX[currentCount - 1], pointsY[currentCount - 1],
                 pointsX[currentCount - 1], pointsY[currentCount - 1]);
         
-        // 绘制曲线描边（金黄色渐变）
-        waveStrokePaint.setShader(new LinearGradient(0, 0, viewWidth, 0, goldColors[0], goldColors[1], Shader.TileMode.CLAMP));
+        // 绘制曲线描边（渐变跟随封面双色）
+        waveStrokePaint.setShader(new LinearGradient(0, 0, viewWidth, 0, colors[0], colors[1], Shader.TileMode.CLAMP));
         canvas.drawPath(strokePath, waveStrokePaint);
         
         // 波浪线峰值点：在波峰上方画小亮点
-        int peakDotColor = isNightMode ? 0xFFFFCA28 : 0xFFFFD54F;
+        int peakDotColor = tintColors != null ? tintColors[1] :
+                (isNightMode ? 0xFFFFCA28 : 0xFFFFD54F);
         peakPaint.setColor(peakDotColor);
         for (int i = 0; i < currentCount; i++) {
             if (peakHeights[i] > 10f) {
@@ -1499,7 +1505,7 @@ public class SpectrumView extends View {
      */
     private void drawRingColumnar(Canvas canvas, int total, float lineWidth,
                                    float[][] innerPoints, float[][] outerPoints) {
-        ringPaint.setColor(ringTintColors != null ? ringTintColors[0] : Color.WHITE);
+        ringPaint.setColor(tintColors != null ? tintColors[0] : Color.WHITE);
         ringPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStrokeWidth(lineWidth);
         
@@ -1517,7 +1523,7 @@ public class SpectrumView extends View {
     private void drawRingBomb(Canvas canvas, int total, float lineWidth,
                                float[][] innerPoints, float[][] outerPoints) {
         // 半透明线（原版: Color.argb((int)(ALPHA * 0.3f), RED, GREEN, BLUE) = argb(76, 255, 255, 255)）
-        ringPaint.setColor(withAlpha(ringTintColors != null ? ringTintColors[1] : Color.WHITE, 76));
+        ringPaint.setColor(withAlpha(tintColors != null ? tintColors[1] : Color.WHITE, 76));
         ringPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStrokeWidth(lineWidth);
         
@@ -1529,7 +1535,7 @@ public class SpectrumView extends View {
         }
         
         // 末端亮点（原版: drawPoint，白色，strokeWidth=lineWidth）
-        ringPaint.setColor(ringTintColors != null ? ringTintColors[0] : Color.WHITE);
+        ringPaint.setColor(tintColors != null ? tintColors[0] : Color.WHITE);
         ringPaint.setStrokeWidth(lineWidth);
         
         for (int i = 0; i < total; i++) {
@@ -1544,7 +1550,7 @@ public class SpectrumView extends View {
                                    float[][] innerPoints, float[][] outerPoints) {
         // 原版波形：仅画相邻外端点连线，线宽=dp2px(1)=1个density像素，颜色半透明
         float density = getResources().getDisplayMetrics().density;
-        ringPaint.setColor(withAlpha(ringTintColors != null ? ringTintColors[1] : Color.WHITE, 76));
+        ringPaint.setColor(withAlpha(tintColors != null ? tintColors[1] : Color.WHITE, 76));
         ringPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStrokeWidth(density); // 匹配原版 Utils.dp2px(1)
         

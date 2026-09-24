@@ -1564,9 +1564,9 @@ public class PlayerFragment extends BaseFloatFragment {
                             if (auroraBackgroundView != null) {
                                 auroraBackgroundView.setColors(colors.top, colors.bottom);
                             }
-                            // 网易圆环频谱跟随封面双色（双色光晕模式下）
-                            if (spectrumView != null && spectrumView.isRingMode()) {
-                                spectrumView.setRingTint(colors.top, colors.bottom);
+                            // 频谱颜色跟随封面双色（双色光晕模式下，竖条/圆点/波浪线/圆环生效）
+                            if (spectrumView != null) {
+                                spectrumView.setTint(colors.top, colors.bottom);
                             }
                             // 再次检查当前仍为光晕+非沉浸模式，防止异步期间用户切换了模式
                             if (lyricView != null && bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) {
@@ -2332,9 +2332,9 @@ public class PlayerFragment extends BaseFloatFragment {
         if (auroraBackgroundView != null) {
             auroraBackgroundView.setVisibility(View.GONE);
         }
-        // 退出双色光晕模式：圆环频谱恢复原版白色
-        if (spectrumView != null && spectrumView.isRingMode()) {
-            spectrumView.clearRingTint();
+        // 退出双色光晕模式：频谱恢复默认配色
+        if (spectrumView != null) {
+            spectrumView.clearTint();
         }
 
         if (coverStyle == COVER_STYLE_IMMERSIVE) {
