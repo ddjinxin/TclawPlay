@@ -421,10 +421,10 @@ public class CoverSceneHelper {
             ((LinearLayout) infoPanel).setGravity(Gravity.CENTER_HORIZONTAL);
         }
 
-        // 歌名 topMargin = 52dp
+        // 歌名 topMargin：横屏动态计算（返回按钮放大后高度 + 8dp 间距）
         LinearLayout.LayoutParams nameParams =
                 (LinearLayout.LayoutParams) tvSongName.getLayoutParams();
-        nameParams.topMargin = (int) (density * 52);
+        nameParams.topMargin = calcTopBarHeight(height, width, true) + (int) (density * 8);
         tvSongName.setLayoutParams(nameParams);
         tvSongName.setGravity(Gravity.CENTER_HORIZONTAL);
         tvArtist.setGravity(Gravity.CENTER_HORIZONTAL);

@@ -73,6 +73,18 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
                     || name.equals("android.view.WindowManager$InvalidDisplayException")) {
                 return true;
             }
+            // 分屏/窗口迁移时序 NPE：ViewRootImpl.onMovedToDisplay 中 Display.getState() 判空缺失
+            // 识别特征：NullPointerException + 堆栈首帧为 ViewRootImpl.onMovedToDisplay
+            if (e instanceof NullPointerException) {
+                for (StackTraceElement st : e.getStackTrace()) {
+                    if (st.getClassName().equals("android.view.ViewRootImpl")
+                            && st.getMethodName().equals("onMovedToDisplay")) {
+                        return true;
+                    }
+                    // 只看堆栈前 5 帧，避免深栈误判
+                    break;
+                }
+            }
             e = e.getCause();
         }
         return false;

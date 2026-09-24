@@ -35,6 +35,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.Lifecycle;
 
 import com.jingxin.jingxinmusic.HostActivity;
 import com.jingxin.jingxinmusic.R;
@@ -205,7 +206,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 // 轮播模式切歌时滚动到新位置
                 syncCarouselPosition();
                 // 切歌时重建频谱（sessionId 可能变化，如 ExoPlayer 重建或 MediaPlayer 兜底）
-                if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() || (isResumed() && bound && playerBinder != null)) {
+                if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() || (isSpectrumStartable() && bound && playerBinder != null)) {
                     stopSpectrum();
                     startSpectrumWithPermission();
                 }
@@ -264,7 +265,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 }
             } else if ("com.jingxin.jingxinmusic.SPECTRUM_RESTART".equals(action)) {
                 // 乐酷悬浮进入/退出时，重建频谱
-                if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() || isResumed()) {
+                if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() || isSpectrumStartable()) {
                     // 可见 → 重建频谱
                     stopSpectrum();
                     startSpectrumWithPermission();
@@ -939,15 +940,44 @@ public class PlayerFragment extends BaseFloatFragment {
         }
     }
 
+    /**
+     * 频谱可启动判断：Fragment 生命周期至少 STARTED
+     * 用 STARTED 而非 RESUMED：乐酷分屏下 Activity 长时间 paused 但窗口可见可交互，
+     * onServiceConnected 异步回调落在 paused 窗口时 isResumed 守卫会吞掉频谱启动
+     * （fragment 1.5.4 无 isStarted()，用 Lifecycle 状态等价判断）
+     */
+    private boolean isSpectrumStartable() {
+        return getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.STARTED);
+    }
+
     private void startSpectrumWithPermission() {
         if (!SettingsFragment.isSpectrumEnabled(requireContext())) return;
         // 频谱正在用 Visualizer 正常运行，不重复启动（防止 stop→start 死循环）
         if (spectrumRunning && useVisualizer) return;
-        // 乐酷悬浮模式或 Activity resumed 时才启动频谱
-        if (!com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() && !isResumed()) return;
+        // 乐酷悬浮模式或 Fragment started 时才启动频谱
+        // 注意用 isStarted 而非 isResumed：乐酷分屏下 Activity 长时间 paused 但窗口可见可交互，
+        // onServiceConnected 异步回调落在 paused 窗口时 isResumed 守卫会吞掉频谱启动
+        if (!com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() && !isSpectrumStartable()) {
+            // 极早期竞态保险网：延迟重试补启动，防止频谱被吞
+            scheduleSpectrumResumeRetry();
+            return;
+        }
         // Visualizer 只需要 MODIFY_AUDIO_SETTINGS（安装即授予），不需要 RECORD_AUDIO
         // 先直接尝试 Visualizer，失败后再请求 RECORD_AUDIO 降级到 AudioRecord
         startSpectrum();
+    }
+
+    /**
+     * 频谱启动竞态保险网：onServiceConnected 等异步回调落在 Fragment 未 started 时，
+     * 延迟重试补启动（最多 5 次 × 200ms），onDestroyView 清理
+     */
+    private void scheduleSpectrumResumeRetry() {
+        if (spectrumResumeRetryCount >= SPECTRUM_RESUME_MAX_RETRIES) {
+            return;
+        }
+        spectrumResumeRetryCount++;
+        uiHandler.removeCallbacks(spectrumResumeRetryRunnable);
+        uiHandler.postDelayed(spectrumResumeRetryRunnable, SPECTRUM_RESUME_RETRY_INTERVAL_MS);
     }
 
     @Override
@@ -1169,10 +1199,16 @@ public class PlayerFragment extends BaseFloatFragment {
 
         // 轮播模式：歌名 topMargin 由 Scene 管理，不覆盖
         if (coverStyle != COVER_STYLE_CAROUSEL) {
-            // 恢复歌名原始 margin（竖屏16dp，横屏52dp：返回按钮底部位置）
+            // 恢复歌名原始 margin（竖屏16dp，横屏动态计算：返回按钮高度 + 8dp）
             android.widget.LinearLayout.LayoutParams nameParams =
                     (android.widget.LinearLayout.LayoutParams) tvSongName.getLayoutParams();
-            nameParams.topMargin = isLandscapeMode ? (density * 52) : (density * 16);
+            if (isLandscapeMode && sceneHelper != null) {
+                int width = getResources().getDisplayMetrics().widthPixels;
+                int height = getAvailableScreenHeight();
+                nameParams.topMargin = sceneHelper.calcTopBarHeight(height, width, true) + (int) (density * 8);
+            } else {
+                nameParams.topMargin = density * 16;
+            }
             tvSongName.setLayoutParams(nameParams);
         }
 
@@ -1527,6 +1563,10 @@ public class PlayerFragment extends BaseFloatFragment {
                             if (token != coverColorToken) return;
                             if (auroraBackgroundView != null) {
                                 auroraBackgroundView.setColors(colors.top, colors.bottom);
+                            }
+                            // 网易圆环频谱跟随封面双色（双色光晕模式下）
+                            if (spectrumView != null && spectrumView.isRingMode()) {
+                                spectrumView.setRingTint(colors.top, colors.bottom);
                             }
                             // 再次检查当前仍为光晕+非沉浸模式，防止异步期间用户切换了模式
                             if (lyricView != null && bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) {
@@ -2285,20 +2325,16 @@ public class PlayerFragment extends BaseFloatFragment {
             whiteOverlay.setVisibility(View.GONE);
             overlayView.setVisibility(View.GONE);
             immersiveDarkOverlay.setVisibility(View.GONE);
-            // 文字和按钮颜色完全沿用原有日夜逻辑，不做任何改动
-            if (isNightMode) {
-                applyTextTheme(true);
-                applyButtonTheme(true);
-            } else {
-                applyTextTheme(false);
-                applyButtonTheme(false);
-            }
             return;
         }
 
         // 非光晕或沉浸模式：隐藏光晕 View
         if (auroraBackgroundView != null) {
             auroraBackgroundView.setVisibility(View.GONE);
+        }
+        // 退出双色光晕模式：圆环频谱恢复原版白色
+        if (spectrumView != null && spectrumView.isRingMode()) {
+            spectrumView.clearRingTint();
         }
 
         if (coverStyle == COVER_STYLE_IMMERSIVE) {
@@ -2491,6 +2527,17 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int SPECTRUM_RETRY_INTERVAL = 300; // ms
     private static final int SPECTRUM_MAX_RETRIES = 10; // 共 3 秒
     private int spectrumRetryCount = 0;
+    // 频谱启动竞态保险网：Fragment 未 started 时延迟重试（乐酷时序竞态）
+    private static final int SPECTRUM_RESUME_MAX_RETRIES = 5;
+    private static final long SPECTRUM_RESUME_RETRY_INTERVAL_MS = 200;
+    private int spectrumResumeRetryCount = 0;
+    private final Runnable spectrumResumeRetryRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!isAdded()) return;
+            startSpectrumWithPermission();
+        }
+    };
 
     private void startSpectrum() {
         // 先停后启：确保每次调用都能得到全新的 Visualizer（避免旧实例回调静默失效后标志卡死）
@@ -2503,6 +2550,7 @@ public class PlayerFragment extends BaseFloatFragment {
         requireContext().sendBroadcast(releaseIntent);
         spectrumRunning = true;
         spectrumRetryCount = 0;
+        spectrumResumeRetryCount = 0;
         tryStartVisualizer();
     }
 
@@ -2743,14 +2791,18 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void stopSpectrum() {
         spectrumRunning = false;
-        // 释放 Visualizer：先取消回调，再释放，避免回调线程与 release 并发导致 CFI 崩溃
+        // 释放 Visualizer：先断回调，再延迟 release，避免 native CaptureThread 与 release 并发导致 CFI 崩溃
         if (visualizer != null) {
-            try {
-                visualizer.setEnabled(false);
-                visualizer.setDataCaptureListener(null, 0, false, false);
-                visualizer.release();
-            } catch (Exception ignored) {}
+            final android.media.audiofx.Visualizer v = visualizer;
             visualizer = null;
+            try {
+                v.setEnabled(false);
+                v.setDataCaptureListener(null, 0, false, false);
+            } catch (Exception ignored) {}
+            // 延迟释放：给 native CaptureThread 退出时间（Android 8.1 立即 release 会 use-after-free）
+            try {
+                uiHandler.postDelayed(v::release, 300);
+            } catch (Exception ignored) {}
         }
         // 释放 AudioRecord
         if (audioRecord != null) {
@@ -2769,6 +2821,7 @@ public class PlayerFragment extends BaseFloatFragment {
         super.onDestroyView();
         stopSpectrum();
         uiHandler.removeCallbacks(progressRunnable);
+        uiHandler.removeCallbacks(spectrumResumeRetryRunnable);
         try {
             requireContext().unregisterReceiver(songChangedReceiver);
         } catch (Exception ignored) {}

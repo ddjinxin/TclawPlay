@@ -828,7 +828,8 @@ public class MainFragment extends BaseFloatFragment {
         // 任何主动进入播放页（点歌/mini条/浏览/自动恢复）后，返回列表页时都不应再自动跳回播放页
         hasAutoResumed = true;
         mRootView.post(() -> {
-            if (getActivity() == null || !isAdded()) return;
+            // post 执行时 Fragment/Activity 可能已被销毁（乐酷分屏切换、崩溃重启竞态）
+            if (getActivity() == null || !isAdded() || isActivityGone()) return;
             PlayerFragment fragment = new PlayerFragment();
             fragment.setArguments(args);
             ((HostActivity) requireActivity()).navigateTo(fragment, true);
@@ -1279,7 +1280,7 @@ public class MainFragment extends BaseFloatFragment {
     private String extractBiliDisplayPath(String url) {
         if (url == null) return "B站收藏夹";
         if (url.startsWith("bili://folder/")) return "收藏夹";
-        if (url.startsWith("bili://video/")) return "分P列表";
+        if (url.startsWith("bili://video/")) return "歌单";
         return url;
     }
 
@@ -2159,6 +2160,8 @@ public class MainFragment extends BaseFloatFragment {
 
     /** 应用动态主色背景到首页 DynamicBgView */
     private void applyDynamicBg() {
+        // 异步取色回调可能晚于 onDestroyView 到达，此时 mRootView 已为 null
+        if (mRootView == null) return;
         int color = ThemeColors.getDominantColor();
         dynamicBgView.setVisibility(View.VISIBLE);
         dynamicBgView.setNightMode(isNightMode);
@@ -2174,10 +2177,13 @@ public class MainFragment extends BaseFloatFragment {
      */
     private void extractAndApplyMagicBgColor(String title, String artist) {
         if (title == null) return;
+        // 后台线程回调时 Fragment 可能已销毁，先快照 Context 引用
+        final android.content.Context ctx = getActivity();
+        if (ctx == null) return;
         executor.execute(() -> {
             android.graphics.Bitmap coverBitmap = null;
             try {
-                File coverDir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(requireContext());
+                File coverDir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(ctx);
                 if (coverDir != null) {
                     String coverName = Song.toFileName(title, artist != null ? artist : "") + ".jpg";
                     File coverFile = new File(coverDir, coverName);
@@ -2203,6 +2209,8 @@ public class MainFragment extends BaseFloatFragment {
                         updateTabUI();
                         updateShimmerLineColors();
                         updateTopIconColors();
+                        // 文件夹卡片 6 色渐变依赖主色，重绑刷新
+                        if (browseAdapter != null) browseAdapter.notifyDataSetChanged();
                     }
                 });
                 return;
@@ -2223,6 +2231,8 @@ public class MainFragment extends BaseFloatFragment {
                     updateTabUI();
                     updateShimmerLineColors();
                     updateTopIconColors();
+                    // 文件夹卡片 6 色渐变依赖主色，重绑刷新
+                    if (browseAdapter != null) browseAdapter.notifyDataSetChanged();
                 }
             });
         });

@@ -10,6 +10,9 @@ import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.floatwindow.LecoFloatManager;
 import com.jingxin.jingxinmusic.fragment.MainFragment;
 
+import android.app.ActivityManager;
+import android.content.res.Configuration;
+
 /**
  * 单 Activity 容器
  * 所有页面通过 Fragment 切换，悬浮时只剥离 fragment_container 到覆盖窗口
@@ -26,6 +29,7 @@ public class HostActivity extends BaseFloatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Configuration config = getResources().getConfiguration();
         setContentView(R.layout.activity_host);
 
         if (savedInstanceState == null) {
@@ -58,11 +62,46 @@ public class HostActivity extends BaseFloatActivity {
         FragmentTransaction ft = getSupportFragmentManager().beginTransaction()
                 .replace(R.id.fragment_container, fragment);
         if (addToBackStack) ft.addToBackStack(null);
-        if (LecoFloatManager.getInstance().isFloating()) {
+        // Activity 处于 RESUMED 态才用 commit，否则（乐酷分屏切换 stop 后）
+        // commit 会抛 Can not perform this action after onSaveInstanceState
+        boolean resumed = getLifecycle().getCurrentState() == androidx.lifecycle.Lifecycle.State.RESUMED;
+        if (LecoFloatManager.getInstance().isFloating() || !resumed) {
+            // 悬浮态或 Activity 已 onStop（乐酷分屏切换时启动后立即退后台）：
+            // 必须用 commitAllowingStateLoss（配合崩溃循环防护）
             ft.commitAllowingStateLoss();
         } else {
             ft.commit();
         }
+    }
+
+    @Override
+    public void onMultiWindowModeChanged(boolean isInMultiWindowMode) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode);
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
     }
 
     @Override

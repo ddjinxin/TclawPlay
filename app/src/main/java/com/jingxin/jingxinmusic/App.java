@@ -37,6 +37,8 @@ public class App extends Application {
         // 安装崩溃捕获（本地落盘崩溃日志）
         CrashHandler.install(this);
 
+        // 临时调试日志初始化（排查返回键问题，用完删除）
+
         // 按时间规则自动判断日夜主题（优先级低于高德导航广播）
         ThemeHelper.applyAutoTheme(this);
 

@@ -1696,6 +1696,16 @@ public class MiniFloatService extends Service {
 
     // ========== Visualizer 频谱接入 ==========
 
+    /** 临时调试：floatMode 转可读名称（用完删除） */
+    private String floatModeName(int mode) {
+        switch (mode) {
+            case MODE_CAPSULE: return "CAPSULE(" + mode + ")";
+            case MODE_KARAOKE: return "KARAOKE(" + mode + ")";
+            case MODE_CLASSIC: return "CLASSIC(" + mode + ")";
+            default: return "UNKNOWN(" + mode + ")";
+        }
+    }
+
     /**
      * 初始化 Visualizer（从 PlayerActivity 移植，精简版）
      */
@@ -1709,7 +1719,9 @@ public class MiniFloatService extends Service {
         sendBroadcast(releaseIntent);
         try {
             int sessionId = playerBinder.getAudioSessionId();
-            if (sessionId == -1 || sessionId == 0) return;
+            if (sessionId == -1 || sessionId == 0) {
+                return;
+            }
 
             visualizer = new Visualizer(sessionId);
             visualizer.setEnabled(false);
@@ -1776,15 +1788,20 @@ public class MiniFloatService extends Service {
 
     /**
      * 释放 Visualizer
+     * 先断回调，再延迟 release，避免 native CaptureThread 与 release 并发导致 CFI 崩溃
      */
     private void releaseVisualizer() {
         if (visualizer != null) {
-            try {
-                visualizer.setEnabled(false);
-                visualizer.setDataCaptureListener(null, 0, false, false);
-                visualizer.release();
-            } catch (Exception ignored) {}
+            final android.media.audiofx.Visualizer v = visualizer;
             visualizer = null;
+            try {
+                v.setEnabled(false);
+                v.setDataCaptureListener(null, 0, false, false);
+            } catch (Exception ignored) {}
+            // 延迟释放：给 native CaptureThread 退出时间（Android 8.1 立即 release 会 use-after-free）
+            try {
+                uiHandler.postDelayed(v::release, 300);
+            } catch (Exception ignored) {}
         }
         visualizerEnabled = false;
     }

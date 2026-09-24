@@ -180,6 +180,7 @@ public class SpectrumView extends View {
     
     // 圆环模式状态
     private int ringSubMode = RING_COLUMNAR;   // 圆环子模式
+    private int ringTintColors[] = null;      // 圆环动态跟随封面色（双色光晕模式注入；null=原版白色）
     private int ringCount = 64;                 // 圆环当前显示频段数（= RING_INPUT_COUNT - ringScope）
     private float ringRotation = 0f;            // 圆环旋转角度
     private Paint ringPaint;                    // 圆环画笔
@@ -543,6 +544,30 @@ public class SpectrumView extends View {
         this.coverRadius = radius;
     }
     
+    /**
+     * 设置圆环频谱动态跟随色（双色光晕模式由封面双色注入，切歌自动变化）
+     * @param colorTop    主色（实心线/末端亮点/静止基线）
+     * @param colorBottom 副色（半透明线）
+     */
+    public void setRingTint(int colorTop, int colorBottom) {
+        ringTintColors = new int[]{colorTop, colorBottom};
+        postInvalidate();
+    }
+    
+    /**
+     * 清除圆环动态跟随色，恢复原版白色（退出双色光晕模式时调用）
+     */
+    public void clearRingTint() {
+        if (ringTintColors == null) return;
+        ringTintColors = null;
+        postInvalidate();
+    }
+    
+    /** 带透明度取色（保留 RGB 换 alpha） */
+    private static int withAlpha(int color, int alpha) {
+        return (alpha << 24) | (color & 0x00FFFFFF);
+    }
+    
     // 是否显示频谱
     private boolean visible = true;
     
@@ -753,11 +778,11 @@ public class SpectrumView extends View {
                 break;
             }
             case STYLE_RING: {
-                // 圆环静态：画一个白色细圆环基线
+                // 圆环静态：画一个细圆环基线（双色光晕模式跟随封面主色）
                 float cx = coverCenterX;
                 float cy = coverCenterY;
                 float radius = coverRadius + 4 * getResources().getDisplayMetrics().density;
-                ringPaint.setColor(Color.argb(60, 255, 255, 255));
+                ringPaint.setColor(withAlpha(ringTintColors != null ? ringTintColors[0] : Color.WHITE, 60));
                 ringPaint.setStyle(Paint.Style.STROKE);
                 ringPaint.setStrokeWidth(1f);
                 canvas.drawCircle(cx, cy, radius, ringPaint);
@@ -1474,7 +1499,7 @@ public class SpectrumView extends View {
      */
     private void drawRingColumnar(Canvas canvas, int total, float lineWidth,
                                    float[][] innerPoints, float[][] outerPoints) {
-        ringPaint.setColor(Color.WHITE);
+        ringPaint.setColor(ringTintColors != null ? ringTintColors[0] : Color.WHITE);
         ringPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStrokeWidth(lineWidth);
         
@@ -1492,7 +1517,7 @@ public class SpectrumView extends View {
     private void drawRingBomb(Canvas canvas, int total, float lineWidth,
                                float[][] innerPoints, float[][] outerPoints) {
         // 半透明线（原版: Color.argb((int)(ALPHA * 0.3f), RED, GREEN, BLUE) = argb(76, 255, 255, 255)）
-        ringPaint.setColor(Color.argb(76, 255, 255, 255));
+        ringPaint.setColor(withAlpha(ringTintColors != null ? ringTintColors[1] : Color.WHITE, 76));
         ringPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStrokeWidth(lineWidth);
         
@@ -1503,8 +1528,8 @@ public class SpectrumView extends View {
                 ringPaint);
         }
         
-        // 末端白色点（原版: drawPoint，白色，strokeWidth=lineWidth）
-        ringPaint.setColor(Color.WHITE);
+        // 末端亮点（原版: drawPoint，白色，strokeWidth=lineWidth）
+        ringPaint.setColor(ringTintColors != null ? ringTintColors[0] : Color.WHITE);
         ringPaint.setStrokeWidth(lineWidth);
         
         for (int i = 0; i < total; i++) {
@@ -1517,9 +1542,9 @@ public class SpectrumView extends View {
      */
     private void drawRingWaveForm(Canvas canvas, int total,
                                    float[][] innerPoints, float[][] outerPoints) {
-        // 原版波形：仅画相邻外端点连线，线宽=dp2px(1)=1个density像素，颜色半透明白
+        // 原版波形：仅画相邻外端点连线，线宽=dp2px(1)=1个density像素，颜色半透明
         float density = getResources().getDisplayMetrics().density;
-        ringPaint.setColor(Color.argb(76, 255, 255, 255));
+        ringPaint.setColor(withAlpha(ringTintColors != null ? ringTintColors[1] : Color.WHITE, 76));
         ringPaint.setStyle(Paint.Style.FILL);
         ringPaint.setStrokeWidth(density); // 匹配原版 Utils.dp2px(1)
         

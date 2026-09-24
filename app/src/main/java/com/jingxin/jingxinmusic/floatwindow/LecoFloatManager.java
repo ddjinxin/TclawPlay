@@ -130,7 +130,6 @@ public class LecoFloatManager {
                         // 首次进入悬浮：找当前 resumed 的 Activity
                         Activity target = currentResumedActivity;
                         if (target == null || target.isFinishing() || target.isDestroyed()) {
-                            Log.w(TAG, "showmap received but no alive Activity to float");
                             return;
                         }
                         floatActivity(target);

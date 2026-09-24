@@ -122,10 +122,10 @@ public class SettingsFragment extends BaseFloatFragment {
                 .getBoolean(KEY_LOCAL_LYRIC_PRIORITY, true);
     }
 
-    /** 读取背景皮肤模式（默认0=默认模式） */
+    /** 读取背景皮肤模式（未设置过默认1=双色光晕，1075及以前用户升级后默认体验新皮肤） */
     public static int getBgSkin(Context context) {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getInt(KEY_BG_SKIN, BG_SKIN_DEFAULT);
+                .getInt(KEY_BG_SKIN, BG_SKIN_AURORA);
     }
 
     /** 读取启动直达播放开关状态（默认开启） */
