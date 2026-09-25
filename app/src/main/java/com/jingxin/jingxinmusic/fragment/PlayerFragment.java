@@ -240,7 +240,7 @@ public class PlayerFragment extends BaseFloatFragment {
                                     com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
                         }
                             // 双色光晕模式：日夜切换后重新映射歌词高亮色（QQ固定用深色）
-                            if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE && lyricView != null && lastAuroraCoverColor != 0) {
+                            if (isAuroraActive() && lyricView != null && lastAuroraCoverColor != 0) {
                                 int lyricColor = CoverColorExtractor.getLyricHighlightColor(lastAuroraCoverColor, false);
                                 lyricView.setHighlightColor(lyricColor);
                             }
@@ -743,7 +743,7 @@ public class PlayerFragment extends BaseFloatFragment {
             sceneHelper.coverStyle = coverStyle;
             updateThemeUI();
             // 不在「双色光晕+非沉浸」组合时，恢复自定义歌词高亮色
-            if (!(bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) && lyricView != null) {
+            if (!(isAuroraActive()) && lyricView != null) {
                 lyricView.restoreHighlightColor();
             }
             loadCover();
@@ -757,7 +757,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
                     : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
             // 双色光晕模式：日夜切换后重新映射歌词高亮色（QQ固定用深色）
-            if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE && lyricView != null && lastAuroraCoverColor != 0) {
+            if (isAuroraActive() && lyricView != null && lastAuroraCoverColor != 0) {
                 int lyricColor = CoverColorExtractor.getLyricHighlightColor(lastAuroraCoverColor, false);
                 lyricView.setHighlightColor(lyricColor);
             }
@@ -1275,6 +1275,8 @@ public class PlayerFragment extends BaseFloatFragment {
                     int dominantColor = extractDominantColor(bitmap);
                     if (!isActivityGone()) {
                         uiHandler.post(() -> {
+                            // 光晕模式下渐变颜色用光晕底色（白天白/夜间深），不用封面主色调
+                            if (isAuroraActive()) return;
                             if (immersiveOverlay != null) {
                                 immersiveOverlay.setDominantColor(dominantColor);
                             }
@@ -1351,7 +1353,7 @@ public class PlayerFragment extends BaseFloatFragment {
             currentScene.enter();
             currentScene.onStyleEnter();
             // 非光晕或沉浸模式：隐藏光晕 View，避免遮挡其他模式
-            if (!(bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) && auroraBackgroundView != null) {
+            if (!(isAuroraActive()) && auroraBackgroundView != null) {
                 auroraBackgroundView.setVisibility(View.GONE);
             }
             return true;
@@ -1547,7 +1549,7 @@ public class PlayerFragment extends BaseFloatFragment {
         // 通知 Service 更新 MediaSession metadata（含封面）
         notifyMetadataUpdate();
         // 双色光晕模式（仅经典模式）：从封面提取双色，更新光晕 View + 歌词高亮色
-        if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE && auroraBackgroundView != null) {
+        if (isAuroraActive() && auroraBackgroundView != null) {
             final int token = ++coverColorToken; // 每次取色递增token，回调时校验防竞态
             executor.execute(() -> {
                 try {
@@ -1566,11 +1568,11 @@ public class PlayerFragment extends BaseFloatFragment {
                             }
                             // 频谱颜色跟随封面双色（双色光晕模式下，竖条/圆点/波浪线/圆环生效）
                             // 二次校验模式：异步取色期间用户可能已退出光晕，clearTint后不可再注入
-                            if (spectrumView != null && bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) {
+                            if (spectrumView != null && isAuroraActive()) {
                                 spectrumView.setTint(colors.top, colors.bottom);
                             }
                             // 再次检查当前仍为光晕+非沉浸模式，防止异步期间用户切换了模式
-                            if (lyricView != null && bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) {
+                            if (lyricView != null && isAuroraActive()) {
                                 lyricView.setHighlightColor(lyricColor);
                             }
                         });
@@ -1806,7 +1808,7 @@ public class PlayerFragment extends BaseFloatFragment {
         switchScene();
         updateThemeUI(); // 切换封面风格后更新背景（光晕/遮罩等）
         // 切换封面风格后，若不在「双色光晕+非沉浸」组合则恢复自定义歌词高亮色
-        if (!(bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) && lyricView != null) {
+        if (!(isAuroraActive()) && lyricView != null) {
             lyricView.restoreHighlightColor();
         }
         int width = getLayoutWidth();
@@ -2297,11 +2299,18 @@ public class PlayerFragment extends BaseFloatFragment {
                     : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
         }
         // 双色光晕模式：日夜切换后按新主题重新映射歌词高亮色（QQ固定用深色）
-        if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE && lyricView != null && lastAuroraCoverColor != 0) {
+        if (isAuroraActive() && lyricView != null && lastAuroraCoverColor != 0) {
             int lyricColor = CoverColorExtractor.getLyricHighlightColor(lastAuroraCoverColor, false);
             lyricView.setHighlightColor(lyricColor);
         }
         android.widget.Toast.makeText(requireContext(), isNightMode ? "夜间模式" : "白天模式", android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 双色光晕是否生效（所有封面模式均生效，包括沉浸模式）
+     */
+    private boolean isAuroraActive() {
+        return bgSkinMode == 1;
     }
 
     private void updateThemeUI() {
@@ -2317,15 +2326,60 @@ public class PlayerFragment extends BaseFloatFragment {
             tonearmView.setLandscapeMode(isLandscapeMode);
         }
 
-        // 双色光晕模式（非沉浸模式生效）：显示光晕 View，隐藏模糊封面和遮罩
-        if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE && auroraBackgroundView != null) {
+        // 双色光晕模式（所有封面模式生效，沉浸模式透明叠加/区域显示）：显示光晕 View
+        if (bgSkinMode == 1 && auroraBackgroundView != null) {
             auroraBackgroundView.setNightMode(isNightMode);
-            auroraBackgroundView.setVisibility(View.VISIBLE);
-            blurBackground.setVisibility(View.GONE);
-            immersiveOverlay.setVisibility(View.GONE);
-            whiteOverlay.setVisibility(View.GONE);
-            overlayView.setVisibility(View.GONE);
-            immersiveDarkOverlay.setVisibility(View.GONE);
+            if (coverStyle == COVER_STYLE_IMMERSIVE) {
+                // 沉浸模式：光晕作为背景/氛围
+                if (isLandscapeMode) {
+                    // 横屏沉浸：封面置于最底层，光晕叠加在封面之上（透明底氛围）
+                    auroraBackgroundView.setTransparentBackground(true);
+                    auroraBackgroundView.setVisibility(View.VISIBLE);
+                    ensureAuroraAboveCover(); // 光晕移到封面之上
+                    // 左侧无封面区域露出根布局背景，设为光晕底色（白天白/夜间深色）
+                    mRootView.setBackgroundColor(isNightMode
+                            ? com.jingxin.jingxinmusic.view.AuroraGradientView.BG_NIGHT
+                            : com.jingxin.jingxinmusic.view.AuroraGradientView.BG_DAY);
+                    // 渐变过渡层：光晕模式下左侧不画实色，透出光晕
+                    int auroraBgColor = isNightMode
+                            ? com.jingxin.jingxinmusic.view.AuroraGradientView.BG_NIGHT
+                            : com.jingxin.jingxinmusic.view.AuroraGradientView.BG_DAY;
+                    if (landscapeGradientOverlay != null) {
+                        landscapeGradientOverlay.setOverlayColor(auroraBgColor);
+                        landscapeGradientOverlay.setSolidLeft(false);
+                        landscapeGradientOverlay.setVisibility(View.VISIBLE);
+                    }
+                    // 封面前景渐变恢复：光晕底色→透明
+                    if (coverView != null && sceneHelper != null) {
+                        coverView.setForeground(sceneHelper.ensureCoverBorderGradient(auroraBgColor));
+                    }
+                    // 沉浸遮罩系列全部隐藏，光晕作为背景氛围
+                    immersiveOverlay.setVisibility(View.GONE);
+                    whiteOverlay.setVisibility(View.GONE);
+                    overlayView.setVisibility(View.GONE);
+                    immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
+                } else {
+                    // 竖屏沉浸：光晕透明底叠加在封面上（氛围）
+                    auroraBackgroundView.setTransparentBackground(true);
+                    auroraBackgroundView.setVisibility(View.VISIBLE);
+                    ensureAuroraAboveBlur(); // 移到封面之上
+                    blurBackground.setVisibility(View.VISIBLE);
+                    blurBackground.setAlpha(1.0f);
+                    immersiveOverlay.setVisibility(View.GONE);
+                    whiteOverlay.setVisibility(View.GONE);
+                    overlayView.setVisibility(View.GONE);
+                    immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
+                }
+            } else {
+                // 非沉浸模式：光晕带底色全屏作为页面背景
+                auroraBackgroundView.setTransparentBackground(false);
+                auroraBackgroundView.setVisibility(View.VISIBLE);
+                blurBackground.setVisibility(View.GONE);
+                immersiveOverlay.setVisibility(View.GONE);
+                whiteOverlay.setVisibility(View.GONE);
+                overlayView.setVisibility(View.GONE);
+                immersiveDarkOverlay.setVisibility(View.GONE);
+            }
             // 光晕模式必须同步文字主题色（歌名/歌手/时间）：
             // 白天深色/夜间浅色，否则停留在 XML 默认色，切白天后歌名仍白色
             applyTextTheme(isNightMode);
@@ -2339,6 +2393,8 @@ public class PlayerFragment extends BaseFloatFragment {
         if (auroraBackgroundView != null) {
             auroraBackgroundView.setVisibility(View.GONE);
         }
+        // 恢复根布局默认黑色背景（光晕沉浸模式设了白色/深色底，退出时需还原）
+        mRootView.setBackgroundColor(Color.BLACK);
         // 退出双色光晕模式：频谱恢复默认配色
         if (spectrumView != null) {
             spectrumView.clearTint();
@@ -2356,6 +2412,7 @@ public class PlayerFragment extends BaseFloatFragment {
             }
             if (isLandscapeMode && landscapeGradientOverlay != null) {
                 landscapeGradientOverlay.setOverlayColor(immersiveOverlay.getOverlayColor());
+                landscapeGradientOverlay.setSolidLeft(true);
             }
             overlayView.setVisibility(View.GONE);
             whiteOverlay.setVisibility(View.GONE);
@@ -2393,6 +2450,71 @@ public class PlayerFragment extends BaseFloatFragment {
                 applyTextTheme(false);
                 applyButtonTheme(false);
             }
+        }
+    }
+
+    /**
+     * 横屏沉浸光晕：确保光晕 View 在根布局最底层（index 0）。
+     * 右侧封面（coverView）在光晕之上，盖住光晕右侧；左侧信息区透出光晕。
+     */
+    private void ensureAuroraAtBottom() {
+        android.widget.FrameLayout root = mRootView.findViewById(R.id.root_layout);
+        if (root == null || auroraBackgroundView == null) return;
+        if (root.indexOfChild(auroraBackgroundView) != 0) {
+            root.removeView(auroraBackgroundView);
+            root.addView(auroraBackgroundView, 0);
+        }
+    }
+
+    /**
+     * 横屏沉浸光晕：层级从下到上 = 封面 → 渐变过渡层 → 光晕。
+     * 渐变带紧贴封面做左边缘过渡，光晕叠在最上层整屏可见，不被渐变带盖住。
+     */
+    private void ensureAuroraAboveCover() {
+        android.widget.FrameLayout root = mRootView.findViewById(R.id.root_layout);
+        if (root == null || auroraBackgroundView == null || coverView == null) return;
+        int coverIndex = root.indexOfChild(coverView);
+        if (coverIndex < 0) return;
+        // 渐变过渡层紧贴封面之上
+        if (landscapeGradientOverlay != null && landscapeGradientOverlay.getParent() != null) {
+            int gradIndex = root.indexOfChild(landscapeGradientOverlay);
+            if (gradIndex != coverIndex + 1) {
+                root.removeView(landscapeGradientOverlay);
+                root.addView(landscapeGradientOverlay, coverIndex + 1);
+            }
+        }
+        // 光晕移到渐变层之上、infoPanel 之下
+        int anchorIndex = root.indexOfChild(coverView);
+        if (landscapeGradientOverlay != null && landscapeGradientOverlay.getParent() != null) {
+            anchorIndex = root.indexOfChild(landscapeGradientOverlay);
+        }
+        int auroraIndex = root.indexOfChild(auroraBackgroundView);
+        int infoIndex = root.indexOfChild(sceneHelper.infoPanel);
+        int target = anchorIndex + 1;
+        if (infoIndex >= 0 && target >= infoIndex) target = infoIndex;
+        if (auroraIndex != target) {
+            root.removeView(auroraBackgroundView);
+            root.addView(auroraBackgroundView, target);
+        }
+    }
+
+    /**
+     * 竖屏沉浸光晕：把光晕 View 移到封面（blurBackground）之上、infoPanel 之下，
+     * 使光晕作为半透明氛围叠加在铺满的封面上。
+     */
+    private void ensureAuroraAboveBlur() {
+        android.widget.FrameLayout root = mRootView.findViewById(R.id.root_layout);
+        if (root == null || auroraBackgroundView == null || blurBackground == null) return;
+        int blurIndex = root.indexOfChild(blurBackground);
+        int auroraIndex = root.indexOfChild(auroraBackgroundView);
+        if (blurIndex < 0) return;
+        // 光晕应紧贴在 blur 之后（blurIndex+1），但仍在 infoPanel 之前
+        int infoIndex = root.indexOfChild(sceneHelper.infoPanel);
+        int target = blurIndex + 1;
+        if (infoIndex >= 0 && target >= infoIndex) target = infoIndex;
+        if (auroraIndex != target) {
+            root.removeView(auroraBackgroundView);
+            root.addView(auroraBackgroundView, target);
         }
     }
 
@@ -2438,7 +2560,7 @@ public class PlayerFragment extends BaseFloatFragment {
             }
         }
         // 光晕模式下用专用进度条配色，非光晕模式用原逻辑
-        if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) {
+        if (isAuroraActive()) {
             applyAuroraSeekBarTheme(isNight);
         } else {
             applySeekBarThemeColor(isNight ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());

@@ -449,7 +449,7 @@ public class CoverSceneHelper {
         GradientDrawable thumb = new GradientDrawable();
         thumb.setShape(GradientDrawable.OVAL);
         // 光晕模式：圆球跟随按钮色（白天黑/夜间白），其他模式保持黄色
-        if (bgSkinMode == 1 && coverStyle != COVER_STYLE_IMMERSIVE) {
+        if (bgSkinMode == 1) {
             thumb.setColor(isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());
         } else {
             thumb.setColor(Color.parseColor("#FFD54F"));

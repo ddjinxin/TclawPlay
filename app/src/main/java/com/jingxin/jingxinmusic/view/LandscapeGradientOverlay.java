@@ -10,7 +10,7 @@ import android.view.View;
 
 /**
  * 横屏沉浸渐变过渡层（放在 coverView 上层）
- * 左侧65% — 遮罩色实心
+ * 左侧65% — 遮罩色实心（光晕模式下不绘制，透出光晕）
  * 65%~85% — 水平渐变：遮罩色→透明
  * 右侧15% — 完全透明
  */
@@ -19,6 +19,7 @@ public class LandscapeGradientOverlay extends View {
     private Paint paintSolid;
     private Paint paintGrad;
     private int overlayColor;
+    private boolean solidLeft = true;
 
     public LandscapeGradientOverlay(Context context) {
         super(context);
@@ -45,6 +46,16 @@ public class LandscapeGradientOverlay extends View {
         invalidate();
     }
 
+    /**
+     * 光晕模式：左侧65%实色不绘制（透出光晕），只保留封面边缘渐变带
+     */
+    public void setSolidLeft(boolean solid) {
+        if (this.solidLeft != solid) {
+            this.solidLeft = solid;
+            invalidate();
+        }
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -55,9 +66,11 @@ public class LandscapeGradientOverlay extends View {
         int leftEnd = w - (int) (w * 0.35f);
         int gradEnd = (int) (w * 0.85f);
 
-        // 左侧65%实色
-        paintSolid.setColor(overlayColor);
-        canvas.drawRect(0, 0, leftEnd, h, paintSolid);
+        // 左侧65%实色（光晕模式下不绘制，透出光晕）
+        if (solidLeft) {
+            paintSolid.setColor(overlayColor);
+            canvas.drawRect(0, 0, leftEnd, h, paintSolid);
+        }
 
         // 65%~85%渐变：遮罩色→透明（保持RGB不变，只过渡alpha）
         int transparentColor = 0x00000000 | (overlayColor & 0x00FFFFFF);

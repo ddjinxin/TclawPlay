@@ -41,6 +41,10 @@ public class AuroraGradientView extends View {
     private int firstColor = Color.parseColor("#26A69A");   // 默认青绿兜底
     private int secondColor = Color.parseColor("#80CBC4");
 
+    // === 底色常量（白天/夜间），供外部同步根布局背景 ===
+    public static final int BG_DAY = 0xFFEDF0F2;
+    public static final int BG_NIGHT = 0xFF181A22;
+
     // === 颜色过渡 ===
     private int prevFirstColor = firstColor;
     private int prevSecondColor = secondColor;
@@ -76,6 +80,10 @@ public class AuroraGradientView extends View {
 
     // === 夜间模式 ===
     private boolean isNightMode = false;
+
+    // === 透明底模式 ===
+    // 沉浸模式下光晕作为氛围叠加在封面上，不画底层底色，只画光晕椭圆
+    private boolean transparentBackground = false;
 
     public AuroraGradientView(android.content.Context context) {
         super(context);
@@ -138,6 +146,22 @@ public class AuroraGradientView extends View {
             lutDirty = true; // 日夜切换会改变白天提亮，需重建 LUT
             invalidate();
         }
+    }
+
+    /**
+     * 设置是否透明底模式。
+     * true：不画底层底色，只画光晕椭圆（用于沉浸模式叠加在封面上）
+     * false：画完整底色（默认，光晕直接作为页面背景）
+     */
+    public void setTransparentBackground(boolean transparent) {
+        if (transparentBackground != transparent) {
+            transparentBackground = transparent;
+            invalidate();
+        }
+    }
+
+    public boolean isTransparentBackground() {
+        return transparentBackground;
     }
 
     @Override
@@ -218,8 +242,11 @@ public class AuroraGradientView extends View {
 
         // === 底色（QQ bg1_light/bg1）：整页铺满 ===
         // QQ 播放页整页背景就是此色，上半无光晕区域也是它
-        int bgColor = isNightMode ? 0xFF181A22 : 0xFFEDF0F2;
-        canvas.drawColor(bgColor);
+        // 透明底模式下不画底色（沉浸模式叠加在封面上，露出封面）
+        if (!transparentBackground) {
+            int bgColor = isNightMode ? 0xFF181A22 : 0xFFEDF0F2;
+            canvas.drawColor(bgColor);
+        }
 
         // 确保 LUT 已生成
         if (lutDirty || lutBitmap1 == null || lutBitmap2 == null) {

@@ -56,6 +56,7 @@ public class LandscapeImmersiveScene implements CoverScene {
             h.rootLayout.addView(h.landscapeGradientOverlay);
         }
         h.landscapeGradientOverlay.setOverlayColor(h.immersiveOverlay.getOverlayColor());
+        h.landscapeGradientOverlay.setSolidLeft(true);
         h.landscapeGradientOverlay.setVisibility(View.VISIBLE);
         // 封面边缘渐变
         int overlayColor = h.immersiveOverlay.getOverlayColor();
@@ -66,6 +67,8 @@ public class LandscapeImmersiveScene implements CoverScene {
         h.tvSongName.setVisibility(View.VISIBLE);
         h.tvArtist.setVisibility(View.VISIBLE);
         h.callback.resetLyricMargin();
+        // 光晕模式下由 updateThemeUI 统一管理光晕层级（置于最底，右侧封面盖住）和遮罩可见性
+        h.callback.updateThemeUI();
     }
 
     @Override
@@ -121,16 +124,26 @@ public class LandscapeImmersiveScene implements CoverScene {
         h.coverView.stopAndResetRotation();
         // 确保封面尺寸正确
         applyLandscapeImmersiveCover();
-        // 恢复横向渐变 foreground
-        int overlayColor = h.immersiveOverlay.getOverlayColor();
-        h.coverView.setForeground(h.ensureCoverBorderGradient(overlayColor));
+        // 恢复横向渐变 foreground：光晕模式下用光晕底色→透明，非光晕用主色调
+        if (h.bgSkinMode == 1) {
+            int auroraBg = h.isNightMode
+                    ? com.jingxin.jingxinmusic.view.AuroraGradientView.BG_NIGHT
+                    : com.jingxin.jingxinmusic.view.AuroraGradientView.BG_DAY;
+            h.coverView.setForeground(h.ensureCoverBorderGradient(auroraBg));
+        } else {
+            int overlayColor = h.immersiveOverlay.getOverlayColor();
+            h.coverView.setForeground(h.ensureCoverBorderGradient(overlayColor));
+        }
         // 提取主色调
         h.callback.extractAndApplyDominantColor(bitmap);
     }
 
     @Override
     public void onLyricModeChanged(boolean isFullScreen) {
-        h.immersiveOverlay.setVisibility(View.VISIBLE);
+        // 光晕模式下 immersiveOverlay 由 updateThemeUI 统一管理（保持 GONE）
+        if (h.bgSkinMode != 1) {
+            h.immersiveOverlay.setVisibility(View.VISIBLE);
+        }
         h.overlayView.setVisibility(View.GONE);
         h.whiteOverlay.setVisibility(View.GONE);
         h.tvSongName.setVisibility(View.VISIBLE);

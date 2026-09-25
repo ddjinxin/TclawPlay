@@ -54,6 +54,8 @@ public class PortraitImmersiveScene implements CoverScene {
         } else {
             h.callback.updateImmersiveLyricMargin(false);
         }
+        // 光晕模式下由 updateThemeUI 统一管理光晕叠加层级（置于封面之上）和遮罩可见性
+        h.callback.updateThemeUI();
     }
 
     @Override
@@ -123,7 +125,10 @@ public class PortraitImmersiveScene implements CoverScene {
 
     @Override
     public void onLyricModeChanged(boolean isFullScreen) {
-        h.immersiveOverlay.setVisibility(View.VISIBLE);
+        // 光晕模式下 immersiveOverlay 由 updateThemeUI 统一管理（保持 GONE）
+        if (h.bgSkinMode != 1) {
+            h.immersiveOverlay.setVisibility(View.VISIBLE);
+        }
         h.overlayView.setVisibility(View.GONE);
         h.whiteOverlay.setVisibility(View.GONE);
         h.tvSongName.setVisibility(View.VISIBLE);
