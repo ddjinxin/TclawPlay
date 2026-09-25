@@ -355,6 +355,8 @@ public class MainFragment extends BaseFloatFragment {
         themePrefs = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE);
         isNightMode = themePrefs.getBoolean("isNight", true);
         ThemeColors.init(ctx);
+        // 冷启动恢复持久化主色：重查表后 updateThemeUI 秒出封面渐变（无绑定竞态）
+        ThemeColors.restoreDominant(ctx);
 
         // 初始化视图
         tvSongCount = view.findViewById(R.id.tv_song_count);
@@ -1999,6 +2001,9 @@ public class MainFragment extends BaseFloatFragment {
                     pauseCoverRotation();
                 }
                 // 春意盎然：服务连接时提取主色
+                // checkDynamicBgStyle 防时序：onServiceConnected 可能早于 onViewCreated 执行，
+                // 此时 dynamicBgEnabled 尚未初始化（false），直接判断会漏掉首次取色
+                checkDynamicBgStyle();
                 if (dynamicBgEnabled) {
                     extractAndApplyMagicBgColor(currentSong.title, currentSong.artist);
                 }

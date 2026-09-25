@@ -570,6 +570,7 @@ public class PlayerFragment extends BaseFloatFragment {
         // 在初始化场景前先检测横竖屏（OnGlobalLayoutListener是异步的，会太晚）
         detectAndApplyLandscapeMode();
         ThemeColors.init(ctx);
+        ThemeColors.restoreDominant(ctx); // 冷启动恢复持久化主色（与首页同步）
         updateThemeUI();
         lyricView.setThemeMode(isNightMode
                 ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
@@ -1561,6 +1562,11 @@ public class PlayerFragment extends BaseFloatFragment {
                             if (auroraBackgroundView != null) {
                                 auroraBackgroundView.setColors(colors.top, colors.bottom);
                             }
+                            // 同步静态主色（首页 DynamicBgView 渐变依赖）：
+                            // 光晕变色不写 ThemeColors 会导致返回首页后仍显示旧封面渐变色
+                            ThemeColors.setRawDominantColor(colors.bottom);
+                            ThemeColors.setDominantColor(com.jingxin.jingxinmusic.util.MagicColor.mapColor(
+                                    colors.bottom, !isNightMode));
                             // 频谱颜色跟随封面双色（双色光晕模式下，竖条/圆点/波浪线/圆环生效）
                             // 二次校验模式：异步取色期间用户可能已退出光晕，clearTint后不可再注入
                             if (spectrumView != null && isAuroraActive()) {

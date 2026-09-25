@@ -28,7 +28,8 @@ public class ThemeColors {
 
     /** 从 SharedPreferences 恢复风格 */
     public static void init(Context context) {
-        SharedPreferences sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        contextRef = context.getApplicationContext();
+        SharedPreferences sp = contextRef.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         currentStyleIndex = sp.getInt(KEY_STYLE_INDEX, 0);
         if (currentStyleIndex >= 0 && currentStyleIndex < STYLES.length) {
             currentStyle = STYLES[currentStyleIndex];
@@ -123,6 +124,7 @@ public class ThemeColors {
         dominantColor = -1;
         rawDominantColor = -1;
         cachedDynamicSource = -2;  // 动态 6 色缓存失效
+        persistDominant(contextRef);  // 同步清除持久化，避免冷启动恢复已失效的旧色
     }
 
     /** 设置原始封面主色（查表前），同时使动态 6 色缓存失效 */
@@ -131,11 +133,44 @@ public class ThemeColors {
         if (cachedDynamicSource != color) {
             cachedDynamicSource = -2;  // 基色变化，缓存失效
         }
+        persistDominant(contextRef);
     }
 
     /** 获取原始封面主色（查表前），-1 表示未设置 */
     public static int getRawDominantColor() {
         return rawDominantColor;
+    }
+
+    // ========== 主色持久化（冷启动秒出封面渐变色，消除绑定竞态） ==========
+
+    private static final String KEY_RAW_DOMINANT = "raw_dominant_color";
+    private static Context contextRef; // init 时快照，仅用于写主色
+
+    /** 从 SharedPreferences 恢复主色（App 启动时调用，恢复失败保持 -1 走纯底色） */
+    public static void restoreDominant(Context context) {
+        contextRef = context.getApplicationContext();
+        SharedPreferences sp = contextRef.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        int raw = sp.getInt(KEY_RAW_DOMINANT, -1);
+        if (raw != -1) {
+            rawDominantColor = raw;
+            if (cachedDynamicSource != raw) {
+                cachedDynamicSource = -2;
+            }
+        }
+    }
+
+    /** 写主色到 SharedPreferences（apply 异步，不卡主线程） */
+    private static void persistDominant(Context context) {
+        if (context == null) return;
+        try {
+            SharedPreferences sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            if (rawDominantColor != -1) {
+                sp.edit().putInt(KEY_RAW_DOMINANT, rawDominantColor).apply();
+            } else {
+                sp.edit().remove(KEY_RAW_DOMINANT).apply();
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     // ========== 渐变 Drawable 工厂方法 ==========
