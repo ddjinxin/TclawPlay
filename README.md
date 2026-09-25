@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'db427cb9-975b-409e-870c-681f30dd3c3b'
-  PropagateID: 'db427cb9-975b-409e-870c-681f30dd3c3b'
-  ReservedCode1: '8f02506a-b293-4277-8e86-07e33320e84b'
-  ReservedCode2: '8f02506a-b293-4277-8e86-07e33320e84b'
+  ProduceID: '4b90c997-9f3c-4fa7-a106-d717ad0c633d'
+  PropagateID: '4b90c997-9f3c-4fa7-a106-d717ad0c633d'
+  ReservedCode1: '2ba28f1c-0be9-478f-bbd5-3e41084bf6f3'
+  ReservedCode2: '2ba28f1c-0be9-478f-bbd5-3e41084bf6f3'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,28 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.7.5)
+## 📢 最新版本 (v1.0.7.6)
+
+### v1.0.7.6 (2026-09)
+#### 新功能
+- **双色光晕背景皮肤** — 设置页新增背景皮肤选项：默认/双色光晕，1:1 还原 QQ 音乐 Hu.glsl 光晕效果，128×128 LUT 精确移植椭圆深度函数，10×10 降采样+非均匀 8 色相桶取色，双光晕白天提亮 20%、夜间调暗 15%，仅经典/唱机/轮播模式生效（沉浸模式除外）
+- **首页动态背景体系** — 1:1 还原 QQ 音乐动态背景：底色+左下角蒙版染色+右上角渐变三层自绘架构，蒙版像素取自封面主色，8 桶 HSV 取色+10 档色相查表；首页 Tab 栏双行文字+滑动指示器+流光线，图标颜色随封面取色联动，列表项动态模式透明背景；帮助/设置/WebDAV/B站设置页同步接入
+- **内嵌歌词读取** — 歌词加载顺序新增内嵌歌词最优先（开关开启时），支持 MP3 USLT/SYLT、M4A ©lyr、FLAC LYRICS 标签
+- **频谱颜色跟随封面** — 竖条/圆点/波浪线/波形柱/网易圆环/扩散圆环频谱在双色光晕模式下颜色跟随封面双色（白天跟随、夜间白色，非光晕模式保持原色）
+- **歌词高亮色随封面联动** — 双色光晕+经典模式下歌词高亮颜色跟随封面主色
+- **播放页沉浸模式双色光晕适配** — 竖屏封面 43% 高度+光晕整屏叠加；横屏封面最底层+渐变过渡带+光晕叠加，退出恢复底色
+
+#### 优化
+- **版权文案** — 改为「心静，音自清·v动态版本号」
+- **光晕模式进度条** — 进度条/圆球跟随按钮色（白天黑、夜间白），轨道浅灰
+- **页面交互重构** — 首页帮助按钮改为设置按钮；设置页右上角新增帮助按钮；帮助页移除设置按钮；B站/WebDAV 路径栏设置按钮换云朵扳手新图标，边距 12→8dp
+- **帮助页细节** — 文字内容日夜切换时重建、底部按钮单行防折行
+
+#### 修复
+- **高德日夜跟随链路修复** — 接收器从 Service 上移到 App 应用级，不播放音乐（Service 未运行）时高德日夜切换依然全页面生效；设置/B站/WebDAV/帮助四页悬浮态广播跟随，修复注册静默失效
+- **冷启动主色持久化** — 主色持久化存储，冷启动秒出封面渐变，光晕取色后同步静态主色，返回首页渐变一致
+- **光晕配色联动修复** — 切回光晕后歌名文字主题色、进度条配色同步；退出光晕后频谱恢复原色；快速切歌取色竞态；横屏旋转不再残留旧底色
+- **FLAC 歌手 unknown 兜底** — 元数据缺失时显示正确兜底信息
 
 ### v1.0.7.5 (2026-09)
 #### 修复
@@ -157,7 +178,28 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.7.5)
+## 📢 Latest Version (v1.0.7.6)
+
+### v1.0.7.6 (2026-09)
+#### New Features
+- **Dual-color aurora background skin** — New background skin option in settings: Default/Dual-color Aurora, 1:1 recreation of QQ Music's Hu.glsl aurora effect, 128×128 LUT with precise elliptical depth function port, 10×10 downsampling + non-uniform 8 hue-bucket color extraction; aurora brightened 20% in day, dimmed 15% at night; applies to Classic/Record/Carousel modes only (not Immersive)
+- **Home dynamic background system** — 1:1 recreation of QQ Music's dynamic background: three-layer self-drawn architecture (base color + bottom-left mask tint + top-right gradient), mask pixels from cover dominant color, 8-bucket HSV extraction + 10-tier hue lookup; home tab bar with two-line text + sliding indicator + light stream, icon colors linked to cover extraction, transparent list items in dynamic mode; Help/Settings/WebDAV/Bilibili pages integrated
+- **Embedded lyrics reading** — Embedded lyrics now highest priority in load order (when toggle enabled), supporting MP3 USLT/SYLT, M4A ©lyr, FLAC LYRICS tags
+- **Spectrum colors follow cover** — Bar/dot/wave/NetEase ring/diffusion ring spectrums follow cover dual colors in aurora mode (day: follow, night: white; non-aurora keeps original colors)
+- **Lyrics highlight color follows cover** — In aurora + classic mode, lyrics highlight color follows cover dominant color
+- **Immersive mode aurora adaptation** — Portrait: cover at 43% height + full-screen aurora overlay; Landscape: cover at bottom layer + gradient transition band + aurora overlay, background restored on exit
+
+#### Improvements
+- **Copyright text** — Changed to "A calm mind, clear sound · v{dynamic version}"
+- **Aurora progress bar** — Progress bar/thumb follows button color (black in day, white at night), light gray track
+- **Page interaction refactor** — Home help button changed to settings; settings page adds help button at top-right; help page removes settings button; Bilibili/WebDAV path bar settings button gets new cloud-wrench icon, margins 12→8dp
+- **Help page details** — Text content rebuilt on day/night switch, bottom buttons single-line no-wrap
+
+#### Bug Fixes
+- **Amap day/night follow chain** — Receiver moved from Service to Application level; Amap day/night switching now works on all pages even when not playing music (Service not running); Settings/Bilibili/WebDAV/Help pages follow via broadcast in floating state, fixed silent registration failure
+- **Cold start dominant color persistence** — Dominant color persisted, cover gradient appears instantly on cold start; aurora extraction syncs static color, home gradient consistent when returning
+- **Aurora color linkage fixes** — Song title theme color and progress bar colors sync when switching back to aurora; spectrum restores original colors after exiting aurora; fast song-switch extraction race; landscape rotation no longer leaves old background color
+- **FLAC artist unknown fallback** — Proper fallback info when metadata missing
 
 ### v1.0.7.5 (2026-09)
 #### Fix
@@ -511,6 +553,27 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 更新日志
 
+### v1.0.7.6 (2026-09)
+#### 新功能
+- **双色光晕背景皮肤** — 设置页新增背景皮肤选项（默认/双色光晕），1:1 还原 QQ 音乐 Hu.glsl 光晕效果，128×128 LUT 精确移植，10×10 降采样+8 色相桶取色，白天提亮 20%、夜间调暗 15%，经典/唱机/轮播模式生效
+- **首页动态背景体系** — 1:1 还原 QQ 音乐动态背景：底色+左下蒙版染色+右上渐变三层自绘，蒙版像素取自封面主色；首页 Tab 栏双行文字+滑动指示器+流光线，图标颜色随封面取色联动；帮助/设置/WebDAV/B站页同步接入
+- **内嵌歌词读取** — 加载顺序新增内嵌歌词最优先（开关开启时），支持 MP3 USLT/SYLT、M4A ©lyr、FLAC LYRICS
+- **频谱颜色跟随封面** — 竖条/圆点/波浪线/波形柱/网易圆环/扩散圆环在光晕模式下跟随封面双色（白天跟随、夜间白色）
+- **歌词高亮色随封面联动** — 双色光晕+经典模式下歌词高亮色跟随封面主色
+- **沉浸模式双色光晕适配** — 竖屏封面 43% 高度+光晕整屏叠加；横屏封面最底层+渐变过渡带+光晕叠加
+
+#### 优化
+- 版权文案改为「心静，音自清·v动态版本号」
+- 光晕模式进度条/圆球跟随按钮色（白天黑、夜间白），轨道浅灰
+- 首页帮助按钮改设置、设置页新增帮助按钮、帮助页移除设置按钮；B站/WebDAV 路径栏设置按钮换云朵扳手新图标，边距 12→8dp
+- 帮助页文字日夜切换重建、底部按钮单行防折行
+
+#### 修复
+- 高德日夜接收器上移 App 应用级，不播放音乐时链路不断；设置/B站/WebDAV/帮助四页悬浮态广播跟随，修复注册静默失效
+- 首页主色持久化，冷启动秒出封面渐变，返回首页渐变一致
+- 切回光晕后歌名/进度条配色同步、退出光晕频谱恢复原色、快速切歌取色竞态、横屏旋转残留旧底色
+- FLAC 歌手 unknown 兜底
+
 ### v1.0.7.3 (2026-09)
 #### 优化
 - 竖屏非全屏歌词字号调大——当前行屏宽 6%（原 4.8%）、非当前行 4.5%（原 3.6%），横屏不变
@@ -698,7 +761,28 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.7.5)
+## 📢 Latest Version (v1.0.7.6)
+
+### v1.0.7.6 (2026-09)
+#### New Features
+- **Dual-color aurora background skin** — New background skin option in settings: Default/Dual-color Aurora, 1:1 recreation of QQ Music's Hu.glsl aurora effect, 128×128 LUT with precise elliptical depth function port, 10×10 downsampling + non-uniform 8 hue-bucket color extraction; aurora brightened 20% in day, dimmed 15% at night; applies to Classic/Record/Carousel modes only (not Immersive)
+- **Home dynamic background system** — 1:1 recreation of QQ Music's dynamic background: three-layer self-drawn architecture (base color + bottom-left mask tint + top-right gradient), mask pixels from cover dominant color, 8-bucket HSV extraction + 10-tier hue lookup; home tab bar with two-line text + sliding indicator + light stream, icon colors linked to cover extraction, transparent list items in dynamic mode; Help/Settings/WebDAV/Bilibili pages integrated
+- **Embedded lyrics reading** — Embedded lyrics now highest priority in load order (when toggle enabled), supporting MP3 USLT/SYLT, M4A ©lyr, FLAC LYRICS tags
+- **Spectrum colors follow cover** — Bar/dot/wave/NetEase ring/diffusion ring spectrums follow cover dual colors in aurora mode (day: follow, night: white; non-aurora keeps original colors)
+- **Lyrics highlight color follows cover** — In aurora + classic mode, lyrics highlight color follows cover dominant color
+- **Immersive mode aurora adaptation** — Portrait: cover at 43% height + full-screen aurora overlay; Landscape: cover at bottom layer + gradient transition band + aurora overlay, background restored on exit
+
+#### Improvements
+- **Copyright text** — Changed to "A calm mind, clear sound · v{dynamic version}"
+- **Aurora progress bar** — Progress bar/thumb follows button color (black in day, white at night), light gray track
+- **Page interaction refactor** — Home help button changed to settings; settings page adds help button at top-right; help page removes settings button; Bilibili/WebDAV path bar settings button gets new cloud-wrench icon, margins 12→8dp
+- **Help page details** — Text content rebuilt on day/night switch, bottom buttons single-line no-wrap
+
+#### Bug Fixes
+- **Amap day/night follow chain** — Receiver moved from Service to Application level; Amap day/night switching now works on all pages even when not playing music (Service not running); Settings/Bilibili/WebDAV/Help pages follow via broadcast in floating state, fixed silent registration failure
+- **Cold start dominant color persistence** — Dominant color persisted, cover gradient appears instantly on cold start; aurora extraction syncs static color, home gradient consistent when returning
+- **Aurora color linkage fixes** — Song title theme color and progress bar colors sync when switching back to aurora; spectrum restores original colors after exiting aurora; fast song-switch extraction race; landscape rotation no longer leaves old background color
+- **FLAC artist unknown fallback** — Proper fallback info when metadata missing
 
 ### v1.0.7.5 (2026-09)
 #### Fix
@@ -1007,6 +1091,27 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## Changelog
+
+### v1.0.7.6 (2026-09)
+#### New Features
+- **Dual-color aurora background skin** — Settings page adds background skin option (Default/Dual-color Aurora), 1:1 recreation of QQ Music's Hu.glsl aurora effect, 128×128 LUT port, 10×10 downsampling + 8 hue-bucket extraction, 20% brighter in day, 15% dimmer at night; Classic/Record/Carousel modes
+- **Home dynamic background system** — 1:1 recreation of QQ Music's dynamic background: three-layer (base + bottom-left mask tint + top-right gradient), mask pixels from cover dominant color; tab bar two-line text + sliding indicator + light stream, icon colors linked to cover; Help/Settings/WebDAV/Bilibili pages integrated
+- **Embedded lyrics reading** — Embedded lyrics highest priority in load order (when enabled), supporting MP3 USLT/SYLT, M4A ©lyr, FLAC LYRICS
+- **Spectrum colors follow cover** — Bar/dot/wave/NetEase ring/diffusion ring follow cover dual colors in aurora mode (day: follow, night: white)
+- **Lyrics highlight color follows cover** — Auroras + classic mode lyrics highlight follows cover dominant color
+- **Immersive mode aurora adaptation** — Portrait cover 43% height + full-screen aurora; landscape cover bottom layer + gradient band + aurora overlay
+
+#### Improvements
+- Copyright text changed to "A calm mind, clear sound · v{version}"
+- Aurora progress bar/thumb follows button color (black day, white night), light gray track
+- Home help→settings button, settings page adds help button, help page removes settings button; Bilibili/WebDAV path bar new cloud-wrench icon, margins 12→8dp
+- Help page text rebuilt on day/night switch, bottom buttons single-line no-wrap
+
+#### Bug Fixes
+- Amap day/night receiver moved to Application level, chain intact when not playing; Settings/Bilibili/WebDAV/Help follow via broadcast in floating state, fixed silent registration failure
+- Home dominant color persistence, cover gradient on cold start, consistent gradient when returning
+- Song title/progress bar color sync when switching back to aurora, spectrum color restore after exit, fast song-switch race, landscape rotation old background residual
+- FLAC artist unknown fallback
 
 ### v1.0.7.3 (2026-09)
 #### Improvements
