@@ -443,7 +443,7 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="12dp"
         android:gravity="center"
-        android:text="静心音乐 © 2026 静心"
+        android:text="心静，音自清 · v1.0.7.5"
         android:textSize="11sp" />
 
     <!-- Mini 播放条 -->

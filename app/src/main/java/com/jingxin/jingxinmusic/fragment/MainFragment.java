@@ -389,6 +389,12 @@ public class MainFragment extends BaseFloatFragment {
         miniShimmerLine = view.findViewById(R.id.mini_shimmer_line);
         miniPlayerWrap = view.findViewById(R.id.mini_player_wrap);
         tvCopyright = view.findViewById(R.id.tv_copyright);
+        // 版权信息：版本号动态读取（随 App 升级自动更新），单行标语式
+        try {
+            String version = ctx.getPackageManager()
+                    .getPackageInfo(ctx.getPackageName(), 0).versionName;
+            tvCopyright.setText("心静，音自清 · v" + version);
+        } catch (Exception ignored) {}
         rvList = view.findViewById(R.id.rv_song_list);
 
         browseArea = view.findViewById(R.id.browse_area);

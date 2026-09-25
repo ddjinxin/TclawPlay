@@ -19,6 +19,8 @@ import java.io.FileOutputStream;
  * 4. 酷狗失败 → 备用网易云获取 LRC
  * 5. 都失败 → 写 .tried 标记，下次跳过
  *
+ * 优先本地歌词开启时：0.内嵌歌词（M4A ©lyr / MP3 USLT·SYLT / FLAC）→ 1.5同目录 LRC → 2.缓存 LRC → 在线（同上）
+ *
  * 保存路径：getExternalFilesDir("lyrics")
  * 文件命名：原始标题（sanitizeFileName 处理非法字符）.krc / .lrc / .tried
  * 搜索关键词：cleanSongTitle 清洗后的纯歌名
@@ -248,13 +250,33 @@ public class LyricFetcher {
      * @param callback   歌词回调
      * @param context    上下文，用于复制歌词到公共目录（可为null）
      * @param rawTitle   未清洗的原始标题（用于文件命名），为null时退化为songTitle
-     * @param preferLocalLyric 是否优先本地歌词（跳过KRC缓存，直接从歌曲同目录LRC开始）
+     * @param preferLocalLyric 是否优先本地歌词（开启时最优先读内嵌歌词，再同目录LRC，跳过KRC缓存）
      */
     public static void loadLyric(String songTitle, String artistName, String filePath, File lyricsDir, LyricCallback callback, Context context, String rawTitle, boolean preferLocalLyric) {
         new Thread(() -> {
             try {
                 // 文件命名用原始标题，搜索用清洗后的歌名
                 String fileBaseName = buildFileName(rawTitle != null ? rawTitle : songTitle, artistName);
+
+                // 0. 读音频文件内嵌歌词（preferLocalLyric=true 时最优先：M4A ©lyr / MP3 USLT·SYLT / FLAC LYRICS）
+                if (preferLocalLyric && filePath != null && !filePath.isEmpty()) {
+                    String embeddedText = EmbeddedLyricReader.readLyric(new File(filePath));
+                    if (embeddedText != null && !embeddedText.isEmpty()) {
+                        // 内嵌歌词可能是纯文本（USLT）也可能是 LRC，只接受能解析出时间行的
+                        KrcParser.LyricData data = LrcParser.parse(embeddedText);
+                        if (data != null && data.lines != null && !data.lines.isEmpty()) {
+                            // 存一份到歌词缓存目录，后续走缓存逻辑也能命中
+                            File lrcCopy = new File(lyricsDir, fileBaseName + ".lrc");
+                            if (!lrcCopy.exists()) {
+                                FileUtil.writeFile(lrcCopy, embeddedText);
+                                if (context != null) LyricPublicUtil.copyToPublicDir(context, lrcCopy);
+                            }
+                            notifyLyricAvailable(context, fileBaseName, songTitle, artistName);
+                            callback.onLyricFetched(data);
+                            return;
+                        }
+                    }
+                }
 
                 // 1. 查本地 KRC（preferLocalLyric=true 且为本地音乐时跳过此层）
                 File krcFile = findLyricFile(lyricsDir, fileBaseName, artistName, ".krc");
