@@ -225,27 +225,23 @@ public class PlayerFragment extends BaseFloatFragment {
                 int order = intent.getIntExtra(MusicPlayerService.EXTRA_PLAY_ORDER, 0);
                 updatePlayOrderIcon(order);
             } else if (MusicPlayerService.ACTION_THEME_CHANGED.equals(action)) {
-                // 高德导航日夜模式切换
+                // 高德导航日夜模式切换：只要高德广播状态与当前不同就跟随，
+                // 不依赖 amapTriggered 标记（用户手动切主题只是临时设置，高德广播始终可接管）
                 boolean amapNight = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_NIGHT, isNightMode);
                 if (amapNight != isNightMode) {
-                    // 检查是否用户手动切过主题（如果是，忽略高德信号）
-                    boolean amapTriggered = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE)
-                            .getBoolean("amapTriggered", false);
-                    if (amapTriggered) {
-                        // 高德触发的，直接同步
-                        isNightMode = amapNight;
-                        if (lyricView != null) {
-                            lyricView.setThemeMode(isNightMode ?
-                                    com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT :
-                                    com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
-                        }
-                            // 双色光晕模式：日夜切换后重新映射歌词高亮色（QQ固定用深色）
-                            if (isAuroraActive() && lyricView != null && lastAuroraCoverColor != 0) {
-                                int lyricColor = CoverColorExtractor.getLyricHighlightColor(lastAuroraCoverColor, false);
-                                lyricView.setHighlightColor(lyricColor);
-                            }
-                            updateThemeUI();
+                    // 高德触发的，直接同步
+                    isNightMode = amapNight;
+                    if (lyricView != null) {
+                        lyricView.setThemeMode(isNightMode ?
+                                com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT :
+                                com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
                     }
+                        // 双色光晕模式：亮度图后重新映射歌词高亮色（QQ固定用深色）
+                        if (isAuroraActive() && lyricView != null && lastAuroraCoverColor != 0) {
+                            int lyricColor = CoverColorExtractor.getLyricHighlightColor(lastAuroraCoverColor, false);
+                            lyricView.setHighlightColor(lyricColor);
+                        }
+                        updateThemeUI();
                 }
             } else if (ACTION_SERVICE_CLAIM.equals(action)) {
                 // MiniFloatService 要创建 Visualizer，PlayerFragment 释放自己的
@@ -2368,6 +2364,7 @@ public class PlayerFragment extends BaseFloatFragment {
                             : com.jingxin.jingxinmusic.view.AuroraGradientView.BG_DAY;
                     // 根布局底色同步光晕底色，防止封面未加载时露黑
                     mRootView.setBackgroundColor(auroraBgColor);
+                    immersiveOverlay.setNightMode(isNightMode); // 43%以下实底跟随日夜（auroraMode 下取光晕底色）
                     immersiveOverlay.setAuroraMode(true);
                     immersiveOverlay.setVisibility(View.VISIBLE); // 白底遮罩：43%以下实底
                     // 封面全屏铺底（CENTER_CROP），光晕模式不隐藏
@@ -2394,9 +2391,8 @@ public class PlayerFragment extends BaseFloatFragment {
             // 光晕模式必须同步文字主题色（歌名/歌手/时间）：
             // 白天深色/夜间浅色，否则停留在 XML 默认色，切白天后歌名仍白色
             applyTextTheme(isNightMode);
-            // 切回光晕模式必须重刷进度条配色：
-            // 沉浸/非光晕分支会把进度条恢复成 XML 默认黄色，这里补回光晕专用配色（圆球+已播放区=按钮色，轨道浅灰）
-            applyAuroraSeekBarTheme(isNightMode);
+            // 按钮主题色同步（顶部返回/底部播放控制等），内部已含光晕进度条配色
+            applyButtonTheme(isNightMode);
             return;
         }
 

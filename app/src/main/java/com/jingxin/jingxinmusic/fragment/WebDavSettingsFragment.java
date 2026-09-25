@@ -100,7 +100,22 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
             }
         });
 
+        registerThemeReceiver(); // 高德日夜切换时同步本页主题
+
         return view;
+    }
+
+    @Override
+    protected void onThemeNightChanged(boolean isNight) {
+        if (isNightMode == isNight) return;
+        isNightMode = isNight;
+        applyTheme();
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        unregisterThemeReceiver();
     }
 
     private void initViews(View view) {

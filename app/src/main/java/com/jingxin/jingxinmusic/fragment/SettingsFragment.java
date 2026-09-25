@@ -59,6 +59,7 @@ public class SettingsFragment extends BaseFloatFragment {
     private LinearLayout topBar;
     private View dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7;
     private ImageView btnBack;
+    private ImageView btnHelp;
     private TextView[] styleTabs = new TextView[4];
     private int currentStyleIndex = 0;
     private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoTheme;
@@ -182,7 +183,34 @@ public class SettingsFragment extends BaseFloatFragment {
             }
         });
 
+        registerThemeReceiver(); // 高德日夜切换时同步本页主题
+
         return view;
+    }
+
+    @Override
+    protected void onThemeNightChanged(boolean isNight) {
+        if (isNightMode == isNight) return;
+        isNightMode = isNight;
+        // 同步日夜开关状态（临时摘掉监听器，防止 setChecked 回写 amapTriggered=false 拦截高德）
+        if (switchNight != null) {
+            switchNight.setOnCheckedChangeListener(null);
+            switchNight.setChecked(isNight);
+            switchNight.setOnCheckedChangeListener((bw, checked) -> {
+                requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE)
+                        .edit().putBoolean("isNight", checked).putBoolean("amapTriggered", false).apply();
+                isNightMode = checked;
+                applyTheme();
+                Toast.makeText(requireContext(), checked ? "夜间模式" : "白天模式", Toast.LENGTH_SHORT).show();
+            });
+        }
+        applyTheme();
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        unregisterThemeReceiver();
     }
 
     private void initViews(View view) {
@@ -201,6 +229,13 @@ public class SettingsFragment extends BaseFloatFragment {
         dividerMid6 = view.findViewById(R.id.divider_mid6);
         dividerMid7 = view.findViewById(R.id.divider_mid7);
         btnBack = view.findViewById(R.id.btn_back);
+        btnHelp = view.findViewById(R.id.btn_help);
+        btnHelp.setOnClickListener(v -> {
+            if (getActivity() instanceof com.jingxin.jingxinmusic.HostActivity) {
+                ((com.jingxin.jingxinmusic.HostActivity) getActivity())
+                        .navigateTo(new HelpFragment(), true);
+            }
+        });
         styleTabs[0] = view.findViewById(R.id.style_tab_0);
         styleTabs[1] = view.findViewById(R.id.style_tab_1);
         styleTabs[2] = view.findViewById(R.id.style_tab_2);
@@ -255,14 +290,18 @@ public class SettingsFragment extends BaseFloatFragment {
             // 动态模式：图标用黑白
             if (isNightMode) {
                 btnBack.clearColorFilter();
+                btnHelp.clearColorFilter();
             } else {
                 btnBack.setColorFilter(0xFF222222, PorterDuff.Mode.SRC_IN);
+                btnHelp.setColorFilter(0xFF222222, PorterDuff.Mode.SRC_IN);
             }
         } else {
             if (isNightMode) {
                 btnBack.clearColorFilter();
+                btnHelp.clearColorFilter();
             } else {
                 btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
+                btnHelp.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             }
         }
         // 日夜变化时统一刷新全部开关颜色（初始化阶段未创建的开关自动跳过）
@@ -758,8 +797,12 @@ public class SettingsFragment extends BaseFloatFragment {
         LinearLayout.LayoutParams blp = (LinearLayout.LayoutParams) btnBack.getLayoutParams();
         blp.width = blp.height = dpScaled(36);
         btnBack.setLayoutParams(blp);
+        LinearLayout.LayoutParams hlp = (LinearLayout.LayoutParams) btnHelp.getLayoutParams();
+        hlp.width = hlp.height = dpScaled(36);
+        btnHelp.setLayoutParams(hlp);
         int pad6 = dpScaled(6);
         btnBack.setPadding(pad6, pad6, pad6, pad6);
+        btnHelp.setPadding(pad6, pad6, pad6, pad6);
         tvTitle.setTextSize(TypedValue.COMPLEX_UNIT_PX, spScaled(20));
 
         // 各条目行 paddingVertical 12dp

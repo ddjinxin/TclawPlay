@@ -35,7 +35,7 @@ public class HelpFragment extends BaseFloatFragment {
     private TextView tvTitle, tvVersion;
     private View dividerTop;
     private ScrollView rootScroll;
-    private ImageView btnBack, btnSettings;
+    private ImageView btnBack;
     private DynamicBgView dynamicBgView;
     private View rootLayout;
     private float density;
@@ -84,7 +84,27 @@ public class HelpFragment extends BaseFloatFragment {
             }
         });
 
+        registerThemeReceiver(); // 高德日夜切换时同步本页主题
+
         return view;
+    }
+
+    @Override
+    protected void onThemeNightChanged(boolean isNight) {
+        if (isNightMode == isNight) return;
+        isNightMode = isNight;
+        applyTheme();
+        // 重建动态帮助内容，使文字颜色跟随日夜切换
+        if (helpContent != null) {
+            helpContent.removeAllViews();
+            buildHelpContent();
+        }
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        unregisterThemeReceiver();
     }
 
     private void initViews(View view) {
@@ -96,13 +116,6 @@ public class HelpFragment extends BaseFloatFragment {
         dividerTop = view.findViewById(R.id.divider_top);
         tvVersion = view.findViewById(R.id.tv_version);
         btnBack = view.findViewById(R.id.btn_back);
-        btnSettings = view.findViewById(R.id.btn_settings);
-        btnSettings.setOnClickListener(v -> {
-            if (getActivity() instanceof com.jingxin.jingxinmusic.HostActivity) {
-                ((com.jingxin.jingxinmusic.HostActivity) getActivity())
-                        .navigateTo(new com.jingxin.jingxinmusic.fragment.SettingsFragment(), true);
-            }
-        });
         try {
             String v = requireContext().getPackageManager().getPackageInfo(requireContext().getPackageName(), 0).versionName;
             tvVersion.setText("静心音乐 v" + v);
@@ -127,10 +140,8 @@ public class HelpFragment extends BaseFloatFragment {
             tvVersion.setTextColor(ts);
             if (isNightMode) {
                 btnBack.clearColorFilter();
-                btnSettings.clearColorFilter();
             } else {
-                btnBack.setColorFilter(tc, PorterDuff.Mode.SRC_IN);
-                btnSettings.setColorFilter(tc, PorterDuff.Mode.SRC_IN);
+                btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             }
         } else {
             // 非动态模式：原 ThemeColors 渐变背景
@@ -141,13 +152,11 @@ public class HelpFragment extends BaseFloatFragment {
                 dividerTop.setBackgroundColor(ThemeColors.nightDivider());
                 tvVersion.setTextColor(ThemeColors.nightTextTertiary());
                 btnBack.clearColorFilter();
-                btnSettings.clearColorFilter();
             } else {
                 tvTitle.setTextColor(ThemeColors.dayTextPrimary());
                 dividerTop.setBackgroundColor(ThemeColors.dayDivider());
                 tvVersion.setTextColor(ThemeColors.dayTextSecondary());
                 btnBack.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
-                btnSettings.setColorFilter(ThemeColors.dayTextPrimary(), PorterDuff.Mode.SRC_IN);
             }
         }
     }
@@ -417,7 +426,7 @@ public class HelpFragment extends BaseFloatFragment {
 
         int iconSize = dpScaled(36);
         int pad6 = dpScaled(6);
-        for (ImageView iv : new ImageView[]{btnBack, btnSettings}) {
+        for (ImageView iv : new ImageView[]{btnBack}) {
             LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) iv.getLayoutParams();
             p.width = iconSize;
             p.height = iconSize;
@@ -431,8 +440,22 @@ public class HelpFragment extends BaseFloatFragment {
             LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btn.getLayoutParams();
             p.height = dpScaled(48);
             btn.setLayoutParams(p);
-            btn.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(15));
+            fitButtonTextSingleLine(btn, spScaled(15));
         }
         tvVersion.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, spScaled(12));
+    }
+
+    /** 按钮文字保持单行，超宽时自动缩小字号适配 */
+    private void fitButtonTextSingleLine(Button btn, float sizePx) {
+        btn.setSingleLine(true);
+        btn.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sizePx);
+        int avail = btn.getWidth() - btn.getPaddingLeft() - btn.getPaddingRight();
+        if (avail <= 0) return; // 布局未完成，保持原字号
+        String text = btn.getText().toString();
+        while (sizePx > 6f && btn.getPaint().measureText(text) > avail) {
+            sizePx -= 1f;
+            btn.getPaint().setTextSize(sizePx);
+        }
+        btn.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sizePx);
     }
 }

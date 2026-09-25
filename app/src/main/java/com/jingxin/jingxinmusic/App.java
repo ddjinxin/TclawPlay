@@ -2,8 +2,10 @@ package com.jingxin.jingxinmusic;
 
 import android.app.Activity;
 import android.app.Application;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -14,6 +16,7 @@ import android.os.Environment;
 import com.jingxin.jingxinmusic.floatwindow.LecoFloatManager;
 import com.jingxin.jingxinmusic.service.MiniFloatService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
+import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.CrashHandler;
 import com.jingxin.jingxinmusic.util.ThemeHelper;
 
@@ -30,6 +33,41 @@ public class App extends Application {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable pendingStartFloat;
 
+    // 高德导航日夜模式广播（应用级注册，不依赖 MusicPlayerService 生死）
+    private static final String ACTION_AUTONAVI = "AUTONAVI_STANDARD_BROADCAST_SEND";
+    private static final int KEY_TYPE_DAY_NIGHT = 10019;
+    private static final int EXTRA_STATE_DAY = 37;
+    private static final int EXTRA_STATE_NIGHT = 38;
+    private long lastAmapThemeTime = 0;
+
+    /** 应用级高德日夜接收器：Service 未运行时也能写 isNight 并转发内部广播 */
+    private final BroadcastReceiver amapThemeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!ACTION_AUTONAVI.equals(intent.getAction())) return;
+            if (intent.getIntExtra("KEY_TYPE", -1) != KEY_TYPE_DAY_NIGHT) return;
+            int extraState = intent.getIntExtra("EXTRA_STATE", -1);
+            if (extraState != EXTRA_STATE_DAY && extraState != EXTRA_STATE_NIGHT) return;
+
+            // 防抖：500ms 内不重复处理
+            long now = System.currentTimeMillis();
+            if (now - lastAmapThemeTime < 500) return;
+            lastAmapThemeTime = now;
+
+            boolean isNight = (extraState == EXTRA_STATE_NIGHT);
+            getSharedPreferences("theme", MODE_PRIVATE).edit()
+                    .putBoolean("isNight", isNight)
+                    .putBoolean("amapTriggered", true)
+                    .apply();
+
+            // 发送内部广播通知各页面（首查/播放页/四个设置页均已监听）
+            Intent themeIntent = new Intent(MusicPlayerService.ACTION_THEME_CHANGED);
+            themeIntent.setPackage(getPackageName());
+            themeIntent.putExtra(MusicPlayerService.EXTRA_IS_NIGHT, isNight);
+            sendBroadcast(themeIntent);
+        }
+    };
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -41,6 +79,10 @@ public class App extends Application {
 
         // 按时间规则自动判断日夜主题（优先级低于高德导航广播）
         ThemeHelper.applyAutoTheme(this);
+
+        // 注册高德日夜广播（应用级：Service 未运行/悬浮态也能跟随高德切换）
+        CompatUtil.safeRegisterReceiverExported(this, amapThemeReceiver,
+                new IntentFilter(ACTION_AUTONAVI));
 
         // 初始化乐酷桌面悬浮窗管理器
         LecoFloatManager.getInstance().init(this);

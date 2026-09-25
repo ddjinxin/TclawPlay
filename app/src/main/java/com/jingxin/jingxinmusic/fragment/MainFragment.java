@@ -242,6 +242,13 @@ public class MainFragment extends BaseFloatFragment {
                     miniPlayerWrap.setVisibility(View.VISIBLE);
                     if (shimmerAnimator != null && !shimmerAnimator.isRunning()) shimmerAnimator.start();
                 }
+            } else if (MusicPlayerService.ACTION_THEME_CHANGED.equals(action)) {
+                // 高德日夜切换：悬浮态 Activity 已 stopped 不会走 onResume 重读，必须广播驱动刷新
+                boolean amapNight = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_NIGHT, isNightMode);
+                if (amapNight != isNightMode) {
+                    isNightMode = amapNight;
+                    updateThemeUI();
+                }
             }
         }
     };
@@ -438,10 +445,10 @@ public class MainFragment extends BaseFloatFragment {
             System.exit(0);
         });
 
-        // 帮助按钮
+        // 右上角按钮：进入设置页
         btnHelp = view.findViewById(R.id.help_button);
         btnHelp.setOnClickListener(v -> {
-            ((HostActivity) requireActivity()).navigateTo(new HelpFragment(), true);
+            ((HostActivity) requireActivity()).navigateTo(new SettingsFragment(), true);
         });
 
         // Tab
@@ -633,6 +640,7 @@ public class MainFragment extends BaseFloatFragment {
         IntentFilter filter = new IntentFilter();
         filter.addAction(MusicPlayerService.ACTION_SONG_CHANGED);
         filter.addAction(MusicPlayerService.ACTION_PLAY_STATE_CHANGED);
+        filter.addAction(MusicPlayerService.ACTION_THEME_CHANGED);
         CompatUtil.safeRegisterReceiver(ctx, playStateReceiver, filter);
 
         // 注册手动扫描完成广播接收器
@@ -2345,14 +2353,14 @@ public class MainFragment extends BaseFloatFragment {
                 if (btnClose != null) {
                     android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) btnClose.getLayoutParams();
                     lp2.width = iconSize; lp2.height = iconSize;
-                    lp2.leftMargin = (int) (12 * density);
+                    lp2.leftMargin = (int) (8 * density);
                     btnClose.setLayoutParams(lp2);
                     btnClose.setPadding((int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f));
                 }
                 if (btnHelp != null) {
                     android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) btnHelp.getLayoutParams();
                     lp2.width = iconSize; lp2.height = iconSize;
-                    lp2.rightMargin = (int) (12 * density);
+                    lp2.rightMargin = (int) (8 * density);
                     btnHelp.setLayoutParams(lp2);
                     btnHelp.setPadding((int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f));
                 }
@@ -2455,14 +2463,14 @@ public class MainFragment extends BaseFloatFragment {
                 if (btnClose != null) {
                     android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) btnClose.getLayoutParams();
                     lp2.width = iconSize; lp2.height = iconSize;
-                    lp2.leftMargin = (int) (12 * density);
+                    lp2.leftMargin = (int) (8 * density);
                     btnClose.setLayoutParams(lp2);
                     btnClose.setPadding((int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f));
                 }
                 if (btnHelp != null) {
                     android.widget.FrameLayout.LayoutParams lp2 = (android.widget.FrameLayout.LayoutParams) btnHelp.getLayoutParams();
                     lp2.width = iconSize; lp2.height = iconSize;
-                    lp2.rightMargin = (int) (12 * density);
+                    lp2.rightMargin = (int) (8 * density);
                     btnHelp.setLayoutParams(lp2);
                     btnHelp.setPadding((int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f), (int)(iconSize * 0.17f));
                 }
