@@ -2326,6 +2326,12 @@ public class PlayerFragment extends BaseFloatFragment {
             whiteOverlay.setVisibility(View.GONE);
             overlayView.setVisibility(View.GONE);
             immersiveDarkOverlay.setVisibility(View.GONE);
+            // 光晕模式必须同步文字主题色（歌名/歌手/时间）：
+            // 白天深色/夜间浅色，否则停留在 XML 默认色，切白天后歌名仍白色
+            applyTextTheme(isNightMode);
+            // 切回光晕模式必须重刷进度条配色：
+            // 沉浸/非光晕分支会把进度条恢复成 XML 默认黄色，这里补回光晕专用配色（圆球+已播放区=按钮色，轨道浅灰）
+            applyAuroraSeekBarTheme(isNightMode);
             return;
         }
 
