@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '4b90c997-9f3c-4fa7-a106-d717ad0c633d'
-  PropagateID: '4b90c997-9f3c-4fa7-a106-d717ad0c633d'
-  ReservedCode1: '2ba28f1c-0be9-478f-bbd5-3e41084bf6f3'
-  ReservedCode2: '2ba28f1c-0be9-478f-bbd5-3e41084bf6f3'
+  ProduceID: 'a253d5a4-56af-49a6-a776-d70151ea4113'
+  PropagateID: 'a253d5a4-56af-49a6-a776-d70151ea4113'
+  ReservedCode1: '8cc655ca-7a8d-461e-b9ae-085fe77d4bf7'
+  ReservedCode2: '8cc655ca-7a8d-461e-b9ae-085fe77d4bf7'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,11 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.7.6)
+## 📢 最新版本 (v1.0.7.7)
+
+### v1.0.7.7 (2026-09)
+#### 修复
+- **Gitee API 限流导致无法检测更新** — Gitee API v5 被 WAF 限流返回 403 时，新增 Gitee Releases 网页解析回退方案，从网页 HTML 提取最新版本号、APK 下载链接和更新说明，确保各类网络环境下更新检测正常
 
 ### v1.0.7.6 (2026-09)
 #### 新功能
@@ -178,7 +182,11 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.7.6)
+## 📢 Latest Version (v1.0.7.7)
+
+### v1.0.7.7 (2026-09)
+#### Bug Fixes
+- **Update detection failure due to Gitee API rate limiting** — When Gitee API v5 returns 403 (WAF rate limited), added fallback to parse Gitee Releases page HTML for latest version, APK download link, and release notes, ensuring update detection works across all network conditions
 
 ### v1.0.7.6 (2026-09)
 #### New Features
@@ -761,7 +769,11 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.7.6)
+## 📢 Latest Version (v1.0.7.7)
+
+### v1.0.7.7 (2026-09)
+#### Bug Fixes
+- **Update detection failure due to Gitee API rate limiting** — When Gitee API v5 returns 403 (WAF rate limited), added fallback to parse Gitee Releases page HTML for latest version, APK download link, and release notes, ensuring update detection works across all network conditions
 
 ### v1.0.7.6 (2026-09)
 #### New Features
