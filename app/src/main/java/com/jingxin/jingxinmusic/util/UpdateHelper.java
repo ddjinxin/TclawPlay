@@ -57,6 +57,9 @@ public class UpdateHelper {
     private static final String GITEE_NAME  = "jingxin-music";
     private static final String GITEE_API_URL =
             "https://gitee.com/api/v5/repos/" + GITEE_OWNER + "/" + GITEE_NAME + "/releases/latest";
+    // Gitee releases 网页（API 被限流时的回退源，匿名可访问）
+    private static final String GITEE_RELEASES_PAGE =
+            "https://gitee.com/" + GITEE_OWNER + "/" + GITEE_NAME + "/releases";
 
     // GitHub 国内加速镜像列表：[类型, 基址]
     // 注意：镜像服务经常变动，需定期更新。已移除失效的 mirror.ghproxy.com 和 kkgithub.com
@@ -204,21 +207,96 @@ public class UpdateHelper {
         }
     }
 
-    /** 检查更新：Gitee 优先，GitHub 回退。两个平台 JSON 格式一致，可复用解析逻辑。 */
+    /** 检查更新：Gitee API → Gitee 网页 → GitHub 三级回退 */
     private ReleaseInfo fetchLatestRelease() {
-        // 1. 先试 Gitee（国内快）
+        // 1. 先试 Gitee API（国内快）
         ReleaseInfo info = fetchFromApi(GITEE_API_URL, true);
         if (info != null) {
-            Log.i(TAG, "从 Gitee 获取版本信息成功");
+            Log.i(TAG, "从 Gitee API 获取版本信息成功");
             return info;
         }
-        Log.w(TAG, "Gitee API 失败，回退 GitHub");
-        // 2. 回退 GitHub
+        // 2. Gitee API 失败（限流/策略变更），解析 releases 网页
+        info = fetchFromGiteePage();
+        if (info != null) {
+            Log.i(TAG, "从 Gitee 网页解析版本信息成功: " + info.tagName);
+            return info;
+        }
+        Log.w(TAG, "Gitee API 与网页均失败，回退 GitHub");
+        // 3. 回退 GitHub
         info = fetchFromApi(GITHUB_API_URL, false);
         if (info != null) {
             Log.i(TAG, "从 GitHub 获取版本信息成功");
         }
         return info;
+    }
+
+    /**
+     * 解析 Gitee releases 网页获取最新版本。
+     * 页面按时间倒序排列，结构：每个条目含 releases/download/vX.Y.Z/xxx.apk 链接
+     * 与 <textarea class='content'> 更新说明，第一个条目即最新版本。
+     */
+    private ReleaseInfo fetchFromGiteePage() {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(GITEE_RELEASES_PAGE);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Mobile Safari/537.36");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(15000);
+            conn.setInstanceFollowRedirects(true);
+            int code = conn.getResponseCode();
+            if (code != 200) {
+                Log.w(TAG, "Gitee 网页响应码: " + code);
+                return null;
+            }
+            String html = readStream(conn.getInputStream());
+
+            // 1. 提取第一个 APK 下载链接（页面倒序，第一个即最新），版本号在链接中
+            int dlIdx = html.indexOf("releases/download/");
+            if (dlIdx < 0) return null;
+            int verStart = dlIdx + "releases/download/".length();
+            int verEnd = html.indexOf("/", verStart);
+            if (verEnd < 0) return null;
+            String tagName = html.substring(verStart, verEnd);
+            if (!tagName.matches("v\\d+\\.\\d+.*")) {
+                Log.w(TAG, "Gitee 网页版本号异常: " + tagName);
+                return null;
+            }
+            // 完整下载链接：取 href="..." 内的值
+            int hrefStart = html.lastIndexOf("href=\"", dlIdx);
+            int hrefEnd = html.indexOf("\"", dlIdx);
+            if (hrefStart < 0 || hrefEnd < 0) return null;
+            String path = html.substring(hrefStart + 6, hrefEnd);
+            String downloadUrl = path.startsWith("http") ? path : "https://gitee.com" + path;
+
+            // 2. 提取更新说明（第一个 textarea class='content'，位于第一个条目内）
+            String notes = "";
+            int taIdx = html.indexOf("class='content'");
+            if (taIdx >= 0) {
+                int contentStart = html.indexOf('>', taIdx) + 1;
+                int contentEnd = html.indexOf("</textarea>", contentStart);
+                if (contentEnd > contentStart) {
+                    notes = html.substring(contentStart, contentEnd)
+                            .replace("&#x000A;", "\n")
+                            .replace("&amp;", "&").replace("&lt;", "<")
+                            .replace("&gt;", ">").replace("&quot;", "\"");
+                }
+            }
+
+            ReleaseInfo info = new ReleaseInfo();
+            info.tagName = tagName;
+            info.notes = notes;
+            info.downloadUrl = downloadUrl;
+            Log.i(TAG, "Gitee 网页解析: " + tagName + " → " + downloadUrl);
+            return info;
+        } catch (Exception e) {
+            Log.e(TAG, "fetchFromGiteePage 失败: " + e.getMessage());
+            return null;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
     }
 
     /** 通用 API 请求：isGitee=true 时不需要 Accept 头 */
