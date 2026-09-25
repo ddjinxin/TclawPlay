@@ -447,6 +447,10 @@ public class MusicScanner {
                     continue;
                 }
 
+                // 车机 MediaScanner 可能解析不出 flac 内嵌 tag（MediaStore 里 artist 为空/unknown），
+                // 从文件内嵌 tag 兑底提取真实歌手
+                song.artist = ensureValidArtist(song.artist, song.filePath);
+
                 song.sourceType = Song.SOURCE_LOCAL;
                 buildDisplayName(song);
                 songs.add(song);
@@ -760,6 +764,8 @@ public class MusicScanner {
                 song.filePath = filePath;
                 song.albumArt = getAlbumArtUri(cursor.getLong(albumIdCol));
                 song.contentUri = "content://media/external/audio/media/" + song.id;
+                // 车机 MediaScanner 解析不出 flac 内嵌 tag 时，从文件内嵌 tag 兑底提取真实歌手
+                song.artist = ensureValidArtist(song.artist, song.filePath);
                 song.sourceType = Song.SOURCE_LOCAL;
                 buildDisplayName(song);
                 songs.add(song);
@@ -770,6 +776,40 @@ public class MusicScanner {
         }
 
         return songs;
+    }
+
+    /**
+     * MediaStore 的 artist 无效（空/<unknown>/unknown）且为 flac 时，
+     * 用 MediaMetadataRetriever 从文件内嵌 tag 兑底读取真实歌手。
+     * Retriever 需打开解码器开销大，仅对 artist 无效的 flac 触发，不影响整库扫描速度。
+     */
+    private static String ensureValidArtist(String mediaStoreArtist, String filePath) {
+        boolean invalid = mediaStoreArtist == null || mediaStoreArtist.isEmpty()
+                || "<unknown>".equals(mediaStoreArtist) || "unknown".equalsIgnoreCase(mediaStoreArtist);
+        if (!invalid || filePath == null || !filePath.toLowerCase().endsWith(".flac")) {
+            return mediaStoreArtist;
+        }
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(filePath);
+            String artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
+            if (artist != null && !artist.isEmpty() && !"<unknown>".equals(artist)) {
+                return artist;
+            }
+            // flac 无 ARTIST 时尝试 ALBUMARTIST
+            artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST);
+            if (artist != null && !artist.isEmpty() && !"<unknown>".equals(artist)) {
+                return artist;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "flac 内嵌 tag 兑底提取失败: " + filePath, e);
+        } finally {
+            try {
+                retriever.release();
+            } catch (Exception ignored) {
+            }
+        }
+        return mediaStoreArtist;
     }
 
     /**

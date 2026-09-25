@@ -39,6 +39,9 @@ public class ImmersiveOverlayView extends View {
     // 是否横屏模式
     private boolean landscapeMode = false;
 
+    // 是否光晕模式：遮罩色用光晕底色（白天白/夜间深），不用封面主色
+    private boolean auroraMode = false;
+
     public ImmersiveOverlayView(Context context) {
         super(context);
         init();
@@ -86,6 +89,33 @@ public class ImmersiveOverlayView extends View {
         invalidate();
     }
 
+    public void setAuroraMode(boolean aurora) {
+        if (this.auroraMode != aurora) {
+            this.auroraMode = aurora;
+            invalidate();
+        }
+    }
+
+    /**
+     * 实际绘制遮罩色：光晕模式用光晕底色（白天白/夜间深），否则用封面主色
+     */
+    private int getEffectiveOverlayColor() {
+        if (auroraMode) {
+            return isNight ? AuroraGradientView.BG_NIGHT : AuroraGradientView.BG_DAY;
+        }
+        return getOverlayColor();
+    }
+
+    /**
+     * 实际绘制透明色：光晕模式纯透明，否则保留原白天透明浅蓝
+     */
+    private int getEffectiveTransparentColor() {
+        if (auroraMode) {
+            return 0x00000000;
+        }
+        return getTransparentColor();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -126,7 +156,7 @@ public class ImmersiveOverlayView extends View {
      * 横屏沉浸模式（底层面）：左边65%主色调实色，右边不绘制
      */
     private void drawLandscapeGradient(Canvas canvas, int w, int h) {
-        int overlayColor = getOverlayColor();
+        int overlayColor = getEffectiveOverlayColor();
         // 用 w - (int)(w * 0.35f) 计算，与封面左边缘算法一致，避免浮点取整差1px露出黑线
         int leftEnd = w - (int) (w * 0.35f);
         paintDominant.setColor(overlayColor);
@@ -136,8 +166,8 @@ public class ImmersiveOverlayView extends View {
     }
 
     private void drawNormalGradient(Canvas canvas, int w, int h) {
-        int overlayColor = getOverlayColor();
-        int transparentColor = getTransparentColor();
+        int overlayColor = getEffectiveOverlayColor();
+        int transparentColor = getEffectiveTransparentColor();
 
         // 0~20%：主色调→透明垂直线性渐变
         int topEnd = (int) (h * 0.20f);
@@ -158,12 +188,12 @@ public class ImmersiveOverlayView extends View {
     }
 
     private void drawFullScreenGradient(Canvas canvas, int w, int h) {
-        int overlayColor = getOverlayColor();
+        int overlayColor = getEffectiveOverlayColor();
 
         int transStart = (int) (h * 0.25f);
         int transEnd = (int) (h * 0.38f);
         paintTransition.setShader(new LinearGradient(0, transStart, 0, transEnd,
-                getTransparentColor(), overlayColor, Shader.TileMode.CLAMP));
+                getEffectiveTransparentColor(), overlayColor, Shader.TileMode.CLAMP));
         canvas.drawRect(0, transStart, w, transEnd, paintTransition);
 
         paintDominant.setColor(overlayColor);

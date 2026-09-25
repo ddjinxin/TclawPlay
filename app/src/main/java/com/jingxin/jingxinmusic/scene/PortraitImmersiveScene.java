@@ -33,10 +33,11 @@ public class PortraitImmersiveScene implements CoverScene {
         h.whiteOverlay.setVisibility(View.GONE);
         // 隐藏封面占位
         h.coverPlaceholder.setVisibility(View.GONE);
-        // 原图铺背景
+        // 原图铺背景：高度改为页面 43%（不再全屏铺满）
         h.blurBackground.setVisibility(View.VISIBLE);
         h.blurBackground.setAlpha(1.0f);
         h.blurBackground.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        applyPortraitImmersiveCoverHeight();
         // 旋转封面隐藏
         h.coverView.setVisibility(View.GONE);
         h.applyCircleCoverStyle();
@@ -83,6 +84,8 @@ public class PortraitImmersiveScene implements CoverScene {
         }
         // 频谱位置：沉浸模式始终在底部
         h.applySpectrumPosition(true, 0, 0, 0, height, getSpectrumHeightRatio());
+        // 封面高度同步 43%
+        applyPortraitImmersiveCoverHeight();
         // 进度条比例缩放（圆球2% + 时间2% + 轨道0.5%）
         h.applyProgressScaling(height, width);
     }
@@ -113,11 +116,12 @@ public class PortraitImmersiveScene implements CoverScene {
 
     @Override
     public void setCover(Bitmap bitmap) {
-        // 竖屏沉浸：原图铺背景，CENTER_CROP 自适应缩放铺满
+        // 竖屏沉浸：原图铺背景，CENTER_CROP 自适应缩放铺满，高度 43%
         h.blurBackground.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
         h.blurBackground.setVisibility(View.VISIBLE);
         h.blurBackground.setAlpha(1.0f);
         h.blurBackground.setImageBitmap(bitmap);
+        applyPortraitImmersiveCoverHeight();
         h.coverView.setVisibility(View.GONE);
         // 提取主色调
         h.callback.extractAndApplyDominantColor(bitmap);
@@ -174,6 +178,23 @@ public class PortraitImmersiveScene implements CoverScene {
     }
 
 
+
+    /**
+     * 竖屏沉浸：封面背景高度改为页面 43%（光晕/非光晕统一），宽度全屏，顶部对齐
+     */
+    private void applyPortraitImmersiveCoverHeight() {
+        int ph = h.rootLayout.getHeight();
+        if (ph <= 0) {
+            ph = h.getAvailableScreenHeight();
+        }
+        int coverHeight = (int) (ph * 0.43f);
+        FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams) h.blurBackground.getLayoutParams();
+        params.width = FrameLayout.LayoutParams.MATCH_PARENT;
+        params.height = coverHeight;
+        params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        h.blurBackground.setLayoutParams(params);
+    }
 
     @Override
     public boolean needsReloadCover() {

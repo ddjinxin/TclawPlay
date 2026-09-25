@@ -1283,8 +1283,8 @@ public class PlayerFragment extends BaseFloatFragment {
                             if (isLandscapeMode && coverBorderGradient != null) {
                                 coverBorderGradient.setOverlayColor(immersiveOverlay.getOverlayColor());
                             }
-                            if (isLandscapeMode && landscapeGradientOverlay != null) {
-                                landscapeGradientOverlay.setOverlayColor(immersiveOverlay.getOverlayColor());
+                            if (isLandscapeMode && sceneHelper.landscapeGradientOverlay != null) {
+                                sceneHelper.landscapeGradientOverlay.setOverlayColor(immersiveOverlay.getOverlayColor());
                             }
                         });
                     }
@@ -1377,11 +1377,6 @@ public class PlayerFragment extends BaseFloatFragment {
             sceneHelper.coverBorderGradient = coverBorderGradient;
         } else if (sceneHelper.coverBorderGradient != null) {
             coverBorderGradient = sceneHelper.coverBorderGradient;
-        }
-        if (landscapeGradientOverlay != null) {
-            sceneHelper.landscapeGradientOverlay = landscapeGradientOverlay;
-        } else if (sceneHelper.landscapeGradientOverlay != null) {
-            landscapeGradientOverlay = sceneHelper.landscapeGradientOverlay;
         }
     }
 
@@ -2344,10 +2339,10 @@ public class PlayerFragment extends BaseFloatFragment {
                     int auroraBgColor = isNightMode
                             ? com.jingxin.jingxinmusic.view.AuroraGradientView.BG_NIGHT
                             : com.jingxin.jingxinmusic.view.AuroraGradientView.BG_DAY;
-                    if (landscapeGradientOverlay != null) {
-                        landscapeGradientOverlay.setOverlayColor(auroraBgColor);
-                        landscapeGradientOverlay.setSolidLeft(false);
-                        landscapeGradientOverlay.setVisibility(View.VISIBLE);
+                    if (sceneHelper.landscapeGradientOverlay != null) {
+                        sceneHelper.landscapeGradientOverlay.setOverlayColor(auroraBgColor);
+                        sceneHelper.landscapeGradientOverlay.setSolidLeft(false);
+                        sceneHelper.landscapeGradientOverlay.setVisibility(View.VISIBLE);
                     }
                     // 封面前景渐变恢复：光晕底色→透明
                     if (coverView != null && sceneHelper != null) {
@@ -2359,13 +2354,23 @@ public class PlayerFragment extends BaseFloatFragment {
                     overlayView.setVisibility(View.GONE);
                     immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
                 } else {
-                    // 竖屏沉浸：光晕透明底叠加在封面上（氛围）
-                    auroraBackgroundView.setTransparentBackground(true);
-                    auroraBackgroundView.setVisibility(View.VISIBLE);
-                    ensureAuroraAboveBlur(); // 移到封面之上
+                    // 竖屏沉浸：封面全屏铺底，仅上面0~43%透出
+                    // 43%以下：光晕底色实底（白天白/夜间深）；0~43%：光晕底色渐变遮罩
+                    // 光晕叠加在最上层整屏可见
+                    int auroraBgColor = isNightMode
+                            ? com.jingxin.jingxinmusic.view.AuroraGradientView.BG_NIGHT
+                            : com.jingxin.jingxinmusic.view.AuroraGradientView.BG_DAY;
+                    // 根布局底色同步光晕底色，防止封面未加载时露黑
+                    mRootView.setBackgroundColor(auroraBgColor);
+                    immersiveOverlay.setAuroraMode(true);
+                    immersiveOverlay.setVisibility(View.VISIBLE); // 白底遮罩：43%以下实底
+                    // 封面全屏铺底（CENTER_CROP），光晕模式不隐藏
                     blurBackground.setVisibility(View.VISIBLE);
                     blurBackground.setAlpha(1.0f);
-                    immersiveOverlay.setVisibility(View.GONE);
+                    // 光晕透明底叠加在最上层（封面之上、信息区之下）
+                    auroraBackgroundView.setTransparentBackground(true);
+                    auroraBackgroundView.setVisibility(View.VISIBLE);
+                    ensureAuroraAboveBlur();
                     whiteOverlay.setVisibility(View.GONE);
                     overlayView.setVisibility(View.GONE);
                     immersiveDarkOverlay.setVisibility(isNightMode ? View.VISIBLE : View.GONE);
@@ -2405,14 +2410,15 @@ public class PlayerFragment extends BaseFloatFragment {
             // 先设状态再VISIBLE，防止状态未就绪时触发绘制
             immersiveOverlay.setLandscapeMode(isLandscapeMode);
             immersiveOverlay.setNightMode(isNightMode);
+            immersiveOverlay.setAuroraMode(false); // 非光晕：遮罩恢复封面主色
             immersiveOverlay.setVisibility(View.VISIBLE);
             // 横屏沉浸：同步更新封面边缘渐变颜色和渐变过渡层颜色
             if (isLandscapeMode && coverBorderGradient != null) {
                 coverBorderGradient.setOverlayColor(immersiveOverlay.getOverlayColor());
             }
-            if (isLandscapeMode && landscapeGradientOverlay != null) {
-                landscapeGradientOverlay.setOverlayColor(immersiveOverlay.getOverlayColor());
-                landscapeGradientOverlay.setSolidLeft(true);
+            if (isLandscapeMode && sceneHelper.landscapeGradientOverlay != null) {
+                sceneHelper.landscapeGradientOverlay.setOverlayColor(immersiveOverlay.getOverlayColor());
+                sceneHelper.landscapeGradientOverlay.setSolidLeft(true);
             }
             overlayView.setVisibility(View.GONE);
             whiteOverlay.setVisibility(View.GONE);
@@ -2475,18 +2481,20 @@ public class PlayerFragment extends BaseFloatFragment {
         if (root == null || auroraBackgroundView == null || coverView == null) return;
         int coverIndex = root.indexOfChild(coverView);
         if (coverIndex < 0) return;
+        // 用 helper 的权威引用（渐变带由 Scene 层创建/移除，fragment 不再持有冗余引用）
+        com.jingxin.jingxinmusic.view.LandscapeGradientOverlay grad = sceneHelper.landscapeGradientOverlay;
         // 渐变过渡层紧贴封面之上
-        if (landscapeGradientOverlay != null && landscapeGradientOverlay.getParent() != null) {
-            int gradIndex = root.indexOfChild(landscapeGradientOverlay);
+        if (grad != null && grad.getParent() != null) {
+            int gradIndex = root.indexOfChild(grad);
             if (gradIndex != coverIndex + 1) {
-                root.removeView(landscapeGradientOverlay);
-                root.addView(landscapeGradientOverlay, coverIndex + 1);
+                root.removeView(grad);
+                root.addView(grad, root.indexOfChild(coverView) + 1);
             }
         }
         // 光晕移到渐变层之上、infoPanel 之下
         int anchorIndex = root.indexOfChild(coverView);
-        if (landscapeGradientOverlay != null && landscapeGradientOverlay.getParent() != null) {
-            anchorIndex = root.indexOfChild(landscapeGradientOverlay);
+        if (grad != null && grad.getParent() != null) {
+            anchorIndex = root.indexOfChild(grad);
         }
         int auroraIndex = root.indexOfChild(auroraBackgroundView);
         int infoIndex = root.indexOfChild(sceneHelper.infoPanel);
@@ -2499,8 +2507,8 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 竖屏沉浸光晕：把光晕 View 移到封面（blurBackground）之上、infoPanel 之下，
-     * 使光晕作为半透明氛围叠加在铺满的封面上。
+     * 竖屏沉浸光晕：把光晕 View 移到铺底封面及其全部遮罩层之上、infoPanel 之下，
+     * 使光晕整屏可见（白底遮罩之上再叠光晕）。
      */
     private void ensureAuroraAboveBlur() {
         android.widget.FrameLayout root = mRootView.findViewById(R.id.root_layout);
@@ -2508,9 +2516,14 @@ public class PlayerFragment extends BaseFloatFragment {
         int blurIndex = root.indexOfChild(blurBackground);
         int auroraIndex = root.indexOfChild(auroraBackgroundView);
         if (blurIndex < 0) return;
-        // 光晕应紧贴在 blur 之后（blurIndex+1），但仍在 infoPanel 之前
+        // 锚点取 blur 之上最高的遮罩层（immersiveDarkOverlay > immersiveOverlay），光晕叠在其上
+        int anchor = blurIndex;
+        int darkIndex = root.indexOfChild(immersiveDarkOverlay);
+        if (darkIndex > anchor) anchor = darkIndex;
+        int overlayIndex = root.indexOfChild(immersiveOverlay);
+        if (overlayIndex > anchor) anchor = overlayIndex;
+        int target = anchor + 1;
         int infoIndex = root.indexOfChild(sceneHelper.infoPanel);
-        int target = blurIndex + 1;
         if (infoIndex >= 0 && target >= infoIndex) target = infoIndex;
         if (auroraIndex != target) {
             root.removeView(auroraBackgroundView);
