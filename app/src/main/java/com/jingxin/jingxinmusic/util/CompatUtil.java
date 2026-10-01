@@ -6,8 +6,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.util.Log;
+import android.view.View;
 
 /**
  * 兼容性工具类
@@ -90,6 +92,20 @@ public class CompatUtil {
             } catch (Exception e) {
                 Log.w(TAG, "startForeground 失败: " + e.getMessage());
             }
+        }
+    }
+
+    /**
+     * 兼容设置 View 前景层
+     * View.setForeground(Drawable) 是 API 23 才引入的方法，API 21/22 上调用会抛 NoSuchMethodError。
+     * 低版本上直接跳过（无前景高亮效果，但不崩溃）。
+     *
+     * @param view     目标视图
+     * @param drawable 前景 drawable（可为 null 表示清除前景）
+     */
+    public static void setForegroundCompat(View view, Drawable drawable) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            view.setForeground(drawable);
         }
     }
 }

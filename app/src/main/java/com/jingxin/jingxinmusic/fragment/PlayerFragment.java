@@ -293,7 +293,7 @@ public class PlayerFragment extends BaseFloatFragment {
                             // 从 mini 播放条跳转，音乐已在后台播放，只更新 UI
                             btnPlayPause.setImageResource(R.drawable.ic_pause);
                             coverView.startRotation();
-                            spectrumView.setPlaying(true);
+                            if (spectrumView != null) spectrumView.setPlaying(true);
                             startSpectrumWithPermission();
                             // 通过 Scene 同步播放状态（唱片机同步唱臂等）
                             currentScene.onServiceResumed(true);
@@ -1487,7 +1487,7 @@ public class PlayerFragment extends BaseFloatFragment {
         }
         // 横屏沉浸下，切换间隙隐藏 foreground 渐变，避免默认封面+渐变的闪烁
         if (coverStyle == COVER_STYLE_IMMERSIVE && isLandscapeMode) {
-            coverView.setForeground(null);
+            CompatUtil.setForegroundCompat(coverView, null);
         }
 
         boolean preferLocal = SettingsFragment.isLocalCoverPriority(requireContext());
@@ -1999,6 +1999,8 @@ public class PlayerFragment extends BaseFloatFragment {
             item.setPadding(
                     (int)(20 * density * sf), (int)(14 * density * sf),
                     (int)(20 * density * sf), (int)(14 * density * sf));
+            item.setFocusable(true);
+            CompatUtil.setForegroundCompat(item, ctx.getResources().getDrawable(R.drawable.tv_focus_popup_item));
 
             android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams();
             lp.width = itemWidth;
@@ -2348,7 +2350,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     }
                     // 封面前景渐变恢复：光晕底色→透明
                     if (coverView != null && sceneHelper != null) {
-                        coverView.setForeground(sceneHelper.ensureCoverBorderGradient(auroraBgColor));
+                        CompatUtil.setForegroundCompat(coverView, sceneHelper.ensureCoverBorderGradient(auroraBgColor));
                     }
                     // 沉浸遮罩系列全部隐藏，光晕作为背景氛围
                     immersiveOverlay.setVisibility(View.GONE);

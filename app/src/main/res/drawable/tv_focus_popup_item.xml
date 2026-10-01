@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    弹窗选项焦点高亮（前景层，矩形圆角）
+    用于代码动态创建的弹窗选项（频谱选择等），与 tv_focus_highlight 风格一致。
+    聚焦时半透明白色圆角底，无描边，叠加在已有背景色之上。
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#33FFFFFF" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+        </shape>
+    </item>
+</selector>

@@ -7,7 +7,9 @@
     android:paddingStart="16dp"
     android:paddingEnd="16dp"
     android:paddingTop="12dp"
-    android:paddingBottom="12dp">
+    android:paddingBottom="12dp"
+    android:focusable="true"
+    android:foreground="@drawable/tv_focus_rect">
 
     <!-- 歌曲信息 -->
     <LinearLayout

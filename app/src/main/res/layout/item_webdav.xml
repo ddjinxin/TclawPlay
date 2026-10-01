@@ -3,7 +3,9 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="4dp">
+    android:padding="4dp"
+    android:focusable="true"
+    android:foreground="@drawable/tv_focus_rect">
 
     <!-- 正方形封面区域（歌曲） -->
     <com.jingxin.jingxinmusic.ui.SquareImageView

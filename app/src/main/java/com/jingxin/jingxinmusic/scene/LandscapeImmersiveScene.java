@@ -60,7 +60,7 @@ public class LandscapeImmersiveScene implements CoverScene {
         h.landscapeGradientOverlay.setVisibility(View.VISIBLE);
         // 封面边缘渐变
         int overlayColor = h.immersiveOverlay.getOverlayColor();
-        h.coverView.setForeground(h.ensureCoverBorderGradient(overlayColor));
+        com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(h.coverView, h.ensureCoverBorderGradient(overlayColor));
         // 排列层级
         h.moveCoverBelowOverlay();
         // 歌名歌手
@@ -129,10 +129,10 @@ public class LandscapeImmersiveScene implements CoverScene {
             int auroraBg = h.isNightMode
                     ? com.jingxin.jingxinmusic.view.AuroraGradientView.BG_NIGHT
                     : com.jingxin.jingxinmusic.view.AuroraGradientView.BG_DAY;
-            h.coverView.setForeground(h.ensureCoverBorderGradient(auroraBg));
+            com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(h.coverView, h.ensureCoverBorderGradient(auroraBg));
         } else {
             int overlayColor = h.immersiveOverlay.getOverlayColor();
-            h.coverView.setForeground(h.ensureCoverBorderGradient(overlayColor));
+            com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(h.coverView, h.ensureCoverBorderGradient(overlayColor));
         }
         // 提取主色调
         h.callback.extractAndApplyDominantColor(bitmap);

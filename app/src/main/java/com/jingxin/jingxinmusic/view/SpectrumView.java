@@ -405,14 +405,29 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 直接设置频谱样式（switchStyle也调用此方法）
+     * 直接设置频谱样式并持久化（switchStyle也调用此方法）
      */
     public void setStyle(int style) {
         if (style < 0 || style > STYLE_WAVE_RING) return;
-        currentStyle = style;
+        setStyleInternal(style);
         // 持久化保存
         getContext().getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
                 .edit().putInt(KEY_STYLE, style).apply();
+    }
+
+    /**
+     * 设置频谱样式但不写入 SharedPreferences（悬浮窗专用）
+     * 悬浮窗频谱样式是独立于播放页的固定样式，不应覆盖播放页用户选择的持久化样式。
+     * 否则：用户在播放页选了圆环 → 退到后台 → 悬浮窗 setStyle(柱状) 覆盖 SP →
+     * 冷启动后播放页从 SP 读到柱状，丢失用户选择。
+     */
+    public void setStyleSilent(int style) {
+        if (style < 0 || style > STYLE_WAVE_RING) return;
+        setStyleInternal(style);
+    }
+
+    private void setStyleInternal(int style) {
+        currentStyle = style;
         initStyleParams(style);
         rebuildArrays();
         float totalSpacing = barSpacing * (currentCount - 1);
@@ -658,6 +673,14 @@ public class SpectrumView extends View {
     private void stopAnimation() {
         animRunning = false;
         animHandler.removeCallbacks(animRunnable);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        // 视图被移除（悬浮窗重建/销毁）时立即停止动画自续订，
+        // 否则 animRunnable 会每帧 removeCallbacks 后重新 postDelayed 自身，永续空转泄漏 CPU
+        stopAnimation();
+        super.onDetachedFromWindow();
     }
     
     @Override

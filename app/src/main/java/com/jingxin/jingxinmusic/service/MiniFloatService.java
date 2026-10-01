@@ -44,6 +44,7 @@ import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.fragment.SettingsFragment;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.util.CoverFetcher;
+import com.jingxin.jingxinmusic.util.CoverColorExtractor;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.util.LyricFetcher;
@@ -114,6 +115,11 @@ public class MiniFloatService extends Service {
     // 封面旋转动画
     private com.jingxin.jingxinmusic.util.CoverRotationHelper coverRotationHelper = new com.jingxin.jingxinmusic.util.CoverRotationHelper();
 
+    // 频谱 sessionId 重试（与 PlayerFragment 对齐）
+    private static final int SPECTRUM_RETRY_INTERVAL = 300; // ms
+    private static final int SPECTRUM_MAX_RETRIES = 10;     // 共 3 秒
+    private int spectrumRetryCount = 0;
+
     // 进度更新
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private final Runnable progressRunnable = new Runnable() {
@@ -175,6 +181,8 @@ public class MiniFloatService extends Service {
     private TextView tvKaraokeLine1;  // 卡拉OK第一行歌词（当前句，居左）
     private TextView tvKaraokeLine2;  // 卡拉OK第二行歌词（下一句，居右）
     private SpectrumView karaokeSpectrum; // 卡拉OK频谱
+    private int karaokeSpectrumTop = 0;    // 卡拉OK频谱封面抽取顶部实色（0=未抽取，回退默认）
+    private int karaokeSpectrumBottom = 0; // 卡拉OK频谱封面抽取底部实色（0=未抽取，回退默认）
 
     @Override
     public void onCreate() {
@@ -704,6 +712,9 @@ public class MiniFloatService extends Service {
     private void loadCover(Song song) {
         if (song.title == null) return;
         // 不重置封面，保留上一首歌的圆形封面直到新封面加载完成，避免切歌时方形闪烁
+        // 但卡拉OK频谱取色必须重置：新封面加载成功前若沿用上一首歌的取色，会出现"旧色残留"
+        karaokeSpectrumTop = 0;
+        karaokeSpectrumBottom = 0;
 
         boolean preferLocal = com.jingxin.jingxinmusic.fragment.SettingsFragment.isLocalCoverPriority(this);
         com.jingxin.jingxinmusic.util.CoverLoader.load(this, song, 200, 200,
@@ -711,11 +722,19 @@ public class MiniFloatService extends Service {
             @Override
             public void onCoverLoaded(Bitmap bitmap) {
                 setCircularCover(bitmap);
+                // 卡拉OK模式：频谱跟随封面抽取实色
+                if (karaokeSpectrum != null && bitmap != null) {
+                    CoverColorExtractor.ColorPair cp = CoverColorExtractor.extract(bitmap);
+                    karaokeSpectrumTop = cp.top;
+                    karaokeSpectrumBottom = cp.bottom;
+                    applyKaraokeSpectrumColors(cp.top, cp.bottom);
+                }
             }
 
             @Override
             public void onCoverFailed() {
-                // 保持默认图标
+                // 保持默认图标；卡拉OK频谱取色失败时回退默认黄色渐变（顶部字段已重置为0）
+                applyDefaultKaraokeSpectrumColors();
             }
         });
     }
@@ -1526,7 +1545,7 @@ public class MiniFloatService extends Service {
         // 下层：迷你柱状频谱（底部对齐，与封面底部齐平）
         if (com.jingxin.jingxinmusic.fragment.SettingsFragment.isSpectrumEnabled(this)) {
             capsuleSpectrum = new SpectrumView(this);
-            capsuleSpectrum.setStyle(SpectrumView.STYLE_COLUMNAR);
+            capsuleSpectrum.setStyleSilent(SpectrumView.STYLE_COLUMNAR);
             capsuleSpectrum.setNightMode(isNightMode);
             FrameLayout.LayoutParams spectrumParams = new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT, (int)(42 * unit));
@@ -1720,8 +1739,14 @@ public class MiniFloatService extends Service {
         try {
             int sessionId = playerBinder.getAudioSessionId();
             if (sessionId == -1 || sessionId == 0) {
+                // sessionId 尚未就绪（ExoPlayer 未 prepare），延迟重试
+                if (spectrumRetryCount < SPECTRUM_MAX_RETRIES) {
+                    spectrumRetryCount++;
+                    uiHandler.postDelayed(this::initVisualizer, SPECTRUM_RETRY_INTERVAL);
+                }
                 return;
             }
+            spectrumRetryCount = 0;
 
             visualizer = new Visualizer(sessionId);
             visualizer.setEnabled(false);
@@ -1804,6 +1829,7 @@ public class MiniFloatService extends Service {
             } catch (Exception ignored) {}
         }
         visualizerEnabled = false;
+        spectrumRetryCount = 0;
     }
 
     // ========== 胶囊模式持久化 ==========
@@ -1870,6 +1896,32 @@ public class MiniFloatService extends Service {
      */
     private float getKaraokeScaleFactor() {
         return getKaraokeUnitRatio() / KARAOKE_UNIT_RATIO;
+    }
+
+    /**
+     * 应用卡拉OK频谱颜色（从封面抽取的实色渐变）
+     * @param top 封面抽取的顶部亮色
+     * @param bottom 封面抽取的底部深色
+     */
+    private void applyKaraokeSpectrumColors(int top, int bottom) {
+        if (karaokeSpectrum == null) return;
+        karaokeSpectrum.setBarColors(bottom, top);
+    }
+
+    /**
+     * 应用卡拉OK频谱默认颜色（封面取色失败/未取色时回退）
+     * 与 buildKaraokeView 里的默认色分支保持一致：黄色 → 歌词高亮色（高级灰日间用红色）
+     */
+    private void applyDefaultKaraokeSpectrumColors() {
+        if (karaokeSpectrum == null) return;
+        int spectrumDark = 0xFFFFD54F;  // 亮黄
+        int spectrumLight;
+        if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
+            spectrumLight = 0xFFE53935;  // 红色
+        } else {
+            spectrumLight = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+        }
+        karaokeSpectrum.setBarColors(spectrumDark, spectrumLight);
     }
 
     /**
@@ -1995,17 +2047,21 @@ public class MiniFloatService extends Service {
         // ===== 第3行：全宽柱状频谱，高度=两行歌词总高度 =====
         if (com.jingxin.jingxinmusic.fragment.SettingsFragment.isSpectrumEnabled(this)) {
             karaokeSpectrum = new SpectrumView(this);
-            karaokeSpectrum.setStyle(SpectrumView.STYLE_BAR);
+            karaokeSpectrum.setStyleSilent(SpectrumView.STYLE_BAR);
             karaokeSpectrum.setNightMode(isNightMode);
-            // 频谱渐变：黄色 → 歌词播放高亮色（高级灰日间用红色）
-            int spectrumDark = 0xFFFFD54F;  // 亮黄
-            int spectrumLight;
-            if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
-                spectrumLight = 0xFFE53935;  // 红色
+            // 频谱颜色：有封面抽取实色则用实色渐变，否则回退默认黄色渐变
+            if (karaokeSpectrumTop != 0 && karaokeSpectrumBottom != 0) {
+                applyKaraokeSpectrumColors(karaokeSpectrumTop, karaokeSpectrumBottom);
             } else {
-                spectrumLight = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+                int spectrumDark = 0xFFFFD54F;  // 亮黄
+                int spectrumLight;
+                if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
+                    spectrumLight = 0xFFE53935;  // 红色
+                } else {
+                    spectrumLight = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();
+                }
+                karaokeSpectrum.setBarColors(spectrumDark, spectrumLight);
             }
-            karaokeSpectrum.setBarColors(spectrumDark, spectrumLight);
             LinearLayout.LayoutParams spectrumParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, spectrumH);
 
@@ -2136,8 +2192,11 @@ public class MiniFloatService extends Service {
             karaokeBaseLineIndex = currentIndex;
         }
 
+        // 高亮色：有封面抽取色则与频谱一致，否则回退主题色
         int playedColor;
-        if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
+        if (karaokeSpectrumTop != 0 && karaokeSpectrumBottom != 0) {
+            playedColor = karaokeSpectrumTop;
+        } else if (!isNightMode && ThemeColors.getStyle() == ThemeStyle.GRAY_PREMIUM) {
             playedColor = 0xFFE53935;  // 高级灰日间用红色
         } else {
             playedColor = isNightMode ? ThemeColors.nightLyricCurrent() : ThemeColors.dayTabIndicator();

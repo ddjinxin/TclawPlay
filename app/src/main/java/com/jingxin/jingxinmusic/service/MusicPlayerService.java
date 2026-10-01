@@ -139,6 +139,10 @@ public class MusicPlayerService extends Service {
     private Runnable playbackStateUpdater;
     private static final long PLAYBACK_STATE_UPDATE_INTERVAL = 1000; // 1秒更新一次
 
+    // 上次 setMetadata 的内容指纹：同一首歌播放中内容不变时不重复 set，
+    // 避免每秒强刷触发 onMetadataChanged 打断乐酷桌面等外部应用的封面旋转动画
+    private String lastMetadataKey = null;
+
     // Service 自己的封面加载线程池（PlayerActivity 不在前台时保证封面也能加载）
     private ExecutorService coverExecutor;
 
@@ -812,11 +816,12 @@ public class MusicPlayerService extends Service {
             } else {
                 fallbackPlayer.start();
             }
+            sendPlayStateBroadcast();
             updateNotification();
             return;
         }
         if (exoPlayer == null) return;
-        if (exoPlayer.isPlaying()) {
+        if (exoPlayer.getPlayWhenReady()) {
             exoPlayer.pause();
         } else {
             exoPlayer.play();
@@ -927,19 +932,49 @@ public class MusicPlayerService extends Service {
         doUpdateMediaSessionMetadata();
     }
 
-    private void doUpdateMediaSessionMetadata() {
-        doUpdateMediaSessionMetadata(false);
+    /**
+     * 计算当前歌曲的 metadata 内容指纹
+     * 指纹不变表示内容无变化，定时器秒刷时可用于去重跳过
+     */
+    private String computeMetadataKey() {
+        Song currentSong = getCurrentSong();
+        if (currentSong == null) return null;
+        String artist = (currentSong.artist != null && !currentSong.artist.isEmpty()) ? currentSong.artist : "未知歌手";
+        String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(currentSong.title, currentSong.artist) + ".jpg";
+        File cacheCoverFile = new File(com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this), coverName);
+        String coverFingerprint = (cacheCoverFile.exists() && cacheCoverFile.length() > 0)
+                ? cacheCoverFile.length() + "@" + cacheCoverFile.lastModified() : "";
+        return currentSong.id + "|" + currentSong.title + "|" + artist + "|" + currentSong.album
+                + "|" + currentSong.duration + "|" + coverName + "|" + coverFingerprint
+                + "|" + (currentSong.albumArt != null ? currentSong.albumArt : "");
     }
 
     /**
-     * @param forceRefresh true=加时间戳字段强制触发 onMetadataChanged（乐酷桌面不主动读 metadata，只能靠回调）
+     * 去重版本：内容指纹未变化时跳过，仅用于每秒定时器路径，避免频繁 setMetadata 打断外部应用动画。
+     * 事件驱动路径（切歌/封面就绪/歌词就绪/显式更新）调用 {@link #doUpdateMediaSessionMetadata()}，
+     * 保证同曲重播、外部应用重连时也能收到更新。
      */
-    private void doUpdateMediaSessionMetadata(boolean forceRefresh) {
+    private void doUpdateMediaSessionMetadataIfChanged() {
+        String key = computeMetadataKey();
+        if (key == null || key.equals(lastMetadataKey)) return;
+        lastMetadataKey = key;
+        doUpdateMediaSessionMetadata();
+    }
+
+    private void doUpdateMediaSessionMetadata() {
         Song currentSong = getCurrentSong();
         if (currentSong == null || mediaSession == null) return;
 
         // artist 为空时填充默认值，否则乐酷桌面 a51.i() 检查 TextUtils.isEmpty(artist) 会跳过不显示
         String artist = (currentSong.artist != null && !currentSong.artist.isEmpty()) ? currentSong.artist : "未知歌手";
+
+        // 封面指纹：缓存文件长度+修改时间（文件不变则指纹不变）。
+        // 不能用 bitmap.hashCode()：每次解码都是新对象，对象哈希天然不同会导致去重失效。
+        String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(currentSong.title, currentSong.artist) + ".jpg";
+        File cacheCoverFile = new File(com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this), coverName);
+        String coverFingerprint = (cacheCoverFile.exists() && cacheCoverFile.length() > 0)
+                ? cacheCoverFile.length() + "@" + cacheCoverFile.lastModified() : "";
+
         MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, currentSong.title)
                 .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, currentSong.title)
@@ -947,13 +982,6 @@ public class MusicPlayerService extends Service {
                 .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, currentSong.album != null ? currentSong.album : "")
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, currentSong.duration);
 
-        // 强制刷新时加一个每次变化的值，确保 onMetadataChanged 被触发
-        if (forceRefresh) {
-            builder.putLong(MediaMetadataCompat.METADATA_KEY_NUM_TRACKS, System.currentTimeMillis());
-        }
-
-        String coverName = com.jingxin.jingxinmusic.model.Song.toFileName(currentSong.title, currentSong.artist) + ".jpg";
-        File cacheCoverFile = new File(com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(this), coverName);
         if (cacheCoverFile.exists() && cacheCoverFile.length() > 0) {
             Bitmap coverBitmap = com.jingxin.jingxinmusic.util.BitmapUtil.decodeSampledFromFile(cacheCoverFile.getAbsolutePath(), 200, 200);
             if (coverBitmap != null) {
@@ -967,6 +995,8 @@ public class MusicPlayerService extends Service {
         }
 
         mediaSession.setMetadata(builder.build());
+        // 同步去重缓存：事件驱动推送后更新指纹，避免定时器随后重复推同一份内容
+        lastMetadataKey = computeMetadataKey();
     }
 
     private void updateMediaSessionPlaybackState() {
@@ -978,9 +1008,10 @@ public class MusicPlayerService extends Service {
     }
 
     /**
-     * 启动定时器，每秒更新 MediaSession PlaybackState + 强制刷新 metadata
+     * 启动定时器，每秒更新 MediaSession PlaybackState
      * 其他应用通过 MediaController.getPlaybackState() 获取实时播放进度
-     * 同时强制刷新 metadata 触发 onMetadataChanged，让乐酷桌面首次进入也能收到歌名歌手
+     * metadata 不再每秒强刷：内容指纹去重后同一首歌不会重复 setMetadata，
+     * 避免每秒触发 onMetadataChanged 打断乐酷桌面等外部应用的封面旋转动画
      */
     private void startPlaybackStateUpdater() {
         stopPlaybackStateUpdater();
@@ -990,10 +1021,9 @@ public class MusicPlayerService extends Service {
             public void run() {
                 if (isPlaying()) {
                     updateMediaSessionPlaybackState();
-                    // 强制刷新 metadata，触发 onMetadataChanged 回调
-                    // 乐酷桌面不主动读已有 metadata，只靠被动回调
+                    // 定时器秒刷用去重版本：内容未变化跳过，避免每秒触发 onMetadataChanged 打断外部应用动画
                     if (!deferMediaSessionUpdate) {
-                        doUpdateMediaSessionMetadata(true);
+                        doUpdateMediaSessionMetadataIfChanged();
                     }
                     // 每5秒周期性保存播放进度，确保退出时进度不丢失
                     long now = System.currentTimeMillis();
@@ -1211,9 +1241,9 @@ public class MusicPlayerService extends Service {
                 new com.jingxin.jingxinmusic.util.CoverLoader.CoverCallback() {
                     @Override
                     public void onCoverLoaded(Bitmap bitmap) {
-                        // 封面已写入缓存文件，立即刷新 metadata
+                        // 封面已写入缓存文件，文件指纹已变化，指纹去重会正常触发 setMetadata
                         if (!deferMediaSessionUpdate) {
-                            doUpdateMediaSessionMetadata(true);
+                            doUpdateMediaSessionMetadata();
                         }
                     }
 

@@ -82,7 +82,8 @@
             android:gravity="center"
             android:orientation="vertical"
             android:clickable="true"
-            android:focusable="true">
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_rect">
 
             <TextView
                 android:id="@+id/tab_local_top"
@@ -113,7 +114,8 @@
             android:gravity="center"
             android:orientation="vertical"
             android:clickable="true"
-            android:focusable="true">
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_rect">
 
             <TextView
                 android:id="@+id/tab_bili_top"
@@ -144,7 +146,8 @@
             android:gravity="center"
             android:orientation="vertical"
             android:clickable="true"
-            android:focusable="true">
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_rect">
 
             <TextView
                 android:id="@+id/tab_cloud_top"
@@ -175,7 +178,8 @@
             android:gravity="center"
             android:orientation="vertical"
             android:clickable="true"
-            android:focusable="true">
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_rect">
 
             <TextView
                 android:id="@+id/tab_favorite_top"
@@ -468,7 +472,8 @@
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:clickable="true"
-            android:focusable="true">
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_rect">
 
         <!-- 迷你播放条圆形封面 -->
         <ImageView

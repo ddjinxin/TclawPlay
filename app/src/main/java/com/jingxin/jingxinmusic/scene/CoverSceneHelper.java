@@ -527,7 +527,7 @@ public class CoverSceneHelper {
     public void applyCircleCoverStyle() {
         coverView.setClipToOutline(true);
         coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        coverView.setForeground(null);
+        com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(coverView, null);
     }
 
     // ========== 圆环频谱位置切换 ==========
@@ -708,7 +708,7 @@ public class CoverSceneHelper {
     public void recordSetupCoverStyle() {
         coverView.setClipToOutline(false);
         coverView.setBackground(null);
-        coverView.setForeground(null);
+        com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(coverView, null);
     }
 
     /** 唱片机模式：布局唱臂 */
