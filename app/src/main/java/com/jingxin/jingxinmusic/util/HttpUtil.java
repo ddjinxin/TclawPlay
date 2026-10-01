@@ -110,7 +110,8 @@ public class HttpUtil {
             Bitmap bitmap = BitmapFactory.decodeStream(is);
             is.close();
             conn.disconnect();
-            return bitmap;
+            // 限制最大尺寸防止低内存设备 OOM
+            return com.jingxin.jingxinmusic.util.BitmapUtil.scaleToMaxSize(bitmap, 600);
         } catch (Exception e) {
             Log.e(TAG, "下载图片失败: " + e.getMessage(), e);
             return null;

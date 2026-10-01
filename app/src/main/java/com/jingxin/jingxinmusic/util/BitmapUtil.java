@@ -96,4 +96,21 @@ public class BitmapUtil {
         if (squared != source) squared.recycle();
         return result;
     }
+
+    /**
+     * 将 Bitmap 限制到最大像素尺寸，超大图自动缩小，防止低内存设备 OOM
+     * @param src 原始 Bitmap（不会被回收）
+     * @param maxPx 最大边长像素
+     * @return 缩放后的 Bitmap（若无需缩放则返回原对象）
+     */
+    public static Bitmap scaleToMaxSize(Bitmap src, int maxPx) {
+        if (src == null) return null;
+        int w = src.getWidth();
+        int h = src.getHeight();
+        if (w <= maxPx && h <= maxPx) return src;
+        float scale = Math.min((float) maxPx / w, (float) maxPx / h);
+        Bitmap scaled = Bitmap.createScaledBitmap(src, (int)(w * scale), (int)(h * scale), true);
+        if (scaled != src) src.recycle();
+        return scaled;
+    }
 }

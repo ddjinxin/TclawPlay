@@ -395,6 +395,25 @@ public class ThemeColors {
     };
 
     /**
+     * 获取文件夹卡片渐变双色（不经过 GradientDrawable，兼容 API < 24）
+     * @param index 文件夹位置（会自动 mod 6 循环）
+     * @param night 是否夜间模式
+     * @return [startColor, endColor]
+     */
+    public static int[] folderGradientColors(int index, boolean night) {
+        int i = ((index % 6) + 6) % 6;
+        if (rawDominantColor != -1) {
+            int[][] dynamic = dynamicFolderGradients(night);
+            if (dynamic != null) {
+                return new int[]{ dynamic[i][0], dynamic[i][1] };
+            }
+        }
+        int styleIdx = currentStyleIndex;
+        int[][] gradients = night ? NIGHT_FOLDER_GRADIENTS[styleIdx] : DAY_FOLDER_GRADIENTS[styleIdx];
+        return new int[]{ gradients[i][0], gradients[i][1] };
+    }
+
+    /**
      * 获取文件夹卡片渐变Drawable
      * 动态背景模式且有封面主色时：以主色为基色生成同色系 6 色循环；否则回退固定色表
      * @param index 文件夹位置（会自动 mod 6 循环）

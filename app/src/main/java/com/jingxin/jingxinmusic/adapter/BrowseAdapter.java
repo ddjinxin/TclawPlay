@@ -134,10 +134,8 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             for (int i = 0; i < position; i++) {
                 if (items.get(i).isDirectory) folderCount++;
             }
-            android.graphics.drawable.GradientDrawable folderGradient =
-                    com.jingxin.jingxinmusic.util.ThemeColors.folderGradient(folderCount, isNightMode);
-            holder.ivFolderCover.setGradientColors(
-                    folderGradient.getColors()[0], folderGradient.getColors()[1]);
+            int[] colors = com.jingxin.jingxinmusic.util.ThemeColors.folderGradientColors(folderCount, isNightMode);
+            holder.ivFolderCover.setGradientColors(colors[0], colors[1]);
             // 穿透文件夹查找第一首歌的封面
             holder.ivFolderCover.setCoverBitmap(null); // 先清空
             coverExecutor.execute(() -> {
@@ -233,13 +231,14 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 }
             }
 
-            // 2. 本地歌曲从MediaStore的albumArt URI加载
+            // 2. 本地歌曲从MediaStore的albumArt URI加载（降采样防OOM）
             if (coverBitmap == null && item.song != null && item.song.albumArt != null
                     && !item.song.albumArt.isEmpty()) {
                 try {
-                    coverBitmap = BitmapFactory.decodeStream(
-                            context.getContentResolver().openInputStream(
-                                    android.net.Uri.parse(item.song.albumArt)));
+                    coverBitmap = BitmapUtil.scaleToMaxSize(
+                            BitmapFactory.decodeStream(
+                                    context.getContentResolver().openInputStream(
+                                            android.net.Uri.parse(item.song.albumArt))), 300);
                 } catch (Exception e) {
                 }
             }
@@ -313,18 +312,18 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
      * WebDAV目录：远程扫描子目录
      */
     private Bitmap findFirstCoverInDirectory(BrowseItem dirItem) {
+        Bitmap result;
         if (dirItem.source == Song.SOURCE_WEBDAV) {
-            return findWebDavCover(dirItem);
+            result = findWebDavCover(dirItem);
+        } else if (dirItem.source == Song.SOURCE_BILI) {
+            result = findBiliCover(dirItem);
+        } else {
+            // 本地目录：直接扫描文件系统
+            String dirPath = dirItem.path != null ? dirItem.path : dirItem.url;
+            if (dirPath == null) return null;
+            result = scanDirectoryForCover(new File(dirPath));
         }
-
-        if (dirItem.source == Song.SOURCE_BILI) {
-            return findBiliCover(dirItem);
-        }
-
-        // 本地目录：直接扫描文件系统
-        String dirPath = dirItem.path != null ? dirItem.path : dirItem.url;
-        if (dirPath == null) return null;
-        return scanDirectoryForCover(new File(dirPath));
+        return BitmapUtil.scaleToMaxSize(result, 300);
     }
 
     /** B站多P视频目录：获取第一首分P标题，查本地封面缓存，降级下载视频封面 */
@@ -563,8 +562,9 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                         android.net.Uri albumArtUri = android.content.ContentUris.withAppendedId(
                                 android.net.Uri.parse("content://media/external/audio/albumart"),
                                 albumId);
-                        return android.provider.MediaStore.Images.Media.getBitmap(
-                                context.getContentResolver(), albumArtUri);
+                        return BitmapUtil.scaleToMaxSize(
+                                android.provider.MediaStore.Images.Media.getBitmap(
+                                        context.getContentResolver(), albumArtUri), 300);
                     }
                 } finally {
                     cursor.close();
