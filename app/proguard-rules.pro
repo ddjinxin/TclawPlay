@@ -128,6 +128,10 @@
 -keep class androidx.media.session.MediaSessionCompat { *; }
 
 # sardine-android (WebDAV) - XML 解析冲突
+# 必须 keep：R8 混淆 XmlPullParser 接口名后，框架的 XmlBlock$Parser
+# 运行时无法匹配混淆名，导致 IncompatibleClassChangeError 崩溃（Android 6 实测）
+-keep interface org.xmlpull.v1.** { *; }
+-keep class org.xmlpull.v1.** { *; }
 -dontwarn org.xmlpull.v1.**
 -dontwarn android.content.res.XmlResourceParser
 

@@ -506,7 +506,8 @@ public class MusicScanner {
         List<File> storages = new ArrayList<>();
         Set<String> foundPaths = new HashSet<>();
 
-        // 优先通道：StorageManager
+        // 优先通道：StorageManager（getStorageVolumes() API 24+）
+        if (android.os.Build.VERSION.SDK_INT >= 24) {
         try {
             StorageManager sm = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
             if (sm != null) {
@@ -551,6 +552,7 @@ public class MusicScanner {
             }
         } catch (Exception e) {
             Log.w(TAG, "StorageManager 获取存储卷失败: " + e.getMessage());
+        }
         }
 
         // 兜底通道：硬编码路径探测
