@@ -3,6 +3,7 @@ package com.jingxin.jingxinmusic.view;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -67,12 +68,20 @@ public class RotatingCoverView extends AppCompatImageView {
         });
     }
     
+    private boolean vinylLoadFailed = false;
+
     private void ensureVinylBitmap() {
-        if (vinylDiscBitmap != null) return;
-        // 从drawable加载预制黑胶盘位图
-            BitmapDrawable drawable = (BitmapDrawable) getResources().getDrawable(R.drawable.bg_playing_disc);
-        if (drawable != null) {
-            vinylDiscBitmap = drawable.getBitmap();
+        if (vinylDiscBitmap != null || vinylLoadFailed) return;
+        try {
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inScaled = false;  // 禁止密度缩放，防止高密度设备放大解码OOM
+            vinylDiscBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.bg_playing_disc, opts);
+            if (vinylDiscBitmap != null) {
+                vinylDiscBitmap = com.jingxin.jingxinmusic.util.BitmapUtil.scaleToMaxSize(vinylDiscBitmap, 600);
+            }
+            if (vinylDiscBitmap == null) vinylLoadFailed = true;
+        } catch (Exception e) {
+            vinylLoadFailed = true;
         }
     }
     

@@ -282,7 +282,8 @@ public class PlayerFragment extends BaseFloatFragment {
             // 读缓存或扫描歌曲列表（不触发 triggerMediaScan）
             executor.execute(() -> {
                 // 同步播放模式图标（进程重启后服务已恢复持久化值，但不广播，需主动读取）
-                updatePlayOrderIcon(playerBinder.getPlayOrder());
+                int order = playerBinder.getPlayOrder();
+                uiHandler.post(() -> updatePlayOrderIcon(order));
                 allSongs = MusicScanner.loadCache(requireContext());
                 if (allSongs == null || allSongs.isEmpty()) {
                     allSongs = MusicScanner.scanMusic(requireContext());
