@@ -179,21 +179,30 @@ public class CoverFetcher {
     }
     
     /**
-     * 从音频文件中提取内嵌封面
+     * 从音频文件中提取内嵌封面（全尺寸解码，低内存设备慎用）
      * @param filePath 音频文件路径（绝对路径）
      * @return 封面 Bitmap，无内嵌封面则返回 null
      */
     public static Bitmap extractEmbeddedCover(String filePath) {
+        return extractEmbeddedCover(filePath, 0, 0);
+    }
+
+    /**
+     * 从音频文件中提取内嵌封面，按 reqWidth/reqHeight 降采样解码。
+     * reqWidth/reqHeight <= 0 时回退到全尺寸解码（保持原行为）。
+     * 低内存设备（5.1车机 ~64MB堆）必须传显示尺寸，避免大封面 OOM。
+     */
+    public static Bitmap extractEmbeddedCover(String filePath, int reqWidth, int reqHeight) {
         if (filePath == null || filePath.isEmpty()) return null;
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         try {
             retriever.setDataSource(filePath);
             byte[] data = retriever.getEmbeddedPicture();
             if (data != null && data.length > 0) {
-                Bitmap bmp = BitmapFactory.decodeByteArray(data, 0, data.length);
-                if (bmp != null) {
+                if (reqWidth > 0 && reqHeight > 0) {
+                    return com.jingxin.jingxinmusic.util.BitmapUtil.decodeSampledFromBytes(data, reqWidth, reqHeight);
                 }
-                return bmp;
+                return BitmapFactory.decodeByteArray(data, 0, data.length);
             }
         } catch (Exception e) {
         } finally {

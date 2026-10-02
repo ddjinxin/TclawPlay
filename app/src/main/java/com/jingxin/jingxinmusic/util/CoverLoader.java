@@ -122,19 +122,11 @@ public class CoverLoader {
         executor.execute(() -> {
             // 1. 提取音频文件内嵌封面（useLocal=false 时跳过）
             if (useLocal) {
-                Bitmap embedded = CoverFetcher.extractEmbeddedCover(song.filePath);
+                Bitmap embedded = CoverFetcher.extractEmbeddedCover(song.filePath, reqWidth, reqHeight);
                 if (embedded != null) {
                     if (saveCache) {
                         String coverName = Song.toFileName(song.title, song.artist) + ".jpg";
                         saveCoverToCache(context, coverName, embedded);
-                    }
-                    if (reqWidth > 0 && reqHeight > 0) {
-                        Bitmap sampled = BitmapUtil.decodeSampledFromBytes(
-                                bitmapToBytes(embedded), reqWidth, reqHeight);
-                        if (sampled != null && sampled != embedded) {
-                            embedded.recycle();
-                            embedded = sampled;
-                        }
                     }
                     Bitmap finalBitmap = embedded;
                     uiHandler.post(() -> callback.onCoverLoaded(finalBitmap));

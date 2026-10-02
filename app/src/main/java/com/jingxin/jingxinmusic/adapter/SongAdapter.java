@@ -300,7 +300,7 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         for (Song s : fi.songs) {
             // 1. 尝试提取内嵌封面
             if (localCover == null && s.filePath != null) {
-                localCover = CoverFetcher.extractEmbeddedCover(s.filePath);
+                localCover = CoverFetcher.extractEmbeddedCover(s.filePath, 200, 200);
             }
             // 2. 尝试本地缓存
             if (localCover == null) {
