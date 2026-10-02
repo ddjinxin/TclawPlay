@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'a253d5a4-56af-49a6-a776-d70151ea4113'
-  PropagateID: 'a253d5a4-56af-49a6-a776-d70151ea4113'
-  ReservedCode1: '8cc655ca-7a8d-461e-b9ae-085fe77d4bf7'
-  ReservedCode2: '8cc655ca-7a8d-461e-b9ae-085fe77d4bf7'
+  ProduceID: '4dcf78b4-3072-4690-82ba-e8cdd4be9781'
+  PropagateID: '4dcf78b4-3072-4690-82ba-e8cdd4be9781'
+  ReservedCode1: '3ca2bb52-b502-44a7-a523-b3e1b915561e'
+  ReservedCode2: '3ca2bb52-b502-44a7-a523-b3e1b915561e'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,19 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.7.7)
+## 📢 最新版本 (v1.0.7.8)
+
+### v1.0.7.8 (2026-10)
+#### 修复
+- **适配安卓 5.1 / 6 / 7** — 全面适配低端车机系统，修复多项崩溃与卡顿：
+  - **安卓 6 崩溃修复** — R8 混淆 XmlPullParser 接口名导致框架 XmlBlock 运行时 IncompatibleClassChangeError 崩溃；getStorageVolumes() 在安卓 6 无此方法导致扫描崩溃，加 API 24 版本守卫走兑底路径探测；GradientDrawable.getColors() API 24+ 导致浏览页崩溃，改用 ThemeColors 直接返回颜色数组；onServiceConnected 子线程更新 UI 导致 CalledFromWrongThreadException
+  - **安卓 5.1 音频服务异常设备 ANR 防护** — ExoPlayer 构造/释放移到子线程（构造内 generateAudioSessionId 会 Binder 到 AudioFlinger，AudioFlinger 卡死设备上无限阻塞主线程）；未就绪时自动走 MediaPlayer 兑底；AudioRecord 释放子线程化防主线程卡死
+  - **安卓 5.1 弹窗修复** — 频谱选择/歌词搜索/历史弹窗点击外部无法关闭（5.1 的 PopupWindow 在 background 为 null 时不创建 PopupViewContainer，外部点击被 decor 吞掉），设透明背景触发容器创建
+  - **安卓 5.1 小内存优化** — 内嵌封面统一降采样解码（原全尺寸解码在 ~64MB 堆上大封面直接 OOM）；频谱改双缓冲复用数组，消除每帧 new float[] 的 GC 压力与撕裂
+  - **安卓 7 及全版本** — setForeground 统一走 API 23 兼容封装，悬浮窗在 5.1~7 上不再崩溃
+- **U盘拔出后歌曲残留** — 车机 ROM 拔盘后 MediaStore 数据库残留死记录（BAD_REMOVAL），扫描时入列前校验文件真实存在，拔盘后重新扫描歌曲干净消失
+- **扫描后无封面、播放后才有** — 网格与播放页封面缓存两套命名互不相认，统一按「歌名 - 歌手.jpg」保存全应用共享；网格在线搜索改用清洗后标题+歌手，命中率与播放页一致
+- **文件夹封面不更新** — 目录封面缓存永不失效，换歌后仍显示旧封面；新增目录音乐文件指纹校验（.cover_cache_meta.txt），目录内容一变缓存自动失效重建
 
 ### v1.0.7.7 (2026-09)
 #### 修复
@@ -560,6 +572,13 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.7.8 (2026-10)
+#### 修复
+- 适配安卓 5.1/6/7 低端车机：安卓 6 四项崩溃修复（XmlPullParser 混淆/getStorageVolumes/GradientDrawable.getColors/子线程UI）；5.1 音频服务异常设备 ExoPlayer 构造/释放子线程化防 ANR；5.1 弹窗点外部可关闭；5.1 小内存封面降采样+频谱双缓冲；全版本 setForeground API 23 兼容
+- U盘拔出后歌曲残留：扫描入列前校验文件真实存在，拔盘后重新扫描干净消失
+- 扫描后无封面：网格与播放页封面缓存统一「歌名 - 歌手.jpg」全应用共享
+- 文件夹封面不更新：新增目录指纹校验，换歌自动失效重建
 
 ### v1.0.7.6 (2026-09)
 #### 新功能
