@@ -188,13 +188,18 @@ public class AuroraGradientView extends View {
 
     private void startAnimation() {
         if (animating) return;
+        // View 构造期间（super 触发 onVisibilityChanged）handler 尚未初始化，
+        // 此时不启动动画，待 onAttachedToWindow 时 handler 已就绪再正常启动
+        if (handler == null) return;
         animating = true;
         handler.post(frameRunnable);
     }
 
     private void stopAnimation() {
+        if (!animating) return;
         animating = false;
-        handler.removeCallbacks(frameRunnable);
+        // View 构造期间 handler 尚未初始化，判空保护
+        if (handler != null) handler.removeCallbacks(frameRunnable);
     }
 
     private void doFrame() {

@@ -106,6 +106,8 @@ public class MusicPlayerService extends Service {
     public static final String EXTRA_IS_NIGHT = "is_night";
 
     private ExoPlayer exoPlayer;
+    // ExoPlayer 构造移到子线程后，用该标志标记是否已就绪（音频服务异常设备构造可能失败）
+    private volatile boolean exoPlayerReady = false;
     private MediaSessionCompat mediaSession;
     private PlaybackStateCompat.Builder stateBuilder;
 
@@ -222,18 +224,10 @@ public class MusicPlayerService extends Service {
 
         // 初始化 ExoPlayer（优先硬件解码，兜底软件解码）
         // PREFER：硬件解码器优先处理ALAC等格式，软件解码器兜底处理FLAC等
-        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
-                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
-
-        exoPlayer = new ExoPlayer.Builder(this, renderersFactory)
-                .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
-                .setAudioAttributes(new AudioAttributes.Builder()
-                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                        .setUsage(C.USAGE_MEDIA)
-                        .build(), true)
-                .setHandleAudioBecomingNoisy(true)
-                .build();
-
+        // 关键：ExoPlayer 构造会调用 AudioManager.generateAudioSessionId()（Binder 到 AudioFlinger），
+        // 在音频服务异常设备（如 5.1 模拟器 AudioFlinger 卡死）上会无限阻塞主线程导致 ANR，
+        // 因此构造移到子线程执行，完成后置 exoPlayerReady=true（所有使用点均已判空）。
+        // 注意：playerListener 必须先于子线程就绪（构造在音频正常设备上可能瞬间完成，回调时机不确定）
         playerListener = new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
@@ -342,7 +336,32 @@ public class MusicPlayerService extends Service {
                 handlePlaybackError();
             }
         };
-        exoPlayer.addListener(playerListener);
+
+        // ExoPlayer 构造移到子线程（构造内 generateAudioSessionId → Binder 到 AudioFlinger，
+        // 音频服务异常设备上会阻塞主线程导致 ANR）；完成后在主线程挂载 listener 并置 exoPlayerReady。
+        final DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
+                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
+        new Thread(() -> {
+            try {
+                final ExoPlayer player = new ExoPlayer.Builder(this, renderersFactory)
+                        .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
+                        .setAudioAttributes(new AudioAttributes.Builder()
+                                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                                .setUsage(C.USAGE_MEDIA)
+                                .build(), true)
+                        .setHandleAudioBecomingNoisy(true)
+                        .build();
+                handler.post(() -> {
+                    if (exoPlayer != null) return; // 已重建过，放弃本次
+                    exoPlayer = player;
+                    exoPlayerReady = true;
+                    exoPlayer.addListener(playerListener);
+                });
+            } catch (Throwable t) {
+                Log.e(TAG, "ExoPlayer 构造失败: " + t.getMessage());
+                handler.post(() -> exoPlayerReady = false);
+            }
+        }, "ExoInit").start();
 
         // 初始化 MediaSessionCompat（支持锁屏控制）
         mediaSession = new MediaSessionCompat(this, "JingxinMusicSession");
@@ -444,8 +463,13 @@ public class MusicPlayerService extends Service {
         stopPlaybackStateUpdater();
         releaseFallbackPlayer();
         if (exoPlayer != null) {
-            exoPlayer.release();
+            final ExoPlayer p = exoPlayer;
             exoPlayer = null;
+            exoPlayerReady = false;
+            // release 可能阻塞 Binder（音频服务异常设备），移到子线程
+            new Thread(() -> {
+                try { p.release(); } catch (Exception ignored) {}
+            }, "ExoRelease").start();
         }
         if (mediaSession != null) {
             mediaSession.release();
@@ -658,6 +682,12 @@ public class MusicPlayerService extends Service {
             return;
         }
 
+        // ExoPlayer 尚未就绪（构造在子线程，音频服务异常设备上可能很慢或失败）→ MediaPlayer 兜底
+        if (exoPlayer == null || !exoPlayerReady) {
+            startFallbackPlayback(song, playUri, position);
+            return;
+        }
+
         // 非 ALAC：使用 ExoPlayer 正常播放
         releaseFallbackPlayer();
         isFallbackMode = false;
@@ -811,11 +841,18 @@ public class MusicPlayerService extends Service {
 
     private void togglePlayPause() {
         if (isFallbackMode && fallbackPlayer != null) {
-            if (fallbackPlayer.isPlaying()) {
-                fallbackPlayer.pause();
-            } else {
-                fallbackPlayer.start();
-            }
+            // fallback 模式下 MediaPlayer 控制操作会 Binder 到 AudioFlinger，
+            // 音频服务异常设备上可能阻塞，移到子线程执行
+            final android.media.MediaPlayer mp = fallbackPlayer;
+            new Thread(() -> {
+                try {
+                    if (mp.isPlaying()) {
+                        mp.pause();
+                    } else {
+                        mp.start();
+                    }
+                } catch (Exception ignored) {}
+            }, "FallbackToggle").start();
             sendPlayStateBroadcast();
             updateNotification();
             return;
@@ -1076,38 +1113,53 @@ public class MusicPlayerService extends Service {
         List<Song> currentPlaylist = new ArrayList<>(playlist);
         int currentIdx = currentIndex;
 
-        // 释放旧播放器
+        // 释放旧播放器（release 也可能阻塞 Binder，移到子线程）
         stopPlaybackStateUpdater();
-        exoPlayer.release();
+        final ExoPlayer oldPlayer = exoPlayer;
+        exoPlayer = null;
+        exoPlayerReady = false;
+        new Thread(() -> {
+            try { oldPlayer.release(); } catch (Exception ignored) {}
+        }, "ExoRelease").start();
 
-        // 重建播放器
-        DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
+        // 重建播放器（构造可能阻塞 Binder，移到子线程）
+        final DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
-        exoPlayer = new ExoPlayer.Builder(this, renderersFactory)
-                .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
-                .setAudioAttributes(new AudioAttributes.Builder()
-                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                        .setUsage(C.USAGE_MEDIA)
-                        .build(), true)
-                .setHandleAudioBecomingNoisy(true)
-                .build();
-
-        // 重新挂载监听器
-        exoPlayer.addListener(playerListener);
-
-        // 恢复播放列表和当前歌曲
-        playlist = currentPlaylist;
-        currentIndex = currentIdx;
-        if (currentSong != null) {
-            playSong(currentSong, currentIdx);
-            // 恢复到之前的播放位置
-            if (currentPosition > 0) {
-                exoPlayer.seekTo(currentPosition);
+        new Thread(() -> {
+            try {
+                final ExoPlayer player = new ExoPlayer.Builder(this, renderersFactory)
+                        .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
+                        .setAudioAttributes(new AudioAttributes.Builder()
+                                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                                .setUsage(C.USAGE_MEDIA)
+                                .build(), true)
+                        .setHandleAudioBecomingNoisy(true)
+                        .build();
+                handler.post(() -> {
+                    if (exoPlayer != null) return;
+                    exoPlayer = player;
+                    exoPlayerReady = true;
+                    // 重新挂载监听器
+                    exoPlayer.addListener(playerListener);
+                    // 恢复播放列表和当前歌曲
+                    playlist = currentPlaylist;
+                    currentIndex = currentIdx;
+                    if (currentSong != null) {
+                        playSong(currentSong, currentIdx);
+                        // 恢复到之前的播放位置
+                        if (currentPosition > 0) {
+                            exoPlayer.seekTo(currentPosition);
+                        }
+                        if (!wasPlaying) {
+                            exoPlayer.pause();
+                        }
+                    }
+                });
+            } catch (Throwable t) {
+                Log.e(TAG, "ExoPlayer 重建失败: " + t.getMessage());
+                handler.post(() -> exoPlayerReady = false);
             }
-            if (!wasPlaying) {
-                exoPlayer.pause();
-            }
-        }
+        }, "ExoRebuild").start();
     }
 
     // ========== 通知 ==========
@@ -1461,76 +1513,92 @@ public class MusicPlayerService extends Service {
 
     /**
      * 使用系统 MediaPlayer 播放（兜底 ExoPlayer 不支持的格式）
+     * 注意：MediaPlayer 构造/播放/seek 等操作内部会 Binder 到 AudioFlinger（acquireAudioSessionId），
+     * 在音频服务异常设备（5.1 模拟器 AudioFlinger 卡死）上会阻塞调用线程，
+     * 因此整个创建流程移到子线程执行，主线程立即返回，避免 ANR。
      */
     private void startFallbackPlayback(Song song, String playUri, int position) {
         releaseFallbackPlayer();
         isFallbackMode = true;
 
-        // 暂停 ExoPlayer，避免两个播放器同时出声
-        if (exoPlayer != null) exoPlayer.pause();
+        // 暂停 ExoPlayer，避免两个播放器同时出声（仅判空调用，不阻塞）
+        if (exoPlayer != null) {
+            try { exoPlayer.pause(); } catch (Exception ignored) {}
+        }
 
-        fallbackPlayer = new android.media.MediaPlayer();
-        try {
-            // 优先使用文件路径（MediaPlayer 通过路径可直接访问文件，比 content URI 更兼容）
-            // content URI 在某些设备/模拟器上可能无法正确传递格式信息
-            String dataSource = song.filePath != null ? song.filePath : playUri;
-            if (dataSource.startsWith("content://")) {
-                fallbackPlayer.setDataSource(this, Uri.parse(dataSource));
-            } else {
-                fallbackPlayer.setDataSource(dataSource);
-            }
-            fallbackPlayer.setOnCompletionListener(mp -> {
-                playNext();
-            });
-            fallbackPlayer.setOnErrorListener((mp, what, extra) -> {
-                Log.e(TAG, "MediaPlayer兜底播放也失败: what=" + what + " extra=" + extra);
-                releaseFallbackPlayer();
+        new Thread(() -> {
+            final android.media.MediaPlayer mp = new android.media.MediaPlayer();
+            try {
+                // 优先使用文件路径（MediaPlayer 通过路径可直接访问文件，比 content URI 更兼容）
+                // content URI 在某些设备/模拟器上可能无法正确传递格式信息
+                String dataSource = song.filePath != null ? song.filePath : playUri;
+                if (dataSource.startsWith("content://")) {
+                    mp.setDataSource(this, Uri.parse(dataSource));
+                } else {
+                    mp.setDataSource(dataSource);
+                }
+                mp.setOnCompletionListener(m -> playNext());
+                mp.setOnErrorListener((m, what, extra) -> {
+                    Log.e(TAG, "MediaPlayer兜底播放也失败: what=" + what + " extra=" + extra);
+                    releaseFallbackPlayer();
+                    isFallbackMode = false;
+                    showToast("当前设备不支持播放此音频格式");
+                    handlePlaybackError();
+                    return true;
+                });
+                mp.prepare();
+
+                // 恢复播放进度
+                if (pendingSeekPosition > 0) {
+                    long seekPos = pendingSeekPosition;
+                    pendingSeekPosition = 0;
+                    mp.seekTo((int) seekPos);
+                }
+
+                // 创建成功后才赋给成员变量（失败路径由局部引用直接释放，杜绝泄漏）
+                fallbackPlayer = mp;
+                mp.start();
+
+                // 播放成功，重置连续错误计数和瞬态重试标记
+                consecutiveErrors = 0;
+                transientRetryUsed = false;
+
+                logPlayHistory(song);
+
+                // 同步播放状态到UI（fallback模式下没有ExoPlayer回调，需手动发送）
+                handler.post(() -> {
+                    sendPlayStateBroadcast();
+                    updateNotification();
+                    startPlaybackStateUpdater();
+                    sendSongChangedBroadcast(song, position);
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "MediaPlayer兜底播放初始化失败: " + e.getMessage());
+                try { mp.release(); } catch (Exception ignored) {}
                 isFallbackMode = false;
                 showToast("当前设备不支持播放此音频格式");
                 handlePlaybackError();
-                return true;
-            });
-            fallbackPlayer.prepare();
-
-            // 恢复播放进度
-            if (pendingSeekPosition > 0) {
-                long seekPos = pendingSeekPosition;
-                pendingSeekPosition = 0;
-                fallbackPlayer.seekTo((int) seekPos);
             }
-
-            fallbackPlayer.start();
-
-            // 播放成功，重置连续错误计数和瞬态重试标记
-            consecutiveErrors = 0;
-            transientRetryUsed = false;
-
-            logPlayHistory(song);
-
-            // 同步播放状态到UI（fallback模式下没有ExoPlayer回调，需手动发送）
-            sendPlayStateBroadcast();
-            updateNotification();
-            startPlaybackStateUpdater();
-            sendSongChangedBroadcast(song, position);
-    } catch (Exception e) {
-        Log.e(TAG, "MediaPlayer兜底播放初始化失败: " + e.getMessage());
-        releaseFallbackPlayer();
-        isFallbackMode = false;
-        showToast("当前设备不支持播放此音频格式");
-        handlePlaybackError();
-    }
+        }, "FallbackInit").start();
     }
 
     /**
      * 释放 MediaPlayer 兜底播放器
+     * stop()/release() 在音频服务异常的设备（如 5.1 模拟器 AudioFlinger Binder 卡死）上
+     * 会阻塞主线程导致 ANR，因此移到子线程释放，主线程立即返回。
      */
     private void releaseFallbackPlayer() {
-        if (fallbackPlayer != null) {
-            try {
-                fallbackPlayer.stop();
-                fallbackPlayer.release();
-            } catch (Exception ignored) {}
-            fallbackPlayer = null;
+        final android.media.MediaPlayer mp = fallbackPlayer;
+        fallbackPlayer = null;
+        if (mp != null) {
+            new Thread(() -> {
+                try {
+                    mp.stop();
+                } catch (Exception ignored) {}
+                try {
+                    mp.release();
+                } catch (Exception ignored) {}
+            }, "FallbackRelease").start();
         }
     }
 
