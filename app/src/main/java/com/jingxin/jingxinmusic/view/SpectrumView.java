@@ -131,6 +131,8 @@ public class SpectrumView extends View {
     // 频谱条高度数组
     private float[] barHeights;
     private float[] targetBarHeights;
+    // BD竖条模式复用缓冲（替代 updateDTFMagnitudes 里每帧 new float[]）
+    private float[] bdOffsetData;
     
     // 峰值指示器
     private float[] peakHeights;       // 峰值帽当前高度
@@ -1735,7 +1737,10 @@ public class SpectrumView extends View {
             // 0. 跳过offset频段：左移数据，前offset根柱子用最小高度
             int dataLen = Math.min(currentCount, magnitudes.length) - offset;
             if (dataLen < 1) dataLen = 1;
-            float[] offsetData = new float[currentCount];
+            if (bdOffsetData == null || bdOffsetData.length < currentCount) {
+                bdOffsetData = new float[currentCount];
+            }
+            float[] offsetData = bdOffsetData;
             for (int i = 0; i < currentCount; i++) {
                 offsetData[i] = (i < offset) ? 0f : ((i - offset < magnitudes.length) ? magnitudes[i - offset] : 0f);
             }

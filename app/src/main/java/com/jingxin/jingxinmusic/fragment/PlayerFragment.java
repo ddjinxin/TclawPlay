@@ -176,6 +176,12 @@ public class PlayerFragment extends BaseFloatFragment {
     private volatile boolean spectrumRunning = false;
     private boolean useVisualizer = false; // 当前是否用 Visualizer
 
+    // 频谱双缓冲：采集线程写 bufA/bufB 轮换，主线程读另一个，避免每帧 new float[] 且防撕裂
+    private float[] spectrumBufA;
+    private float[] spectrumBufB;
+    private volatile boolean spectrumBufFlip = false; // true=采集线程写B读A，false=写A读B
+    private int spectrumBufLen = 0;
+
     // 频谱仲裁广播：PlayerFragment 创建前通知 Service 释放（Service 监听此 action）
     private static final String ACTION_PLAYER_CLAIM = "com.jingxin.jingxinmusic.PLAYER_CLAIM_VISUALIZER";
     // Service 创建前通知 PlayerFragment 释放（PlayerFragment 监听此 action）
@@ -1770,6 +1776,10 @@ public class PlayerFragment extends BaseFloatFragment {
 
                 historyPopup = new android.widget.PopupWindow(container, popupWidth, popupHeight, true);
                 historyPopup.setOutsideTouchable(true);
+                if (Build.VERSION.SDK_INT <= 22) {
+                    // 5.1：background为null时不创建PopupViewContainer，点外部无法dismiss，设透明背景触发容器创建
+                    historyPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+                }
                 historyPopup.setElevation(8 * density * sf);
                 if (isLandscapeMode) {
                     historyPopup.showAtLocation(btnHistory,
@@ -2047,6 +2057,10 @@ public class PlayerFragment extends BaseFloatFragment {
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 true);
         spectrumPickerPopup.setOutsideTouchable(true);
+        if (Build.VERSION.SDK_INT <= 22) {
+            // 5.1：background为null时不创建PopupViewContainer，点外部无法dismiss，设透明背景触发容器创建
+            spectrumPickerPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        }
         spectrumPickerPopup.setElevation(8 * density * sf);
         // 左边距0，垂直居中
         spectrumPickerPopup.showAtLocation(btnSpectrum, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
@@ -2159,6 +2173,10 @@ public class PlayerFragment extends BaseFloatFragment {
                 popupHeight,
                 true);
         lyricSearchPopup.setOutsideTouchable(true);
+        if (Build.VERSION.SDK_INT <= 22) {
+            // 5.1：background为null时不创建PopupViewContainer，点外部无法dismiss，设透明背景触发容器创建
+            lyricSearchPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        }
         lyricSearchPopup.setElevation(8 * density * sf);
         if (isLandscapeMode) {
             lyricSearchPopup.showAtLocation(btnLyricSearch,
@@ -2733,7 +2751,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
                             // BD 方式：FFT 1:1 取幅度，竖条模式只取半数频段（会镜像展开）
                             int count = spectrumView.getBarInputCount();
-                            float[] magnitudes = new float[count];
+                            float[] magnitudes = acquireSpectrumBuf(count);
                             float maxMag = 0;
                             for (int i = 0; i < count; i++) {
                                 int idx = (i + 1) * 2; // 跳过 DC 分量
@@ -2810,27 +2828,28 @@ public class PlayerFragment extends BaseFloatFragment {
                         MediaRecorder.AudioSource.UNPROCESSED
                 };
                 boolean created = false;
+                // 用局部变量持有实例：并发启动多个采集线程时，成员变量 audioRecord
+                // 会被互相覆盖导致部分实例泄漏（Finalizer 超时崩溃），局部变量保证每个实例必然释放
+                AudioRecord ar = null;
                 for (int source : sources) {
                     try {
-                        audioRecord = new AudioRecord(
+                        ar = new AudioRecord(
                                 source,
                                 SAMPLE_RATE,
                                 AudioFormat.CHANNEL_IN_MONO,
                                 AudioFormat.ENCODING_PCM_16BIT,
                                 bufferSize);
-                        if (audioRecord.getState() == AudioRecord.STATE_INITIALIZED) {
+                        if (ar.getState() == AudioRecord.STATE_INITIALIZED) {
                             created = true;
                             break;
                         } else {
-                            if (audioRecord != null) {
-                                audioRecord.release();
-                                audioRecord = null;
-                            }
+                            ar.release();
+                            ar = null;
                         }
                     } catch (Exception e) {
-                        if (audioRecord != null) {
-                            audioRecord.release();
-                            audioRecord = null;
+                        if (ar != null) {
+                            ar.release();
+                            ar = null;
                         }
                     }
                 }
@@ -2840,6 +2859,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     spectrumRunning = false;
                     return;
                 }
+                audioRecord = ar; // 成功后赋给成员变量，供 stopSpectrum 统一释放
 
                 audioRecord.startRecording();
                 Thread.sleep(500);
@@ -2907,7 +2927,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
                     // 从 FFT 结果提取频谱幅度
                     int count = spectrumView != null ? spectrumView.getBarInputCount() : 65;
-                    float[] magnitudes = new float[count];
+                    float[] magnitudes = acquireSpectrumBuf(count);
                     float maxMag = 0;
                     for (int bar = 0; bar < count; bar++) {
                         int k = bar + 1; // 跳过 DC 分量
@@ -2936,6 +2956,25 @@ public class PlayerFragment extends BaseFloatFragment {
         }, "SpectrumThread").start();
     }
 
+    /**
+     * 双缓冲轮换：返回当前"写槽"（采集线程写），主线程读另一个槽。
+     * count 变化时自动扩容；flip 标志保证采集与主线程读不共用同一数组。
+     */
+    private float[] acquireSpectrumBuf(int count) {
+        if (count <= 0) count = 1;
+        if (spectrumBufLen < count) {
+            spectrumBufA = new float[count];
+            spectrumBufB = new float[count];
+            spectrumBufLen = count;
+            spectrumBufFlip = false;
+        }
+        spectrumBufFlip = !spectrumBufFlip;
+        // 清零：上一次的残留值会影响本帧（只填部分 idx 时）
+        float[] buf = spectrumBufFlip ? spectrumBufA : spectrumBufB;
+        java.util.Arrays.fill(buf, 0, count, 0f);
+        return buf;
+    }
+
     private void stopSpectrum() {
         spectrumRunning = false;
         // 释放 Visualizer：先断回调，再延迟 release，避免 native CaptureThread 与 release 并发导致 CFI 崩溃
@@ -2952,14 +2991,23 @@ public class PlayerFragment extends BaseFloatFragment {
             } catch (Exception ignored) {}
         }
         // 释放 AudioRecord
-        if (audioRecord != null) {
-            try {
-                if (audioRecord.getState() == AudioRecord.STATE_INITIALIZED) {
-                    audioRecord.stop();
-                }
-                audioRecord.release();
-            } catch (Exception ignored) {}
-            audioRecord = null;
+        // 注意：stop()/release() 在音频服务异常设备（5.1 模拟器 AudioFlinger Binder 卡死）上
+        // 会长时间阻塞；且本方法可能被主线程（点击播放）与 SpectrumThread（采集结束 finally）
+        // 并发调用，直接在主线程执行会互相抢锁导致 ANR。
+        // 因此：先原子取走引用（防止并发双释放），stop/release 移到子线程执行。
+        final android.media.AudioRecord ar = audioRecord;
+        audioRecord = null;
+        if (ar != null) {
+            new Thread(() -> {
+                try {
+                    if (ar.getState() == AudioRecord.STATE_INITIALIZED) {
+                        ar.stop();
+                    }
+                } catch (Exception ignored) {}
+                try {
+                    ar.release();
+                } catch (Exception ignored) {}
+            }, "AudioRecordRelease").start();
         }
     }
 

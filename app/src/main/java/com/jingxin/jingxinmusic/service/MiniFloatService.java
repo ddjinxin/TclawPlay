@@ -163,6 +163,10 @@ public class MiniFloatService extends Service {
     private SpectrumView capsuleSpectrum;     // 胶囊内频谱视图
     private Visualizer visualizer;            // 音频可视化器
     private boolean visualizerEnabled = false;
+    // 频谱双缓冲：避免每帧 new float[]（低内存设备 GC 压力大）
+    private float[] miniSpectrumBufA, miniSpectrumBufB;
+    private volatile boolean miniSpectrumFlip = false;
+    private int miniSpectrumBufLen = 0;
     private FrameLayout capsuleCenterLayout; // 歌词+频谱中间区域
 
     // 频谱仲裁广播：PlayerFragment 创建前通知 Service 释放（Service 监听此 action）
@@ -1726,6 +1730,23 @@ public class MiniFloatService extends Service {
     }
 
     /**
+     * 双缓冲轮换：采集回调写一槽，主线程读另一槽，避免每帧 new float[]
+     */
+    private float[] acquireMiniSpectrumBuf(int count) {
+        if (count <= 0) count = 1;
+        if (miniSpectrumBufLen < count) {
+            miniSpectrumBufA = new float[count];
+            miniSpectrumBufB = new float[count];
+            miniSpectrumBufLen = count;
+            miniSpectrumFlip = false;
+        }
+        miniSpectrumFlip = !miniSpectrumFlip;
+        float[] buf = miniSpectrumFlip ? miniSpectrumBufA : miniSpectrumBufB;
+        java.util.Arrays.fill(buf, 0, count, 0f);
+        return buf;
+    }
+
+    /**
      * 初始化 Visualizer（从 PlayerActivity 移植，精简版）
      */
     private void initVisualizer() {
@@ -1769,7 +1790,7 @@ public class MiniFloatService extends Service {
                     SpectrumView activeSpectrum = capsuleSpectrum != null ? capsuleSpectrum : karaokeSpectrum;
                     if (activeSpectrum == null) return;
                     int count = activeSpectrum.getBarInputCount();
-                    float[] magnitudes = new float[count];
+                    float[] magnitudes = acquireMiniSpectrumBuf(count);
                     float maxMag = 0;
                     for (int i = 0; i < count; i++) {
                         int idx = (i + 1) * 2;
