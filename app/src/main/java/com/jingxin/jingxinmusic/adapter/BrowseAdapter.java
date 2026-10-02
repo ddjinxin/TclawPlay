@@ -203,7 +203,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             // 0. 提取音频内嵌封面（开关打开时）
             if (preferLocal && item.song != null && item.song.filePath != null
                     && new File(item.song.filePath).exists()) {
-                coverBitmap = CoverFetcher.extractEmbeddedCover(item.song.filePath);
+                coverBitmap = CoverFetcher.extractEmbeddedCover(item.song.filePath, 200, 200);
             }
 
             // 1. 本地封面缓存
@@ -256,15 +256,19 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                 return;
             }
 
-            // 3. 在线获取封面
-            CoverFetcher.fetchCover(songTitle, "", new CoverFetcher.CoverCallback() {
+            // 3. 在线获取封面（与播放页统一：清洗歌名+歌手搜索，按"歌名 - 歌手"保存，缓存全应用共享）
+            String onlineArtist = item.song != null && !"<unknown>".equals(item.song.artist)
+                    ? item.song.artist : "";
+            String searchTitle = item.song != null
+                    ? Song.cleanSongTitle(songTitle, onlineArtist) : songTitle;
+            CoverFetcher.fetchCover(searchTitle, onlineArtist, new CoverFetcher.CoverCallback() {
                 @Override
                 public void onCoverFetched(Bitmap coverBitmap) {
                     try {
                         File coverDir = CoverLoader.getCoverDir(context);
                         if (coverDir != null) {
                             coverDir.mkdirs();
-                            String coverName = Song.toFileName(songTitle, "") + ".jpg";
+                            String coverName = Song.toFileName(songTitle, onlineArtist) + ".jpg";
                             File coverFile = new File(coverDir, coverName);
                             if (!coverFile.exists()) {
                                 java.io.FileOutputStream fos = new java.io.FileOutputStream(coverFile);
@@ -426,18 +430,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
 
     /** 将WebDAV URL转换为缓存文件名（MD5摘要避免特殊字符） */
     private static String webdavUrlToCacheName(String url) {
-        try {
-            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
-            byte[] digest = md.digest(url.getBytes("UTF-8"));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : digest) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString() + ".jpg";
-        } catch (Exception e) {
-            // 回退：用URL哈希值
-            return Integer.toHexString(url.hashCode()) + ".jpg";
-        }
+        return md5Hex(url) + ".jpg";
     }
 
     private void saveCoverCache(Bitmap bitmap, File outputFile) {
@@ -490,12 +483,17 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
      * 找到封面后保存为 .cover_cache.jpg 加速后续访问
      */
     private static final String COVER_CACHE_NAME = ".cover_cache.jpg";
+    private static final String COVER_CACHE_META = ".cover_cache_meta.txt";
 
     private Bitmap scanDirectoryForCover(File dir) {
         if (dir == null || !dir.isDirectory()) return null;
-        
-        // 第0步：检查缓存封面文件
+
+        // 第0步：检查缓存封面文件（校验目录指纹，目录音乐文件变化则缓存失效）
         File cacheFile = new File(dir, COVER_CACHE_NAME);
+        if (cacheFile.exists() && !isDirCoverCacheValid(dir)) {
+            cacheFile.delete();
+            new File(dir, COVER_CACHE_META).delete();
+        }
         if (cacheFile.exists() && cacheFile.length() > 0) {
             Bitmap cached = BitmapUtil.decodeSampledFromFile(cacheFile.getAbsolutePath(), 200, 200);
             if (cached != null) {
@@ -510,15 +508,15 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         for (File f : files) {
             if (f.isFile() && WebDavScanner.isMusicFile(f.getName())) {
                 // 1. 内嵌封面
-                Bitmap cover = CoverFetcher.extractEmbeddedCover(f.getAbsolutePath());
+                Bitmap cover = CoverFetcher.extractEmbeddedCover(f.getAbsolutePath(), 200, 200);
                 if (cover != null) {
-                    saveCoverCache(cover, new File(dir, COVER_CACHE_NAME));
+                    saveDirCoverCache(dir, cover);
                     return cover;
                 }
                 // 2. MediaStore albumArt
                 cover = getAlbumArtFromMediaStore(f.getAbsolutePath());
                 if (cover != null) {
-                    saveCoverCache(cover, new File(dir, COVER_CACHE_NAME));
+                    saveDirCoverCache(dir, cover);
                     return cover;
                 }
             }
@@ -528,7 +526,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             if (f.isFile() && WebDavScanner.isMusicFile(f.getName())) {
                 Bitmap cover = CoverLoader.findCachedCoverByFilePath(context, f.getAbsolutePath());
                 if (cover != null) {
-                    saveCoverCache(cover, new File(dir, COVER_CACHE_NAME));
+                    saveDirCoverCache(dir, cover);
                     return cover;
                 }
             }
@@ -538,12 +536,81 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             if (f.isDirectory()) {
                 Bitmap cover = scanDirectoryForCover(f);
                 if (cover != null) {
-                    saveCoverCache(cover, new File(dir, COVER_CACHE_NAME));
+                    saveDirCoverCache(dir, cover);
                     return cover;
                 }
             }
         }
         return null;
+    }
+
+    /** 保存目录封面缓存：写jpg + 写目录指纹meta（目录音乐文件变化时缓存失效） */
+    private void saveDirCoverCache(File dir, Bitmap bitmap) {
+        saveCoverCache(bitmap, new File(dir, COVER_CACHE_NAME));
+        writeTextFile(new File(dir, COVER_CACHE_META), computeDirFingerprint(dir));
+    }
+
+    /** 目录封面缓存是否有效：meta指纹与当前目录音乐文件列表一致 */
+    private static boolean isDirCoverCacheValid(File dir) {
+        File metaFile = new File(dir, COVER_CACHE_META);
+        if (!metaFile.exists()) return false;
+        String meta = readTextFile(metaFile);
+        return meta != null && meta.equals(computeDirFingerprint(dir));
+    }
+
+    /** 目录第一层音乐文件指纹（名字+大小 MD5，排序后摘要） */
+    private static String computeDirFingerprint(File dir) {
+        try {
+            File[] files = dir.listFiles();
+            if (files == null) return "";
+            List<String> names = new ArrayList<>();
+            for (File f : files) {
+                if (f.isFile() && WebDavScanner.isMusicFile(f.getName())) {
+                    names.add(f.getName() + ":" + f.length());
+                }
+            }
+            java.util.Collections.sort(names);
+            StringBuilder sb = new StringBuilder();
+            for (String n : names) sb.append(n).append('\n');
+            return md5Hex(sb.toString());
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private static String md5Hex(String s) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(s.getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return Integer.toHexString(s.hashCode());
+        }
+    }
+
+    private static void writeTextFile(File file, String content) {
+        try {
+            FileOutputStream fos = new FileOutputStream(file);
+            fos.write(content.getBytes("UTF-8"));
+            fos.close();
+        } catch (Exception e) {
+        }
+    }
+
+    private static String readTextFile(File file) {
+        try {
+            java.io.FileInputStream fis = new java.io.FileInputStream(file);
+            byte[] buf = new byte[(int) file.length()];
+            int read = fis.read(buf);
+            fis.close();
+            return read > 0 ? new String(buf, 0, read, "UTF-8") : "";
+        } catch (Exception e) {
+            return null;
+        }
     }
     
     /** 从MediaStore获取albumArt */
