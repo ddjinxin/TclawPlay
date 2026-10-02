@@ -447,6 +447,11 @@ public class MusicScanner {
                     continue;
                 }
 
+                // 拔盘后 MediaStore 残留行过滤：文件已不存在（U盘已拔出且数据库未清理）则跳过
+                if (song.filePath != null && !new File(song.filePath).exists()) {
+                    continue;
+                }
+
                 // 车机 MediaScanner 可能解析不出 flac 内嵌 tag（MediaStore 里 artist 为空/unknown），
                 // 从文件内嵌 tag 兑底提取真实歌手
                 song.artist = ensureValidArtist(song.artist, song.filePath);
