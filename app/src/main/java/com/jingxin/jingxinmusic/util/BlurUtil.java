@@ -68,7 +68,6 @@ public class BlurUtil {
             return output;
         } catch (Exception e) {
             Log.e(TAG, "模糊处理失败: " + e.getMessage());
-            e.printStackTrace();
             return bitmap;
         }
     }

@@ -39,7 +39,7 @@ public class KrcParser {
             // 解析
             return parseKrcContent(decrypted);
         } catch (IOException e) {
-            e.printStackTrace();
+            android.util.Log.e("KrcParser", "解析 KRC 文件失败: " + e.getMessage());
             return null;
         }
     }
@@ -131,7 +131,7 @@ public class KrcParser {
             
             return new String(output, 0, length, "UTF-8");
         } catch (Exception e) {
-            e.printStackTrace();
+            android.util.Log.e("KrcParser", "KRC 解密失败: " + e.getMessage());
             return null;
         }
     }
