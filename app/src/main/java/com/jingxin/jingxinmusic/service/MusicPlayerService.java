@@ -378,12 +378,12 @@ public class MusicPlayerService extends Service {
         mediaSession.setCallback(new MediaSessionCompat.Callback() {
             @Override
             public void onPlay() {
-                if (exoPlayer != null) exoPlayer.play();
+                resumePlayback();
             }
 
             @Override
             public void onPause() {
-                if (exoPlayer != null) exoPlayer.pause();
+                pausePlayback();
             }
 
             @Override
@@ -841,8 +841,8 @@ public class MusicPlayerService extends Service {
 
     private void togglePlayPause() {
         if (isFallbackMode && fallbackPlayer != null) {
-            // fallback 模式下 MediaPlayer 控制操作会 Binder 到 AudioFlinger，
-            // 音频服务异常设备上可能阻塞，移到子线程执行
+            // fallback 模式下状态由 fallbackPlayer 决定（isPlaying 内部会 Binder 到 AudioFlinger，
+            // 音频服务异常设备上可能阻塞，移到子线程执行）
             final android.media.MediaPlayer mp = fallbackPlayer;
             new Thread(() -> {
                 try {
@@ -859,10 +859,48 @@ public class MusicPlayerService extends Service {
         }
         if (exoPlayer == null) return;
         if (exoPlayer.getPlayWhenReady()) {
-            exoPlayer.pause();
+            pausePlayback();
         } else {
-            exoPlayer.play();
+            resumePlayback();
         }
+    }
+
+    /**
+     * 暂停播放：统一处理 MediaPlayer 兜底模式与 ExoPlayer 模式。
+     * 供 MediaSession 回调（外部应用如乐酷桌面）与通知栏按钮共用，避免外部控制漏掉兜底播放器。
+     * fallback 模式下 MediaPlayer 控制会 Binder 到 AudioFlinger，音频服务异常设备上可能阻塞，故移到子线程。
+     */
+    private void pausePlayback() {
+        if (isFallbackMode && fallbackPlayer != null) {
+            final android.media.MediaPlayer mp = fallbackPlayer;
+            new Thread(() -> {
+                try { mp.pause(); } catch (Exception ignored) {}
+            }, "FallbackPause").start();
+            sendPlayStateNotify();
+            return;
+        }
+        if (exoPlayer != null) exoPlayer.pause();
+    }
+
+    /**
+     * 恢复播放：统一处理 MediaPlayer 兜底模式与 ExoPlayer 模式。
+     * 供 MediaSession 回调（外部应用如乐桌面）与通知栏按钮共用，避免外部播放漏掉兜底播放器。
+     * fallback 模式下 MediaPlayer 操作可能阻塞，故移到子线程。
+     */
+    private void resumePlayback() {
+        if (isFallbackMode && fallbackPlayer != null) {
+            final android.media.MediaPlayer mp = fallbackPlayer;
+            new Thread(() -> {
+                try { mp.start(); } catch (Exception ignored) {}
+            }, "FallbackResume").start();
+            sendPlayStateNotify();
+            return;
+        }
+        if (exoPlayer != null) exoPlayer.play();
+    }
+
+    private void sendPlayStateNotify() {
+        sendPlayStateBroadcast();
         updateNotification();
     }
 
@@ -1039,7 +1077,10 @@ public class MusicPlayerService extends Service {
     private void updateMediaSessionPlaybackState() {
         if (mediaSession == null || stateBuilder == null) return;
         int state = isPlaying() ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED;
-        long pos = exoPlayer != null ? exoPlayer.getCurrentPosition() : 0;
+        // 统一走 fallback-aware 的 getCurrentPosition()：
+        // fallback 模式下真正出声的是 MediaPlayer，直接读 exoPlayer 会恒为 0，
+        // 导致乐酷桌面等外部应用拿不到进度、歌词不滚动
+        long pos = getCurrentPosition();
         stateBuilder.setState(state, pos, 1.0f);
         mediaSession.setPlaybackState(stateBuilder.build());
     }
