@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '4dcf78b4-3072-4690-82ba-e8cdd4be9781'
-  PropagateID: '4dcf78b4-3072-4690-82ba-e8cdd4be9781'
-  ReservedCode1: '3ca2bb52-b502-44a7-a523-b3e1b915561e'
-  ReservedCode2: '3ca2bb52-b502-44a7-a523-b3e1b915561e'
+  ProduceID: '14cc239a-bb66-43d8-8b30-78c4e73c195e'
+  PropagateID: '14cc239a-bb66-43d8-8b30-78c4e73c195e'
+  ReservedCode1: '90409e3b-412b-4625-87a9-3477abf8b2fe'
+  ReservedCode2: '90409e3b-412b-4625-87a9-3477abf8b2fe'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,12 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.7.8)
+## 📢 最新版本 (v1.0.7.9)
+
+### v1.0.7.9 (2026-10)
+#### 修复
+- **音频异常设备外部控制失效** — 部分车机（如 TS18）音频服务异常时 ExoPlayer 构造失败，大量歌曲走 MediaPlayer 兑底播放；此时乐酷桌面等外部应用经 MediaSession 按暂停/恢复无反应，进度恒为 0、歌词不滚动。MediaSession 回调与通知栏统一走 fallback 感知的 pausePlayback()/resumePlayback()，进度取值改用 fallback-aware 的 getCurrentPosition()，同一根因一并修复
+- **日志规范清理** — BlurUtil/KrcParser 残留的 printStackTrace() 统一改为 android.util.Log.e（崩溃落盘堆栈为功能代码保留）
 
 ### v1.0.7.8 (2026-10)
 #### 修复
@@ -572,6 +577,11 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.7.9 (2026-10)
+#### 修复
+- 音频异常设备外部控制失效：MediaSession 回调/通知栏统一走 fallback 感知的 pausePlayback()/resumePlayback()，进度改用 fallback-aware 的 getCurrentPosition()，外部应用（乐酷桌面）在 MediaPlayer 兑底模式下暂停/进度/歌词恢复正常
+- 日志规范清理：printStackTrace() 残留统一为 android.util.Log.e
 
 ### v1.0.7.8 (2026-10)
 #### 修复
