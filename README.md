@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'd38584d7-fd2a-4b53-8631-a6b988aaf019'
-  PropagateID: 'd38584d7-fd2a-4b53-8631-a6b988aaf019'
-  ReservedCode1: '989de331-d385-4338-bf87-3170d17200b7'
-  ReservedCode2: '989de331-d385-4338-bf87-3170d17200b7'
+  ProduceID: '7eed62b7-62bc-4948-ae9b-ae23892b22b0'
+  PropagateID: '7eed62b7-62bc-4948-ae9b-ae23892b22b0'
+  ReservedCode1: '21026429-6b98-42b8-b696-1fd3db054333'
+  ReservedCode2: '21026429-6b98-42b8-b696-1fd3db054333'
 ---
 
 # 静心音乐 / TclawPlay
@@ -210,7 +210,35 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.7.7)
+## 📢 Latest Version (v1.0.8.0)
+
+### v1.0.8.0 (2026-10)
+#### New Features
+- **Software audio effect processor** — Bypasses car head unit vendor EQ (e.g., NXP multi-channel switch silence issue), self-developed Media3 AudioProcessor software solution: 5-stage biquad cascade filter, 7 presets (Off/Vocal/Pop/Rock/Classical/Bass Boost/Surround), EQ curves based on Winamp genre curves at 1.5× boost (peak ±9dB), BassBoost/Virtualizer 80%, accessible via player page popup (left-aligned, vertically centered, single column, font auto-scale matching spectrum popup)
+- **Volume normalization (loudness equalization)** — ReplayGain/EBU R128-based volume normalization toggle, scans true loudness of songs and automatically levels perceived volume, no manual adjustment needed when switching tracks
+
+#### Bug Fixes
+- **Fallback playback cross-thread crash** — On audio-abnormal devices using MediaPlayer fallback, setOnCompletionListener/setOnErrorListener/catch block called playNext()/handlePlaybackError() directly on FallbackInit thread accessing exoPlayer, triggering `IllegalStateException: Player is accessed on the wrong thread`; unified via handler.post() to switch back to main thread
+
+#### Improvements
+- **Redundant code cleanup** — Removed 4 unused fields in SpectrumView, 33 unused imports across 28 files, 1 unused drawable, no functional impact
+
+### v1.0.7.9 (2026-10)
+#### Bug Fixes
+- **External control failure on audio-abnormal devices** — Some car head units (e.g., TS18) with abnormal audio services fail to construct ExoPlayer, causing many songs to fall back to MediaPlayer; external apps like Leco Desktop sending MediaSession pause/resume get no response, progress stuck at 0, lyrics not scrolling. MediaSession callbacks and notification bar now unified through fallback-aware pausePlayback()/resumePlayback(), position reading uses fallback-aware getCurrentPosition(), same root cause fixed together
+- **Log cleanup** — Residual printStackTrace() in BlurUtil/KrcParser unified to android.util.Log.e (crash log stack traces kept as functional code)
+
+### v1.0.7.8 (2026-10)
+#### Bug Fixes
+- **Android 5.1 / 6 / 7 compatibility** — Full adaptation for low-end car systems, fixing multiple crashes and lag:
+  - **Android 6 crash fix** — R8 obfuscation of XmlPullParser interface name caused framework XmlBlock runtime IncompatibleClassChangeError; getStorageVolumes() missing on Android 6 caused scan crash, added API 24 guard with fallback path; GradientDrawable.getColors() API 24+ caused browse page crash, switched to ThemeColors returning color array directly; onServiceConnected thread UI update caused CalledFromWrongThreadException
+  - **Android 5.1 audio-abnormal ANR protection** — ExoPlayer construct/release moved to sub-thread (generateAudioSessionId in constructor Binder-calls AudioFlinger, which blocks indefinitely on frozen AudioFlinger devices); auto-fallback to MediaPlayer when not ready; AudioRecord release sub-threaded to prevent main thread freeze
+  - **Android 5.1 popup fix** — Spectrum/lyric search/history popups couldn't close on outside tap (5.1 PopupWindow with null background doesn't create PopupViewContainer, outside tap swallowed by decor), set transparent background to trigger container creation
+  - **Android 5.1 low-memory optimization** — Embedded cover unified downsampled decode (full-size decode on ~64MB heap caused OOM with large covers); spectrum switched to double-buffered array reuse, eliminating per-frame new float[] GC pressure and tearing
+  - **Android 7 and all versions** — setForeground unified via API 23 compat wrapper, float window no longer crashes on 5.1~7
+- **USB drive removal residual songs** — Car ROM MediaStore retains dead records after USB removal (BAD_REMOVAL), scan now validates file existence before adding, songs cleanly disappear after re-scan
+- **Cover missing after scan, only after playback** — Grid and player cover caches used incompatible naming, unified to "song name - artist.jpg" shared app-wide; grid online search uses cleaned title+artist, matching player page hit rate
+- **Folder cover not updating** — Folder cover cache never invalidated, showing old cover after song change; added folder music file fingerprint check (.cover_cache_meta.txt), cache auto-invalidates and rebuilds when folder content changes
 
 ### v1.0.7.7 (2026-09)
 #### Bug Fixes
@@ -589,6 +617,17 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 更新日志
 
+### v1.0.8.0 (2026-10)
+#### 新功能
+- 软件音效处理器：绕开车机厂商私有 EQ 效果器（NXP 多声道切换静音），自研 Media3 AudioProcessor 软件方案，5 段 biquad 级联滤波，7 预设（关闭/人声/流行/摇滚/古典/低音增强/全景环绕），EQ 曲线基于 Winamp 流派曲线 1.5 倍加强档（峰值 ±9dB），BassBoost/Virtualizer 80%，入口在播放页弹窗
+- 音量均衡（响度归一化）：基于 ReplayGain/EBU R128 扫描歌曲真实响度并自动拉平听感，切换歌曲无需手动调音量
+
+#### 修复
+- fallback 播放跨线程崩溃：音频异常设备走 MediaPlayer 兜底时，setOnCompletionListener/setOnErrorListener/catch 块在 FallbackInit 子线程直接调用 playNext()/handlePlaybackError() 访问 exoPlayer 触发 `IllegalStateException: Player is accessed on the wrong thread`，统一通过 handler.post() 切回主线程
+
+#### 优化
+- 冗余代码清理：删除 SpectrumView 4 个未使用字段、33 处未使用 import、1 个未使用 drawable
+
 ### v1.0.7.9 (2026-10)
 #### 修复
 - 音频异常设备外部控制失效：MediaSession 回调/通知栏统一走 fallback 感知的 pausePlayback()/resumePlayback()，进度改用 fallback-aware 的 getCurrentPosition()，外部应用（乐酷桌面）在 MediaPlayer 兑底模式下暂停/进度/歌词恢复正常
@@ -809,7 +848,30 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.7.7)
+## 📢 Latest Version (v1.0.8.0)
+
+### v1.0.8.0 (2026-10)
+#### New Features
+- **Software audio effect processor** — Bypasses car head unit vendor EQ (e.g., NXP multi-channel switch silence issue), self-developed Media3 AudioProcessor software solution: 5-stage biquad cascade filter, 7 presets (Off/Vocal/Pop/Rock/Classical/Bass Boost/Surround), EQ curves based on Winamp genre curves at 1.5× boost (peak ±9dB), BassBoost/Virtualizer 80%, accessible via player page popup
+- **Volume normalization (loudness equalization)** — ReplayGain/EBU R128-based volume normalization toggle, scans true loudness and automatically levels perceived volume across tracks
+
+#### Bug Fixes
+- **Fallback playback cross-thread crash** — On audio-abnormal devices using MediaPlayer fallback, callbacks in FallbackInit thread directly accessed exoPlayer triggering `IllegalStateException: Player is accessed on the wrong thread`; unified via handler.post() to main thread
+
+#### Improvements
+- **Redundant code cleanup** — Removed 4 unused fields in SpectrumView, 33 unused imports, 1 unused drawable, no functional impact
+
+### v1.0.7.9 (2026-10)
+#### Bug Fixes
+- **External control failure on audio-abnormal devices** — MediaSession callbacks and notification bar unified through fallback-aware pausePlayback()/resumePlayback(), position reading uses fallback-aware getCurrentPosition()
+- **Log cleanup** — Residual printStackTrace() in BlurUtil/KrcParser unified to android.util.Log.e
+
+### v1.0.7.8 (2026-10)
+#### Bug Fixes
+- **Android 5.1 / 6 / 7 compatibility** — Full adaptation for low-end car systems: Android 6 four crash fixes (XmlPullParser obfuscation/getStorageVolumes/GradientDrawable.getColors/thread UI); 5.1 audio-abnormal ANR protection (ExoPlayer construct/release sub-threaded); 5.1 popup outside-tap fix; 5.1 low-memory cover downsample + spectrum double-buffer; all versions setForeground API 23 compat
+- **USB removal residual songs** — Scan validates file existence before adding, songs cleanly disappear after USB removal
+- **Cover cache unification** — Grid and player cover caches unified to "song name - artist.jpg" shared app-wide
+- **Folder cover not updating** — Added folder music file fingerprint check, cache auto-invalidates on content change
 
 ### v1.0.7.7 (2026-09)
 #### Bug Fixes
