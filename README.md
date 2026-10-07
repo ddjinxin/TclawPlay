@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '14cc239a-bb66-43d8-8b30-78c4e73c195e'
-  PropagateID: '14cc239a-bb66-43d8-8b30-78c4e73c195e'
-  ReservedCode1: '90409e3b-412b-4625-87a9-3477abf8b2fe'
-  ReservedCode2: '90409e3b-412b-4625-87a9-3477abf8b2fe'
+  ProduceID: 'd38584d7-fd2a-4b53-8631-a6b988aaf019'
+  PropagateID: 'd38584d7-fd2a-4b53-8631-a6b988aaf019'
+  ReservedCode1: '989de331-d385-4338-bf87-3170d17200b7'
+  ReservedCode2: '989de331-d385-4338-bf87-3170d17200b7'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,18 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.7.9)
+## 📢 最新版本 (v1.0.8.0)
+
+### v1.0.8.0 (2026-10)
+#### 新功能
+- **软件音效处理器** — 绕开车机厂商私有 EQ 效果器（如 NXP 多声道切换静音问题），自研 Media3 AudioProcessor 软件方案：5 段 biquad 级联滤波，7 预设（关闭/人声/流行/摇滚/古典/低音增强/全景环绕），EQ 曲线基于 Winamp 流派曲线 1.5 倍加强档（峰值 ±9dB），BassBoost/Virtualizer 80%，入口在播放页弹窗（贴左垂直居中、单列、字体自适应同频谱弹窗）
+- **音量均衡（响度归一化）** — 基于 ReplayGain/EBU R128 的音量均衡开关，扫描歌曲真实响度并自动拉平听感，切换歌曲无需手动调音量
+
+#### 修复
+- **fallback 播放跨线程崩溃** — 音频异常设备走 MediaPlayer 兜底播放时，setOnCompletionListener/setOnErrorListener/catch 块在 FallbackInit 子线程直接调用 playNext()/handlePlaybackError() 访问 exoPlayer，触发 `IllegalStateException: Player is accessed on the wrong thread`；统一通过 handler.post() 切回主线程执行
+
+#### 优化
+- **冗余代码清理** — 删除 SpectrumView 4 个未使用字段、33 处未使用 import、1 个未使用 drawable，无功能影响
 
 ### v1.0.7.9 (2026-10)
 #### 修复
