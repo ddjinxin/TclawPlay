@@ -11,7 +11,6 @@ import android.graphics.PorterDuffXfermode;
 import android.graphics.Shader;import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 
 import java.util.Random;
@@ -195,7 +194,6 @@ public class SpectrumView extends View {
     private int ringBetween = 1;                // 相邻频段间隔角度（度）
     private int ringScope = 50;                 // 跳过末尾高频分量数
     private float ringStart = 10f;              // 射线最短长度偏移（像素，原版直接+start当px用）
-    private boolean ringRandomAngle = true;     // 是否随机跳跃角度
     private int ringRandomAngleValue = 0;       // 当前随机角度值
     private int ringFrameCounter = 0;           // 帧计数器（用于随机角度切换）
     private Random random = new Random();       // 随机数生成器（类字段复用）
@@ -204,7 +202,6 @@ public class SpectrumView extends View {
     private static final int DIFFUSION_THRESHOLD = 500;  // 能量触发阈值
     private static final int DIFFUSION_START_RADIUS = 0; // 扩散起始半径偏移
     private java.util.List<DiffusionRingBean> diffusionRings = new java.util.ArrayList<>();
-    private float diffusionTotalEnergy = 0f;    // 累计总能量
     private Paint diffusionPaint;               // 扩散圆环画笔
     
     // 波浪圆环模式状态（基于封面大小动态缩放：内环+2px，外径120%封面）
@@ -212,8 +209,6 @@ public class SpectrumView extends View {
     private static final int WAVE_RING_INNER_OFFSET = 10;              // 内环距封面外沿10px
     private static final int WAVE_RING_SCOPE = 1;               // 能量阈值
     private static final int WAVE_RING_SPEED = 2;               // 能量点扩散速度(px/帧)
-    private boolean waveRingIsRotate = true;            // 原版isRotate
-    private boolean waveRingIsRandom = false;           // 原版isRandom
     private boolean waveRingIsBase = false;             // 原版isBase（不画基线）
     private boolean waveRingIsWave = true;              // 原版isWave（画波浪）
     private boolean waveRingIsPoint = true;             // 原版isPoint（画能量圆点）

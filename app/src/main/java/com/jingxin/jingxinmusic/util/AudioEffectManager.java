@@ -5,7 +5,6 @@ import android.media.audiofx.BassBoost;
 import android.media.audiofx.Equalizer;
 import android.media.audiofx.LoudnessEnhancer;
 import android.media.audiofx.Virtualizer;
-import android.util.Log;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

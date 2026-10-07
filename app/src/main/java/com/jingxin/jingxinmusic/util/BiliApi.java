@@ -5,8 +5,6 @@ import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.ArrayList;

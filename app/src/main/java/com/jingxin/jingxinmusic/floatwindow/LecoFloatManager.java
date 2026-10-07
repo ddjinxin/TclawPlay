@@ -10,8 +10,6 @@ import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;

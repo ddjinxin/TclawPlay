@@ -37,7 +37,6 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.Lifecycle;
 
-import com.jingxin.jingxinmusic.HostActivity;
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.scene.CoverScene;

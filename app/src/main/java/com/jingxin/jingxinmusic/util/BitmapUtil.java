@@ -7,8 +7,6 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 
-import java.io.InputStream;
-
 /**
  * Bitmap 工具类：降采样解码、圆形裁剪等
  */

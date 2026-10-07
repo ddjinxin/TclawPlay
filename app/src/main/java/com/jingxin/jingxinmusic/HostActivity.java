@@ -10,7 +10,6 @@ import com.jingxin.jingxinmusic.floatwindow.BaseFloatActivity;
 import com.jingxin.jingxinmusic.floatwindow.LecoFloatManager;
 import com.jingxin.jingxinmusic.fragment.MainFragment;
 
-import android.app.ActivityManager;
 import android.content.res.Configuration;
 
 /**

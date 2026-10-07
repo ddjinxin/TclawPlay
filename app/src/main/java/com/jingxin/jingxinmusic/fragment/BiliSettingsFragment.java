@@ -1,6 +1,5 @@
 package com.jingxin.jingxinmusic.fragment;
 
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Handler;

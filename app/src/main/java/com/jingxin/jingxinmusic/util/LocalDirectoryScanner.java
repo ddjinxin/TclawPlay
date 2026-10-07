@@ -1,11 +1,8 @@
 package com.jingxin.jingxinmusic.util;
 
-import android.util.Log;
-
 import com.jingxin.jingxinmusic.model.BrowseItem;
 import com.jingxin.jingxinmusic.model.Song;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

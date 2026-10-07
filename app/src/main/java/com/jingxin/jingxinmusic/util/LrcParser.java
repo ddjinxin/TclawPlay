@@ -1,7 +1,5 @@
 package com.jingxin.jingxinmusic.util;
 
-import android.util.Log;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;

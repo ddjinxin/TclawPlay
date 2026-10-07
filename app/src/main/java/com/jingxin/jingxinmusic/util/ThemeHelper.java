@@ -1,7 +1,6 @@
 package com.jingxin.jingxinmusic.util;
 
 import android.content.Context;
-import android.util.Log;
 
 import java.util.Calendar;
 

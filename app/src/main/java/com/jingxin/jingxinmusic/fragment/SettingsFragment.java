@@ -24,7 +24,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SwitchCompat;
 
 import com.jingxin.jingxinmusic.R;
-import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.MusicScanner;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.ThemeHelper;

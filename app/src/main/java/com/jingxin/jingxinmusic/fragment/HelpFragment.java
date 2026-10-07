@@ -22,7 +22,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.jingxin.jingxinmusic.R;
-import com.jingxin.jingxinmusic.util.MagicColor;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.UpdateHelper;
 import com.jingxin.jingxinmusic.view.DynamicBgView;

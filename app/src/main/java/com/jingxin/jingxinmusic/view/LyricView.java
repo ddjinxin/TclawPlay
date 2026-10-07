@@ -11,7 +11,6 @@ import android.text.StaticLayout;
 import android.text.TextPaint;
 import android.text.style.ForegroundColorSpan;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 
 import com.jingxin.jingxinmusic.util.ColorUtil;
