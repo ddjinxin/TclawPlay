@@ -281,6 +281,19 @@
             android:foreground="@drawable/tv_focus_round"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
+        <!-- 音效按钮：与右侧三按钮规格一致（0dp+weight=1, 高36dp, padding8dp） -->
+        <ImageView
+            android:id="@+id/effect_button"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_effect"
+            android:padding="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_round"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
         <!-- 中间弹性空间 -->
         <View
             android:id="@+id/top_spacer"

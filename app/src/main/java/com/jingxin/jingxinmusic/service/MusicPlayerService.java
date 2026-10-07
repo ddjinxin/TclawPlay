@@ -39,13 +39,16 @@ import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 
 import com.jingxin.jingxinmusic.model.Song;
+import com.jingxin.jingxinmusic.util.AudioEffectManager;
 import com.jingxin.jingxinmusic.util.BiliApi;
 import com.jingxin.jingxinmusic.util.BiliConfig;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.FileUtil;
 import com.jingxin.jingxinmusic.util.HistoryManager;
 import com.jingxin.jingxinmusic.util.KrcParser;
+import com.jingxin.jingxinmusic.util.LoudnessScanner;
 import com.jingxin.jingxinmusic.util.LyricPublicUtil;
+import com.jingxin.jingxinmusic.util.SoftwareEqProcessor;
 import com.jingxin.jingxinmusic.util.WebDavCacheManager;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
 
@@ -101,6 +104,12 @@ public class MusicPlayerService extends Service {
     public static final int PLAY_ORDER_SHUFFLE = 1;      // 随机播放
     public static final int PLAY_ORDER_REPEAT_ONE = 2;   // 单曲循环
 
+    // 音效预设变更广播（设置页切换预设后通知 Service 立即生效，不重启播放）
+    public static final String ACTION_EFFECT_PRESET_CHANGED = "com.jingxin.jingxinmusic.EFFECT_PRESET_CHANGED";
+    public static final String EXTRA_EFFECT_PRESET = "effect_preset";
+    // 音量均衡开关变更广播（设置页切换后通知 Service）
+    public static final String ACTION_VOLUME_NORMALIZE_CHANGED = "com.jingxin.jingxinmusic.VOLUME_NORMALIZE_CHANGED";
+
     // 主题切换广播（由高德日夜模式触发，接收器已上移至 App.java 应用级）
     public static final String ACTION_THEME_CHANGED = "com.jingxin.jingxinmusic.THEME_CHANGED";
     public static final String EXTRA_IS_NIGHT = "is_night";
@@ -110,6 +119,18 @@ public class MusicPlayerService extends Service {
     private volatile boolean exoPlayerReady = false;
     private MediaSessionCompat mediaSession;
     private PlaybackStateCompat.Builder stateBuilder;
+
+    // 系统音效（音量均衡增益）+ 软件 EQ（EQ 预设/低音增强/全景环绕）
+    private AudioEffectManager audioEffectManager;
+    // 软件 EQ 处理器：注入 ExoPlayer 渲染链，绕开车机厂商 EQ 在多声道上的静音缺陷
+    private SoftwareEqProcessor softwareEqProcessor;
+
+    // 音量均衡：响度扫描器（无 REPLAYGAIN 标签时 RMS 预扫描，gain_cache.json 缓存）
+    private LoudnessScanner loudnessScanner;
+    // 音量均衡开关（设置页持久化，播放本地歌曲时读取生效）
+    private boolean volumeNormalizeEnabled;
+    // 当前歌曲已应用的音量均衡增益（切歌时重置）
+    private float currentGainDb = 0f;
 
     // MediaPlayer 兜底播放器：ExoPlayer 无法解码 ALAC 等格式时，使用系统 MediaPlayer
     private android.media.MediaPlayer fallbackPlayer;
@@ -215,6 +236,19 @@ public class MusicPlayerService extends Service {
     public void onCreate() {
         super.onCreate();
 
+        // 音效管理器：恢复上次选择的预设（内部全部异步，绝不阻塞主线程）
+        audioEffectManager = new AudioEffectManager();
+        audioEffectManager.initFromPrefs(this);
+        // 软件 EQ 同步上次预设（ExoPlayer 构造时即生效）
+        if (softwareEqProcessor != null)
+            softwareEqProcessor.setPreset(audioEffectManager.getSavedPreset(this));
+
+        // 音量均衡：恢复开关状态，扫描器缓存存 history 同级目录
+        volumeNormalizeEnabled = getSharedPreferences(
+                com.jingxin.jingxinmusic.fragment.SettingsFragment.PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(com.jingxin.jingxinmusic.fragment.SettingsFragment.KEY_VOLUME_NORMALIZE, false);
+        loudnessScanner = new LoudnessScanner(getExternalFilesDir(null));
+
         // 恢复上次播放模式（顺序/随机/单曲循环）
         this.playOrder = getSharedPreferences("last_played", MODE_PRIVATE)
                 .getInt("play_order", PLAY_ORDER_SEQUENTIAL);
@@ -265,6 +299,16 @@ public class MusicPlayerService extends Service {
                     startPlaybackStateUpdater();
                 } else {
                     stopPlaybackStateUpdater();
+                }
+            }
+
+            @Override
+            public void onAudioSessionIdChanged(int sessionId) {
+                // ExoPlayer 每次重建/首次播放都会分配 session；EQ/BB/VT 已改软件 DSP，
+                // 此处仅挂载音量均衡（LoudnessEnhancer 为 AOSP 实现，车机正常）
+                if (audioEffectManager != null) {
+                    audioEffectManager.setFallbackMode(false);
+                    audioEffectManager.attachLoudnessOnlyAsync(sessionId);
                 }
             }
 
@@ -339,11 +383,18 @@ public class MusicPlayerService extends Service {
 
         // ExoPlayer 构造移到子线程（构造内 generateAudioSessionId → Binder 到 AudioFlinger，
         // 音频服务异常设备上会阻塞主线程导致 ANR）；完成后在主线程挂载 listener 并置 exoPlayerReady。
-        final DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
-                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
+        // 软件 EQ 处理器注入渲染链：EQ/低音/环绕预设由本应用 DSP 处理，
+        // 彻底绕开车机厂商 EQ（NXP）在多声道输出上的静音缺陷。
+        softwareEqProcessor = new SoftwareEqProcessor();
+        // 软件 EQ 处理器注入渲染链：EQ/低音/环绕预设由本应用 DSP 处理，
+        // 彻底绕开车机厂商 EQ（NXP）在多声道输出上的静音缺陷。
+        final DefaultRenderersFactory renderersFactory =
+                new EqRenderersFactory(this, softwareEqProcessor);
         new Thread(() -> {
             try {
-                final ExoPlayer player = new ExoPlayer.Builder(this, renderersFactory)
+                final ExoPlayer player = new ExoPlayer.Builder(this,
+                        renderersFactory.setExtensionRendererMode(
+                                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER))
                         .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
                         .setAudioAttributes(new AudioAttributes.Builder()
                                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -356,6 +407,14 @@ public class MusicPlayerService extends Service {
                     exoPlayer = player;
                     exoPlayerReady = true;
                     exoPlayer.addListener(playerListener);
+                    // 关键修复（安卓8.1音效不生效）：media3 的 onAudioSessionIdChanged 回调
+                    // 只在显式调用 setAudioSessionId() 时触发，构造自动分配的 session 不会回调。
+                    // setAudioSessionId(0) 会让 ExoPlayer 重新生成 session 并下发给 AudioSink，
+                    // 从而触发 onAudioSessionIdChanged → attachAsync 挂载音效。
+                    // （verifyApplicationThread 要求主线程，此处正是主线程 handler）
+                    try {
+                        player.setAudioSessionId(0);
+                    } catch (Throwable ignored) {}
                 });
             } catch (Throwable t) {
                 Log.e(TAG, "ExoPlayer 构造失败: " + t.getMessage());
@@ -447,6 +506,29 @@ public class MusicPlayerService extends Service {
                 updateMediaSessionMetadata();
             } else if (ACTION_WEBDAV_CONFIG_CHANGED.equals(action)) {
                 rebuildDataSourceFactory();
+            } else if (ACTION_VOLUME_NORMALIZE_CHANGED.equals(action)) {
+                // 设置页开关音量均衡：同步开关并立即对当前歌曲生效/失效
+                volumeNormalizeEnabled = getSharedPreferences(
+                        com.jingxin.jingxinmusic.fragment.SettingsFragment.PREFS_NAME, MODE_PRIVATE)
+                        .getBoolean(com.jingxin.jingxinmusic.fragment.SettingsFragment.KEY_VOLUME_NORMALIZE, false);
+                if (volumeNormalizeEnabled) {
+                    Song cur = getCurrentSong();
+                    if (cur != null) applyVolumeNormalize(cur);
+                } else {
+                    currentGainDb = 0f;
+                    if (audioEffectManager != null) audioEffectManager.setLoudnessGainAsync(0f);
+                    // 负增益（setVolume）也要回正
+                    applyPlayerVolume(1f);
+                }
+            } else if (ACTION_EFFECT_PRESET_CHANGED.equals(action)) {
+                // 切换音效预设：EQ/低音/环绕走软件 DSP（ExoPlayer 链内），仅音量均衡用系统效果器
+                int preset = intent.getIntExtra(EXTRA_EFFECT_PRESET, AudioEffectManager.PRESET_OFF);
+                if (audioEffectManager != null) {
+                    audioEffectManager.setPresetAsync(preset);
+                }
+                if (softwareEqProcessor != null) {
+                    softwareEqProcessor.setPreset(preset);
+                }
             }
         }
         return START_STICKY;
@@ -462,6 +544,14 @@ public class MusicPlayerService extends Service {
         savePlaybackPosition();
         stopPlaybackStateUpdater();
         releaseFallbackPlayer();
+        if (audioEffectManager != null) {
+            audioEffectManager.releaseAsync();
+            audioEffectManager = null;
+        }
+        if (loudnessScanner != null) {
+            loudnessScanner.shutdown();
+            loudnessScanner = null;
+        }
         if (exoPlayer != null) {
             final ExoPlayer p = exoPlayer;
             exoPlayer = null;
@@ -633,6 +723,9 @@ public class MusicPlayerService extends Service {
         }
         this.currentIndex = position;
 
+        // 音量均衡：切歌入口统一应用/归零增益（内部自带网络流归零逻辑）
+        applyVolumeNormalize(song);
+
         // B站歌曲：异步获取音频流URL后再播放
         // 备用判断：filePath以"bili://"开头也视为B站歌曲（兼容旧版保存的播放列表）
         if (song.sourceType == Song.SOURCE_BILI ||
@@ -672,6 +765,68 @@ public class MusicPlayerService extends Service {
         startPlayback(song, playUri, position);
     }
 
+    // ========== 音量均衡（方案 C） ==========
+
+    /**
+     * 对当前歌曲应用音量均衡（切歌时调用）：
+     * - 开关关闭 → 全部归零（增益效果器禁用 + setVolume 恢复 1.0）
+     * - 开关开启且为本地歌曲 → 查标签/扫描得增益：
+     *   正增益走 LoudnessEnhancer（setVolume 上限 1.0 升不了音量），
+     *   负增益直接 setVolume 缩小（比效果器少一层处理，音质无损）
+     * - 网络流（B站/WebDAV）不做（扫描成本高且流地址会变）
+     */
+    private void applyVolumeNormalize(Song song) {
+        currentGainDb = 0f;
+        if (!volumeNormalizeEnabled) {
+            if (audioEffectManager != null) audioEffectManager.setLoudnessGainAsync(0f);
+            applyPlayerVolume(1f);
+            return;
+        }
+        // 仅本地文件（content URI 无法直接读标签/扫描）
+        String path = song != null ? song.filePath : null;
+        if (path == null || path.startsWith("http") || path.startsWith("content://")
+                || path.startsWith("bili://")) {
+            if (audioEffectManager != null) audioEffectManager.setLoudnessGainAsync(0f);
+            applyPlayerVolume(1f);
+            return;
+        }
+        if (loudnessScanner == null) return;
+        final String songId = path;
+        loudnessScanner.getGainAsync(path, gainDb ->
+                // 回调来自扫描线程，ExoPlayer 只能主线程访问，切回主线程再应用
+                handler.post(() -> {
+            // 回调时可能已切歌，只对仍在本歌曲的应用增益
+            Song cur = getCurrentSong();
+            if (cur == null || cur.filePath == null || !cur.filePath.equals(songId)) return;
+            currentGainDb = gainDb;
+            if (gainDb > 0f) {
+                // 正增益：LoudnessEnhancer + setVolume 保持 1.0
+                applyPlayerVolume(1f);
+                if (audioEffectManager != null) audioEffectManager.setLoudnessGainAsync(gainDb);
+            } else if (gainDb < 0f) {
+                // 负增益：setVolume 线性缩小（10^gain/20），效果器增益归零
+                if (audioEffectManager != null) audioEffectManager.setLoudnessGainAsync(0f);
+                applyPlayerVolume((float) Math.pow(10, gainDb / 20f));
+            } else {
+                if (audioEffectManager != null) audioEffectManager.setLoudnessGainAsync(0f);
+                applyPlayerVolume(1f);
+            }
+        }));
+    }
+
+    /**
+     * 统一设置双播放器音量（ExoPlayer setVolume / MediaPlayer setVolume）。
+     * 切歌/开关关闭时调用方负责恢复 1.0。
+     */
+    private void applyPlayerVolume(float volume) {
+        try {
+            if (exoPlayer != null && exoPlayerReady) exoPlayer.setVolume(volume);
+        } catch (Exception ignored) {}
+        try {
+            if (fallbackPlayer != null) fallbackPlayer.setVolume(volume, volume);
+        } catch (Exception ignored) {}
+    }
+
     /**
      * 本地/WebDAV歌曲：开始播放
      */
@@ -691,6 +846,7 @@ public class MusicPlayerService extends Service {
         // 非 ALAC：使用 ExoPlayer 正常播放
         releaseFallbackPlayer();
         isFallbackMode = false;
+        if (audioEffectManager != null) audioEffectManager.setFallbackMode(false);
 
         // 先停掉当前播放，强制释放旧的 MediaCodec 解码器
         // 避免从 FLAC 切到 MP4/ALAC 时，ExoPlayer 复用旧 FLAC 解码器导致无声
@@ -717,6 +873,14 @@ public class MusicPlayerService extends Service {
         }
 
         exoPlayer.play();
+
+            // 双保险：直接读取 ExoPlayer 的 session 挂载音量均衡（EQ/BB/VT 已由软件 EQ 处理）
+            try {
+                if (audioEffectManager != null) {
+                    audioEffectManager.setFallbackMode(false);
+                    audioEffectManager.attachLoudnessOnlyAsync(exoPlayer.getAudioSessionId());
+                }
+            } catch (Throwable ignored) {}
 
         // 播放成功，重置连续错误计数和瞬态重试标记
         consecutiveErrors = 0;
@@ -789,6 +953,7 @@ public class MusicPlayerService extends Service {
             // 释放MediaPlayer兜底播放器，避免两个播放器同时出声
             releaseFallbackPlayer();
             isFallbackMode = false;
+            if (audioEffectManager != null) audioEffectManager.setFallbackMode(false);
 
             // 停掉ExoPlayer当前播放，确保干净切换
             exoPlayer.stop();
@@ -820,12 +985,23 @@ public class MusicPlayerService extends Service {
 
             exoPlayer.play();
 
-        consecutiveErrors = 0;
+            // 双保险：直接读取 ExoPlayer 的 session 挂载音量均衡（EQ/BB/VT 已由软件 EQ 处理）
+            try {
+                if (audioEffectManager != null) {
+                    audioEffectManager.setFallbackMode(false);
+                    audioEffectManager.attachLoudnessOnlyAsync(exoPlayer.getAudioSessionId());
+                }
+            } catch (Throwable ignored) {}
 
-        logPlayHistory(song);
+            // 播放成功，重置连续错误计数和瞬态重试标记
+            consecutiveErrors = 0;
+            transientRetryUsed = false;
+
+            logPlayHistory(song);
             updateNotification();
-            sendSongChangedBroadcast(song, position);
 
+            // 通知 Activity 歌曲切换了
+            sendSongChangedBroadcast(song, position);
         } catch (Exception e) {
             Log.e(TAG, "B站播放启动失败: " + e.getMessage());
             handlePlaybackError();
@@ -1163,12 +1339,13 @@ public class MusicPlayerService extends Service {
             try { oldPlayer.release(); } catch (Exception ignored) {}
         }, "ExoRelease").start();
 
-        // 重建播放器（构造可能阻塞 Binder，移到子线程）
-        final DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this)
-                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
+        // 重建播放器（构造可能阻塞 Binder，移到子线程）；软件 EQ 处理器继续复用
+        final DefaultRenderersFactory renderersFactory = new EqRenderersFactory(this, softwareEqProcessor);
         new Thread(() -> {
             try {
-                final ExoPlayer player = new ExoPlayer.Builder(this, renderersFactory)
+                final ExoPlayer player = new ExoPlayer.Builder(this,
+                        renderersFactory.setExtensionRendererMode(
+                                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER))
                         .setMediaSourceFactory(new DefaultMediaSourceFactory(buildDataSourceFactory()))
                         .setAudioAttributes(new AudioAttributes.Builder()
                                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -1561,6 +1738,7 @@ public class MusicPlayerService extends Service {
     private void startFallbackPlayback(Song song, String playUri, int position) {
         releaseFallbackPlayer();
         isFallbackMode = true;
+        if (audioEffectManager != null) audioEffectManager.setFallbackMode(true);
 
         // 暂停 ExoPlayer，避免两个播放器同时出声（仅判空调用，不阻塞）
         if (exoPlayer != null) {
@@ -1598,6 +1776,13 @@ public class MusicPlayerService extends Service {
 
                 // 创建成功后才赋给成员变量（失败路径由局部引用直接释放，杜绝泄漏）
                 fallbackPlayer = mp;
+                // MediaPlayer 兜底 session：预设走系统效果器（无软件 EQ，车机此场景本来就罕见）
+                try {
+                    if (audioEffectManager != null) {
+                        audioEffectManager.setFallbackMode(true);
+                        audioEffectManager.attachAsync(mp.getAudioSessionId());
+                    }
+                } catch (Exception ignored) {}
                 mp.start();
 
                 // 播放成功，重置连续错误计数和瞬态重试标记
@@ -1768,4 +1953,26 @@ public class MusicPlayerService extends Service {
         return null;
     }
 
+    /**
+     * 注入软件 EQ 的 RenderersFactory：buildAudioSink 时把 SoftwareEqProcessor
+     * 插入 AudioSink 处理链（EQ/低音/环绕预设在本应用 DSP 内完成，绕开厂商效果器）。
+     */
+    private static final class EqRenderersFactory extends DefaultRenderersFactory {
+        private final SoftwareEqProcessor eqProcessor;
+
+        EqRenderersFactory(Context context, SoftwareEqProcessor eqProcessor) {
+            super(context);
+            this.eqProcessor = eqProcessor;
+        }
+
+        @Override
+        protected androidx.media3.exoplayer.audio.AudioSink buildAudioSink(
+                Context context, boolean enableFloatOutput, boolean enableAudioTrackPlaybackParams) {
+            return new androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                    .setAudioProcessors(new androidx.media3.common.audio.AudioProcessor[]{eqProcessor})
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .build();
+        }
+    }
 }

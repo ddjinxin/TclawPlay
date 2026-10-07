@@ -268,6 +268,15 @@ public class CoverSceneHelper {
             btnLyricSearch.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
         }
 
+        // 音效按钮（返回键右侧，与右侧三按钮同规格）
+        ImageView btnEffect = rootLayout.findViewById(R.id.effect_button);
+        if (btnEffect != null) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btnEffect.getLayoutParams();
+            p.height = topRightBtnSize; p.weight = 1;
+            btnEffect.setLayoutParams(p);
+            btnEffect.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
+        }
+
         // 底部按钮容器
         if (controlButtons != null) {
             LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) controlButtons.getLayoutParams();

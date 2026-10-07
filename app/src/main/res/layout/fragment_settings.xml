@@ -536,6 +536,49 @@
             android:layout_marginVertical="4dp"
             android:id="@+id/divider_mid4" />
 
+        <!-- 音量均衡开关 -->
+        <LinearLayout
+            android:id="@+id/item_volume_normalize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingVertical="12dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_volume_normalize_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="音量均衡"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tv_volume_normalize_desc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="自动拉平不同歌曲的音量差异，首次播放会后台扫描"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_volume_normalize"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="4dp"
+            android:id="@+id/divider_mid8" />
+
         <!-- 启动直达播放开关 -->
         <LinearLayout
             android:id="@+id/item_auto_resume"

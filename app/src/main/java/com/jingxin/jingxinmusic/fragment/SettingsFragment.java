@@ -24,6 +24,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SwitchCompat;
 
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.MusicScanner;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.ThemeHelper;
@@ -41,6 +42,8 @@ public class SettingsFragment extends BaseFloatFragment {
     public static final String KEY_LOCAL_LYRIC_PRIORITY = "local_lyric_priority";
     public static final String KEY_AUTO_RESUME = "auto_resume";
     public static final String KEY_BG_SKIN = "bg_skin";
+    public static final String KEY_AUDIO_EFFECT_PRESET = "audio_effect_preset";
+    public static final String KEY_VOLUME_NORMALIZE = "volume_normalize";
     public static final int BG_SKIN_DEFAULT = 0;
     public static final int BG_SKIN_AURORA = 1;
 
@@ -57,14 +60,14 @@ public class SettingsFragment extends BaseFloatFragment {
     private View rootLayout;
     private TextView tvTitle;
     private LinearLayout topBar;
-    private View dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7;
+    private View dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7, dividerMid8;
     private ImageView btnBack;
     private ImageView btnHelp;
     private TextView[] styleTabs = new TextView[4];
     private int currentStyleIndex = 0;
-    private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoTheme;
-    private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoThemeTitle;
-    private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoThemeDesc;
+    private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoTheme, switchVolumeNormalize;
+    private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoThemeTitle, tvVolumeNormalizeTitle;
+    private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoThemeDesc, tvVolumeNormalizeDesc;
     private TextView[] bgSkinTabs = new TextView[2];
     private int currentBgSkinIndex = 0;
     private TextView tvDayStartLabel, tvDayStartValue, tvNightStartLabel, tvNightStartValue, tvTimeSeparator;
@@ -170,6 +173,7 @@ public class SettingsFragment extends BaseFloatFragment {
         setupLocalCoverSwitch(view);
         setupLocalLyricSwitch(view);
         setupAutoResumeSwitch(view);
+        setupVolumeNormalizeSwitch(view);
         setupLyricColorSelector(view);
 
         applyTopInset(rootScroll);
@@ -228,6 +232,7 @@ public class SettingsFragment extends BaseFloatFragment {
         dividerMid5 = view.findViewById(R.id.divider_mid5);
         dividerMid6 = view.findViewById(R.id.divider_mid6);
         dividerMid7 = view.findViewById(R.id.divider_mid7);
+        dividerMid8 = view.findViewById(R.id.divider_mid8);
         btnBack = view.findViewById(R.id.btn_back);
         btnHelp = view.findViewById(R.id.btn_help);
         btnHelp.setOnClickListener(v -> {
@@ -271,11 +276,11 @@ public class SettingsFragment extends BaseFloatFragment {
         tvTitle.setTextColor(tc);
         // 刷新所有标题
         TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle,
-                tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle};
+                tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvVolumeNormalizeTitle};
         for (TextView t : titles) if (t != null) t.setTextColor(tc);
         // 刷新所有描述
         TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc,
-                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc};
+                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvVolumeNormalizeDesc};
         for (TextView d : descs) if (d != null) d.setTextColor(ts);
         // 时间选择行文字
         TextView[] timeTexts = {tvDayStartLabel, tvDayStartValue, tvTimeSeparator, tvNightStartLabel, tvNightStartValue};
@@ -284,7 +289,7 @@ public class SettingsFragment extends BaseFloatFragment {
         updateStyleTabColors();
         // 背景皮肤 tab 颜色
         updateBgSkinTabColors();
-        View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7};
+        View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7, dividerMid8};
         for (View d : dividers) d.setBackgroundColor(divColor);
         if (dynamicBgEnabled) {
             // 动态模式：图标用黑白
@@ -519,7 +524,7 @@ public class SettingsFragment extends BaseFloatFragment {
     /** 全部设置开关集合（初始化前为 null，调用方需判空） */
     private SwitchCompat[] allSwitches() {
         return new SwitchCompat[]{switchNight, switchAutoTheme, switchFloat, switchSpectrum,
-                switchLocalCover, switchLocalLyric, switchAutoResume};
+                switchLocalCover, switchLocalLyric, switchAutoResume, switchVolumeNormalize};
     }
 
     /** 按当前日夜模式刷新全部开关颜色 */
@@ -699,6 +704,46 @@ public class SettingsFragment extends BaseFloatFragment {
         });
     }
 
+    // ========== 音效预设选择 ==========
+
+    /** 读取音效预设索引（默认关闭） */
+    public static int getAudioEffectPreset(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(KEY_AUDIO_EFFECT_PRESET, com.jingxin.jingxinmusic.util.AudioEffectManager.PRESET_OFF);
+    }
+
+    /** 读取音量均衡开关状态（默认关闭） */
+    public static boolean isVolumeNormalizeEnabled(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_VOLUME_NORMALIZE, false);
+    }
+
+    // ========== 音量均衡开关 ==========
+
+    private void setupVolumeNormalizeSwitch(View view) {
+        switchVolumeNormalize = view.findViewById(R.id.switch_volume_normalize);
+        tvVolumeNormalizeTitle = view.findViewById(R.id.tv_volume_normalize_title);
+        tvVolumeNormalizeDesc = view.findViewById(R.id.tv_volume_normalize_desc);
+        applyItemTheme(tvVolumeNormalizeTitle, tvVolumeNormalizeDesc);
+
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean enabled = prefs.getBoolean(KEY_VOLUME_NORMALIZE, false);
+        switchVolumeNormalize.setChecked(enabled);
+        applySwitchTint(switchVolumeNormalize);
+
+        switchVolumeNormalize.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean(KEY_VOLUME_NORMALIZE, isChecked).apply();
+            // startService 通知 Service 开/关音量均衡（方案 C 接入后生效）
+            android.content.Intent intent = new android.content.Intent(
+                    com.jingxin.jingxinmusic.service.MusicPlayerService.ACTION_VOLUME_NORMALIZE_CHANGED);
+            intent.setClass(requireContext(), com.jingxin.jingxinmusic.service.MusicPlayerService.class);
+            try {
+                requireContext().startService(intent);
+            } catch (Exception ignored) {}
+            Toast.makeText(requireContext(), isChecked ? "已开启音量均衡" : "已关闭音量均衡", Toast.LENGTH_SHORT).show();
+        });
+    }
+
     // ========== 歌词高亮颜色选择 ==========
 
     private void setupLyricColorSelector(View view) {
@@ -809,7 +854,8 @@ public class SettingsFragment extends BaseFloatFragment {
         int itemPad = dpScaled(12);
         int[] itemIds = {R.id.item_scan_music, R.id.item_storage_permission, R.id.item_night_mode,
                 R.id.item_auto_theme, R.id.item_style, R.id.item_bg_skin, R.id.item_float_window, R.id.item_spectrum,
-                R.id.item_auto_resume, R.id.item_local_cover, R.id.item_local_lyric, R.id.item_lyric_color};
+                R.id.item_auto_resume, R.id.item_local_cover, R.id.item_local_lyric, R.id.item_lyric_color,
+                R.id.item_volume_normalize};
         for (int id : itemIds) {
             View item = mRootView.findViewById(id);
             if (item != null) item.setPadding(item.getPaddingLeft(), itemPad, item.getPaddingRight(), itemPad);
@@ -817,9 +863,11 @@ public class SettingsFragment extends BaseFloatFragment {
 
         // 条目标题 16sp、描述 12sp（含描述上边距 2dp）
         TextView[] titles = {tvScanTitle, tvStoragePermTitle, tvNightTitle, tvAutoThemeTitle, tvStyleTitle,
-                tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvAutoResumeTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvLyricTitle};
+                tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvAutoResumeTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvLyricTitle,
+                tvVolumeNormalizeTitle};
         TextView[] descs = {tvScanDesc, tvStoragePermDesc, tvNightDesc, tvAutoThemeDesc, tvStyleDesc,
-                tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvAutoResumeDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvLyricDesc};
+                tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvAutoResumeDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvLyricDesc,
+                tvVolumeNormalizeDesc};
         float titleSize = spScaled(16);
         float descSize = spScaled(12);
         for (TextView t : titles) if (t != null) t.setTextSize(TypedValue.COMPLEX_UNIT_PX, titleSize);

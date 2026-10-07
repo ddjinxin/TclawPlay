@@ -113,6 +113,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private ImageView btnSpectrum;
     private ImageView btnOutfit;
     private ImageView btnLyricSearch;
+    private ImageView btnEffect; // 音效按钮（顶部，返回键右侧）
+    private android.widget.PopupWindow effectPickerPopup; // 音效选择浮窗
     private View overlayView;
     private View whiteOverlay;
     private View immersiveDarkOverlay;
@@ -462,6 +464,7 @@ public class PlayerFragment extends BaseFloatFragment {
         btnSpectrum = view.findViewById(R.id.spectrum_button);
         btnOutfit = view.findViewById(R.id.outfit_button);
         btnLyricSearch = view.findViewById(R.id.lyric_search_button);
+        btnEffect = view.findViewById(R.id.effect_button);
         overlayView = view.findViewById(R.id.overlay_view);
         whiteOverlay = view.findViewById(R.id.white_overlay);
         // 初始化白天模式渐变遮罩：浅蓝(0xFFADD8E6)→白(0xFFFFFFFF)，左上到右下
@@ -509,6 +512,9 @@ public class PlayerFragment extends BaseFloatFragment {
                             // 横竖屏切换时关闭频谱选择弹窗
                             if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
                                 spectrumPickerPopup.dismiss();
+                            }
+                            if (effectPickerPopup != null && effectPickerPopup.isShowing()) {
+                                effectPickerPopup.dismiss();
                             }
                             // 重新检测横竖屏并应用完整布局
                             detectAndApplyLandscapeMode();
@@ -696,6 +702,7 @@ public class PlayerFragment extends BaseFloatFragment {
             requireActivity().onBackPressed();
         });
         btnLyricSearch.setOnClickListener(v -> showLyricSearchPopup());
+        btnEffect.setOnClickListener(v -> showEffectPickerPopup());
 
         // 注册广播接收器（监听切歌和播放状态）
             IntentFilter filter = new IntentFilter();
@@ -818,6 +825,9 @@ public class PlayerFragment extends BaseFloatFragment {
         // 横竖屏切换时关闭频谱选择弹窗
         if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
             spectrumPickerPopup.dismiss();
+        }
+        if (effectPickerPopup != null && effectPickerPopup.isShowing()) {
+            effectPickerPopup.dismiss();
         }
         if (lyricSearchPopup != null && lyricSearchPopup.isShowing()) {
             lyricSearchPopup.dismiss();
@@ -2068,6 +2078,129 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
+     * 弹出音效预设选择浮窗（仿频谱弹窗：半透明深底、左直角右圆角、网格布局）
+     * 竖屏 2 列，横屏 4 列
+     */
+    private void showEffectPickerPopup() {
+        if (effectPickerPopup != null && effectPickerPopup.isShowing()) {
+            effectPickerPopup.dismiss();
+            return;
+        }
+
+        String[] names = com.jingxin.jingxinmusic.util.AudioEffectManager.PRESET_NAMES;
+        int currentPreset = SettingsFragment.getAudioEffectPreset(requireContext());
+        float density = getResources().getDisplayMetrics().density;
+        Context ctx = requireContext();
+
+        // 缩放系数：小屏手机保持原样(sf=1)，高分辨率车机按屏高等比放大（横竖屏自适应）
+        int viewH = getAvailableScreenHeight();
+        if (viewH <= 0) viewH = getResources().getDisplayMetrics().heightPixels;
+        float basePx = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+        boolean pickerLandscape = getLayoutWidth() > viewH * 1.2f;
+        float sf = Math.max(1f, viewH * (pickerLandscape ? 0.03f : 0.0188f) / basePx);
+        // 超高自适应收缩：单列7项弹窗总高与 sf 线性相关，按内容高系数反算上限，
+        // 保证弹窗完整显示（横屏矮屏下底部"全景环绕"不被裁掉）
+        float heightFactor = 20f /*容器上下padding*/ + 18f * 1.33f /*标题*/ + 12f /*标题底距*/
+                + names.length * (16f * 1.33f + 28f /*条目上下padding*/ + 8f /*条目上下margin*/);
+        float maxSf = viewH * 0.85f / (heightFactor * density);
+        if (sf > maxSf) sf = maxSf;
+
+        // 外层容器
+        android.widget.LinearLayout container = new android.widget.LinearLayout(ctx);
+        container.setOrientation(android.widget.LinearLayout.VERTICAL);
+        container.setPadding(
+                (int)(10 * density * sf), (int)(10 * density * sf),
+                (int)(10 * density * sf), (int)(10 * density * sf));
+        // 左直角右圆角背景（与频谱弹窗一致）
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        float r = 16 * density * sf;
+        bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
+        bg.setColor(Color.argb(51, 30, 30, 30));  // 透明度20%
+        container.setBackground(bg);
+
+        // 标题
+        android.widget.TextView title = new android.widget.TextView(ctx);
+        title.setText("音效选择");
+        title.setTextColor(ThemeColors.sparkColor(isNightMode));
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 18 * density * sf);
+        title.setGravity(android.view.Gravity.CENTER);
+        title.setPadding(0, 0, 0, (int)(12 * density * sf));
+        container.addView(title);
+
+        // 只显示一列
+        int itemWidth = (int)(140 * density * sf);
+
+        android.widget.GridLayout grid = new android.widget.GridLayout(ctx);
+        grid.setColumnCount(1);
+
+        for (int i = 0; i < names.length; i++) {
+            final int preset = i;
+            android.widget.TextView item = new android.widget.TextView(ctx);
+            item.setText(names[i]);
+            item.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 16 * density * sf);
+            item.setGravity(android.view.Gravity.CENTER);
+            item.setPadding(
+                    (int)(20 * density * sf), (int)(14 * density * sf),
+                    (int)(20 * density * sf), (int)(14 * density * sf));
+            item.setFocusable(true);
+            CompatUtil.setForegroundCompat(item, ctx.getResources().getDrawable(R.drawable.tv_focus_popup_item));
+
+            android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams();
+            lp.width = itemWidth;
+            lp.height = android.widget.GridLayout.LayoutParams.WRAP_CONTENT;
+            lp.setMargins((int)(6 * density * sf), (int)(4 * density * sf), (int)(6 * density * sf), (int)(4 * density * sf));
+            item.setLayoutParams(lp);
+
+            if (i == currentPreset) {
+                // 当前选中：青色发光（与频谱弹窗一致）
+                item.setTextColor(ThemeColors.SPECTRUM_POPUP_SELECTED_TEXT);
+                item.setBackgroundColor(Color.argb(153, 0, 230, 180));
+            } else {
+                item.setTextColor(ThemeColors.SPECTRUM_POPUP_NORMAL_TEXT);
+                item.setBackgroundColor(Color.argb(153, 68, 68, 68));
+            }
+
+            item.setOnClickListener(v -> {
+                if (preset == currentPreset) {
+                    effectPickerPopup.dismiss();
+                    return;
+                }
+                // SP 持久化（与设置页同一 key，两处入口互通）
+                ctx.getSharedPreferences(SettingsFragment.PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit().putInt(SettingsFragment.KEY_AUDIO_EFFECT_PRESET, preset).apply();
+                // startService 通知 Service 立即应用（无需重启播放）
+                android.content.Intent intent = new android.content.Intent(
+                        MusicPlayerService.ACTION_EFFECT_PRESET_CHANGED);
+                intent.setClass(ctx, MusicPlayerService.class);
+                intent.putExtra(MusicPlayerService.EXTRA_EFFECT_PRESET, preset);
+                try {
+                    ctx.startService(intent);
+                } catch (Exception ignored) {}
+                effectPickerPopup.dismiss();
+                android.widget.Toast.makeText(ctx, names[preset], android.widget.Toast.LENGTH_SHORT).show();
+            });
+
+            grid.addView(item);
+        }
+        container.addView(grid);
+
+        effectPickerPopup = new android.widget.PopupWindow(container,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                true);
+        effectPickerPopup.setOutsideTouchable(true);
+        if (Build.VERSION.SDK_INT <= 22) {
+            // 5.1：background为null时不创建PopupViewContainer，点外部无法dismiss，设透明背景触发容器创建
+            effectPickerPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        }
+        effectPickerPopup.setElevation(8 * density * sf);
+        // 与频谱弹窗一致：贴页面左边、垂直居中
+        effectPickerPopup.showAtLocation(btnEffect, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
+                0, 0);
+    }
+
+    /**
      * 弹出歌词搜索浮窗：加载状态 → 候选列表 → 点击下载
      */
     private void showLyricSearchPopup() {
@@ -2576,7 +2709,7 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private void applyButtonTheme(boolean isNight) {
         ImageView[] buttons = {btnPlayPause, btnPrevious, btnNext,
-                btnHistory, btnPlayOrder, btnBack, btnSpectrum, btnOutfit, btnDownload, btnLyricSearch};
+                btnHistory, btnPlayOrder, btnBack, btnSpectrum, btnOutfit, btnDownload, btnLyricSearch, btnEffect};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
             // 收藏按钮：已收藏用红色，未收藏清除滤镜
