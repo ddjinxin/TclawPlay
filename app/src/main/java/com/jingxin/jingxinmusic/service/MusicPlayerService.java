@@ -1756,13 +1756,13 @@ public class MusicPlayerService extends Service {
                 } else {
                     mp.setDataSource(dataSource);
                 }
-                mp.setOnCompletionListener(m -> playNext());
+                mp.setOnCompletionListener(m -> handler.post(() -> playNext()));
                 mp.setOnErrorListener((m, what, extra) -> {
                     Log.e(TAG, "MediaPlayer兜底播放也失败: what=" + what + " extra=" + extra);
                     releaseFallbackPlayer();
                     isFallbackMode = false;
                     showToast("当前设备不支持播放此音频格式");
-                    handlePlaybackError();
+                    handler.post(() -> handlePlaybackError());
                     return true;
                 });
                 mp.prepare();
@@ -1803,7 +1803,7 @@ public class MusicPlayerService extends Service {
                 try { mp.release(); } catch (Exception ignored) {}
                 isFallbackMode = false;
                 showToast("当前设备不支持播放此音频格式");
-                handlePlaybackError();
+                handler.post(() -> handlePlaybackError());
             }
         }, "FallbackInit").start();
     }
