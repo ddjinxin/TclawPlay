@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'e29a3391-a309-45fe-80ab-e8987df600de'
-  PropagateID: 'e29a3391-a309-45fe-80ab-e8987df600de'
-  ReservedCode1: '5e480923-321b-45e7-93ba-3c918c0f7738'
-  ReservedCode2: '5e480923-321b-45e7-93ba-3c918c0f7738'
+  ProduceID: 'bde60b54-b334-49cc-aa5b-aaa684d10c29'
+  PropagateID: 'bde60b54-b334-49cc-aa5b-aaa684d10c29'
+  ReservedCode1: '81743515-a615-497d-bd79-a24d37517785'
+  ReservedCode2: '81743515-a615-497d-bd79-a24d37517785'
 ---
 
 # 静心音乐 / TclawPlay
@@ -33,6 +33,7 @@ AIGC:
 ### v1.0.8.1 (2026-10)
 #### 新功能
 - **播放页控制栏自动隐藏** — 支持 5~30 秒可配置延时或彻底关闭，设置页新增延时选项，无操作时控制栏自动淡出，点击屏幕恢复
+- **开机自启动开关** — 设置页新增开关，开启后开机广播自动启动应用，车机/电视盒子上电即拉起音乐
 
 ### v1.0.8.0 (2026-10)
 #### 新功能
@@ -219,6 +220,7 @@ AIGC:
 ### v1.0.8.1 (2026-10)
 #### New Features
 - **Player page control bar auto-hide** — Configurable 5~30s delay or fully off, settings page adds delay option, control bar fades out automatically when idle, tap screen to restore
+- **Auto-start on boot toggle** — Settings page adds toggle, app auto-launches on boot broadcast, music starts when car head unit / TV box powers on
 
 ### v1.0.8.0 (2026-10)
 #### New Features
@@ -628,6 +630,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ### v1.0.8.1 (2026-10)
 #### 新功能
 - 播放页控制栏自动隐藏：支持 5~30 秒可配置延时或彻底关闭，设置页新增延时选项，无操作时控制栏自动淡出，点击屏幕恢复
+- 开机自启动开关：设置页新增开关，开启后开机广播自动启动应用，车机/电视盒子上电即拉起音乐
 
 ### v1.0.8.0 (2026-10)
 #### 新功能
@@ -865,6 +868,7 @@ MIT License
 ### v1.0.8.1 (2026-10)
 #### New Features
 - **Player page control bar auto-hide** — Configurable 5~30s delay or fully off, settings page adds delay option, control bar fades out automatically when idle, tap screen to restore
+- **Auto-start on boot toggle** — Settings page adds toggle, app auto-launches on boot broadcast, music starts when car head unit / TV box powers on
 
 ### v1.0.8.0 (2026-10)
 #### New Features
