@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '7eed62b7-62bc-4948-ae9b-ae23892b22b0'
-  PropagateID: '7eed62b7-62bc-4948-ae9b-ae23892b22b0'
-  ReservedCode1: '21026429-6b98-42b8-b696-1fd3db054333'
-  ReservedCode2: '21026429-6b98-42b8-b696-1fd3db054333'
+  ProduceID: '101832a7-73c4-4fe8-895d-e79b80bdea1c'
+  PropagateID: '101832a7-73c4-4fe8-895d-e79b80bdea1c'
+  ReservedCode1: 'c9174aa0-5d0c-4d69-aab1-c9791b325f0a'
+  ReservedCode2: 'c9174aa0-5d0c-4d69-aab1-c9791b325f0a'
 ---
 
 # 静心音乐 / TclawPlay
@@ -616,6 +616,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 ---
 
 ## 更新日志
+
+### v1.0.8.1 (2026-10)
+#### 新功能
+- 播放页控制栏自动隐藏：支持 5~30 秒可配置延时或彻底关闭，设置页新增延时选项，无操作时控制栏自动淡出，点击屏幕恢复
 
 ### v1.0.8.0 (2026-10)
 #### 新功能
