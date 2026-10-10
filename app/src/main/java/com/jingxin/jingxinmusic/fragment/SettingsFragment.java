@@ -17,6 +17,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
 import android.util.TypedValue;
 
 import androidx.annotation.NonNull;
@@ -44,6 +46,15 @@ public class SettingsFragment extends BaseFloatFragment {
     public static final String KEY_AUDIO_EFFECT_PRESET = "audio_effect_preset";
     public static final String KEY_VOLUME_NORMALIZE = "volume_normalize";
     public static final String KEY_BOOT_AUTO_START = "boot_auto_start";
+    public static final String KEY_AUTO_HIDE_CONTROLS_SECONDS = "auto_hide_controls_seconds";
+    /** 自动隐藏播放栏：不隐藏 */
+    public static final int AUTO_HIDE_CONTROLS_OFF = -1;
+    /** 自动隐藏播放栏：默认 5 秒 */
+    public static final int AUTO_HIDE_CONTROLS_DEFAULT_SECONDS = 5;
+    /** 自动隐藏播放栏：最小秒数 */
+    public static final int AUTO_HIDE_CONTROLS_MIN = 5;
+    /** 自动隐藏播放栏：最大秒数 */
+    public static final int AUTO_HIDE_CONTROLS_MAX = 30;
     public static final int BG_SKIN_DEFAULT = 0;
     public static final int BG_SKIN_AURORA = 1;
 
@@ -68,6 +79,8 @@ public class SettingsFragment extends BaseFloatFragment {
     private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoTheme, switchVolumeNormalize, switchBootAutoStart;
     private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoThemeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle;
     private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoThemeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc;
+    private android.widget.Spinner spinnerAutoHideControls;
+    private TextView tvAutoHideControlsTitle, tvAutoHideControlsDesc;
     private TextView[] bgSkinTabs = new TextView[2];
     private int currentBgSkinIndex = 0;
     private TextView tvDayStartLabel, tvDayStartValue, tvNightStartLabel, tvNightStartValue, tvTimeSeparator;
@@ -144,6 +157,12 @@ public class SettingsFragment extends BaseFloatFragment {
                 .getBoolean(KEY_BOOT_AUTO_START, false);
     }
 
+    /** 读取自动隐藏播放栏延时（秒），-1=不隐藏，默认5秒 */
+    public static int getAutoHideControlsSeconds(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(KEY_AUTO_HIDE_CONTROLS_SECONDS, AUTO_HIDE_CONTROLS_DEFAULT_SECONDS);
+    }
+
     /** 读取白天高亮歌词颜色 */
     public static int getDayLyricColor(Context context) {
         return context.getSharedPreferences("theme", Context.MODE_PRIVATE)
@@ -181,6 +200,7 @@ public class SettingsFragment extends BaseFloatFragment {
         setupAutoResumeSwitch(view);
         setupVolumeNormalizeSwitch(view);
         setupBootAutoStartSwitch(view);
+        setupAutoHideControls(view);
         setupLyricColorSelector(view);
 
         applyTopInset(rootScroll);
@@ -283,11 +303,11 @@ public class SettingsFragment extends BaseFloatFragment {
         tvTitle.setTextColor(tc);
         // 刷新所有标题
         TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle,
-                tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle};
+                tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle};
         for (TextView t : titles) if (t != null) t.setTextColor(tc);
         // 刷新所有描述
         TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc,
-                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc};
+                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc};
         for (TextView d : descs) if (d != null) d.setTextColor(ts);
         // 时间选择行文字
         TextView[] timeTexts = {tvDayStartLabel, tvDayStartValue, tvTimeSeparator, tvNightStartLabel, tvNightStartValue};
@@ -770,6 +790,71 @@ public class SettingsFragment extends BaseFloatFragment {
         });
     }
 
+    // ========== 自动隐藏播放栏延时选择 ==========
+
+    private void setupAutoHideControls(View view) {
+        spinnerAutoHideControls = view.findViewById(R.id.spinner_auto_hide_controls);
+        tvAutoHideControlsTitle = view.findViewById(R.id.tv_auto_hide_controls_title);
+        tvAutoHideControlsDesc = view.findViewById(R.id.tv_auto_hide_controls_desc);
+        applyItemTheme(tvAutoHideControlsTitle, tvAutoHideControlsDesc);
+
+        // 选项："关" + 5~30 秒
+        final int[] values = new int[AUTO_HIDE_CONTROLS_MAX - AUTO_HIDE_CONTROLS_MIN + 2];
+        values[0] = AUTO_HIDE_CONTROLS_OFF;
+        int vi = 1;
+        for (int i = AUTO_HIDE_CONTROLS_MIN; i <= AUTO_HIDE_CONTROLS_MAX; i++) values[vi++] = i;
+        final String[] labels = new String[values.length];
+        labels[0] = "关";
+        for (int i = 1; i < labels.length; i++) labels[i] = values[i] + "秒";
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(requireContext(),
+                R.layout.spinner_item_theme, labels) {
+            @Override
+            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                View v = super.getView(position, convertView, parent);
+                ((TextView) v).setTextColor(isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());
+                return v;
+            }
+            @Override
+            public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
+                View v = super.getDropDownView(position, convertView, parent);
+                ((TextView) v).setTextColor(isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());
+                return v;
+            }
+        };
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item_theme);
+        spinnerAutoHideControls.setAdapter(adapter);
+
+        // 回显当前值
+        int current = getAutoHideControlsSeconds(requireContext());
+        int selectedIndex = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == current) { selectedIndex = i; break; }
+        }
+        spinnerAutoHideControls.setSelection(selectedIndex);
+
+        // 下拉弹窗背景随主题
+        spinnerAutoHideControls.setPopupBackgroundDrawable(new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.BOTTOM_TOP,
+                new int[]{ isNight() ? 0xFF2A2A2E : 0xFFFFFFFF, isNight() ? 0xFF2A2A2E : 0xFFFFFFFF }));
+        spinnerAutoHideControls.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                isNight() ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary()));
+
+        spinnerAutoHideControls.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View v, int pos, long id) {
+                int sec = values[pos];
+                requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit().putInt(KEY_AUTO_HIDE_CONTROLS_SECONDS, sec).apply();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+    }
+
+    private boolean isNight() {
+        return requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).getBoolean("isNight", true);
+    }
+
     // ========== 歌词高亮颜色选择 ==========
 
     private void setupLyricColorSelector(View view) {
@@ -881,7 +966,7 @@ public class SettingsFragment extends BaseFloatFragment {
         int[] itemIds = {R.id.item_scan_music, R.id.item_storage_permission, R.id.item_night_mode,
                 R.id.item_auto_theme, R.id.item_style, R.id.item_bg_skin, R.id.item_float_window, R.id.item_spectrum,
                 R.id.item_auto_resume, R.id.item_local_cover, R.id.item_local_lyric, R.id.item_lyric_color,
-                R.id.item_volume_normalize, R.id.item_boot_auto_start};
+                R.id.item_volume_normalize, R.id.item_boot_auto_start, R.id.item_auto_hide_controls};
         for (int id : itemIds) {
             View item = mRootView.findViewById(id);
             if (item != null) item.setPadding(item.getPaddingLeft(), itemPad, item.getPaddingRight(), itemPad);
@@ -890,10 +975,10 @@ public class SettingsFragment extends BaseFloatFragment {
         // 条目标题 16sp、描述 12sp（含描述上边距 2dp）
         TextView[] titles = {tvScanTitle, tvStoragePermTitle, tvNightTitle, tvAutoThemeTitle, tvStyleTitle,
                 tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvAutoResumeTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvLyricTitle,
-                tvVolumeNormalizeTitle, tvBootAutoStartTitle};
+                tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle};
         TextView[] descs = {tvScanDesc, tvStoragePermDesc, tvNightDesc, tvAutoThemeDesc, tvStyleDesc,
                 tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvAutoResumeDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvLyricDesc,
-                tvVolumeNormalizeDesc, tvBootAutoStartDesc};
+                tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc};
         float titleSize = spScaled(16);
         float descSize = spScaled(12);
         for (TextView t : titles) if (t != null) t.setTextSize(TypedValue.COMPLEX_UNIT_PX, titleSize);

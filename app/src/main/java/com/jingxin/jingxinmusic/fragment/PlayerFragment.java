@@ -81,6 +81,19 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final String TAG = "PlayerFragment";
     private static final int PROGRESS_UPDATE_INTERVAL = 200;
 
+    // ===== 控制栏自动隐藏（精简模式） =====
+    private boolean controlsHidden = false;      // 当前控制栏是否隐藏
+    private boolean controlsHideEnabled = false; // 播放中且配置不为"不隐藏"才启用（暂停/未开始不启用）
+    private View controlsHideTouchLayer;         // 精简模式触摸拦截层
+    private View progressLayout;                 // 进度条+时间
+    private View controlButtons;                // 底部控制按钮
+
+    /** 读取自动隐藏延时配置（秒），-1=不隐藏 */
+    private int getControlsHideDelayMs() {
+        int sec = com.jingxin.jingxinmusic.fragment.SettingsFragment.getAutoHideControlsSeconds(requireContext());
+        return sec <= 0 ? -1 : sec * 1000;
+    }
+
     private Song song;
     private int position;
     private List<Song> allSongs;
@@ -212,6 +225,11 @@ public class PlayerFragment extends BaseFloatFragment {
                 saveLastPlayed();
                 // 轮播模式切歌时滚动到新位置
                 syncCarouselPosition();
+                // 切歌时重置自动隐藏计时（新歌重新计算5秒窗口）
+                if (controlsHideEnabled) {
+                    showControls(false);
+                    resetControlsHideTimer();
+                }
                 // 切歌时重建频谱（sessionId 可能变化，如 ExoPlayer 重建或 MediaPlayer 兜底）
                 if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() || (isSpectrumStartable() && bound && playerBinder != null)) {
                     stopSpectrum();
@@ -228,6 +246,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 }
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
                 updatePlayPauseButton(playing);
+                updateControlsAutoHideState(playing);
             } else if (MusicPlayerService.ACTION_PLAY_ORDER_CHANGED.equals(action)) {
                 int order = intent.getIntExtra(MusicPlayerService.EXTRA_PLAY_ORDER, 0);
                 updatePlayOrderIcon(order);
@@ -305,6 +324,8 @@ public class PlayerFragment extends BaseFloatFragment {
                             startSpectrumWithPermission();
                             // 通过 Scene 同步播放状态（唱片机同步唱臂等）
                             currentScene.onServiceResumed(true);
+                            // 已在后台播放：启用控制栏自动隐藏
+                            updateControlsAutoHideState(true);
                         } else if ("folder".equals(playlistMode)) {
                             // 目录模式：播放队列 = 该目录歌曲
                             List<String> folderPaths = getArguments() != null ? getArguments().getStringArrayList("folder_song_paths") : null;
@@ -415,6 +436,77 @@ public class PlayerFragment extends BaseFloatFragment {
         }
     };
 
+    // ===== 控制栏自动隐藏（精简模式）实现 =====
+
+    /** 重置自动隐藏计时器：每次触摸/播放/切歌后重算延时窗口 */
+    private void resetControlsHideTimer() {
+        uiHandler.removeCallbacks(controlsHideRunnable);
+        int delay = getControlsHideDelayMs();
+        // 配置为"不隐藏"(-1)则禁用
+        if (delay < 0) {
+            controlsHideEnabled = false;
+            showControls(false);
+            return;
+        }
+        // 仅播放中启用（暂停/未开始保持常显）
+        if (controlsHideEnabled && !controlsHidden) {
+            uiHandler.postDelayed(controlsHideRunnable, delay);
+        }
+    }
+
+    /** 停止并清除自动隐藏计时 */
+    private void stopControlsHideTimer() {
+        uiHandler.removeCallbacks(controlsHideRunnable);
+    }
+
+    private final Runnable controlsHideRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (controlsHideEnabled && !controlsHidden) {
+                hideControls();
+            }
+        }
+    };
+
+    /** 隐藏控制栏（精简模式）：隐藏进度条+底部按钮，歌词自动撑满 */
+    private void hideControls() {
+        if (controlsHidden || progressLayout == null || controlButtons == null) return;
+        controlsHidden = true;
+        progressLayout.setVisibility(View.GONE);
+        controlButtons.setVisibility(View.GONE);
+        if (controlsHideTouchLayer != null) controlsHideTouchLayer.setVisibility(View.VISIBLE);
+    }
+
+    /** 恢复控制栏，可选重置隐藏计时 */
+    private void showControls(boolean resetTimer) {
+        if (!controlsHidden) {
+            if (resetTimer) resetControlsHideTimer();
+            return;
+        }
+        controlsHidden = false;
+        if (progressLayout != null) progressLayout.setVisibility(View.VISIBLE);
+        if (controlButtons != null) controlButtons.setVisibility(View.VISIBLE);
+        if (controlsHideTouchLayer != null) controlsHideTouchLayer.setVisibility(View.GONE);
+        if (resetTimer) resetControlsHideTimer();
+    }
+
+    /** 根据播放状态更新自动隐藏开关：播放中启用，暂停/停止禁用并强制显示 */
+    private void updateControlsAutoHideState(boolean playing) {
+        if (playing) {
+            if (!controlsHideEnabled) {
+                controlsHideEnabled = true;
+                // 开始播放：先显示控制栏并重置5秒计时
+                showControls(false);
+                resetControlsHideTimer();
+            }
+        } else {
+            // 暂停/停止：禁用自动隐藏并强制恢复控制栏
+            controlsHideEnabled = false;
+            stopControlsHideTimer();
+            showControls(false);
+        }
+    }
+
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -477,6 +569,21 @@ public class PlayerFragment extends BaseFloatFragment {
         immersiveOverlay = view.findViewById(R.id.immersive_overlay);
         infoPanel = view.findViewById(R.id.info_panel);
         coverPlaceholder = view.findViewById(R.id.cover_placeholder);
+
+        // ===== 控制栏自动隐藏初始化 =====
+        controlsHideTouchLayer = view.findViewById(R.id.controls_hide_touch_layer);
+        progressLayout = view.findViewById(R.id.progress_layout);
+        controlButtons = view.findViewById(R.id.control_buttons);
+        if (controlsHideTouchLayer != null) {
+            controlsHideTouchLayer.setOnClickListener(v -> showControls(true));
+            controlsHideTouchLayer.setOnTouchListener((v, event) -> {
+                // 触摸（点击/滑动）即恢复控制栏
+                if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                    showControls(true);
+                }
+                return true; // 消费事件，避免透传给下方歌词触发切换
+            });
+        }
 
         // 初始化 CoverScene 策略
         initCoverScene();
@@ -627,6 +734,8 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
                 userSeeking = true;
+                // 拖动进度条时暂停自动隐藏，避免拖动中被隐藏
+                stopControlsHideTimer();
             }
 
             @Override
@@ -635,6 +744,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 if (bound && playerBinder != null) {
                     playerBinder.seekTo(seekBar.getProgress());
                 }
+                resetControlsHideTimer();
             }
         });
 
@@ -885,6 +995,8 @@ public class PlayerFragment extends BaseFloatFragment {
             spectrumView.setPlaying(true);
             startSpectrumWithPermission();
             saveLastPlayed();
+            // 开始播放：启用控制栏自动隐藏
+            updateControlsAutoHideState(true);
         }
     }
 
@@ -924,6 +1036,8 @@ public class PlayerFragment extends BaseFloatFragment {
                 if (currentScene.shouldRotateCover()) {
                     coverView.startRotation();
                 }
+                // 切歌：启用自动隐藏并重置计时
+                updateControlsAutoHideState(true);
             }
         }
     }
@@ -1007,18 +1121,21 @@ public class PlayerFragment extends BaseFloatFragment {
         if (bound && playerBinder != null) {
             playerBinder.togglePlayPause();
             updatePlayPauseButton(playerBinder.isPlaying());
+            updateControlsAutoHideState(playerBinder.isPlaying());
         }
     }
 
     private void playPrevious() {
         if (bound && playerBinder != null) {
             playerBinder.playPrevious();
+            resetControlsHideTimer();
         }
     }
 
     private void playNext() {
         if (bound && playerBinder != null) {
             playerBinder.playNext();
+            resetControlsHideTimer();
         }
     }
 
@@ -1033,6 +1150,7 @@ public class PlayerFragment extends BaseFloatFragment {
             updatePlayOrderIcon(next);
             String[] names = {"顺序播放", "随机播放", "单曲循环"};
             android.widget.Toast.makeText(requireContext(), names[next], android.widget.Toast.LENGTH_SHORT).show();
+            resetControlsHideTimer();
         }
     }
 
@@ -1055,6 +1173,7 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private void toggleFavorite() {
         if (song == null) return;
+        resetControlsHideTimer();
         File favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(requireContext());
 
         if (isFavorite) {
@@ -2194,9 +2313,15 @@ public class PlayerFragment extends BaseFloatFragment {
             effectPickerPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         }
         effectPickerPopup.setElevation(8 * density * sf);
-        // 与频谱弹窗一致：贴页面左边、垂直居中
-        effectPickerPopup.showAtLocation(btnEffect, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
-                0, 0);
+        // 贴页面左边、垂直居中于整个屏幕（以全屏根布局为锚点，避免以顶部按钮为锚点时弹窗整体上移、
+        // 内容接近满屏高度导致底部"全景环绕"被屏幕裁掉）
+        if (mRootView != null) {
+            effectPickerPopup.showAtLocation(mRootView, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
+                    0, 0);
+        } else {
+            effectPickerPopup.showAtLocation(btnEffect, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
+                    0, 0);
+        }
     }
 
     /**
@@ -3147,6 +3272,7 @@ public class PlayerFragment extends BaseFloatFragment {
     public void onDestroyView() {
         super.onDestroyView();
         stopSpectrum();
+        stopControlsHideTimer();
         uiHandler.removeCallbacks(progressRunnable);
         uiHandler.removeCallbacks(spectrumResumeRetryRunnable);
         try {
