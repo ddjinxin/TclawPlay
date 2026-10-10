@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '101832a7-73c4-4fe8-895d-e79b80bdea1c'
-  PropagateID: '101832a7-73c4-4fe8-895d-e79b80bdea1c'
-  ReservedCode1: 'c9174aa0-5d0c-4d69-aab1-c9791b325f0a'
-  ReservedCode2: 'c9174aa0-5d0c-4d69-aab1-c9791b325f0a'
+  ProduceID: 'e29a3391-a309-45fe-80ab-e8987df600de'
+  PropagateID: 'e29a3391-a309-45fe-80ab-e8987df600de'
+  ReservedCode1: '5e480923-321b-45e7-93ba-3c918c0f7738'
+  ReservedCode2: '5e480923-321b-45e7-93ba-3c918c0f7738'
 ---
 
 # 静心音乐 / TclawPlay
@@ -28,7 +28,11 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.8.0)
+## 📢 最新版本 (v1.0.8.1)
+
+### v1.0.8.1 (2026-10)
+#### 新功能
+- **播放页控制栏自动隐藏** — 支持 5~30 秒可配置延时或彻底关闭，设置页新增延时选项，无操作时控制栏自动淡出，点击屏幕恢复
 
 ### v1.0.8.0 (2026-10)
 #### 新功能
@@ -210,7 +214,11 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.8.0)
+## 📢 Latest Version (v1.0.8.1)
+
+### v1.0.8.1 (2026-10)
+#### New Features
+- **Player page control bar auto-hide** — Configurable 5~30s delay or fully off, settings page adds delay option, control bar fades out automatically when idle, tap screen to restore
 
 ### v1.0.8.0 (2026-10)
 #### New Features
@@ -852,7 +860,11 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.8.0)
+## 📢 Latest Version (v1.0.8.1)
+
+### v1.0.8.1 (2026-10)
+#### New Features
+- **Player page control bar auto-hide** — Configurable 5~30s delay or fully off, settings page adds delay option, control bar fades out automatically when idle, tap screen to restore
 
 ### v1.0.8.0 (2026-10)
 #### New Features
