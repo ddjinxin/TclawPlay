@@ -117,49 +117,11 @@
             android:layout_marginStart="24dp"
             android:layout_marginEnd="24dp" />
 
-        <!-- 进度条 -->
-        <LinearLayout
-            android:id="@+id/progress_layout"
+        <!-- 进度条（ProgressPanel组件） -->
+        <com.jingxin.jingxinmusic.view.ProgressPanel
+            android:id="@+id/progress_panel"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/current_time_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:text="00:00"
-                android:textColor="@color/text_primary"
-                android:textSize="12sp" />
-
-            <SeekBar
-                android:id="@+id/progress_seek_bar"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:max="100"
-                android:progress="0"
-                android:minHeight="2dp"
-                android:maxHeight="2dp"
-                android:progressDrawable="@drawable/seekbar_progress"
-                android:thumb="@drawable/seekbar_thumb" />
-
-            <TextView
-                android:id="@+id/total_time_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="00:00"
-                android:textColor="@color/text_primary"
-                android:textSize="12sp" />
-
-
-        </LinearLayout>
+            android:layout_height="wrap_content" />
 
         <!-- 底部按钮（ControlBar组件） -->
         <com.jingxin.jingxinmusic.view.ControlBar

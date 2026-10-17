@@ -85,9 +85,10 @@ public class PlayerFragment extends BaseFloatFragment {
     private boolean controlsHidden = false;      // 当前控制栏是否隐藏
     private boolean controlsHideEnabled = false; // 播放中且配置不为"不隐藏"才启用（暂停/未开始不启用）
     private View controlsHideTouchLayer;         // 精简模式触摸拦截层
-    private View progressLayout;                 // 进度条+时间
+    private View progressLayout;                 // 进度条+时间（ProgressPanel内部布局）
     private View controlButtons;                // 底部控制条（ControlBar组件壳）
     private com.jingxin.jingxinmusic.view.ControlBar controlBar; // 控制条组件（状态+事件统一入口）
+    private com.jingxin.jingxinmusic.view.ProgressPanel progressPanel; // 进度组件（状态+事件统一入口）
 
     /** 读取自动隐藏延时配置（秒），-1=不隐藏 */
     private int getControlsHideDelayMs() {
@@ -217,8 +218,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 song = newSong;
                 tvSongName.setText(newSong.title);
                 tvArtist.setText(newSong.artist);
-                tvTotalTime.setText(Song.formatDuration(newSong.duration));
-                tvCurrentTime.setText("00:00");
+                progressPanel.resetForNewSong(newSong.duration);
                 loadCover();
                 fetchLyrics();
                 checkFavoriteStatus();
@@ -423,10 +423,8 @@ public class PlayerFragment extends BaseFloatFragment {
                 int currentPosition = playerBinder.getCurrentPosition();
                 int duration = playerBinder.getDuration();
                 if (duration > 0) {
-                    seekBar.setMax(duration);
-                    seekBar.setProgress(currentPosition);
-                    tvCurrentTime.setText(Song.formatDuration(currentPosition));
-                    tvTotalTime.setText(Song.formatDuration(duration));
+                    progressPanel.setDuration(duration);
+                    progressPanel.setPosition(currentPosition);
                     // 同步歌词位置
                     if (lyricView != null) {
                         lyricView.updatePosition(currentPosition);
@@ -542,9 +540,13 @@ public class PlayerFragment extends BaseFloatFragment {
         tvArtist = view.findViewById(R.id.artist_text);
         lyricView = view.findViewById(R.id.lyric_view);
         spectrumView = view.findViewById(R.id.spectrum_view);
-        seekBar = view.findViewById(R.id.progress_seek_bar);
-        tvCurrentTime = view.findViewById(R.id.current_time_text);
+        // 进度组件（SeekBar+双时间，事件经 Listener 上抛）
+        progressPanel = view.findViewById(R.id.progress_panel);
+        seekBar = progressPanel.seekBar();
+        tvCurrentTime = progressPanel.currentTimeView();
         tvTotalTime = view.findViewById(R.id.total_time_text);
+        // 过渡期兼容：progressLayout 指向组件内部布局节点（Scene 手术/隐藏控制用）
+        progressLayout = progressPanel.findViewById(R.id.progress_layout);
         // 底部控制条组件（内部含7键：播放/上一首/下一首/模式/历史/收藏/下载）
         controlBar = view.findViewById(R.id.control_buttons);
         controlButtons = controlBar;
@@ -586,7 +588,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
         // ===== 控制栏自动隐藏初始化 =====
         controlsHideTouchLayer = view.findViewById(R.id.controls_hide_touch_layer);
-        progressLayout = view.findViewById(R.id.progress_layout);
+        progressLayout = progressPanel;   // 自动隐藏直接操作组件整体显隐
         controlButtons = view.findViewById(R.id.control_buttons);
         if (controlsHideTouchLayer != null) {
             controlsHideTouchLayer.setOnClickListener(v -> showControls(true));
@@ -733,31 +735,20 @@ public class PlayerFragment extends BaseFloatFragment {
         // 显示歌曲信息
         tvSongName.setText(song.title);
         tvArtist.setText(song.artist);
-        tvTotalTime.setText(Song.formatDuration(song.duration));
+        progressPanel.resetForNewSong(song.duration);
         updateDownloadButtonVisibility();
 
-        // 进度条
-        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser) {
-                    tvCurrentTime.setText(Song.formatDuration(progress));
-                }
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
+        // 进度条：事件已在 ProgressPanel.Listener 中统一接入
+        progressPanel.setListener(new com.jingxin.jingxinmusic.view.ProgressPanel.Listener() {
+            @Override public void onSeekStart() {
                 userSeeking = true;
-                // 拖动进度条时暂停自动隐藏，避免拖动中被隐藏
-                stopControlsHideTimer();
+                stopControlsHideTimer(); // 拖动时暂停自动隐藏，避免拖动中被隐藏
             }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
+            @Override public void onSeekTo(int positionMs) {
+                if (bound && playerBinder != null) playerBinder.seekTo(positionMs);
+            }
+            @Override public void onSeekStop() {
                 userSeeking = false;
-                if (bound && playerBinder != null) {
-                    playerBinder.seekTo(seekBar.getProgress());
-                }
                 resetControlsHideTimer();
             }
         });
@@ -1029,8 +1020,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 song = newSong;
                 tvSongName.setText(song.title);
                 tvArtist.setText(song.artist);
-                tvTotalTime.setText(Song.formatDuration(song.duration));
-                tvCurrentTime.setText("00:00");
+                progressPanel.resetForNewSong(song.duration);
                 playerBinder.playSongAtPosition(newIdx);
                 controlBar.setPlaying(true);
                 spectrumView.setPlaying(true);
@@ -1848,8 +1838,7 @@ public class PlayerFragment extends BaseFloatFragment {
                         song = s;
                         tvSongName.setText(s.title);
                         tvArtist.setText(s.artist);
-                        tvCurrentTime.setText("00:00");
-                        tvTotalTime.setText(Song.formatDuration(s.duration));
+                        progressPanel.resetForNewSong(s.duration);
                         loadCover();
                         fetchLyrics();
 
@@ -2804,17 +2793,10 @@ public class PlayerFragment extends BaseFloatFragment {
      * 统一设置文字主题颜色
      */
     private void applyTextTheme(boolean isNight) {
-        if (isNight) {
-            tvSongName.setTextColor(ThemeColors.nightTextPrimary());
-            tvArtist.setTextColor(ThemeColors.nightTextPrimary());
-            tvCurrentTime.setTextColor(ThemeColors.nightTextPrimary());
-            tvTotalTime.setTextColor(ThemeColors.nightTextPrimary());
-        } else {
-            tvSongName.setTextColor(ThemeColors.dayTextPrimary());
-            tvArtist.setTextColor(ThemeColors.dayTextPrimary());
-            tvCurrentTime.setTextColor(ThemeColors.dayTextPrimary());
-            tvTotalTime.setTextColor(ThemeColors.dayTextPrimary());
-        }
+        int textColor = isNight ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
+        tvSongName.setTextColor(textColor);
+        tvArtist.setTextColor(textColor);
+        progressPanel.setTimeTextColor(textColor);
     }
 
     /**
