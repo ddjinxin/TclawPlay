@@ -8,16 +8,15 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.player.PlayerStateHub;
 
 /**
  * 播放页底部控制条组件
  *
- * 封装：上一首/播放暂停/下一首/播放模式/历史/收藏/下载 七键的
- * 状态更新（图标、按下可用态）与主题染色；事件经 Listener 回调上抛。
- *
- * 阶段性设计（组件化第1步）：
- * - 布局 XML 由 Scene 层继续做几何手术，故暴露 accessView() 兼容
- * - 状态语义化方法逐步替代 Fragment 直接操控图标
+ * 双模式（组件化第2步）：
+ * - 订阅模式：attachHub(stateHub)，播放态/播放模式自动刷新
+ * - 直调模式：setPlaying/setPlayOrder 保留（悬浮窗/过渡期兼容）
+ * 事件经 Listener 上抛；收藏/下载态业务强相关，仍由宿主直调。
  */
 public class ControlBar extends LinearLayout {
 
@@ -41,6 +40,31 @@ public class ControlBar extends LinearLayout {
     private ImageView btnPlayOrder;
     private View buttonsLayout;
     private Listener listener;
+    private PlayerStateHub hub;
+    private PlayerStateHub.Observer hubObserver;
+
+    /** 绑定数据中枢（订阅模式：播放态/播放模式自动刷新） */
+    public void attachHub(PlayerStateHub hub) {
+        detachHub();
+        this.hub = hub;
+        hubObserver = state -> {
+            setPlaying(state.playing);
+            setPlayOrder(state.playOrder);
+        };
+        hub.addObserver(hubObserver);
+        // 立即应用当前快照
+        setPlaying(hub.isPlaying());
+        setPlayOrder(hub.getPlayOrder());
+    }
+
+    /** 解绑数据中枢（onDestroyView 调用，防泄漏） */
+    public void detachHub() {
+        if (hub != null && hubObserver != null) {
+            hub.removeObserver(hubObserver);
+        }
+        hub = null;
+        hubObserver = null;
+    }
 
     public ControlBar(Context context) {
         super(context);

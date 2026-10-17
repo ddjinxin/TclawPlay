@@ -8,19 +8,39 @@ import android.widget.TextView;
 
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
+import com.jingxin.jingxinmusic.player.PlayerStateHub;
 
 /**
  * 播放页歌名+歌手组件
  *
- * 封装：标题/歌手文本与主题染色。
- * 阶段性设计（组件化第1步）：
- * - 文字大小/margin 手术由 Scene 层继续执行，故暴露 songNameView()/artistView()
- * - setSong 语义化接口逐步替代 Fragment 直接 setText
+ * 双模式（组件化第2步）：
+ * - 订阅模式：attachHub(stateHub)，切歌自动刷新
+ * - 直调模式：setSong 保留（过渡期兼容）
  */
 public class SongTitleBar extends LinearLayout {
 
     private TextView tvSongName;
     private TextView tvArtist;
+    private PlayerStateHub hub;
+    private PlayerStateHub.Observer hubObserver;
+
+    /** 绑定数据中枢（订阅模式：切歌自动刷新） */
+    public void attachHub(PlayerStateHub hub) {
+        detachHub();
+        this.hub = hub;
+        hubObserver = state -> setSong(state.song);
+        hub.addObserver(hubObserver);
+        setSong(hub.getSong()); // 立即应用当前快照
+    }
+
+    /** 解绑数据中枢（onDestroyView 调用，防泄漏） */
+    public void detachHub() {
+        if (hub != null && hubObserver != null) {
+            hub.removeObserver(hubObserver);
+        }
+        hub = null;
+        hubObserver = null;
+    }
 
     public SongTitleBar(Context context) {
         super(context);

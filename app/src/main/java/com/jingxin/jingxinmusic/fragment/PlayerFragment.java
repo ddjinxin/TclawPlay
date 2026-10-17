@@ -778,6 +778,8 @@ public class PlayerFragment extends BaseFloatFragment {
             }
         });
         progressPanel.attachHub(stateHub); // 订阅模式：进度自动刷新
+        controlBar.attachHub(stateHub);    // 订阅模式：播放态/模式自动刷新
+        songTitleBar.attachHub(stateHub);  // 订阅模式：切歌自动刷新
 
         // 控制按钮：事件已在 ControlBar.Listener 中统一接入（controlBar.setListener）
 
@@ -3258,6 +3260,8 @@ public class PlayerFragment extends BaseFloatFragment {
     public void onDestroyView() {
         super.onDestroyView();
         progressPanel.detachHub(); // 解除中枢订阅防泄漏
+        controlBar.detachHub();
+        songTitleBar.detachHub();
         stopSpectrum();
         stopControlsHideTimer();
         uiHandler.removeCallbacks(progressRunnable);
