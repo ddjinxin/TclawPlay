@@ -72,6 +72,16 @@ public class StagePageAdapter implements CoverScene {
     }
 
     @Override
+    public void onPlayingStateChanged(boolean isPlaying) {
+        page.onPlayingStateChanged(isPlaying);
+    }
+
+    @Override
+    public void onServiceResumed(boolean isPlaying) {
+        page.onServiceResumed(isPlaying);
+    }
+
+    @Override
     public float getInfoPanelWidthRatio() {
         return page.getInfoPanelWidthRatio();
     }

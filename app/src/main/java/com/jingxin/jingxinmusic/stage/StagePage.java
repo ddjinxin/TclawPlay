@@ -43,6 +43,12 @@ public abstract class StagePage {
     /** 歌词模式变化（对应旧 onLyricModeChanged） */
     public void onLyricModeChanged(boolean isFullScreen) {}
 
+    /** 播放态变化（对应旧 onPlayingStateChanged：旋转启停/唱臂联动） */
+    public void onPlayingStateChanged(boolean isPlaying) {}
+
+    /** 服务恢复（对应旧 onServiceResumed，默认同播放态处理） */
+    public void onServiceResumed(boolean isPlaying) {}
+
     /** 借用共享组件回调：页面就绪后 Framework 把单实例组件交给页面摆位 */
     public void onBorrowComponents() {}
 

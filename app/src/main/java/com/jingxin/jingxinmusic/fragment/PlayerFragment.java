@@ -190,8 +190,10 @@ public class PlayerFragment extends BaseFloatFragment {
     private LandscapeImmersiveScene landscapeImmersive;
     private LandscapeRecordScene landscapeRecord;
     private LandscapeCarouselScene landscapeCarousel;
-    // 新架构轮播页面（双轨试点，组件化第5步）：包装为 StagePageAdapter 接入 currentScene 调度
+    // 新架构风格页面（双轨，组件化第5/6步）：StagePageAdapter 接入 currentScene 调度
     private com.jingxin.jingxinmusic.stage.StagePageAdapter carouselPageAdapter;
+    private com.jingxin.jingxinmusic.stage.StagePageAdapter recordPageAdapter;
+    private com.jingxin.jingxinmusic.stage.StagePageAdapter classicPageAdapter;
     private CoverScene currentScene;
 
     // 播放服务
@@ -747,9 +749,13 @@ public class PlayerFragment extends BaseFloatFragment {
                         lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
             }
         } else if (coverStyle == COVER_STYLE_RECORD) {
-            // 唱片机模式：通过 RecordScene 的 onStyleEnter 统一处理
+            // 唱片机双轨：StagePage 适配器（横竖屏单页面）
+            if (recordPageAdapter == null) {
+                recordPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
+                        new com.jingxin.jingxinmusic.stage.RecordPage(sceneHelper));
+            }
             syncSceneState();
-            currentScene = isLandscapeMode ? landscapeRecord : portraitRecord;
+            currentScene = recordPageAdapter;
             currentScene.enter();
             currentScene.onStyleEnter();
         } else if (coverStyle == COVER_STYLE_CAROUSEL) {
@@ -760,6 +766,16 @@ public class PlayerFragment extends BaseFloatFragment {
             }
             syncSceneState();
             currentScene = carouselPageAdapter;
+            currentScene.enter();
+            currentScene.onStyleEnter();
+        } else {
+            // 经典双轨：StagePage 适配器（含唱片机基座行为；沉浸仍走旧 Scene）
+            if (classicPageAdapter == null) {
+                classicPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
+                        new com.jingxin.jingxinmusic.stage.ClassicPage(sceneHelper));
+            }
+            syncSceneState();
+            currentScene = classicPageAdapter;
             currentScene.enter();
             currentScene.onStyleEnter();
         }
@@ -1491,16 +1507,24 @@ public class PlayerFragment extends BaseFloatFragment {
         if (coverStyle == COVER_STYLE_IMMERSIVE) {
             target = isLandscapeMode ? landscapeImmersive : portraitImmersive;
         } else if (coverStyle == COVER_STYLE_RECORD) {
-            target = isLandscapeMode ? landscapeRecord : portraitRecord;
+            if (recordPageAdapter == null) {
+                recordPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
+                        new com.jingxin.jingxinmusic.stage.RecordPage(sceneHelper));
+            }
+            target = recordPageAdapter;
         } else if (coverStyle == COVER_STYLE_CAROUSEL) {
-            // 双轨试点：轮播走新架构 StagePage，其余风格仍走旧 Scene
+            // 轮播双轨：StagePage 适配器（横竖屏合一）
             if (carouselPageAdapter == null) {
                 carouselPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
                         new com.jingxin.jingxinmusic.stage.CarouselPage(sceneHelper));
             }
             target = carouselPageAdapter;
         } else {
-            target = isLandscapeMode ? landscapeClassic : portraitClassic;
+            if (classicPageAdapter == null) {
+                classicPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
+                        new com.jingxin.jingxinmusic.stage.ClassicPage(sceneHelper));
+            }
+            target = classicPageAdapter;
         }
         if (target != currentScene) {
             currentScene.onStyleExit();
