@@ -86,7 +86,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private boolean controlsHideEnabled = false; // 播放中且配置不为"不隐藏"才启用（暂停/未开始不启用）
     private View controlsHideTouchLayer;         // 精简模式触摸拦截层
     private View progressLayout;                 // 进度条+时间
-    private View controlButtons;                // 底部控制按钮
+    private View controlButtons;                // 底部控制条（ControlBar组件壳）
+    private com.jingxin.jingxinmusic.view.ControlBar controlBar; // 控制条组件（状态+事件统一入口）
 
     /** 读取自动隐藏延时配置（秒），-1=不隐藏 */
     private int getControlsHideDelayMs() {
@@ -318,7 +319,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     if (bound && playerBinder != null && allSongs != null) {
                         if (resumePlay && playerBinder.isPlaying()) {
                             // 从 mini 播放条跳转，音乐已在后台播放，只更新 UI
-                            btnPlayPause.setImageResource(R.drawable.ic_pause);
+                            controlBar.setPlaying(true);
                             coverView.startRotation();
                             if (spectrumView != null) spectrumView.setPlaying(true);
                             startSpectrumWithPermission();
@@ -544,13 +545,26 @@ public class PlayerFragment extends BaseFloatFragment {
         seekBar = view.findViewById(R.id.progress_seek_bar);
         tvCurrentTime = view.findViewById(R.id.current_time_text);
         tvTotalTime = view.findViewById(R.id.total_time_text);
-        btnPlayPause = view.findViewById(R.id.play_pause_button);
-        btnPrevious = view.findViewById(R.id.previous_button);
-        btnNext = view.findViewById(R.id.next_button);
-        btnHistory = view.findViewById(R.id.history_button);
-        btnFavorite = view.findViewById(R.id.mode_button);  // 复用 mode_button 位置
-        btnDownload = view.findViewById(R.id.download_button);
-        btnPlayOrder = view.findViewById(R.id.play_order_button);
+        // 底部控制条组件（内部含7键：播放/上一首/下一首/模式/历史/收藏/下载）
+        controlBar = view.findViewById(R.id.control_buttons);
+        controlButtons = controlBar;
+        controlBar.setListener(new com.jingxin.jingxinmusic.view.ControlBar.Listener() {
+            @Override public void onPlayPause() { togglePlayPause(); }
+            @Override public void onPrevious() { playPrevious(); }
+            @Override public void onNext() { playNext(); }
+            @Override public void onPlayOrder() { togglePlayOrder(); }
+            @Override public void onHistory() { showHistoryDialog(); }
+            @Override public void onFavorite() { toggleFavorite(); }
+            @Override public void onDownload() { saveBiliOffline(); }
+        });
+        // 过渡期兼容：Scene 层布局手术仍直接访问单个按钮
+        btnPlayPause = controlBar.accessButton(R.id.play_pause_button);
+        btnPrevious = controlBar.accessButton(R.id.previous_button);
+        btnNext = controlBar.accessButton(R.id.next_button);
+        btnHistory = controlBar.accessButton(R.id.history_button);
+        btnFavorite = controlBar.accessButton(R.id.mode_button);  // 复用 mode_button 位置
+        btnDownload = controlBar.accessButton(R.id.download_button);
+        btnPlayOrder = controlBar.accessButton(R.id.play_order_button);
         btnBack = view.findViewById(R.id.back_button);
         btnSpectrum = view.findViewById(R.id.spectrum_button);
         btnOutfit = view.findViewById(R.id.outfit_button);
@@ -748,14 +762,7 @@ public class PlayerFragment extends BaseFloatFragment {
             }
         });
 
-        // 控制按钮
-        btnPlayPause.setOnClickListener(v -> togglePlayPause());
-        btnPrevious.setOnClickListener(v -> playPrevious());
-        btnNext.setOnClickListener(v -> playNext());
-        btnHistory.setOnClickListener(v -> showHistoryDialog());
-        btnFavorite.setOnClickListener(v -> toggleFavorite());
-        btnDownload.setOnClickListener(v -> saveBiliOffline());
-        btnPlayOrder.setOnClickListener(v -> togglePlayOrder());
+        // 控制按钮：事件已在 ControlBar.Listener 中统一接入（controlBar.setListener）
 
         // 歌词区域：单击切换模式
         lyricView.setOnClickListener(v -> {
@@ -990,7 +997,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 resumePosition = 0;
             }
             playerBinder.playSong(song, position);
-            btnPlayPause.setImageResource(R.drawable.ic_pause);
+            controlBar.setPlaying(true);
             coverView.startRotation();
             spectrumView.setPlaying(true);
             startSpectrumWithPermission();
@@ -1025,7 +1032,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 tvTotalTime.setText(Song.formatDuration(song.duration));
                 tvCurrentTime.setText("00:00");
                 playerBinder.playSongAtPosition(newIdx);
-                btnPlayPause.setImageResource(R.drawable.ic_pause);
+                controlBar.setPlaying(true);
                 spectrumView.setPlaying(true);
                 startSpectrumWithPermission();
                 loadCover();
@@ -1155,17 +1162,7 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     private void updatePlayOrderIcon(int order) {
-        switch (order) {
-            case MusicPlayerService.PLAY_ORDER_SEQUENTIAL:
-                btnPlayOrder.setImageResource(R.drawable.ic_play_order_sequential);
-                break;
-            case MusicPlayerService.PLAY_ORDER_SHUFFLE:
-                btnPlayOrder.setImageResource(R.drawable.ic_play_order_shuffle);
-                break;
-            case MusicPlayerService.PLAY_ORDER_REPEAT_ONE:
-                btnPlayOrder.setImageResource(R.drawable.ic_play_order_repeat);
-                break;
-        }
+        controlBar.setPlayOrder(order);
     }
 
     /**
@@ -1179,13 +1176,13 @@ public class PlayerFragment extends BaseFloatFragment {
         if (isFavorite) {
             FavoriteManager.removeFavorite(favDir, song);
             isFavorite = false;
-            btnFavorite.setImageResource(R.drawable.ic_favorite);
+            controlBar.setFavorite(false);
             applyButtonTheme(isNightMode);
             android.widget.Toast.makeText(requireContext(), "取消收藏", android.widget.Toast.LENGTH_SHORT).show();
         } else {
             FavoriteManager.addFavorite(favDir, song);
             isFavorite = true;
-            btnFavorite.setImageResource(R.drawable.ic_favorite_filled);
+            controlBar.setFavorite(true);
             applyButtonTheme(isNightMode);
             android.widget.Toast.makeText(requireContext(), "已收藏", android.widget.Toast.LENGTH_SHORT).show();
         }
@@ -1198,7 +1195,7 @@ public class PlayerFragment extends BaseFloatFragment {
         if (song == null) return;
         File favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(requireContext());
         isFavorite = FavoriteManager.isFavorite(favDir, song.title, song.artist);
-        btnFavorite.setImageResource(isFavorite ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
+        controlBar.setFavorite(isFavorite);
         applyButtonTheme(isNightMode);
     }
 
@@ -1224,8 +1221,7 @@ public class PlayerFragment extends BaseFloatFragment {
         }
 
         // 禁用按钮防止重复点击
-        btnDownload.setEnabled(false);
-        btnDownload.setAlpha(0.5f);
+        controlBar.setDownloadEnabled(false);
         android.widget.Toast.makeText(requireContext(), "开始离线保存...",
                 android.widget.Toast.LENGTH_SHORT).show();
 
@@ -1234,8 +1230,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     @Override
                     public void onSuccess(java.io.File m4aFile) {
                         runOnUi(() -> {
-                            btnDownload.setEnabled(true);
-                            btnDownload.setAlpha(1f);
+                            controlBar.setDownloadEnabled(true);
                             android.widget.Toast.makeText(requireContext(),
                                     "已保存到 Download/music/",
                                     android.widget.Toast.LENGTH_SHORT).show();
@@ -1245,8 +1240,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     @Override
                     public void onSkipped(String reason) {
                         runOnUi(() -> {
-                            btnDownload.setEnabled(true);
-                            btnDownload.setAlpha(1f);
+                            controlBar.setDownloadEnabled(true);
                             android.widget.Toast.makeText(requireContext(),
                                     reason, android.widget.Toast.LENGTH_SHORT).show();
                         });
@@ -1255,8 +1249,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     @Override
                     public void onFailed(String error) {
                         runOnUi(() -> {
-                            btnDownload.setEnabled(true);
-                            btnDownload.setAlpha(1f);
+                            controlBar.setDownloadEnabled(true);
                             android.widget.Toast.makeText(requireContext(),
                                     "保存失败: " + error,
                                     android.widget.Toast.LENGTH_SHORT).show();
@@ -1274,12 +1267,8 @@ public class PlayerFragment extends BaseFloatFragment {
      * 更新下载按钮可见性：仅B站音源显示
      */
     private void updateDownloadButtonVisibility() {
-        if (btnDownload == null) return;
-        if (song != null && song.sourceType == Song.SOURCE_BILI) {
-            btnDownload.setVisibility(View.VISIBLE);
-        } else {
-            btnDownload.setVisibility(View.GONE);
-        }
+        if (controlBar == null) return;
+        controlBar.setDownloadVisible(song != null && song.sourceType == Song.SOURCE_BILI);
     }
 
     /**
@@ -1557,7 +1546,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void updatePlayPauseButton(boolean isPlaying) {
         if (isPlaying) {
-            btnPlayPause.setImageResource(R.drawable.ic_pause);
+            controlBar.setPlaying(true);
             if (currentScene.shouldRotateCover()) {
                 coverView.startRotation();
             }
@@ -1568,7 +1557,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 startSpectrumWithPermission();
             }
         } else {
-            btnPlayPause.setImageResource(R.drawable.ic_play);
+            controlBar.setPlaying(false);
             coverView.stopRotation();
             spectrumView.setPlaying(false);
             currentScene.onPlayingStateChanged(false);
@@ -1871,7 +1860,7 @@ public class PlayerFragment extends BaseFloatFragment {
                             }
                             playerBinder.setPlaylist(historySongs);
                             playerBinder.playSong(s, history.indexOf(item));
-                            btnPlayPause.setImageResource(R.drawable.ic_pause);
+                            controlBar.setPlaying(true);
                             coverView.startRotation();
                             startSpectrumWithPermission();
                         }
@@ -2830,27 +2819,19 @@ public class PlayerFragment extends BaseFloatFragment {
 
     /**
      * 统一设置按钮主题颜色
+     * ControlBar 内部按钮由组件自染；顶部栏按钮仍由 Fragment 染色
      */
     private void applyButtonTheme(boolean isNight) {
-        ImageView[] buttons = {btnPlayPause, btnPrevious, btnNext,
-                btnHistory, btnPlayOrder, btnBack, btnSpectrum, btnOutfit, btnDownload, btnLyricSearch, btnEffect};
+        // 底部控制条（7键含收藏红态）
+        controlBar.applyTheme(isNight, isFavorite,
+                ThemeColors.dayTextPrimary(), ThemeColors.FAVORITE_RED);
+        // 顶部栏按钮
+        ImageView[] buttons = {btnBack, btnSpectrum, btnOutfit, btnLyricSearch, btnEffect};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
-            // 收藏按钮：已收藏用红色，未收藏清除滤镜
-            if (isFavorite) {
-                btnFavorite.setColorFilter(ThemeColors.FAVORITE_RED, PorterDuff.Mode.SRC_IN);
-            } else {
-                btnFavorite.clearColorFilter();
-            }
         } else {
             int buttonColor = ThemeColors.dayTextPrimary();
             for (ImageView btn : buttons) btn.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
-            // 收藏按钮：已收藏用红色，未收藏用通用色
-            if (isFavorite) {
-                btnFavorite.setColorFilter(ThemeColors.FAVORITE_RED, PorterDuff.Mode.SRC_IN);
-            } else {
-                btnFavorite.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
-            }
         }
         // 光晕模式下用专用进度条配色，非光晕模式用原逻辑
         if (isAuroraActive()) {

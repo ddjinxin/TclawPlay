@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 播放页底部控制条组件（自 activity_player.xml control_buttons 原样抽出） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/control_buttons"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="20dp"
+    android:layout_marginStart="8dp"
+    android:layout_marginEnd="8dp"
+    android:gravity="center"
+    android:orientation="horizontal">
+
+    <ImageView
+        android:id="@+id/previous_button"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_weight="1"
+        android:padding="6dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@drawable/ripple_control_button"
+        android:src="@drawable/ic_previous" />
+
+    <ImageView
+        android:id="@+id/play_pause_button"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_weight="1"
+        android:padding="6dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@drawable/ripple_control_button"
+        android:src="@drawable/ic_play" />
+
+    <ImageView
+        android:id="@+id/next_button"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_weight="1"
+        android:padding="6dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@drawable/ripple_control_button"
+        android:src="@drawable/ic_next" />
+
+    <ImageView
+        android:id="@+id/play_order_button"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_weight="1"
+        android:padding="6dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@drawable/ripple_control_button"
+        android:src="@drawable/ic_play_order_sequential" />
+
+    <ImageView
+        android:id="@+id/history_button"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_weight="1"
+        android:padding="8dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@drawable/ripple_control_button"
+        android:src="@drawable/ic_history" />
+
+    <ImageView
+        android:id="@+id/mode_button"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_weight="1"
+        android:padding="8dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@drawable/ripple_control_button"
+        android:src="@drawable/ic_favorite" />
+
+    <ImageView
+        android:id="@+id/download_button"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_weight="1"
+        android:padding="8dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@drawable/ripple_control_button"
+        android:src="@drawable/ic_download" />
+
+</LinearLayout>
