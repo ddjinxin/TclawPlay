@@ -190,6 +190,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private LandscapeImmersiveScene landscapeImmersive;
     private LandscapeRecordScene landscapeRecord;
     private LandscapeCarouselScene landscapeCarousel;
+    // 新架构轮播页面（双轨试点，组件化第5步）：包装为 StagePageAdapter 接入 currentScene 调度
+    private com.jingxin.jingxinmusic.stage.StagePageAdapter carouselPageAdapter;
     private CoverScene currentScene;
 
     // 播放服务
@@ -751,9 +753,13 @@ public class PlayerFragment extends BaseFloatFragment {
             currentScene.enter();
             currentScene.onStyleEnter();
         } else if (coverStyle == COVER_STYLE_CAROUSEL) {
-            // 轮播模式：通过 CarouselScene 的 onStyleEnter 统一处理
+            // 轮播双轨：确保适配器已建（切横竖屏/首次进入都可能走此路径）
+            if (carouselPageAdapter == null) {
+                carouselPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
+                        new com.jingxin.jingxinmusic.stage.CarouselPage(sceneHelper));
+            }
             syncSceneState();
-            currentScene = isLandscapeMode ? landscapeCarousel : portraitCarousel;
+            currentScene = carouselPageAdapter;
             currentScene.enter();
             currentScene.onStyleEnter();
         }
@@ -1444,6 +1450,8 @@ public class PlayerFragment extends BaseFloatFragment {
         landscapeRecord = new LandscapeRecordScene(sceneHelper);
         landscapeCarousel = new LandscapeCarouselScene(sceneHelper);
 
+        // 新架构轮播页面（双轨试点）：横竖屏合并单页面，首次进入时惰性 install
+
         // 背景皮肤控制器装配（组件化第3步）：视图与 Helper 均就绪，mRootView 即 root_layout
         bgSkinController = new com.jingxin.jingxinmusic.bg.BackgroundSkinController(
                 new com.jingxin.jingxinmusic.bg.BackgroundSkinContext(
@@ -1485,7 +1493,12 @@ public class PlayerFragment extends BaseFloatFragment {
         } else if (coverStyle == COVER_STYLE_RECORD) {
             target = isLandscapeMode ? landscapeRecord : portraitRecord;
         } else if (coverStyle == COVER_STYLE_CAROUSEL) {
-            target = isLandscapeMode ? landscapeCarousel : portraitCarousel;
+            // 双轨试点：轮播走新架构 StagePage，其余风格仍走旧 Scene
+            if (carouselPageAdapter == null) {
+                carouselPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
+                        new com.jingxin.jingxinmusic.stage.CarouselPage(sceneHelper));
+            }
+            target = carouselPageAdapter;
         } else {
             target = isLandscapeMode ? landscapeClassic : portraitClassic;
         }

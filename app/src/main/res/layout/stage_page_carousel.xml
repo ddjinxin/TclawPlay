@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 轮播风格页面（组件化第5步）：三槽骨架
+     bottomSlot: 背景底槽（皮肤渲染区，层序声明式）
+     contentArea: 内容区（轮播封面 + 歌名歌手/歌词/频谱/进度/控制）
+     顶部按钮栏/沉浸层等共享 View 仍由宿主 Fragment 管理，页面不复制 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/carousel_page_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 底槽：皮肤宿主容器（光晕/遮罩层由 BackgroundSkinController re-parent 于此） -->
+    <FrameLayout
+        android:id="@+id/carousel_bottom_slot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- 内容区：垂直信息流（对应旧 info_panel 结构，但归页面所有） -->
+    <LinearLayout
+        android:id="@+id/carousel_content_area"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- 封面占位（高度由 layout() 动态设定，撑开歌名位置；轮播卡片覆盖其上） -->
+        <View
+            android:id="@+id/carousel_cover_placeholder"
+            android:layout_width="1px"
+            android:layout_height="10dp" />
+
+        <!-- 歌词槽（共享 LyricView 经 re-parent 借入） -->
+        <FrameLayout
+            android:id="@+id/carousel_lyric_slot"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- 频谱槽（共享 SpectrumView 经 re-parent 借入） -->
+        <FrameLayout
+            android:id="@+id/carousel_spectrum_slot"
+            android:layout_width="match_parent"
+            android:layout_height="10dp" />
+
+        <!-- 进度槽（共享 ProgressPanel 经 re-parent 借入） -->
+        <FrameLayout
+            android:id="@+id/carousel_progress_slot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <!-- 控制条槽（共享 ControlBar 经 re-parent 借入） -->
+        <FrameLayout
+            android:id="@+id/carousel_control_slot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+    </LinearLayout>
+
+</FrameLayout>
