@@ -52,6 +52,9 @@ public abstract class StagePage {
     /** 借用共享组件回调：页面就绪后 Framework 把单实例组件交给页面摆位 */
     public void onBorrowComponents() {}
 
+    /** 封面位图（对应旧 Scene.setCover，各风格差异化：经典裁剪/轮播模糊底/沉浸全屏） */
+    public void setCover(android.graphics.Bitmap bitmap) {}
+
     /** 页面销毁：清理子视图（宿主容器不动的共享组件除外） */
     public void destroy() {}
 

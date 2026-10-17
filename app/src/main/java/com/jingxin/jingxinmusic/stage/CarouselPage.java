@@ -74,6 +74,12 @@ public class CarouselPage extends StagePage {
     }
 
     @Override
+    public void setCover(android.graphics.Bitmap bitmap) {
+        // 轮播：封面沿旧模式仅做模糊背景（旧 AbstractCarouselScene.setCover 行为）
+        h.applyBlurBackground(bitmap);
+    }
+
+    @Override
     public void enter() {
         if (!installed) return;
         pageRoot.setVisibility(View.VISIBLE);

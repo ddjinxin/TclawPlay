@@ -177,33 +177,38 @@ public class ClassicPage extends StagePage {
 
     @Override
     public void onLyricModeChanged(boolean isFullScreen) {
-        if (h.isLandscapeMode) {
-            // 横屏全屏歌词：封面保持显示，歌名歌手隐藏
-            h.coverView.setVisibility(View.VISIBLE);
-            h.tvSongName.setVisibility(View.GONE);
-            h.tvArtist.setVisibility(View.GONE);
-        } else if (isFullScreen) {
-            // 竖屏全屏歌词：隐藏封面/歌名/歌手/圆环频谱
-            h.coverView.setVisibility(View.GONE);
-            h.tvSongName.setVisibility(View.GONE);
-            h.tvArtist.setVisibility(View.GONE);
-            h.coverPlaceholder.setVisibility(View.GONE);
-            if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
-                h.spectrumView.setVisibility(View.GONE);
+        if (isFullScreen) {
+            // 全屏歌词：歌名歌手隐藏（横竖屏一致）
+            // 横屏：封面保持显示（旧LandscapeClassic）；竖屏：封面+占位+圆环频谱全藏（旧PortraitClassic）
+            if (h.isLandscapeMode) {
+                h.coverView.setVisibility(View.VISIBLE);
+            } else {
+                h.coverView.setVisibility(View.GONE);
+                h.coverPlaceholder.setVisibility(View.GONE);
+                if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
+                    h.spectrumView.setVisibility(View.GONE);
+                }
             }
+            h.tvSongName.setVisibility(View.GONE);
+            h.tvArtist.setVisibility(View.GONE);
         } else {
+            // 退出全屏：全部恢复
             h.coverView.setVisibility(View.VISIBLE);
             h.tvSongName.setVisibility(View.VISIBLE);
             h.tvArtist.setVisibility(View.VISIBLE);
-            h.callback.updateCoverPlaceholder();
-            if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
-                h.spectrumView.setVisibility(View.VISIBLE);
+            if (!h.isLandscapeMode) {
+                h.callback.updateCoverPlaceholder();
+                if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
+                    h.spectrumView.setVisibility(View.VISIBLE);
+                }
             }
         }
-        if (!h.isLandscapeMode) {
-            h.callback.updateCoverPlaceholder();
-        }
         h.callback.resetLyricMargin();
+    }
+
+    @Override
+    public void setCover(android.graphics.Bitmap bitmap) {
+        h.applyClassicCover(bitmap, h.isLandscapeMode);
     }
 
     // ===== 旧 Scene 兼容 =====

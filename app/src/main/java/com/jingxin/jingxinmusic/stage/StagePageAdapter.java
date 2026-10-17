@@ -60,9 +60,9 @@ public class StagePageAdapter implements CoverScene {
 
     @Override
     public void setCover(android.graphics.Bitmap bitmap) {
-        // 轮播封面沿旧路径：模糊背景（旧 AbstractCarouselScene.setCover 行为）
+        // 封面按页面差异化路由（经典裁剪/轮播模糊底/沉浸全屏铺底）
         if (bitmap != null) {
-            page.h.applyBlurBackground(bitmap);
+            page.setCover(bitmap);
         }
     }
 

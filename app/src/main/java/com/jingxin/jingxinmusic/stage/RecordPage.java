@@ -32,6 +32,9 @@ public class RecordPage extends ClassicPage {
 
     @Override
     protected void exitView() {
+        // 对齐旧 Record 双退出钩子顺序（switchScene：先 onStyleExit 后 exit）：
+        // recordOnStyleExit 重置黑胶模式（否则残留在 coverView 上，进沉浸/经典仍显示黑胶）
+        h.recordOnStyleExit();
         h.recordExit();
     }
 
@@ -43,11 +46,18 @@ public class RecordPage extends ClassicPage {
     @Override
     public void onLyricModeChanged(boolean isFullScreen) {
         super.onLyricModeChanged(isFullScreen);
-        // 全屏歌词时隐藏唱臂，退出全屏恢复（黑胶封面仍在下方，唱臂需要复位）
-        if (isFullScreen) {
-            h.tonearmView.setVisibility(View.GONE);
+        // 全屏歌词唱臂处理按方向分叉（对齐旧Portrait/LandscapeRecordScene差异）：
+        // 竖屏：藏唱臂（黑胶封面在下方，唱臂需复位）；横屏：保留唱臂（LandscapeRecord未覆盖此方法）
+        if (!h.isLandscapeMode) {
+            if (isFullScreen) {
+                h.tonearmView.setVisibility(View.GONE);
+            } else {
+                h.tonearmView.setVisibility(View.VISIBLE);
+                h.tonearmView.setLandscapeMode(h.isLandscapeMode);
+                h.tonearmView.refreshAngle();
+                h.callback.markTonearmNeedsUpdate();
+            }
         } else {
-            h.tonearmView.setVisibility(View.VISIBLE);
             h.tonearmView.setLandscapeMode(h.isLandscapeMode);
             h.tonearmView.refreshAngle();
             h.callback.markTonearmNeedsUpdate();
