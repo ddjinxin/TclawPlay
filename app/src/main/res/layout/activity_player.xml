@@ -91,11 +91,14 @@
             android:layout_marginStart="24dp"
             android:layout_marginEnd="24dp" />
 
-        <!-- 进度条（ProgressPanel组件） -->
+        <!-- 进度条（ProgressPanel组件，继承原progress_layout的margin与属性） -->
         <com.jingxin.jingxinmusic.view.ProgressPanel
             android:id="@+id/progress_panel"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp" />
 
         <!-- 底部按钮（ControlBar组件） -->
         <com.jingxin.jingxinmusic.view.ControlBar

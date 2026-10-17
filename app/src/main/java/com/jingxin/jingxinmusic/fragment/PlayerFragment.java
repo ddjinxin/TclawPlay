@@ -544,12 +544,12 @@ public class PlayerFragment extends BaseFloatFragment {
         lyricView = view.findViewById(R.id.lyric_view);
         spectrumView = view.findViewById(R.id.spectrum_view);
         // 进度组件（SeekBar+双时间，事件经 Listener 上抛）
+        // progressLayout 直接指向组件（继承LinearLayout，与旧progress_layout节点同型，Scene手术强转安全）
         progressPanel = view.findViewById(R.id.progress_panel);
+        progressLayout = progressPanel;
         seekBar = progressPanel.seekBar();
         tvCurrentTime = progressPanel.currentTimeView();
-        tvTotalTime = view.findViewById(R.id.total_time_text);
-        // 过渡期兼容：progressLayout 指向组件内部布局节点（Scene 手术/隐藏控制用）
-        progressLayout = progressPanel.findViewById(R.id.progress_layout);
+        tvTotalTime = progressPanel.totalTimeView();
         // 底部控制条组件（内部含7键：播放/上一首/下一首/模式/历史/收藏/下载）
         controlBar = view.findViewById(R.id.control_buttons);
         controlButtons = controlBar;
@@ -591,7 +591,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
         // ===== 控制栏自动隐藏初始化 =====
         controlsHideTouchLayer = view.findViewById(R.id.controls_hide_touch_layer);
-        progressLayout = progressPanel;   // 自动隐藏直接操作组件整体显隐
+        progressLayout = progressPanel;   // 已在绑定处指向组件，此处保持同源
         controlButtons = view.findViewById(R.id.control_buttons);
         if (controlsHideTouchLayer != null) {
             controlsHideTouchLayer.setOnClickListener(v -> showControls(true));
@@ -1370,7 +1370,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 btnBack, btnSpectrum, btnOutfit,
                 mRootView.findViewById(R.id.top_buttons_bar),
                 mRootView.findViewById(R.id.control_buttons),
-                mRootView.findViewById(R.id.progress_layout),
+                mRootView.findViewById(R.id.progress_panel),
                 mRootView.findViewById(R.id.right_buttons_group),
                 tonearmView,
                 getResources().getDisplayMetrics().density);

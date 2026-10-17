@@ -3,7 +3,7 @@ package com.jingxin.jingxinmusic.view;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
-import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
@@ -14,11 +14,11 @@ import com.jingxin.jingxinmusic.model.Song;
  * 播放页进度组件：SeekBar + 当前时间 + 总时长
  *
  * 封装：进度/时长展示、用户拖动态、播放器同步回调；主题染色接口。
- * 阶段性设计（组件化第1步）：
- * - 时间文本字号/Seekbar thumb 由 Scene 层继续做几何手术，故暴露 seekBar()/currentTimeView()
- * - setProgress/setDuration 语义化方法逐步替代 Fragment 直接操控
+ * 继承 LinearLayout（原布局即 info_panel 垂直流中的一行）：
+ * 子 View LayoutParams 与旧 XML 直接子节点同为 LinearLayout.LayoutParams，
+ * Scene 层布局手术的强转兼容（过渡期）。
  */
-public class ProgressPanel extends FrameLayout {
+public class ProgressPanel extends LinearLayout {
 
     /** 拖动/释放回调（宿主实现对播放器 seek，并联动控制栏自动隐藏计时） */
     public interface Listener {
@@ -49,6 +49,8 @@ public class ProgressPanel extends FrameLayout {
     }
 
     private void init(Context context) {
+        setOrientation(HORIZONTAL);
+        setGravity(android.view.Gravity.CENTER_VERTICAL);
         LayoutInflater.from(context).inflate(R.layout.view_progress_panel, this, true);
         seekBar = findViewById(R.id.progress_seek_bar);
         tvCurrentTime = findViewById(R.id.current_time_text);
@@ -115,5 +117,9 @@ public class ProgressPanel extends FrameLayout {
 
     public TextView currentTimeView() {
         return tvCurrentTime;
+    }
+
+    public TextView totalTimeView() {
+        return tvTotalTime;
     }
 }
