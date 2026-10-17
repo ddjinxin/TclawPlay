@@ -142,6 +142,16 @@ public class PlayerFragment extends BaseFloatFragment {
 
     // 主题
     private boolean isNightMode = true;  // 默认夜间模式
+    // 数据中枢（组件化第2步）：播放页状态单一数据源，广播/手动操作同步写入，组件订阅消费
+    private final com.jingxin.jingxinmusic.player.PlayerStateHub stateHub =
+            com.jingxin.jingxinmusic.player.PlayerStateHub.get();
+
+    /** 日夜变更统一入口：写中枢 + 同步本地字段（所有 Set isNightMode 的地方必须改走此项） */
+    private void setNightModeSynced(boolean night) {
+        if (isNightMode == night) return;
+        isNightMode = night;
+        stateHub.setNightMode(night);
+    }
     private boolean isFavorite = false;  // 当前歌曲是否已收藏
 
     // 封面风格：0=经典, 1=沉浸, 2=唱片机
@@ -215,6 +225,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 // 切歌了，更新所有 UI
                 Song newSong = Song.fromIntent(intent);
                 position = intent.getIntExtra(MusicPlayerService.EXTRA_SONG_INDEX, 0);
+                stateHub.setSong(newSong); // 数据中枢同步（组件化第2步）
 
                 song = newSong;
                 songTitleBar.setSong(newSong);
@@ -246,10 +257,12 @@ public class PlayerFragment extends BaseFloatFragment {
                     return;
                 }
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
+                stateHub.setPlaying(playing); // 数据中枢同步
                 updatePlayPauseButton(playing);
                 updateControlsAutoHideState(playing);
             } else if (MusicPlayerService.ACTION_PLAY_ORDER_CHANGED.equals(action)) {
                 int order = intent.getIntExtra(MusicPlayerService.EXTRA_PLAY_ORDER, 0);
+                stateHub.setPlayOrder(order); // 数据中枢同步
                 updatePlayOrderIcon(order);
             } else if (MusicPlayerService.ACTION_THEME_CHANGED.equals(action)) {
                 // 高德导航日夜模式切换：只要高德广播状态与当前不同就跟随，
@@ -257,7 +270,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 boolean amapNight = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_NIGHT, isNightMode);
                 if (amapNight != isNightMode) {
                     // 高德触发的，直接同步
-                    isNightMode = amapNight;
+                    setNightModeSynced(amapNight);
                     if (lyricView != null) {
                         lyricView.setThemeMode(isNightMode ?
                                 com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT :
@@ -310,7 +323,13 @@ public class PlayerFragment extends BaseFloatFragment {
             executor.execute(() -> {
                 // 同步播放模式图标（进程重启后服务已恢复持久化值，但不广播，需主动读取）
                 int order = playerBinder.getPlayOrder();
-                uiHandler.post(() -> updatePlayOrderIcon(order));
+                uiHandler.post(() -> {
+                    // 服务绑定完成：初始状态灌入数据中枢（歌/播放态/模式，组件订阅方自动刷新）
+                    stateHub.setSong(playerBinder.getCurrentSong());
+                    stateHub.setPlaying(playerBinder.isPlaying());
+                    stateHub.setPlayOrder(order);
+                    updatePlayOrderIcon(order);
+                });
                 allSongs = MusicScanner.loadCache(requireContext());
                 if (allSongs == null || allSongs.isEmpty()) {
                     allSongs = MusicScanner.scanMusic(requireContext());
@@ -423,9 +442,9 @@ public class PlayerFragment extends BaseFloatFragment {
                 int currentPosition = playerBinder.getCurrentPosition();
                 int duration = playerBinder.getDuration();
                 if (duration > 0) {
-                    progressPanel.setDuration(duration);
-                    progressPanel.setPosition(currentPosition);
-                    // 同步歌词位置
+                    // 数据中枢：进度唯一写入点，ProgressPanel/歌词等订阅方各自消费
+                    stateHub.setProgress(currentPosition, duration);
+                    // 同步歌词位置（歌词暂仍直调，后续组件迁移时改订阅）
                     if (lyricView != null) {
                         lyricView.updatePosition(currentPosition);
                     }
@@ -697,6 +716,8 @@ public class PlayerFragment extends BaseFloatFragment {
         // 读取主题状态并同步所有 UI
         Context ctx = requireContext();
         isNightMode = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE).getBoolean("isNight", true);
+        stateHub.setNightMode(isNightMode); // 初始值入中枢
+        stateHub.setBgSkinMode(bgSkinMode);
         coverStyle = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC);
         bgSkinMode = SettingsFragment.getBgSkin(ctx);
         sceneHelper.bgSkinMode = bgSkinMode; // 同步到 helper，确保 enter() 能正确判断
@@ -748,12 +769,15 @@ public class PlayerFragment extends BaseFloatFragment {
             }
             @Override public void onSeekTo(int positionMs) {
                 if (bound && playerBinder != null) playerBinder.seekTo(positionMs);
+                // 拖动结果立即入中枢，等待服务进度回流确认
+                stateHub.setProgress(positionMs, stateHub.getDurationMs());
             }
             @Override public void onSeekStop() {
                 userSeeking = false;
                 resetControlsHideTimer();
             }
         });
+        progressPanel.attachHub(stateHub); // 订阅模式：进度自动刷新
 
         // 控制按钮：事件已在 ControlBar.Listener 中统一接入（controlBar.setListener）
 
@@ -871,7 +895,7 @@ public class PlayerFragment extends BaseFloatFragment {
         // 从列表页返回时同步主题（列表页可能切换了日夜模式）
         boolean savedNight = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).getBoolean("isNight", true);
         if (savedNight != isNightMode) {
-            isNightMode = savedNight;
+            setNightModeSynced(savedNight);
             updateThemeUI();
             lyricView.setThemeMode(isNightMode
                     ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
@@ -2540,7 +2564,7 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     private void toggleTheme() {
-        isNightMode = !isNightMode;
+        setNightModeSynced(!isNightMode);
         requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit()
                 .putBoolean("isNight", isNightMode)
                 .putBoolean("amapTriggered", false)  // 手动切换，暂停高德同步
@@ -3233,6 +3257,7 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        progressPanel.detachHub(); // 解除中枢订阅防泄漏
         stopSpectrum();
         stopControlsHideTimer();
         uiHandler.removeCallbacks(progressRunnable);

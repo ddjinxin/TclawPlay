@@ -9,14 +9,15 @@ import android.widget.TextView;
 
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
+import com.jingxin.jingxinmusic.player.PlayerStateHub;
 
 /**
  * 播放页进度组件：SeekBar + 当前时间 + 总时长
  *
- * 封装：进度/时长展示、用户拖动态、播放器同步回调；主题染色接口。
- * 继承 LinearLayout（原布局即 info_panel 垂直流中的一行）：
- * 子 View LayoutParams 与旧 XML 直接子节点同为 LinearLayout.LayoutParams，
- * Scene 层布局手术的强转兼容（过渡期）。
+ * 双模式（组件化第2步）：
+ * - 订阅模式：attachHub(stateHub)，进度变化自动刷新（播放页主模式）
+ * - 直调模式：setPosition/setDuration 保留（悬浮窗/过渡期兼容）
+ * 用户拖动经 Listener 上抛，宿主执行 seek 后经 Hub 回流刷新。
  */
 public class ProgressPanel extends LinearLayout {
 
@@ -31,6 +32,30 @@ public class ProgressPanel extends LinearLayout {
     private TextView tvCurrentTime;
     private TextView tvTotalTime;
     private Listener listener;
+    private PlayerStateHub hub;
+    private PlayerStateHub.ProgressObserver hubObserver;
+    private boolean userTouching = false; // 用户拖动中，屏蔽 Hub 回灌避免拉锯
+
+    /** 绑定数据中枢（订阅模式：进度自动刷新） */
+    public void attachHub(PlayerStateHub hub) {
+        detachHub();
+        this.hub = hub;
+        hubObserver = (positionMs, durationMs) -> {
+            if (userTouching) return; // 拖动中不回灌
+            setDuration(durationMs);
+            setPosition(positionMs);
+        };
+        hub.addProgressObserver(hubObserver);
+    }
+
+    /** 解绑数据中枢（onDestroyView 调用，防泄漏） */
+    public void detachHub() {
+        if (hub != null && hubObserver != null) {
+            hub.removeProgressObserver(hubObserver);
+        }
+        hub = null;
+        hubObserver = null;
+    }
     private boolean bindingSeek = false; // 程序设值时屏蔽 onProgressChanged 的用户分支
 
     public ProgressPanel(Context context) {
@@ -66,11 +91,13 @@ public class ProgressPanel extends LinearLayout {
 
             @Override
             public void onStartTrackingTouch(SeekBar sb) {
+                userTouching = true;
                 if (listener != null) listener.onSeekStart();
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar sb) {
+                userTouching = false;
                 if (listener != null) listener.onSeekTo(sb.getProgress());
                 if (listener != null) listener.onSeekStop();
             }
