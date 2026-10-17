@@ -41,14 +41,6 @@ import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.scene.CoverScene;
 import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
-import com.jingxin.jingxinmusic.scene.PortraitClassicScene;
-import com.jingxin.jingxinmusic.scene.PortraitImmersiveScene;
-import com.jingxin.jingxinmusic.scene.PortraitRecordScene;
-import com.jingxin.jingxinmusic.scene.PortraitCarouselScene;
-import com.jingxin.jingxinmusic.scene.LandscapeClassicScene;
-import com.jingxin.jingxinmusic.scene.LandscapeImmersiveScene;
-import com.jingxin.jingxinmusic.scene.LandscapeRecordScene;
-import com.jingxin.jingxinmusic.scene.LandscapeCarouselScene;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService.MusicPlayerBinder;
@@ -182,14 +174,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
     // CoverScene 模式策略
     private CoverSceneHelper sceneHelper;
-    private PortraitClassicScene portraitClassic;
-    private PortraitImmersiveScene portraitImmersive;
-    private PortraitRecordScene portraitRecord;
-    private PortraitCarouselScene portraitCarousel;
-    private LandscapeClassicScene landscapeClassic;
-    private LandscapeImmersiveScene landscapeImmersive;
-    private LandscapeRecordScene landscapeRecord;
-    private LandscapeCarouselScene landscapeCarousel;
+    // 旧 8 个 Scene 实例已随 scene/ 拆除（步骤7）：四风格全部由 StagePageAdapter 承载
     // 新架构风格页面（双轨，组件化第5/6步）：StagePageAdapter 接入 currentScene 调度
     private com.jingxin.jingxinmusic.stage.StagePageAdapter carouselPageAdapter;
     private com.jingxin.jingxinmusic.stage.StagePageAdapter recordPageAdapter;
@@ -1462,14 +1447,6 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override public void playSongAt(int pos) { PlayerFragment.this.playSongAt(pos); }
         };
 
-        portraitClassic = new PortraitClassicScene(sceneHelper);
-        portraitImmersive = new PortraitImmersiveScene(sceneHelper);
-        portraitRecord = new PortraitRecordScene(sceneHelper);
-        portraitCarousel = new PortraitCarouselScene(sceneHelper);
-        landscapeClassic = new LandscapeClassicScene(sceneHelper);
-        landscapeImmersive = new LandscapeImmersiveScene(sceneHelper);
-        landscapeRecord = new LandscapeRecordScene(sceneHelper);
-        landscapeCarousel = new LandscapeCarouselScene(sceneHelper);
 
         // 新架构轮播页面（双轨试点）：横竖屏合并单页面，首次进入时惰性 install
 
@@ -1481,8 +1458,12 @@ public class PlayerFragment extends BaseFloatFragment {
                         immersiveOverlay, immersiveDarkOverlay, whiteOverlay, overlayView,
                         coverView, spectrumView, sceneHelper));
 
-        // 默认竖屏经典
-        currentScene = portraitClassic;
+        // 默认竖屏经典：惰性建经典页适配器（首次 layout/切换时也会确保）
+        if (classicPageAdapter == null) {
+            classicPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
+                    new com.jingxin.jingxinmusic.stage.ClassicPage(sceneHelper));
+        }
+        currentScene = classicPageAdapter;
 
         // 监听系统窗口 insets，获取状态栏实际高度（车机全屏时为0）
         rootLayout.setOnApplyWindowInsetsListener((v, insets) -> {
