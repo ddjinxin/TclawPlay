@@ -60,8 +60,10 @@ public class StagePageAdapter implements CoverScene {
 
     @Override
     public void setCover(android.graphics.Bitmap bitmap) {
-        // 轮播封面沿旧路径：applyBlurBackground 由 Fragment/Helper 处理，
-        // 页面不单独持有封面（卡片封面由 carouselAdapter 数据驱动）
+        // 轮播封面沿旧路径：模糊背景（旧 AbstractCarouselScene.setCover 行为）
+        if (bitmap != null) {
+            page.h.applyBlurBackground(bitmap);
+        }
     }
 
     @Override

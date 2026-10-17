@@ -100,11 +100,14 @@
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp" />
 
-        <!-- 底部按钮（ControlBar组件） -->
+        <!-- 底部按钮（ControlBar组件，margin同旧control_buttons节点） -->
         <com.jingxin.jingxinmusic.view.ControlBar
             android:id="@+id/control_buttons"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp" />
 
     </LinearLayout>
 

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 轮播风格页面（组件化第5步）：三槽骨架
-     bottomSlot: 背景底槽（皮肤渲染区，层序声明式）
-     contentArea: 内容区（轮播封面 + 歌名歌手/歌词/频谱/进度/控制）
-     顶部按钮栏/沉浸层等共享 View 仍由宿主 Fragment 管理，页面不复制 -->
+     底部三件（频谱/进度/控制条）共享单实例经 re-parent 借入底部槽位；
+     标题/歌词/占位仍留在旧 info_panel 垂直流（与旧版布局字节级一致），
+     页面只接管底部区域的所有权与皮肤底槽宿主 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/carousel_page_root"
     android:layout_width="match_parent"
@@ -14,22 +14,16 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- 内容区：垂直信息流（对应旧 info_panel 结构，但归页面所有） -->
+    <!-- 底部簇：弹力占位(weight)之上，频谱/进度/控制条依次底钉 -->
     <LinearLayout
-        android:id="@+id/carousel_content_area"
+        android:id="@+id/carousel_bottom_cluster"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- 封面占位（高度由 layout() 动态设定，撑开歌名位置；轮播卡片覆盖其上） -->
+        <!-- 弹力占位：吸收全部剩余高度，把底下三槽钉到屏幕底部 -->
         <View
-            android:id="@+id/carousel_cover_placeholder"
-            android:layout_width="1px"
-            android:layout_height="10dp" />
-
-        <!-- 歌词槽（共享 LyricView 经 re-parent 借入） -->
-        <FrameLayout
-            android:id="@+id/carousel_lyric_slot"
+            android:id="@+id/carousel_spacer"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />

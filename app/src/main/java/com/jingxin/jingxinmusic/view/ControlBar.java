@@ -83,6 +83,7 @@ public class ControlBar extends LinearLayout {
 
     private void init(Context context) {
         setOrientation(HORIZONTAL);
+        setGravity(android.view.Gravity.CENTER); // 同旧 control_buttons：子按钮在行高内垂直居中（动态缩放后小键不悬空）
         LayoutInflater.from(context).inflate(R.layout.view_control_bar, this, true);
         btnPlayPause = findViewById(R.id.play_pause_button);
         btnPrevious = findViewById(R.id.previous_button);

@@ -1,14 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 播放页底部控制条组件（自 activity_player.xml control_buttons 原样抽出） -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/control_buttons"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginBottom="20dp"
-    android:layout_marginStart="8dp"
-    android:layout_marginEnd="8dp"
-    android:gravity="center"
-    android:orientation="horizontal">
+<!-- 播放页底部控制条组件（自 activity_player.xml control_buttons 原样抽出）。
+     merge 根：inflate(R.layout.view_control_bar, this, attach=true) 时直接平铺进 ControlBar，
+     无内层包装（内层包装会产生多余 margin/高度，按钮列距底边变大）。
+     外部边距由宿主（activity_player.xml 节点 / CarouselPage 槽位）施加。 -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
 
     <ImageView
         android:id="@+id/previous_button"
@@ -87,4 +82,4 @@
         android:background="@drawable/ripple_control_button"
         android:src="@drawable/ic_download" />
 
-</LinearLayout>
+</merge>

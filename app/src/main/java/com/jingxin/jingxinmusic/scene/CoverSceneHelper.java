@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -277,11 +278,14 @@ public class CoverSceneHelper {
             btnEffect.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
         }
 
-        // 底部按钮容器
+        // 底部按钮容器（MarginLayoutParams 双父容器安全：
+        // 旧路径=info_panel 的 LinearLayout；新架构 StagePage 借用后=FrameLayout 槽位）
         if (controlButtons != null) {
-            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) controlButtons.getLayoutParams();
-            params.bottomMargin = bottomMargin;
-            controlButtons.setLayoutParams(params);
+            ViewGroup.LayoutParams params = controlButtons.getLayoutParams();
+            if (params instanceof ViewGroup.MarginLayoutParams) {
+                ((ViewGroup.MarginLayoutParams) params).bottomMargin = bottomMargin;
+                controlButtons.setLayoutParams(params);
+            }
         }
 
         // 底部按钮高度+padding
