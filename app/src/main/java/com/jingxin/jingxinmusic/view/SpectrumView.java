@@ -560,12 +560,14 @@ public class SpectrumView extends View {
     
     /**
      * 设置频谱动态跟随色（双色光晕模式由封面双色注入，切歌自动变化）
-     * 生效样式：竖条/圆点/波浪线/圆环（其余样式忽略）
+     * 生效样式：竖条/圆点/波浪线/圆环/酷狗柱状
      * @param colorTop    主色（竖条高段/圆点高段/描边亮端/圆环实心线）
      * @param colorBottom 副色（竖条低段/圆点低段/填充深端/圆环半透明线）
      */
     public void setTint(int colorTop, int colorBottom) {
         tintColors = new int[]{colorTop, colorBottom};
+        kugouGradient1 = null; // 酷狗双色渐变随取色重建
+        kugouGradient2 = null;
         postInvalidate();
     }
     
@@ -575,6 +577,8 @@ public class SpectrumView extends View {
     public void clearTint() {
         if (tintColors == null) return;
         tintColors = null;
+        kugouGradient1 = null; // 酷狗渐变回落默认暖色
+        kugouGradient2 = null;
         postInvalidate();
     }
     
@@ -784,10 +788,11 @@ public class SpectrumView extends View {
         switch (currentStyle) {
             case STYLE_DOT: {
                 float spacing = getWidth() / DOT_COUNT;
+                // 静态圆点与动态同一尺寸规则（宽高双维自适应，横屏不过大）
+                float radius = Math.min(spacing / 2 * 0.9f, getHeight() * 0.11f);
                 barPaint.setColor(staticColor);
                 for (int i = 0; i < DOT_COUNT; i++) {
                     float x = i * spacing + spacing / 2;
-                    float radius = 3f;
                     canvas.drawCircle(x, getHeight() - radius, radius, barPaint);
                 }
                 break;
@@ -838,8 +843,10 @@ public class SpectrumView extends View {
                 break;
             }
             case STYLE_KUGOU: {
-                // KugouColumn静态：底部两排暖色小块（与动态绘制相同布局逻辑）
-                kugouPaint.setColor(Color.argb(80, 253, 178, 230));
+                // KugouColumn静态：底部两排小块（光晕模式跟随封面副色，默认暖粉）
+                kugouPaint.setColor(tintColors != null
+                        ? withAlpha(tintColors[1], 80)
+                        : Color.argb(80, 253, 178, 230));
                 float kTotalSpacing = (KUGOU_COUNT - 1) * kugouSpacing;
                 float kAaa = getWidth() / 2f / 2f;
                 float kW = (getWidth() + 2 * kAaa - kTotalSpacing) / KUGOU_COUNT;
@@ -954,7 +961,9 @@ public class SpectrumView extends View {
         float viewWidth = getWidth();
         float viewHeight = getHeight();
         float spacing = viewWidth / DOT_COUNT;
-        float radius = spacing / 2 * 0.9f;
+        // 圆点大小双维自适应：横向随间距占满，纵向不超过条带高度的22%
+        // （横屏/超宽屏下 View 很宽，纯宽度派生会使圆点显得过大）
+        float radius = Math.min(spacing / 2 * 0.9f, viewHeight * 0.11f);
         float minH = radius * 2;
         float maxH = viewHeight * 0.9f;
         float centerIndex = (DOT_COUNT - 1) / 2f;
@@ -1239,16 +1248,36 @@ public class SpectrumView extends View {
         
         // 初始化渐变（严格匹配原版onSizeChanged中的两段渐变）
         if (kugouGradient1 == null && viewWidth > 0 && viewHeight > 0) {
-            // 偶数组：右→左，半透明暖色
-            kugouGradient1 = new LinearGradient(viewWidth, 0f, 0f, viewHeight,
-                    new int[]{0xCCFDF4BE, 0xCCFEDBB6, 0xCCFEC9C7, 0xCCFEC2DF, 0xCCFDB2E6},
-                    new float[]{0, 0.25f, 0.5f, 0.75f, 1f},
-                    Shader.TileMode.CLAMP);
-            // 奇数组：左→右，渐显暖色
-            kugouGradient2 = new LinearGradient(0f, 0f, viewWidth, viewHeight,
-                    new int[]{0x4DFDF4BE, 0x7DFEDBB6, 0xBAFEC9C7, 0xE5FEC2DF, 0xFFFDB2E6},
-                    new float[]{0, 0.25f, 0.5f, 0.75f, 1f},
-                    Shader.TileMode.CLAMP);
+            float[] stops = {0, 0.25f, 0.5f, 0.75f, 1f};
+            if (tintColors != null) {
+                // 双色光晕跟随：两组渐变在 [主色→副色] 间插值，透明度结构保留原版
+                // 偶数组均匀半透明(0xCC)，奇数组左→右渐显(0x4D→0xFF)
+                // 两色过近时自动拉开色相，避免频谱层次感丢失
+                int[] spread = ensureHueSpread(tintColors[0], tintColors[1]);
+                int[] c1 = new int[5];
+                int[] c2 = new int[5];
+                int[] a2 = {0x4D, 0x7D, 0xBA, 0xE5, 0xFF};
+                for (int i = 0; i < 5; i++) {
+                    int interp = interpolateColor(spread[0], spread[1], i / 4f);
+                    c1[i] = (0xCC << 24) | (interp & 0x00FFFFFF);
+                    c2[i] = (a2[i] << 24) | (interp & 0x00FFFFFF);
+                }
+                kugouGradient1 = new LinearGradient(viewWidth, 0f, 0f, viewHeight, c1, stops,
+                        Shader.TileMode.CLAMP);
+                kugouGradient2 = new LinearGradient(0f, 0f, viewWidth, viewHeight, c2, stops,
+                        Shader.TileMode.CLAMP);
+            } else {
+                // 偶数组：右→左，半透明暖色
+                kugouGradient1 = new LinearGradient(viewWidth, 0f, 0f, viewHeight,
+                        new int[]{0xCCFDF4BE, 0xCCFEDBB6, 0xCCFEC9C7, 0xCCFEC2DF, 0xCCFDB2E6},
+                        new float[]{0, 0.25f, 0.5f, 0.75f, 1f},
+                        Shader.TileMode.CLAMP);
+                // 奇数组：左→右，渐显暖色
+                kugouGradient2 = new LinearGradient(0f, 0f, viewWidth, viewHeight,
+                        new int[]{0x4DFDF4BE, 0x7DFEDBB6, 0xBAFEC9C7, 0xE5FEC2DF, 0xFFFDB2E6},
+                        new float[]{0, 0.25f, 0.5f, 0.75f, 1f},
+                        Shader.TileMode.CLAMP);
+            }
         }
         
         // 绘制第一组（前半段，右移aaa）— 偶数组渐变
@@ -1271,16 +1300,19 @@ public class SpectrumView extends View {
         }
         
         // 绘制第二组（后半段，左移aaa）— 奇数组渐变
+        // 镜像：柱位不变（posIdx 63..126），数据取镜像索引（srcIdx = 2*offset - posIdx，即 63..0），
+        // 右半屏与左半屏显示相同数据序列，轮廓左右对称（钟形权重以数据中心为峰，正好落在屏幕中线）
         if (kugouGradient2 != null) {
             kugouPaint.setShader(kugouGradient2);
             int offset = halfCount - 1; // 原版: reallyData.get(0).size() - 1
             for (int i = 0; i < halfCount; i++) {
-                int srcIdx = i + offset;
-                float left = colLeft[srcIdx] - aaa;
-                float right = colRight[srcIdx] - aaa;
-                // 柱身：从barTop到viewHeight
+                int posIdx = i + offset;                // 柱位索引：63..126（保持原布局与间距）
+                int srcIdx = 2 * offset - posIdx;       // 数据镜像索引：63..0（与左半屏对称）
+                float left = colLeft[posIdx] - aaa;
+                float right = colRight[posIdx] - aaa;
+                // 柱身：从barTop到viewHeight（高度取镜像数据）
                 canvas.drawRect(left, barTops[srcIdx], right, viewHeight, kugouPaint);
-                // 能量块：顶部跳动的点
+                // 能量块：顶部跳动的点（与数据同源，块同步取镜像索引）
                 float blockTop = kugouBlockTop[srcIdx];
                 float blockBottom = blockTop + blockHeight;
                 if (blockBottom > viewHeight) {
@@ -1648,6 +1680,48 @@ public class SpectrumView extends View {
         int b = (int) (b1 + (b2 - b1) * t);
         
         return Color.rgb(r, g, b);
+    }
+
+    /**
+     * 酷狗双色补偿：两色过近时自动拉开色相
+     * 阈值 40°（HSV 色相差，环形取最小角），不足时对称外推各补差额的一半；
+     * 输出色调保持原采样色（S/V 不动），仅色相偏移，避免污染光晕背景本色的观感
+     */
+    private static int[] ensureHueSpread(int colorTop, int colorBottom) {
+        float[] top = new float[3];
+        float[] bottom = new float[3];
+        Color.RGBToHSV(Color.red(colorTop), Color.green(colorTop), Color.blue(colorTop), top);
+        Color.RGBToHSV(Color.red(colorBottom), Color.green(colorBottom), Color.blue(colorBottom), bottom);
+
+        float diff = Math.abs(top[0] - bottom[0]);          // 0~360
+        if (diff > 180f) diff = 360f - diff;                 // 环形最小角
+        if (diff >= 40f) {
+            return new int[]{colorTop, colorBottom};         // 差距足够，原样返回
+        }
+
+        // 对称拉开：不足 40° 时，两色各向外推 (40-diff)/2 度
+        float shift = (40f - diff) / 2f;
+        if (top[0] == bottom[0]) {
+            // 同色相退化：主色 +shift，副色 -shift，保证方向相反
+            top[0] = (top[0] + shift + 360f) % 360f;
+            bottom[0] = (bottom[0] - shift + 360f) % 360f;
+        } else {
+            // 保持原有相对方向外推
+            float d = bottom[0] - top[0];
+            if (d > 180f) d -= 360f;
+            if (d < -180f) d += 360f;
+            if (d >= 0) {
+                top[0] = (top[0] - shift + 360f) % 360f;
+                bottom[0] = (bottom[0] + shift + 360f) % 360f;
+            } else {
+                top[0] = (top[0] + shift + 360f) % 360f;
+                bottom[0] = (bottom[0] - shift + 360f) % 360f;
+            }
+        }
+        return new int[]{
+                Color.HSVToColor(Color.alpha(colorTop), top),
+                Color.HSVToColor(Color.alpha(colorBottom), bottom)
+        };
     }
 
     /**
