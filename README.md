@@ -28,7 +28,13 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.8.1)
+## 📢 最新版本 (v1.0.8.2)
+
+### v1.0.8.2 (2026-10)
+#### 优化
+- **酷狗柱状频谱左右对称** — 第二组数据改为镜像取样，右半屏与左半屏显示相同数据序列，轮廓左右对称（钟形权重峰值落在屏幕中线），修复右侧一段总偏低、整体不协调的问题
+- **酷狗频谱双色光晕跟随** — 双色光晕模式下两组渐变跟随封面双色插值（切歌自动变色），静态底色块同步；两色过近时自动拉开色相（阈值 40°）保层次感，退出光晕回落原版暖色
+- **圆点频谱尺寸自适应** — 圆点大小改为宽高双维取小（直径≤条带高度 22%），修复横屏/超宽屏下圆点过大，竖屏观感不变
 
 ### v1.0.8.1 (2026-10)
 #### 新功能
@@ -215,7 +221,13 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.8.1)
+## 📢 Latest Version (v1.0.8.2)
+
+### v1.0.8.2 (2026-10)
+#### Improvements
+- **Kugou bar spectrum left-right symmetry** — Second group data now mirrored, right half displays the same data sequence as left half, symmetric outline (bell weight peak lands on screen centerline), fixes the always-low right segment and unbalanced look
+- **Kugou spectrum aurora dual-color follow** — Under aurora dual-color mode, both gradient groups follow cover dual-color interpolation (auto recolors on track change), static bottom blocks synced; auto hue spread when two colors too close (40° threshold) to preserve layering, falls back to original warm colors on exit
+- **Dot spectrum size adaptive** — Dot size now min of width/height dimensions (diameter ≤ 22% of band height), fixes oversized dots on landscape/ultrawide screens, portrait look unchanged
 
 ### v1.0.8.1 (2026-10)
 #### New Features
@@ -627,6 +639,12 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 更新日志
 
+### v1.0.8.2 (2026-10)
+#### 优化
+- 酷狗柱状频谱左右对称：第二组数据镜像取样，右半屏与左半屏数据序列相同，轮廓对称，修复右侧偏低
+- 酷狗频谱双色光晕跟随：渐变跟随封面双色插值，切歌自动变色，两色过近自动拉开色相；退出回落原版暖色
+- 圆点频谱尺寸自适应：宽高双维取小（直径≤条带高度 22%），横屏/超宽屏不过大，竖屏不变
+
 ### v1.0.8.1 (2026-10)
 #### 新功能
 - 播放页控制栏自动隐藏：支持 5~30 秒可配置延时或彻底关闭，设置页新增延时选项，无操作时控制栏自动淡出，点击屏幕恢复
@@ -863,7 +881,13 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.8.1)
+## 📢 Latest Version (v1.0.8.2)
+
+### v1.0.8.2 (2026-10)
+#### Improvements
+- **Kugou bar spectrum left-right symmetry** — Second group data now mirrored, right half displays the same data sequence as left half, symmetric outline (bell weight peak lands on screen centerline), fixes the always-low right segment and unbalanced look
+- **Kugou spectrum aurora dual-color follow** — Under aurora dual-color mode, both gradient groups follow cover dual-color interpolation (auto recolors on track change), static bottom blocks synced; auto hue spread when two colors too close (40° threshold) to preserve layering, falls back to original warm colors on exit
+- **Dot spectrum size adaptive** — Dot size now min of width/height dimensions (diameter ≤ 22% of band height), fixes oversized dots on landscape/ultrawide screens, portrait look unchanged
 
 ### v1.0.8.1 (2026-10)
 #### New Features
