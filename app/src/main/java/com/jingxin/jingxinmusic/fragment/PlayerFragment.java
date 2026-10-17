@@ -194,6 +194,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private com.jingxin.jingxinmusic.stage.StagePageAdapter carouselPageAdapter;
     private com.jingxin.jingxinmusic.stage.StagePageAdapter recordPageAdapter;
     private com.jingxin.jingxinmusic.stage.StagePageAdapter classicPageAdapter;
+    private com.jingxin.jingxinmusic.stage.StagePageAdapter immersivePageAdapter;
     private CoverScene currentScene;
 
     // 播放服务
@@ -740,8 +741,12 @@ public class PlayerFragment extends BaseFloatFragment {
 
         // 封面风格初始化：切换到正确的 scene
         if (coverStyle == COVER_STYLE_IMMERSIVE) {
+            if (immersivePageAdapter == null) {
+                immersivePageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
+                        new com.jingxin.jingxinmusic.stage.ImmersivePage(sceneHelper));
+            }
             syncSceneState();
-            currentScene = isLandscapeMode ? landscapeImmersive : portraitImmersive;
+            currentScene = immersivePageAdapter;
             currentScene.enter();
             currentScene.onStyleEnter();
             if (lyricView != null) {
@@ -1505,7 +1510,11 @@ public class PlayerFragment extends BaseFloatFragment {
     private boolean switchScene() {
         CoverScene target;
         if (coverStyle == COVER_STYLE_IMMERSIVE) {
-            target = isLandscapeMode ? landscapeImmersive : portraitImmersive;
+            if (immersivePageAdapter == null) {
+                immersivePageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
+                        new com.jingxin.jingxinmusic.stage.ImmersivePage(sceneHelper));
+            }
+            target = immersivePageAdapter;
         } else if (coverStyle == COVER_STYLE_RECORD) {
             if (recordPageAdapter == null) {
                 recordPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
