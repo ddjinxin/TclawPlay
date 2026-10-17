@@ -108,8 +108,9 @@ public class PlayerFragment extends BaseFloatFragment {
     // UI
     private ImageView blurBackground;
     private RotatingCoverView coverView;
-    private TextView tvSongName;
-    private TextView tvArtist;
+    private TextView tvSongName;   // 过渡期兼容字段（Scene 手术用，指向 SongTitleBar 内部）
+    private TextView tvArtist;     // 同上
+    private com.jingxin.jingxinmusic.view.SongTitleBar songTitleBar; // 标题组件（状态+染色统一入口）
     private LyricView lyricView;
     private SpectrumView spectrumView;
     
@@ -216,8 +217,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 position = intent.getIntExtra(MusicPlayerService.EXTRA_SONG_INDEX, 0);
 
                 song = newSong;
-                tvSongName.setText(newSong.title);
-                tvArtist.setText(newSong.artist);
+                songTitleBar.setSong(newSong);
                 progressPanel.resetForNewSong(newSong.duration);
                 loadCover();
                 fetchLyrics();
@@ -536,8 +536,11 @@ public class PlayerFragment extends BaseFloatFragment {
          coverView = view.findViewById(R.id.cover_view);
          coverView.setBackgroundResource(R.drawable.circle_cover_background);
         tonearmView = view.findViewById(R.id.tonearm_view);
-        tvSongName = view.findViewById(R.id.song_name_text);
-        tvArtist = view.findViewById(R.id.artist_text);
+        // 歌名+歌手组件
+        songTitleBar = view.findViewById(R.id.song_title_bar);
+        // 过渡期兼容：Scene 布局手术仍直接访问文本 View
+        tvSongName = songTitleBar.songNameView();
+        tvArtist = songTitleBar.artistView();
         lyricView = view.findViewById(R.id.lyric_view);
         spectrumView = view.findViewById(R.id.spectrum_view);
         // 进度组件（SeekBar+双时间，事件经 Listener 上抛）
@@ -733,8 +736,7 @@ public class PlayerFragment extends BaseFloatFragment {
         }
 
         // 显示歌曲信息
-        tvSongName.setText(song.title);
-        tvArtist.setText(song.artist);
+        songTitleBar.setSong(song);
         progressPanel.resetForNewSong(song.duration);
         updateDownloadButtonVisibility();
 
@@ -1018,8 +1020,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     if (allPos >= 0) position = allPos;
                 }
                 song = newSong;
-                tvSongName.setText(song.title);
-                tvArtist.setText(song.artist);
+                songTitleBar.setSong(song);
                 progressPanel.resetForNewSong(song.duration);
                 playerBinder.playSongAtPosition(newIdx);
                 controlBar.setPlaying(true);
@@ -1836,8 +1837,7 @@ public class PlayerFragment extends BaseFloatFragment {
                         if (historyPopup != null) historyPopup.dismiss();
                         Song s = item.song;
                         song = s;
-                        tvSongName.setText(s.title);
-                        tvArtist.setText(s.artist);
+                        songTitleBar.setSong(s);
                         progressPanel.resetForNewSong(s.duration);
                         loadCover();
                         fetchLyrics();
@@ -2794,8 +2794,7 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private void applyTextTheme(boolean isNight) {
         int textColor = isNight ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
-        tvSongName.setTextColor(textColor);
-        tvArtist.setTextColor(textColor);
+        songTitleBar.setTextColor(textColor);
         progressPanel.setTimeTextColor(textColor);
     }
 

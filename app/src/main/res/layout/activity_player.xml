@@ -66,37 +66,11 @@
             android:layout_weight="0"
             android:visibility="gone" />
 
-        <!-- 歌名 -->
-        <TextView
-            android:id="@+id/song_name_text"
+        <!-- 歌名+歌手（SongTitleBar组件） -->
+        <com.jingxin.jingxinmusic.view.SongTitleBar
+            android:id="@+id/song_title_bar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="24dp"
-            android:layout_marginEnd="24dp"
-            android:layout_marginTop="16dp"
-            android:text="未知歌曲"
-            android:textColor="@color/text_primary"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:gravity="center_horizontal" />
-
-        <!-- 歌手 -->
-        <TextView
-            android:id="@+id/artist_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="24dp"
-            android:layout_marginEnd="24dp"
-            android:layout_marginTop="8dp"
-            android:text="未知歌手"
-            android:textColor="@color/text_secondary"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:gravity="center_horizontal" />
+            android:layout_height="wrap_content" />
 
         <!-- 歌词 -->
         <com.jingxin.jingxinmusic.view.LyricView
