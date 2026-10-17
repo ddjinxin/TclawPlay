@@ -7,7 +7,31 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
+import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
 import com.jingxin.jingxinmusic.view.LyricView;
+
+/**
+ * 阶段性工具：沉浸模式残留状态清理（组件化第6/7步）
+ *
+ * 沉浸竖屏会把 blurBackground 高度改为 43%（不透明封面铺顶），
+ * 旧架构靠两个 Scene 实例的独立状态掩盖了退出后的尺寸残留；
+ * 合并单页面后非沉浸页面进入时必须显式恢复全屏高度，
+ * 否则夜间/白天下下半屏无模糊背景（夜间只见黑色遮罩变黑）。
+ */
+final class StageReset {
+
+    private StageReset() {}
+
+    /** 恢复 blurBackground 全屏尺寸（XML 原生值：match_parent），清除沉浸 43% 残留 */
+    static void restoreBlurFullscreen(CoverSceneHelper h) {
+        FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams) h.blurBackground.getLayoutParams();
+        params.width = FrameLayout.LayoutParams.MATCH_PARENT;
+        params.height = FrameLayout.LayoutParams.MATCH_PARENT;
+        params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        h.blurBackground.setLayoutParams(params);
+    }
+}
 
 /**
  * 经典风格页面（组件化第6步）
@@ -40,6 +64,8 @@ public class ClassicPage extends StagePage {
     public void enter() {
         boolean landscape = h.isLandscapeMode;
         h.hideImmersiveViews();
+        // 清除沉浸残留：blur 恢复全屏高度（沉浸竖屏改43%后无人恢复，夜间下半屏变黑）
+        StageReset.restoreBlurFullscreen(h);
         h.overlayView.setVisibility(View.GONE);
         // 非沉浸遮罩（双色光晕+非沉浸时跳过，由 updateThemeUI 统一管理）
         if (!(h.bgSkinMode == 1 && h.coverStyle != h.COVER_STYLE_IMMERSIVE)) {

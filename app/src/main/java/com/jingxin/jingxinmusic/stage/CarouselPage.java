@@ -88,6 +88,8 @@ public class CarouselPage extends StagePage {
         h.rootLayout.setClipChildren(false);
         h.rootLayout.setClipToPadding(false);
         h.hideImmersiveViews();
+        // 清除沉浸残留：blur 恢复全屏高度（沉浸竖屏改43%后无人恢复，夜间下半屏变黑）
+        StageReset.restoreBlurFullscreen(h);
         h.overlayView.setVisibility(View.GONE);
         h.coverView.setVisibility(View.GONE);
         h.ensureCarouselView();
@@ -354,28 +356,31 @@ public class CarouselPage extends StagePage {
         h.coverPlaceholder.setLayoutParams(placeholderParams);
 
         // ===== 底部三件：margin 全部施加在槽位上（借入的组件不再动 LayoutParams） =====
-        int controlBottomMargin = Math.max(8, (int) (height * 0.01f)); // 同 applyButtonMargins 底部按钮底距
-        // 频谱槽：高度比例 竖0.10/横0.08，横屏额外 1% 底距（同旧 LandscapeCarouselScene）
+        // 对齐策略A：四模式像素级一致，横竖同源取 XML 原生值
+        // （旧轮播横屏的 1%H/1.5%H 特殊适配废弃，统一与其他模式 XML 16dp 对齐）
+        // 频谱槽：高度比例 竖0.10/横0.08；底距 16dp = 旧 XML spectrum_view marginBottom
+        // （频谱与进度条的间距，槽位堆叠时施加在频谱槽上）
         if (h.spectrumView != null && !h.spectrumView.isCoverOverlayMode()) {
             float ratio = landscape ? 0.08f : 0.10f;
             LinearLayout.LayoutParams specParams =
                     (LinearLayout.LayoutParams) spectrumSlot.getLayoutParams();
             specParams.height = (int) (height * ratio);
-            specParams.bottomMargin = landscape ? Math.max(2, (int) (height * 0.01f)) : 0;
+            specParams.bottomMargin = (int) (h.density * 16);
             spectrumSlot.setLayoutParams(specParams);
         }
-        // 进度槽：横竖边距同旧 XML 值（start/end 16dp），底距 竖16dp/横 max(2,1.5%)
+        // 进度槽：margin 同旧 XML progress 节点（start/end/bottom 全 16dp）
         LinearLayout.LayoutParams progressParams =
                 (LinearLayout.LayoutParams) progressSlot.getLayoutParams();
         int progressSide = (int) (h.density * 16);
-        progressParams.setMargins(progressSide, 0, progressSide,
-                landscape ? Math.max(2, (int) (height * 0.015f)) : (int) (h.density * 16));
+        progressParams.setMargins(progressSide, 0, progressSide, progressSide);
         progressSlot.setLayoutParams(progressParams);
-        // 控制条槽：start/end 8dp，底距 max(8,1%)（同 applyButtonMargins 旧生效值）
+        // 控制条槽：start/end 8dp；【底距不设在槽上】——
+        // applyButtonMargins 已经给借入的 ControlBar 自身设了 bottomMargin（与其他模式同源），
+        // 槽再设会双重叠加（10+10px），导致轮播按钮距底边比其他模式大
         LinearLayout.LayoutParams controlParams =
                 (LinearLayout.LayoutParams) controlSlot.getLayoutParams();
         int controlSide = (int) (h.density * 8);
-        controlParams.setMargins(controlSide, 0, controlSide, controlBottomMargin);
+        controlParams.setMargins(controlSide, 0, controlSide, 0);
         controlSlot.setLayoutParams(controlParams);
     }
 
