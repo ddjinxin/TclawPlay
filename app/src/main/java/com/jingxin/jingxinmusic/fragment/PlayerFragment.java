@@ -54,7 +54,6 @@ import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.LyricView;
 import com.jingxin.jingxinmusic.view.RotatingCoverView;
 import com.jingxin.jingxinmusic.view.SpectrumView;
-import com.jingxin.jingxinmusic.view.TonearmView;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -99,7 +98,6 @@ public class PlayerFragment extends BaseFloatFragment {
 
     // UI
     private ImageView blurBackground;
-    private RotatingCoverView coverView;
     private TextView tvSongName;   // 过渡期兼容字段（Scene 手术用，指向 SongTitleBar 内部）
     private TextView tvArtist;     // 同上
     private com.jingxin.jingxinmusic.view.SongTitleBar songTitleBar; // 标题组件（状态+染色统一入口）
@@ -172,8 +170,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private com.jingxin.jingxinmusic.bg.BackgroundSkinController bgSkinController;
     private int lastAuroraCoverColor = 0; // 光晕模式最近一次封面提取色（用于日夜切换重新映射歌词色）
     private volatile int coverColorToken = 0; // 封面取色竞态防护token，每次setCoverBitmap递增
-    private TonearmView tonearmView;
-    private boolean tonearmNeedsUpdate = false; // 标记唱臂需要更新（等封面 layout 完成后触发）
+    // （旧共享唱臂 tonearmView 已随旧四风格页下线：V2 唱机页自持唱臂，此链全删）
     private com.jingxin.jingxinmusic.view.ImmersiveOverlayView immersiveOverlay;
     private android.widget.PopupWindow spectrumPickerPopup; // 频谱选择浮窗
     private android.widget.PopupWindow lyricSearchPopup; // 歌词搜索浮窗
@@ -307,7 +304,6 @@ public class PlayerFragment extends BaseFloatFragment {
                     currentScene.layout(w, h);
                     updateThemeUI();
                     updateLayoutForMode(lyricView.getDisplayMode());
-                    tonearmNeedsUpdate = true;
                     lyricView.post(lyricView::refreshTextSize);
                 }
             } else if ("com.jingxin.jingxinmusic.SPECTRUM_RESTART".equals(action)) {
@@ -350,8 +346,6 @@ public class PlayerFragment extends BaseFloatFragment {
                         if (resumePlay && playerBinder.isPlaying()) {
                             // 从 mini 播放条跳转，音乐已在后台播放，只更新 UI
                             controlBar.setPlaying(true);
-                            coverView.startRotation();
-                            if (spectrumView != null) spectrumView.setPlaying(true);
                             startSpectrumWithPermission();
                             // 通过 Scene 同步播放状态（唱片机同步唱臂等）
                             currentScene.onServiceResumed(true);
@@ -604,10 +598,7 @@ public class PlayerFragment extends BaseFloatFragment {
         // 初始化视图
         blurBackground = view.findViewById(R.id.blur_background);
         auroraBackgroundView = view.findViewById(R.id.aurora_background);
-         coverView = view.findViewById(R.id.cover_view);
-         coverView.setBackgroundResource(R.drawable.circle_cover_background);
-        tonearmView = view.findViewById(R.id.tonearm_view);
-        // 歌名+歌手组件
+          // 歌名+歌手组件
         songTitleBar = view.findViewById(R.id.song_title_bar);
         // 过渡期兼容：Scene 布局手术仍直接访问文本 View
         tvSongName = songTitleBar.songNameView();
@@ -721,49 +712,17 @@ public class PlayerFragment extends BaseFloatFragment {
                             currentScene.layout(w, h);
                             updateThemeUI();
                             updateLayoutForMode(lyricView.getDisplayMode());
-                            // 标记唱臂需要更新（封面 layout 完成后由 coverView 的 listener 触发）
-                            tonearmNeedsUpdate = true;
-                            // 兜底：Scene.layout() 设置了 LyricView 新 LayoutParams，
+                            // 兕底：Scene.layout() 设置了 LyricView 新 LayoutParams，
                             // 但 onSizeChanged 在下一帧才触发，存在时序窗口。
                             // post 一次 refreshTextSize 确保字号立即重算+重绘。
-                            lyricView.post(lyricView::refreshTextSize);
-                        }
-                    });
-        }
+                             lyricView.post(lyricView::refreshTextSize);
+                         }
+                     });
+         }
 
-        // 在封面 View 上监听尺寸变化——封面实际完成 layout 后才更新唱臂位置
-        // 用 post 延迟到下一帧执行，避免在 layout 过程中调用 setLayoutParams 导致 requestLayout 冲突
-        if (coverView != null) {
-            coverView.addOnLayoutChangeListener(
-                    (View v, int left, int top, int right, int bottom,
-                     int oldLeft, int oldTop, int oldRight, int oldBottom) -> {
-                        if (isActivityGone()) return;
-                        int newW = right - left;
-                        int newH = bottom - top;
-                        int oldW = oldRight - oldLeft;
-                        int oldH = oldBottom - oldTop;
-                        // 封面尺寸或位置实际变化时才更新唱臂
-                        if (tonearmNeedsUpdate || (newW > 0 && newH > 0
-                                && (newW != oldW || newH != oldH))) {
-                            tonearmNeedsUpdate = false;
-                            // 必须用 post：此回调在 layout 过程中触发，
-                            // 直接 setLayoutParams 会引起 requestLayout 冲突
-                            coverView.post(() -> updateTonearmPosition());
-                        }
-                    });
-        }
         // 首次必须应用竖屏布局（设置封面占位等）——通过 scene layout
         syncSceneState();
         currentScene.layout(getLayoutWidth(), getAvailableScreenHeight());
-
-        // 竖屏模式下封面和频谱高度：相对屏幕高度
-        int availableHeight = getAvailableScreenHeight();
-        coverView.getLayoutParams().height = (int) (availableHeight * 0.25f);
-        coverView.getLayoutParams().width = (int) (availableHeight * 0.25f);
-        // 圆环模式频谱需铺满rootLayout（MATCH_PARENT），由applySpectrumPosition处理
-        if (!spectrumView.isCoverOverlayMode()) {
-            spectrumView.getLayoutParams().height = (int) (availableHeight * 0.10f);
-        }
 
         // 读取主题状态并同步所有 UI
         Context ctx = requireContext();
@@ -825,19 +784,6 @@ public class PlayerFragment extends BaseFloatFragment {
         btnOutfit.setOnClickListener(v -> toggleImmersiveMode());
         // 单击：弹出频谱选择面板（频谱可见时）或恢复显示频谱
         // 长按：切换频谱显示/隐藏
-        btnSpectrum.setOnClickListener(v -> {
-            if (!SettingsFragment.isSpectrumEnabled(requireContext())) return;
-            if (spectrumView.isSpectrumVisible()) {
-                showSpectrumPicker();
-            } else {
-                spectrumView.toggleVisibility();
-            }
-        });
-        btnSpectrum.setOnLongClickListener(v -> {
-            if (!SettingsFragment.isSpectrumEnabled(requireContext())) return true;
-            spectrumView.toggleVisibility();
-            return true;
-        });
         btnBack.setOnClickListener(v -> {
             stopSpectrum();
             requireActivity().onBackPressed();
@@ -919,32 +865,12 @@ public class PlayerFragment extends BaseFloatFragment {
         boolean spectrumEnabled = SettingsFragment.isSpectrumEnabled(requireContext());
         if (!spectrumEnabled) {
             stopSpectrum();
-            spectrumView.setVisibility(View.GONE);
             btnSpectrum.setVisibility(View.GONE);
         } else {
             btnSpectrum.setVisibility(View.VISIBLE);
             if (bound && playerBinder != null && playerBinder.isPlaying()) {
-                spectrumView.setPlaying(true);
                 startSpectrumWithPermission();
             }
-        }
-        // 从列表页返回时，可能横竖屏已变化，需要重新检测并刷新唱臂
-        if (tonearmView != null && tonearmView.getVisibility() == View.VISIBLE) {
-            tonearmView.post(() -> {
-                if (isActivityGone()) return;
-                boolean wasLandscape = isLandscapeMode;
-                detectAndApplyLandscapeMode();
-                if (wasLandscape != isLandscapeMode) {
-                    applyLayoutMode();
-                    updateThemeUI();
-                    updateLayoutForMode(lyricView.getDisplayMode());
-                } else {
-                    // 横竖没变但位置可能变了（窗口resize等），刷新唱臂位置
-                    tonearmView.setLandscapeMode(isLandscapeMode);
-                    tonearmView.refreshAngle();
-                    updateTonearmPosition();
-                }
-            });
         }
     }
 
@@ -1024,8 +950,6 @@ public class PlayerFragment extends BaseFloatFragment {
             }
             playerBinder.playSong(song, position);
             controlBar.setPlaying(true);
-            coverView.startRotation();
-            spectrumView.setPlaying(true);
             startSpectrumWithPermission();
             saveLastPlayed();
             // 开始播放：启用控制栏自动隐藏
@@ -1057,16 +981,12 @@ public class PlayerFragment extends BaseFloatFragment {
                 progressPanel.resetForNewSong(song.duration);
                 playerBinder.playSongAtPosition(newIdx);
                 controlBar.setPlaying(true);
-                spectrumView.setPlaying(true);
-                startSpectrumWithPermission();
+                    startSpectrumWithPermission();
                 loadCover();
                 fetchLyrics();
                 checkFavoriteStatus();
                 updateDownloadButtonVisibility();
                 saveLastPlayed();
-                if (currentScene.shouldRotateCover()) {
-                    coverView.startRotation();
-                }
                 // 切歌：启用自动隐藏并重置计时
                 updateControlsAutoHideState(true);
             }
@@ -1323,99 +1243,6 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 动态调整唱臂位置和尺寸
-     * 
-     * 横屏：pivot在View底部居中，View底边对齐封面上边沿，View水平居中于封面
-     *       View尺寸=封面尺寸×1.2（方形，足够容纳旋转45°）
-     * 
-     * 竖屏：pivot在View左上角，View左边对齐封面右边缘，View顶边对齐封面上边沿
-     */
-    private void updateTonearmPosition() {
-        if (tonearmView == null || coverView == null) return;
-        // 调用方需保证封面已完成 layout（如 coverView.OnLayoutChangeListener）
-        int coverW = coverView.getWidth();
-        int coverH = coverView.getHeight();
-        if (coverW <= 0 || coverH <= 0) return;
-
-        // 用绝对坐标定位，避免gravity导致getLeft/getTop不准
-        int[] coverLoc = new int[2];
-        int[] rootLoc = new int[2];
-        coverView.getLocationOnScreen(coverLoc);
-        android.widget.FrameLayout rootView = mRootView.findViewById(R.id.root_layout);
-        rootView.getLocationOnScreen(rootLoc);
-        // 封面中心相对于根布局
-        float coverCenterX = coverLoc[0] - rootLoc[0] + coverW / 2f;
-        float coverCenterY = coverLoc[1] - rootLoc[1] + coverH / 2f;
-
-        android.widget.FrameLayout.LayoutParams lp =
-                (android.widget.FrameLayout.LayoutParams) tonearmView.getLayoutParams();
-        lp.gravity = 0;
-
-        // ---- 唱臂几何常量（与TonearmView.onDraw一致） ----
-        float unit = isLandscapeMode ? coverW / 21f : coverW / 18f;
-        float armLength = 5.5f * unit;
-        float bendLength = 1.5f * unit;
-        float bendAngle = 35f;
-        float headHeight = 1.3f * unit;
-        float stylusLength = 0.6f * unit;
-        float cwDistance = 1.8f * unit;
-        float cwRadius = 0.7f * unit;
-
-        // pivot在View内偏移（与TonearmView.onDraw一致）
-        float pivotOffsetY = cwDistance + cwRadius + 0.3f * unit;
-        float pivotRightSpace = 0.707f * cwDistance + cwRadius + 0.5f * unit;
-
-        // ---- pivot到唱针尖端的偏移（未旋转时，向下为正Y，向右为正X） ----
-        double bendRad = Math.toRadians(bendAngle);
-        float totalBendDist = bendLength + headHeight + stylusLength;
-        float needleDx = (float) Math.sin(bendRad) * totalBendDist;
-        float needleDy = armLength + (float) Math.cos(bendRad) * totalBendDist;
-
-        // ---- 播放时唱针目标位置 ----
-        float vinylRadius = coverW / 2f;
-        float coverRadius = coverW * 2f / 3f / 2f;
-        // 横屏唱针在黑胶环偏内侧(0.3)，竖屏唱针在黑胶环中间(0.5)
-        float needleTargetR = coverRadius + (vinylRadius - coverRadius) * (isLandscapeMode ? 0.3f : 0.5f);
-
-        if (isLandscapeMode) {
-            // 横屏：主臂杆对齐封面中心线，pivot X = coverCenterX
-            float pivotScreenX = coverCenterX;
-            float pivotScreenY = coverCenterY - needleTargetR - needleDy;
-            // View尺寸
-            int armW = (int) (coverW * 1.2f);
-            int armH = (int) (pivotOffsetY + armLength + totalBendDist + cwDistance + cwRadius + unit);
-            // pivot在View内: (armW/2, pivotOffsetY)
-            lp.width = armW;
-            lp.height = armH;
-            lp.leftMargin = (int) (pivotScreenX - armW / 2f);
-            lp.topMargin = (int) (pivotScreenY - pivotOffsetY);
-        } else {
-            // 竖屏：唱臂在封面右侧，暂停0°垂直，播放45°唱针落入黑胶4点钟方向
-            float playAngle = 45f;
-            double playRad = Math.toRadians(playAngle);
-            float rotatedNeedleDy = (float)(-needleDx * Math.sin(playRad) + needleDy * Math.cos(playRad));
-            // 4点方向Y
-            float needleTargetY = coverCenterY + needleTargetR * 0.5f;
-            // pivot X：封面右边缘 + 偏移让唱针落在黑胶中间
-            float pivotScreenX = coverLoc[0] - rootLoc[0] + coverW + needleTargetR * 0.35f;
-            float pivotScreenY = needleTargetY - rotatedNeedleDy - unit;
-            // View尺寸
-            int armW = (int) (coverW + pivotRightSpace + cwDistance + cwRadius + unit);
-            int armH = (int) (pivotOffsetY + armLength + totalBendDist + cwDistance + cwRadius + unit);
-            // pivot在View内: (armW - pivotRightSpace, pivotOffsetY)
-            float pivotViewX = armW - pivotRightSpace;
-            lp.width = armW;
-            lp.height = armH;
-            lp.leftMargin = (int) (pivotScreenX - pivotViewX);
-            lp.topMargin = (int) (pivotScreenY - pivotOffsetY);
-        }
-
-        tonearmView.setCoverSize(coverW);
-        tonearmView.setLayoutParams(lp);
-        tonearmView.bringToFront();
-    }
-
-    /**
      * 获取窗口实际可用高度
      * 优先用根 FrameLayout 的实际测量高度，避免雷电/MuMu 模拟器 getDisplayMetrics() 返回全屏高度
      * 首次布局时 View 可能为0，回退到 getDisplayMetrics()
@@ -1430,7 +1257,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private void initCoverScene() {
         android.widget.FrameLayout rootLayout = mRootView.findViewById(R.id.root_layout);
         sceneHelper = new CoverSceneHelper(
-                rootLayout, blurBackground, coverView, tvSongName, tvArtist,
+                rootLayout, blurBackground, tvSongName, tvArtist,
                 lyricView, spectrumView, seekBar, tvCurrentTime, tvTotalTime,
                 btnPlayPause, btnPrevious, btnNext, btnFavorite,
                 infoPanel, coverPlaceholder, overlayView, whiteOverlay,
@@ -1440,7 +1267,6 @@ public class PlayerFragment extends BaseFloatFragment {
                 mRootView.findViewById(R.id.control_buttons),
                 mRootView.findViewById(R.id.progress_panel),
                 mRootView.findViewById(R.id.right_buttons_group),
-                tonearmView,
                 getResources().getDisplayMetrics().density);
         sceneHelper.bgSkinMode = bgSkinMode;
         sceneHelper.coverStyle = coverStyle;
@@ -1451,7 +1277,7 @@ public class PlayerFragment extends BaseFloatFragment {
                         (android.widget.FrameLayout) mRootView,
                         auroraBackgroundView, blurBackground,
                         immersiveOverlay, immersiveDarkOverlay, whiteOverlay, overlayView,
-                        coverView, spectrumView, sceneHelper));
+                        null, spectrumView, sceneHelper));
 
         // 初始场景：新经典 V2（首建+立即 enter，保证首个 onLayoutChange 前页面已 install——
         // 上次 5a 教训：只赋值不 enter，switchScene 遇 target==currentScene 不进入，
@@ -1598,14 +1424,6 @@ public class PlayerFragment extends BaseFloatFragment {
         if (currentScene.needsReloadCover()) {
             loadCover();
         }
-        // 唱臂横屏模式和位置更新
-        if (tonearmView != null) {
-            tonearmView.setLandscapeMode(isLandscapeMode);
-            // 不直接调用 updateTonearmPosition()：封面新 LayoutParams 尚未 measure/layout，
-            // 标记后由 coverView 的 OnLayoutChangeListener 在封面实际 layout 完成时触发
-            tonearmNeedsUpdate = true;
-            tonearmView.refreshAngle();
-        }
     }
 
     /**
@@ -1618,10 +1436,6 @@ public class PlayerFragment extends BaseFloatFragment {
     private void updatePlayPauseButton(boolean isPlaying) {
         if (isPlaying) {
             controlBar.setPlaying(true);
-            if (currentScene.shouldRotateCover()) {
-                coverView.startRotation();
-            }
-            spectrumView.setPlaying(true);
             currentScene.onPlayingStateChanged(true);
             // 恢复播放时重启频谱数据采集（暂停期间 Visualizer 可能已失效）
             if (SettingsFragment.isSpectrumEnabled(requireContext())) {
@@ -1629,8 +1443,6 @@ public class PlayerFragment extends BaseFloatFragment {
             }
         } else {
             controlBar.setPlaying(false);
-            coverView.stopRotation();
-            spectrumView.setPlaying(false);
             currentScene.onPlayingStateChanged(false);
         }
     }
@@ -1681,7 +1493,6 @@ public class PlayerFragment extends BaseFloatFragment {
     private void loadCover() {
         // 切歌时保持旧封面，避免闪烁——只有首次进入（无旧封面）才设默认封面
         if (!hasCoverLoaded) {
-            coverView.setImageResource(R.drawable.ic_music_icon);
             applyDefaultCoverBlur();
         }
 
@@ -1764,9 +1575,6 @@ public class PlayerFragment extends BaseFloatFragment {
                                     colors.bottom, !isNightMode));
                             // 频谱颜色跟随封面双色（双色光晕模式下，竖条/圆点/波浪线/圆环生效）
                             // 二次校验模式：异步取色期间用户可能已退出光晕，clearTint后不可再注入
-                            if (spectrumView != null && isAuroraActive()) {
-                                spectrumView.setTint(colors.top, colors.bottom);
-                            }
                             // 再次检查当前仍为光晕+非沉浸模式，防止异步期间用户切换了模式
                             if (lyricView != null && isAuroraActive()) {
                                 lyricView.setHighlightColor(lyricColor);
@@ -1934,7 +1742,6 @@ public class PlayerFragment extends BaseFloatFragment {
                             playerBinder.setPlaylist(historySongs);
                             playerBinder.playSong(s, history.indexOf(item));
                             controlBar.setPlaying(true);
-                            coverView.startRotation();
                             startSpectrumWithPermission();
                         }
                     });
@@ -2064,6 +1871,24 @@ public class PlayerFragment extends BaseFloatFragment {
         };
     }
 
+    /** 把频谱样式（prefs 新值）同步到当前活跃 V2 页自持实例（切风格跳圆环样式后调用） */
+    private void syncSpectrumStyleToActivePage() {
+        int style = spectrumView.getCurrentStyle();
+        com.jingxin.jingxinmusic.stage.ClassicPageV2 page = null;
+        if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
+            page = (com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage();
+        } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2PageAdapter != null) {
+            page = (com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage();
+        } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
+            page = (com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage();
+        }
+        if (page != null) page.applySpectrumStyle(style);
+        if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+                    .applySpectrumStyle(style);
+        }
+    }
+
     private void toggleImmersiveMode() {
         // 装扮循环只在 V2 新风格间切换（旧四风格已隐藏，收口入口；若内存值为旧风格异常态则先归位）
         coverStyle = HIDE_LEGACY_STYLES
@@ -2072,10 +1897,14 @@ public class PlayerFragment extends BaseFloatFragment {
         requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
         // 沉浸模式下圆环/扩散圆环/波浪圆环不可用，循环跳过
-        if (!currentScene.shouldShowSpectrumButton(spectrumView.getCurrentStyle())) {
+        // 风格不支持当前圆环类样式时循环跳过；样式真值由 SpectrumView 自身 prefs 持久化，
+        // 这里统一改写 prefs 并同步双端（旧实例仍活跃于数据泵/V2页镜像）
+        int curStyle = spectrumView.getCurrentStyle();
+        if (!currentScene.shouldShowSpectrumButton(curStyle)) {
             while (!currentScene.shouldShowSpectrumButton(spectrumView.getCurrentStyle())) {
                 spectrumView.switchStyle();
             }
+            syncSpectrumStyleToActivePage();
         }
 
         syncSceneState();
@@ -2107,7 +1936,7 @@ public class PlayerFragment extends BaseFloatFragment {
         }
 
         String[] names = com.jingxin.jingxinmusic.view.SpectrumView.STYLE_NAMES;
-        int currentStyle = spectrumView.getCurrentStyle();
+        int currentStyle = spectrumView.getCurrentStyle(); // 真值=prefs（实例构造即恢复）
         float density = getResources().getDisplayMetrics().density;
         Context ctx = requireContext();
 
@@ -2191,7 +2020,7 @@ public class PlayerFragment extends BaseFloatFragment {
             item.setOnClickListener(v -> {
                 if (disabled) return;
                 boolean wasRing = spectrumView.isCoverOverlayMode();
-                spectrumView.setStyle(style);
+                spectrumView.setStyle(style); // setStyle 写 prefs 持久化（真值唯一来源）
                 // 第5风格（V2）激活时：样式同步到 V2 自持实例（currentScene.layout 会重新收敛可见性）
                 if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
                     ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
@@ -2636,17 +2465,8 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     private void updateThemeUI() {
-        // 同步日夜模式到 sceneHelper，确保 applyProgressScaling 创建圆球时颜色正确
+        // 同步日夜模式到 sceneHelper
         if (sceneHelper != null) sceneHelper.isNightMode = isNightMode;
-        // 频谱日夜模式
-        if (spectrumView != null) {
-            spectrumView.setNightMode(isNightMode);
-        }
-        // 唱臂日夜主题 + 横屏模式
-        if (tonearmView != null) {
-            tonearmView.setNightMode(isNightMode);
-            tonearmView.setLandscapeMode(isLandscapeMode);
-        }
 
         // ===== 背景：皮肤收口（组件化第3步）=====
         // 原光晕/默认两分支（137行层级+遮罩逻辑）整体移入 bg/ 皮肤包：

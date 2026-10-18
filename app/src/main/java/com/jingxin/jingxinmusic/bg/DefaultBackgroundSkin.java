@@ -3,7 +3,6 @@ package com.jingxin.jingxinmusic.bg;
 import android.graphics.Color;
 import android.view.View;
 
-import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 
 /**
@@ -29,46 +28,6 @@ public final class DefaultBackgroundSkin implements PlayerBackgroundSkin {
             ctx.spectrumView.clearTint();
         }
 
-        if (coverStyle == CoverSceneHelper.COVER_STYLE_IMMERSIVE) {
-            // 沉浸模式：用沉浸遮罩替代普通遮罩
-            // 先设状态再VISIBLE，防止状态未就绪时触发绘制
-            ctx.immersiveOverlay.setLandscapeMode(landscape);
-            ctx.immersiveOverlay.setNightMode(night);
-            ctx.immersiveOverlay.setAuroraMode(false); // 非光晕：遮罩恢复封面主色
-            ctx.immersiveOverlay.setVisibility(View.VISIBLE);
-            // 横屏沉浸：同步更新封面边缘渐变颜色和渐变过渡层颜色
-            if (landscape && ctx.coverBorderGradient != null) {
-                ctx.coverBorderGradient.setOverlayColor(ctx.immersiveOverlay.getOverlayColor());
-            }
-            if (landscape && ctx.sceneHelper.landscapeGradientOverlay != null) {
-                ctx.sceneHelper.landscapeGradientOverlay.setOverlayColor(ctx.immersiveOverlay.getOverlayColor());
-                ctx.sceneHelper.landscapeGradientOverlay.setSolidLeft(true);
-            }
-            ctx.overlayView.setVisibility(View.GONE);
-            ctx.whiteOverlay.setVisibility(View.GONE);
-            // 同步夜间暗层
-            ctx.immersiveDarkOverlay.setVisibility(night ? View.VISIBLE : View.GONE);
-            ctx.blurBackground.setAlpha(1.0f);
-        } else {
-            // 非沉浸模式
-            ctx.immersiveOverlay.setVisibility(View.GONE);
-
-            if (night) {
-                // 夜间模式：黑色背景，白色文字
-                ctx.blurBackground.setAlpha(0.6f);
-                ctx.blurBackground.setVisibility(View.VISIBLE);
-                ctx.whiteOverlay.setVisibility(View.GONE);
-                ctx.overlayView.setVisibility(View.VISIBLE);
-                ctx.overlayView.setBackgroundColor(ThemeColors.nightOverlay());
-            } else {
-                // 白天模式：渐变遮罩背景，深色文字
-                ctx.blurBackground.setAlpha(0.5f);
-                ctx.blurBackground.setVisibility(View.VISIBLE);
-                ctx.whiteOverlay.setVisibility(View.VISIBLE);
-                ctx.whiteOverlay.setAlpha(0.7f);
-                ctx.overlayView.setVisibility(View.GONE);
-            }
-        }
         // 注：原分支内联的 applyTextTheme/applyButtonTheme 已等价外提，
         //     由 PlayerFragment.updateThemeUI 统一收尾执行。
     }

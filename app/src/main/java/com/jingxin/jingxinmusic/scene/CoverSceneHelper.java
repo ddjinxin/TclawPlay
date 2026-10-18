@@ -22,9 +22,8 @@ import com.jingxin.jingxinmusic.view.CoverCarouselView;
 import com.jingxin.jingxinmusic.view.ImmersiveOverlayView;
 import com.jingxin.jingxinmusic.view.LandscapeGradientOverlay;
 import com.jingxin.jingxinmusic.view.LyricView;
-import com.jingxin.jingxinmusic.view.RotatingCoverView;
 import com.jingxin.jingxinmusic.view.SpectrumView;
-import com.jingxin.jingxinmusic.view.TonearmView;
+
 
 import java.util.concurrent.ExecutorService;
 
@@ -37,7 +36,7 @@ public class CoverSceneHelper {
     // --- View 引用 ---
     public final FrameLayout rootLayout;
     public final ImageView blurBackground;
-    public final RotatingCoverView coverView;
+    // （旧共享封面 coverView 已随旧四风格页下线；V2 页自持封面）
     public final TextView tvSongName;
     public final TextView tvArtist;
     public final LyricView lyricView;
@@ -62,7 +61,7 @@ public class CoverSceneHelper {
     public final View controlButtons;
     public final View progressLayout;
     public final LinearLayout rightButtonsGroup;
-    public final TonearmView tonearmView;
+    // （旧共享唱臂 tonearmView 已随旧四风格页下线；V2 唱机页自持唱臂）
 
 
     // --- 可变状态 ---
@@ -85,7 +84,6 @@ public class CoverSceneHelper {
     public CoverSceneHelper(
             FrameLayout rootLayout,
             ImageView blurBackground,
-            RotatingCoverView coverView,
             TextView tvSongName,
             TextView tvArtist,
             LyricView lyricView,
@@ -110,11 +108,9 @@ public class CoverSceneHelper {
             View controlButtons,
             View progressLayout,
             LinearLayout rightButtonsGroup,
-            TonearmView tonearmView,
             float density) {
         this.rootLayout = rootLayout;
         this.blurBackground = blurBackground;
-        this.coverView = coverView;
         this.tvSongName = tvSongName;
         this.tvArtist = tvArtist;
         this.lyricView = lyricView;
@@ -139,7 +135,6 @@ public class CoverSceneHelper {
         this.controlButtons = controlButtons;
         this.progressLayout = progressLayout;
         this.rightButtonsGroup = rightButtonsGroup;
-        this.tonearmView = tonearmView;
         this.density = density;
     }
 
