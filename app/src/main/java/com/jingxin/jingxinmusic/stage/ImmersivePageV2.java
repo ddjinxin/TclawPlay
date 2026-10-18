@@ -627,15 +627,15 @@ public class ImmersivePageV2 extends StagePage {
         control.applyGeometry(height, width, false);
         control.applyBottomMargin(Math.max(8, (int) (height * 0.01f)));
 
-        // 顶部封面层：默认皮肤=43%（遮罩画上下渐隐）；光晕=全屏铺底
-        // （旧竖屏光晕沉浸：blur 全屏 CENTER_CROP，43% 以下被光晕底色实底遮罩盖住）
-        int coverHeight = auroraSkin ? height : (int) (height * 0.43f);
+        // 顶部封面层：一律 43%（与旧版 applyPortraitImmersiveCoverHeight 逐字对齐，
+        // 不分皮肤）。此前误加 auroraSkin 全屏铺底分支（曲解旧"光晕=blur全屏"语义——
+        // 那是旧页共享 blurBackground 的行为；V2 光晕由 AuroraGradientView 自任背景，
+        // 封面永远只在顶部 43% 区域 centerCrop，越界即被子层遮挡掩盖+无谓绘制）
         FrameLayout.LayoutParams cp = (FrameLayout.LayoutParams) coverTop.getLayoutParams();
-        cp.height = coverHeight;
+        cp.height = (int) (height * 0.43f);
         coverTop.setLayoutParams(cp);
 
-        // 标题推至遮罩实底分界：永远是 43%（与封面铺多高无关——
-        // 光晕全屏铺底时若误用 coverHeight 会把标题推到屏幕外，连带歌词/频谱/进度/控制全被挤出）
+        // 标题推至遮罩实底分界：43%
         int maskDivider = (int) (height * 0.43f);
         title.applyScene(new SongTitleBar.TitleScene(
                 width * 0.048f, 0.7f, maskDivider, true));

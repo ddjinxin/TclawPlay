@@ -346,6 +346,17 @@ public class ClassicPageV2 extends StagePage {
         bindPortraitState(!landscape);
         bindLandscapeState(landscape);
 
+        // 横竖切换重入：占位高度此刻可能按旧尺寸算（见 applyLyricModeEffect 守卫注释），
+        // 布局收敛后下一帧以真实竖屏高度重申一次，保证标题落位封面下方
+        if (!landscape) {
+            portraitRoot.post(() -> {
+                if (portraitRoot.getHeight() > 0
+                        && portraitRoot.getVisibility() == View.VISIBLE) {
+                    applyLyricModeEffect(false);
+                }
+            });
+        }
+
         // 频谱样式/可见性镜像旧实例（切风格期间用户可能改过样式）
         mirrorSpectrumStyle();
 
@@ -858,6 +869,8 @@ public class ClassicPageV2 extends StagePage {
 
     /** 歌词点击切模式后的本页联动（复刻 ClassicPage.onLyricModeChanged 竖屏公式；子类可覆写） */
     protected void applyLyricModeEffect(boolean land) {
+        // install 未完成守卫：Fragment 的 onLayoutChange 首帧可能早于页面 install 抢跑调用（NPE 防御）
+        if (lyric == null || lyricL == null) return;
         LyricView ly = land ? lyricL : lyric;
         boolean isFull = ly.getDisplayMode() == LyricView.DisplayMode.FULL;
         if (isFull) {
@@ -876,7 +889,10 @@ public class ClassicPageV2 extends StagePage {
             if (!land) {
                 coverArea.setVisibility(View.VISIBLE);
                 LinearLayout.LayoutParams ph = (LinearLayout.LayoutParams) coverPlaceholder.getLayoutParams();
+                // 尺寸取值守卫：横→竖切换瞬间 portraitRoot 刚转回 VISIBLE，getHeight() 还是
+                // 横屏旧值（1080/0），占位据此算出后标题叠上封面——用布局流程写入的 lastHeight 兜底
                 int height = portraitRoot.getHeight();
+                if (height <= 0 || height > lastHeight) height = lastHeight;
                 if (height > 0) {
                     int coverSize = (int) (height * 0.25f);
                     int coverMarginTop = (int) (height * 0.056f) + h.systemTopInset;
