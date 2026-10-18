@@ -5,50 +5,15 @@
     android:layout_height="match_parent"
     android:background="@color/player_bg">
 
-    <!-- 双色光晕背景（仅经典模式，默认隐藏） -->
-    <com.jingxin.jingxinmusic.view.AuroraGradientView
-        android:id="@+id/aurora_background"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone" />
-
     <!-- 沉浸封面背景（封面原图铺满） -->
-    <ImageView
-        android:id="@+id/blur_background"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:alpha="0"
-        android:visibility="gone" />
 
     <!-- 沉浸模式渐变遮罩 -->
-    <com.jingxin.jingxinmusic.view.ImmersiveOverlayView
-        android:id="@+id/immersive_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone" />
 
     <!-- 沉浸模式夜间半透明黑色遮罩（压暗封面，保留色调） -->
-    <View
-        android:id="@+id/immersive_dark_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/overlay_semi_black"
-        android:visibility="gone" />
 
     <!-- 白色遮罩层（白天模式非沉浸时使用，渐变由代码设置） -->
-    <View
-        android:id="@+id/white_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone" />
 
     <!-- 半透明遮罩（夜间模式非沉浸时使用） -->
-    <View
-        android:id="@+id/overlay_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/overlay_dark_black" />
 
     <!-- 主内容：左侧信息区 -->
 

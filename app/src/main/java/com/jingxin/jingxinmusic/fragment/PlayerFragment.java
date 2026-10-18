@@ -92,20 +92,15 @@ public class PlayerFragment extends BaseFloatFragment {
     private View mRootView;
 
     // UI
-    private ImageView blurBackground;
     private LyricView lyricView;
     private SpectrumView spectrumView;
     
     private android.widget.PopupWindow effectPickerPopup; // 音效选择浮窗
-    private View overlayView;
-    private View whiteOverlay;
-    private View immersiveDarkOverlay;
 
     // 封面缓存：切歌时保持旧封面，避免「默认封面→真实封面」闪烁
     private boolean hasCoverLoaded = false; // 是否已有封面加载过
 
     // 白天模式渐变遮罩（浅绿→白）
-    private android.graphics.drawable.GradientDrawable whiteGradientDrawable;
 
     // 主题
     private boolean isNightMode = true;  // 默认夜间模式
@@ -142,14 +137,11 @@ public class PlayerFragment extends BaseFloatFragment {
         return style > COVER_STYLE_CAROUSEL_V2 ? COVER_STYLE_CLASSIC_V2 : style;
     }
     private int coverStyle = COVER_STYLE_CLASSIC;
-    private com.jingxin.jingxinmusic.view.AuroraGradientView auroraBackgroundView;
     private int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
     // 背景皮肤控制器（组件化第3步）：背景渲染收口，updateThemeUI 委托分发
-    private com.jingxin.jingxinmusic.bg.BackgroundSkinController bgSkinController;
     private int lastAuroraCoverColor = 0; // 光晕模式最近一次封面提取色（用于日夜切换重新映射歌词色）
     private volatile int coverColorToken = 0; // 封面取色竞态防护token，每次setCoverBitmap递增
     // （旧共享唱臂 tonearmView 已随旧四风格页下线：V2 唱机页自持唱臂，此链全删）
-    private com.jingxin.jingxinmusic.view.ImmersiveOverlayView immersiveOverlay;
     private android.widget.PopupWindow spectrumPickerPopup; // 频谱选择浮窗
     private android.widget.PopupWindow lyricSearchPopup; // 歌词搜索浮窗
     private android.widget.PopupWindow historyPopup; // 播放历史浮窗
@@ -560,8 +552,6 @@ public class PlayerFragment extends BaseFloatFragment {
         mRootView = view;
 
         // 初始化视图
-        blurBackground = view.findViewById(R.id.blur_background);
-        auroraBackgroundView = view.findViewById(R.id.aurora_background);
           // 歌名+歌手组件
         // 过渡期兼容：Scene 布局手术仍直接访问文本 View
         // 歌词数据泵：detached 实例（fetchLyrics/搜索回填写入点 → Hub 广播到 V2 页；
@@ -572,17 +562,6 @@ public class PlayerFragment extends BaseFloatFragment {
         spectrumView = new SpectrumView(requireContext());
         // 进度组件（SeekBar+双时间，事件经 Listener 上抛）
         // 底部控制条组件（内部含7键：播放/上一首/下一首/模式/历史/收藏/下载）
-        overlayView = view.findViewById(R.id.overlay_view);
-        whiteOverlay = view.findViewById(R.id.white_overlay);
-        // 初始化白天模式渐变遮罩：浅蓝(0xFFADD8E6)→白(0xFFFFFFFF)，左上到右下
-        whiteGradientDrawable = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-                new int[]{0xFFADD8E6, 0xFFFFFFFF}
-        );
-        whiteOverlay.setBackground(whiteGradientDrawable);
-        whiteOverlay.setAlpha(0.7f);
-        immersiveDarkOverlay = view.findViewById(R.id.immersive_dark_overlay);
-        immersiveOverlay = view.findViewById(R.id.immersive_overlay);
 
         // 初始化 CoverScene 策略
         initCoverScene();
@@ -659,7 +638,6 @@ public class PlayerFragment extends BaseFloatFragment {
         lyricView.setThemeMode(isNightMode
                 ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
                 : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
-        immersiveOverlay.setNightMode(isNightMode);
 
         // 封面风格初始化：统一走 switchScene（currentScene 已在 onCreateView 由
         // initCurrentSceneHolder 建立+enter；此处按保存风格切换，保存=新经典时无需动作）
@@ -1127,18 +1105,10 @@ public class PlayerFragment extends BaseFloatFragment {
     private void initCoverScene() {
         android.widget.FrameLayout rootLayout = mRootView.findViewById(R.id.root_layout);
         sceneHelper = new CoverSceneHelper(
-                rootLayout, blurBackground, spectrumView, null,
+                rootLayout, spectrumView, null,
                 getResources().getDisplayMetrics().density);
         sceneHelper.bgSkinMode = bgSkinMode;
         sceneHelper.coverStyle = coverStyle;
-
-        // 背景皮肤控制器装配（组件化第3步）：视图与 Helper 均就绪，mRootView 即 root_layout
-        bgSkinController = new com.jingxin.jingxinmusic.bg.BackgroundSkinController(
-                new com.jingxin.jingxinmusic.bg.BackgroundSkinContext(
-                        (android.widget.FrameLayout) mRootView,
-                        auroraBackgroundView, blurBackground,
-                        immersiveOverlay, immersiveDarkOverlay, whiteOverlay, overlayView,
-                        null, spectrumView, sceneHelper));
 
         // 初始场景：新经典 V2（首建+立即 enter，保证首个 onLayoutChange 前页面已 install——
         // 上次 5a 教训：只赋值不 enter，switchScene 遇 target==currentScene 不进入，
@@ -1227,10 +1197,6 @@ public class PlayerFragment extends BaseFloatFragment {
             }
             currentScene.enter();
             currentScene.onStyleEnter();
-            // 非光晕或沉浸模式：隐藏光晕 View，避免遮挡其他模式
-            if (!(isAuroraActive()) && auroraBackgroundView != null) {
-                auroraBackgroundView.setVisibility(View.GONE);
-            }
             return true;
         }
         return false;
@@ -1254,9 +1220,6 @@ public class PlayerFragment extends BaseFloatFragment {
             coverBorderGradient = sceneHelper.coverBorderGradient;
         }
         // 背景皮肤上下文同步（组件化第3步）
-        if (bgSkinController != null) {
-            bgSkinController.syncCoverBorderGradient(coverBorderGradient);
-        }
     }
 
      /**
@@ -1280,7 +1243,6 @@ public class PlayerFragment extends BaseFloatFragment {
         int width = getLayoutWidth();
         int height = getAvailableScreenHeight();
         currentScene.layout(width, height);
-        immersiveOverlay.setLandscapeMode(isLandscapeMode);
         // 切换后需要重新加载封面的模式
         if (currentScene.needsReloadCover()) {
             loadCover();
@@ -1419,9 +1381,6 @@ public class PlayerFragment extends BaseFloatFragment {
                             if (token != coverColorToken) return;
                             // Hub 双色通道广播（独立页光晕/歌词高亮消费）
                             stateHub.setCoverColors(colors.top, colors.bottom);
-                            if (auroraBackgroundView != null) {
-                                auroraBackgroundView.setColors(colors.top, colors.bottom);
-                            }
                             // 同步静态主色（首页 DynamicBgView 渐变依赖）：
                             // 光晕变色不写 ThemeColors 会导致返回首页后仍显示旧封面渐变色
                             ThemeColors.setRawDominantColor(colors.bottom);
@@ -2328,9 +2287,6 @@ public class PlayerFragment extends BaseFloatFragment {
         // 原光晕/默认两分支（137行层级+遮罩逻辑）整体移入 bg/ 皮肤包：
         // DefaultBackgroundSkin（遮罩/日夜）与 AuroraBackgroundSkin（双色光晕+沉浸变体+层级手术）。
         // 原各叶子分支末尾均调用 applyTextTheme/applyButtonTheme，等价外提为统一收尾。
-        if (bgSkinController != null) {
-            bgSkinController.apply(bgSkinMode, coverStyle, isLandscapeMode, isNightMode);
-        }
         applyTextTheme(isNightMode);
         applyButtonTheme(isNightMode);
     }

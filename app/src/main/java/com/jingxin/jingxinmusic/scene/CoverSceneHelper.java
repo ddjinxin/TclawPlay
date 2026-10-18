@@ -2,7 +2,6 @@ package com.jingxin.jingxinmusic.scene;
 
 import android.view.View;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable;
@@ -22,7 +21,6 @@ public class CoverSceneHelper {
     // --- View 引用（旧架构 26 视图已收敛：V2 页自持全部组件，
     //     helper 仅保留跨页/跨模块仍被引用的 4 个）---
     public final FrameLayout rootLayout;      // V2 页 install 宿主 + 布局基准
-    public final ImageView blurBackground;    // 背景皮肤链（BackgroundSkinContext）
     public final SpectrumView spectrumView;   // 频谱真值锚（prefs 同步源/数据泵宿主）
     public final View infoPanel;              // 皮肤层级锚（AuroraBackgroundSkin 层序定位）
 
@@ -46,12 +44,10 @@ public class CoverSceneHelper {
 
     public CoverSceneHelper(
             FrameLayout rootLayout,
-            ImageView blurBackground,
             SpectrumView spectrumView,
             View infoPanel,
             float density) {
         this.rootLayout = rootLayout;
-        this.blurBackground = blurBackground;
         this.spectrumView = spectrumView;
         this.infoPanel = infoPanel;
         this.density = density;
