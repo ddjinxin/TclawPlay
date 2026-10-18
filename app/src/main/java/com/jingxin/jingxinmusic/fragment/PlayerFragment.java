@@ -1744,8 +1744,8 @@ public class PlayerFragment extends BaseFloatFragment {
         // 重新加载封面
         loadCover();
 
-        String[] styleNames = {"经典模式", "沉浸模式", "唱片机模式", "轮播模式", "新经典模式", "沉浸·新", "唱片机·新", "轮播·新"};
-        android.widget.Toast.makeText(requireContext(), styleNames[coverStyle],
+        String[] styleNames = {"经典", "沉浸", "唱机", "轮播"}; // 与 V2 风格值（4~7）对齐
+        android.widget.Toast.makeText(requireContext(), styleNames[coverStyle - COVER_STYLE_CLASSIC_V2],
                 android.widget.Toast.LENGTH_SHORT).show();
     }
 
