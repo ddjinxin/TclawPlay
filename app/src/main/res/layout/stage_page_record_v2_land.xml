@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 唱片机风格页 V2 · 横屏（第7风格，独立 XML 骨架现阶段与新经典一致，后期独立完善只动本文件）
+     65/35 分栏由 XML 固化（旧 layoutLandscapeBase 手术整段消失）：
+     左信息列 weight=65（标题+歌词+频谱+进度+控制），右封面列 weight=35（封面+圆环频谱槽） -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/v2_page_root_land"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/player_bg">
+
+    <!-- ===== 背景栈（本页私有，四态）===== -->
+    <com.jingxin.jingxinmusic.view.AuroraGradientView
+        android:id="@+id/v2_aurora_land"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/v2_blur_land"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/v2_light_mask_land"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FFFFFF"
+        android:alpha="0.7"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/v2_dark_mask_land"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/overlay_dark_black"
+        android:visibility="gone" />
+
+    <!-- ===== 精简模式触摸拦截层 ===== -->
+    <View
+        android:id="@+id/v2_hide_touch_layer_land"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- ===== 主体（垂直分层：上层分栏 + 底部全宽三件）=====
+         底部频谱/进度/控制条占屏幕整体宽度；右封面列随上层变矮，封面在变矮列居中（重心上移） -->
+    <LinearLayout
+        android:id="@+id/v2_main_split_land"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- 上层分栏（水平：左65信息列 + 右35封面列；高度由底部三件占满后剩余） -->
+        <LinearLayout
+            android:id="@+id/v2_upper_split_land"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <!-- 左：信息列（标题+歌词；频谱/进度/控制已外提至底部全宽区） -->
+            <LinearLayout
+                android:id="@+id/v2_info_flow_land"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="65"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <com.jingxin.jingxinmusic.view.SongTitleBar
+                    android:id="@+id/v2_title_land"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <com.jingxin.jingxinmusic.view.LyricView
+                    android:id="@+id/v2_lyric_land"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp" />
+            </LinearLayout>
+
+            <!-- 右：封面列（垂直居中于变矮列；圆环频谱同槽） -->
+            <FrameLayout
+                android:id="@+id/v2_cover_col_land"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="35">
+
+                <com.jingxin.jingxinmusic.view.RotatingCoverView
+                    android:id="@+id/v2_cover_land"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="@drawable/tv_focus_round" />
+
+                <com.jingxin.jingxinmusic.view.SpectrumView
+                    android:id="@+id/v2_spectrum_ring_land"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- 底部：频谱+进度+控制条（占屏幕整体宽度，不再受 65% 左列束缚） -->
+        <com.jingxin.jingxinmusic.view.SpectrumView
+            android:id="@+id/v2_spectrum_land"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:layout_marginBottom="16dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp" />
+
+        <com.jingxin.jingxinmusic.view.ProgressPanel
+            android:id="@+id/v2_progress_land"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp" />
+
+        <com.jingxin.jingxinmusic.view.ControlBar
+            android:id="@+id/v2_control_land"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp" />
+    </LinearLayout>
+
+    <!-- ===== 顶栏（横屏同全5键）===== -->
+    <LinearLayout
+        android:id="@+id/v2_top_bar_land"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/v2_btn_back_land"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_back"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_round"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <ImageView
+            android:id="@+id/v2_btn_effect_land"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_effect"
+            android:padding="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_round"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <View
+            android:id="@+id/v2_top_spacer_land"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/v2_right_group_land"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/v2_btn_lyric_search_land"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_lyric_search"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tv_focus_round"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageView
+                android:id="@+id/v2_btn_spectrum_land"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_spectrum"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tv_focus_round"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageView
+                android:id="@+id/v2_btn_outfit_land"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_outfit"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tv_focus_round"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>

@@ -48,6 +48,13 @@ public class RecordPageV2 extends ClassicPageV2 {
         tonearmBound = true;
     }
 
+    /** 唱片机独立 XML（骨架现阶段与经典版一致；后期完善只动这两个文件不碰其他风格） */
+    @Override
+    protected int providePortraitLayout() { return R.layout.stage_page_record_v2; }
+
+    @Override
+    protected int provideLandscapeLayout() { return R.layout.stage_page_record_v2_land; }
+
     @Override
     public void enter() {
         super.enter();
@@ -128,6 +135,9 @@ public class RecordPageV2 extends ClassicPageV2 {
                     p.topMargin = top;
                     coverL.setLayoutParams(p);
                 }
+                // 圆环圆心同步封面真实中心（父类 post 按经典公式算圆心，与本封面位置脱节；
+                // 底部三件隐藏/恢复后列高变化，此处重申保证圆环始终贴封面外沿）
+                updateRingCenter(coverCol.getWidth() / 2, top + coverSize / 2, coverSize);
             }
         });
     }

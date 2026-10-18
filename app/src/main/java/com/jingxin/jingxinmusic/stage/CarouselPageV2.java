@@ -18,20 +18,17 @@ import java.util.List;
 /**
  * 轮播风格页面 V2（第8风格，完全自持实例）
  *
- * 继承 ClassicPageV2（唱片机验证过的继承复用范式）：骨架/染色/背景/订阅/隐藏全复用。
- * 轮播专属叠加：
- * - 卡片层：CoverCarouselView+Adapter（几何镜像旧版：竖屏 H25%+16dp 容器置顶；
- *   横屏挂本页根全宽置顶 H28%（非 65/35 分栏，infoFlowL 满宽=旧 setLayoutInfoPanelFullWidth
- *   等效），overlap 竖 0.70 / 横 0.30）
+ * 继承 ClassicPageV2（染色/背景/订阅/隐藏全复用），但骨架 XML 独立（stage_page_carousel_v2）：
+ * - 竖屏：卡片层 cv2_carousel 挂页根顶部（cover_area 收起仅保父类绑定）
+ * - 横屏：独立骨架（非经典 65/35 分栏）：卡片置顶全宽 + 信息流满宽 + 底部三件全宽
+ *   （旧轮播 setLayoutInfoPanelFullWidth 等效）
+ * 卡片几何动态值（尺寸/重叠/贴边距/标题位置）仍代码设（依赖屏高百分比）。
  * - 数据通路：播放列表经 Actions 桥取（playerBinder 引用型数据不走 Hub 值语义广播）
  * - 切歌联动：卡片滑动 → 桥 playSongAt(delta)（Fragment 已含全链路刷新）
  * - 歌词模式锁定：竖屏三行↔五行不进全屏；横屏锁双行（旧轮播行为）
  * - 摇摆动画：随播放态启停
  * - 圆形封面隐藏（父类 onCoverArrived 的 CIRCLE 被覆盖为卡片层接管）；
  *   封面 Bitmap 仅作模糊背景（父类已做）
- *
- * 坑防御：卡片定位沿用『布局收敛守卫』思想——卡片几何在 layout() 直接算（父类布局
- * 后封面槽高度已知），不依赖 post 链；列表灌入走 enter 全量+切歌增量。
  */
 public class CarouselPageV2 extends ClassicPageV2 {
 
@@ -62,41 +59,28 @@ public class CarouselPageV2 extends ClassicPageV2 {
 
     @Override
     public void install(android.view.LayoutInflater inflater, ViewGroup host) {
-        super.install(inflater, host);
-        if (carousel == null) {
-            carousel = createCarousel(inflater.getContext());
-            // 竖屏：卡片层叠在封面区（同位替换圆形封面），顶部对齐占位间隙
-            ((ViewGroup) portraitRoot).addView(carousel, new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-                    Gravity.CENTER_HORIZONTAL | Gravity.TOP));
-            carouselAdapter = new CoverCarouselAdapter(inflater.getContext(), h.executor);
-            bindCarousel(carousel, carouselAdapter);
-        }
-        if (carouselL == null) {
-            carouselL = createCarousel(inflater.getContext());
-            // 横屏：卡片层挂本页根全宽置顶（镜像旧 rootLayout 行为；旧轮播横屏是
-            // "卡片在上+文字在下"纵向堆叠，不是经典的 65/35 分栏）
-            ((ViewGroup) landscapeRoot).addView(carouselL, new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-                    Gravity.CENTER_HORIZONTAL | Gravity.TOP));
-            carouselAdapterL = new CoverCarouselAdapter(inflater.getContext(), h.executor);
-            bindCarousel(carouselL, carouselAdapterL);
-            // 卡片两侧溢出可见（镜像旧 rootLayout.setClipChildren(false)，本页私有树一次性设置）
-            ((ViewGroup) portraitRoot).setClipChildren(false);
-            ((ViewGroup) portraitRoot).setClipToPadding(false);
-            ((ViewGroup) landscapeRoot).setClipChildren(false);
-            ((ViewGroup) landscapeRoot).setClipToPadding(false);
-            carousel.setClipChildren(false);
-            carouselL.setClipChildren(false);
-        }
+        super.install(inflater, host); // inflate 本页 XML + 父类全量绑定
+        carousel = portraitRoot.findViewById(R.id.cv2_carousel);
+        carouselL = landscapeRoot.findViewById(R.id.cv2_carousel_land);
+        carousel.setExecutor(h.executor);
+        carouselL.setExecutor(h.executor);
+        carouselAdapter = new CoverCarouselAdapter(inflater.getContext(), h.executor);
+        carouselAdapterL = new CoverCarouselAdapter(inflater.getContext(), h.executor);
+        bindCarousel(carousel, carouselAdapter);
+        bindCarousel(carouselL, carouselAdapterL);
+        // 卡片两侧溢出可见（镜像旧 rootLayout.setClipChildren(false)，本页私有树一次性设置）
+        ((ViewGroup) portraitRoot).setClipChildren(false);
+        ((ViewGroup) portraitRoot).setClipToPadding(false);
+        ((ViewGroup) landscapeRoot).setClipChildren(false);
+        ((ViewGroup) landscapeRoot).setClipToPadding(false);
     }
 
-    private CoverCarouselView createCarousel(android.content.Context ctx) {
-        CoverCarouselView v = new CoverCarouselView(ctx);
-        v.setId(View.generateViewId());
-        v.setExecutor(h.executor);
-        return v;
-    }
+    /** 轮播独立骨架 XML（结构差异固化进布局；id 与经典版一致复用父类绑定） */
+    @Override
+    protected int providePortraitLayout() { return R.layout.stage_page_carousel_v2; }
+
+    @Override
+    protected int provideLandscapeLayout() { return R.layout.stage_page_carousel_v2_land; }
 
     private void bindCarousel(CoverCarouselView v, CoverCarouselAdapter adapter) {
         v.setOnSongChangeListener(delta -> {
@@ -114,10 +98,11 @@ public class CarouselPageV2 extends ClassicPageV2 {
         }
         super.enter();
         boolean landscape = h.isLandscapeMode;
-        // 圆形封面退出，卡片层接管；横屏右列一并收起（infoFlowL 满宽=旧全宽信息流）
+        // 圆形封面/封面列退出（XML 默认 GONE，此处防父类路径回置），卡片层接管
         cover.setVisibility(View.GONE);
         coverL.setVisibility(View.GONE);
         coverCol.setVisibility(View.GONE);
+        coverArea.setVisibility(View.GONE);
         carousel.setVisibility(landscape ? View.GONE : View.VISIBLE);
         carouselL.setVisibility(landscape ? View.VISIBLE : View.GONE);
         // 歌词模式锁定（旧轮播：竖屏三行↔五行不进全屏；横屏锁双行）
@@ -293,14 +278,20 @@ public class CarouselPageV2 extends ClassicPageV2 {
         else stopSway();
     }
 
+    /**
+     * 轮播歌词联动（覆写父类：轮播无全屏歌词、标题常显、圆形封面任何分支不回归）。
+     * 父类版本在"全屏→多行"回退时会回置旋转封面 VISIBLE+经典占位公式（轮播出现旋转封面、
+     * 标题上移贴卡片的根因）；歌词点击在父类页面内直调本方法，必须此处拦截。
+     */
     @Override
-    public void onLyricModeChanged(boolean isFullScreen) {
-        super.onLyricModeChanged(isFullScreen);
-        // 轮播不支持全屏（锁定多行/双行）；卡片层常显
-        lockLyricMode(h.isLandscapeMode);
-        // 父类 applyLyricModeEffect 按经典公式回写占位/封面可见性——按轮播几何重申
+    protected void applyLyricModeEffect(boolean land) {
+        lockLyricMode(land); // 竖屏 FULL→MULTI_LINE 回退；横屏锁双行
+        title.setTitleVisible(true);
+        titleL.setTitleVisible(true);
+        cover.setVisibility(View.GONE);
+        coverArea.setVisibility(View.GONE);
         if (lastWidth > 0 && lastHeight > 0) {
-            applyCarouselGeometry(lastWidth, lastHeight);
+            applyCarouselGeometry(lastWidth, lastHeight); // 占位/卡片几何按轮播公式重申
         }
     }
 

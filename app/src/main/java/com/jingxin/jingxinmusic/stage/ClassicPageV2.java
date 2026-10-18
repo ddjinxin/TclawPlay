@@ -131,8 +131,8 @@ public class ClassicPageV2 extends StagePage {
     @Override
     public void install(LayoutInflater inflater, ViewGroup host) {
         if (installed) return;
-        portraitRoot = inflater.inflate(R.layout.stage_page_classic_v2, host, false);
-        landscapeRoot = inflater.inflate(R.layout.stage_page_classic_v2_land, host, false);
+        portraitRoot = inflater.inflate(providePortraitLayout(), host, false);
+        landscapeRoot = inflater.inflate(provideLandscapeLayout(), host, false);
         host.addView(portraitRoot, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         host.addView(landscapeRoot, new FrameLayout.LayoutParams(
@@ -141,6 +141,12 @@ public class ClassicPageV2 extends StagePage {
         bindLandscape(inflater.getContext());
         installed = true;
     }
+
+    /** 本页布局资源（子类覆写指向自己的独立 XML；节点 id 必须与经典版一致以复用父类绑定） */
+    protected int providePortraitLayout() { return R.layout.stage_page_classic_v2; }
+
+    /** 本页横屏布局资源（子类覆写指向自己的独立 XML） */
+    protected int provideLandscapeLayout() { return R.layout.stage_page_classic_v2_land; }
 
     private void bindPortrait(android.content.Context ctx) {
         aurora = portraitRoot.findViewById(R.id.v2_aurora);
@@ -240,14 +246,14 @@ public class ClassicPageV2 extends StagePage {
         search.setOnClickListener(v -> { if (actions != null) actions.showLyricSearchPopup(search); });
         specBtn.setOnClickListener(v -> {
             if (actions != null) {
-                // 频谱可见→弹样式选择；隐藏→恢复显示（镜像旧 btnSpectrum 单击行为）
-                boolean overlayNow = (land ? spectrumL : (h.isLandscapeMode ? spectrumL : spectrum)).isSpectrumVisible();
-                SpectrumView active = h.isLandscapeMode ? spectrumL : spectrum;
-                if (active.isSpectrumVisible()) {
+                // 判定用本页用户隐藏标志 spectrumHidden（长按切换的就是它）。
+                // 不能读 bottom 实例 isSpectrumVisible()：圆环样式时 applySpectrumVisibility
+                // 会把 bottom 实例布局性 GONE，重写的 setVisibility 同步置 visible=false，
+                // 误判成"用户隐藏"后走恢复分支空转，样式选择弹窗永不弹出（V2 圆环样式点击失效根因）
+                if (!spectrumHidden) {
                     actions.showSpectrumPicker(specBtn);
                 } else {
-                    active.toggleVisibility();
-                    spectrumHidden = !active.isSpectrumVisible();
+                    spectrumHidden = false;
                     applySpectrumVisibility();
                 }
             }
@@ -789,6 +795,19 @@ public class ClassicPageV2 extends StagePage {
         applySpectrumVisibility();
     }
 
+    /**
+     * 子类（封面位置与经典公式不同的风格，如唱机 armReserve 让位）重定位封面后，
+     * 用真实封面中心同步圆环圆心；底部三件隐藏/恢复等布局变化时必须重申
+     * （父类 layoutLandscapeImpl 的 post 只会按经典公式回写圆心，唱机封面被二次挪位后即脱节）。
+     */
+    protected void updateRingCenter(int cx, int cy, int size) {
+        if (cx <= 0 || cy <= 0 || size <= 0) return;
+        ringCx = cx;
+        ringCy = cy;
+        ringSize = size;
+        applySpectrumRing();
+    }
+
     // ===== 频谱数据管道 + 样式镜像（Fragment 桥接）=====
 
     /** 进入时镜像旧频谱实例的样式与隐藏态（防止切风格期间用户改过） */
@@ -837,8 +856,8 @@ public class ClassicPageV2 extends StagePage {
 
     // ===== 歌词模式联动（本页闭环，不动全局）=====
 
-    /** 歌词点击切模式后的本页联动（复刻 ClassicPage.onLyricModeChanged 竖屏公式） */
-    private void applyLyricModeEffect(boolean land) {
+    /** 歌词点击切模式后的本页联动（复刻 ClassicPage.onLyricModeChanged 竖屏公式；子类可覆写） */
+    protected void applyLyricModeEffect(boolean land) {
         LyricView ly = land ? lyricL : lyric;
         boolean isFull = ly.getDisplayMode() == LyricView.DisplayMode.FULL;
         if (isFull) {
