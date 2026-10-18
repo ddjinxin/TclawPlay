@@ -155,6 +155,19 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int COVER_STYLE_IMMERSIVE_V2 = 5; // 第6风格：沉浸 V2（自持实例页）
     private static final int COVER_STYLE_RECORD_V2 = 6; // 第7风格：唱片机 V2（自持实例页）
     private static final int COVER_STYLE_CAROUSEL_V2 = 7; // 第8风格：轮播 V2（自持实例页）
+
+    /**
+     * 风格入口收口：旧四风格（0~3）已隐藏（双轨观察期，代码保留），入口只在 V2 新风格间循环。
+     * 读 prefs 时旧值映射到对应新风格（0→新经典 1→沉浸新 2→唱片机新 3→轮播新）。
+     */
+    private static final boolean HIDE_LEGACY_STYLES = true;
+
+    /** 风格值规范化：隐藏开关开启时旧值映射到对应 V2 新风格（幂等） */
+    private static int normalizeCoverStyle(int style) {
+        if (!HIDE_LEGACY_STYLES) return style;
+        if (style < COVER_STYLE_CLASSIC_V2) return style + COVER_STYLE_CLASSIC_V2;
+        return style > COVER_STYLE_CAROUSEL_V2 ? COVER_STYLE_CLASSIC_V2 : style;
+    }
     private int coverStyle = COVER_STYLE_CLASSIC;
     private com.jingxin.jingxinmusic.view.AuroraGradientView auroraBackgroundView;
     private int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
@@ -770,7 +783,7 @@ public class PlayerFragment extends BaseFloatFragment {
         Context ctx = requireContext();
         isNightMode = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE).getBoolean("isNight", true);
         stateHub.setNightMode(isNightMode); // 初始值入中枢
-        coverStyle = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC);
+        coverStyle = normalizeCoverStyle(ctx.getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC));
         bgSkinMode = SettingsFragment.getBgSkin(ctx);
         stateHub.setBgSkinMode(bgSkinMode); // 必须在读取 bgSkinMode 之后写中枢（此前写在读取前，恒写 0=默认皮肤）
         sceneHelper.bgSkinMode = bgSkinMode; // 同步到 helper，确保 enter() 能正确判断
@@ -955,7 +968,7 @@ public class PlayerFragment extends BaseFloatFragment {
         super.onResume();
         // 从设置页返回时重读背景皮肤和封面风格，切换即时生效
         int savedBgSkin = SettingsFragment.getBgSkin(requireContext());
-        int savedCoverStyle = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC);
+        int savedCoverStyle = normalizeCoverStyle(requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC));
         boolean skinOrStyleChanged = savedBgSkin != bgSkinMode || savedCoverStyle != coverStyle;
         if (skinOrStyleChanged) {
             bgSkinMode = savedBgSkin;
@@ -2181,7 +2194,10 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void toggleImmersiveMode() {
         int prevStyle = coverStyle;
-        coverStyle = (coverStyle + 1) % 8;
+        // 装扮循环只在 V2 新风格间切换（旧四风格已隐藏，收口入口；若内存值为旧风格异常态则先归位）
+        coverStyle = HIDE_LEGACY_STYLES
+                ? COVER_STYLE_CLASSIC_V2 + (Math.max(coverStyle, COVER_STYLE_CLASSIC_V2) + 1 - COVER_STYLE_CLASSIC_V2) % 4
+                : (coverStyle + 1) % 8;
         requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
         // 沉浸模式下圆环/扩散圆环/波浪圆环不可用，循环跳过
