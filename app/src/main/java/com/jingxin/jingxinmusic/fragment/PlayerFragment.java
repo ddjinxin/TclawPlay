@@ -104,18 +104,6 @@ public class PlayerFragment extends BaseFloatFragment {
     private SeekBar seekBar;
     private TextView tvCurrentTime;
     private TextView tvTotalTime;
-    private ImageView btnPlayPause;
-    private ImageView btnPrevious;
-    private ImageView btnNext;
-    private ImageView btnHistory;
-    private ImageView btnFavorite;
-    private ImageView btnDownload;
-    private ImageView btnPlayOrder;
-    private ImageView btnBack;
-    private ImageView btnSpectrum;
-    private ImageView btnOutfit;
-    private ImageView btnLyricSearch;
-    private ImageView btnEffect; // 音效按钮（顶部，返回键右侧）
     private android.widget.PopupWindow effectPickerPopup; // 音效选择浮窗
     private View overlayView;
     private View whiteOverlay;
@@ -609,19 +597,6 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override public void onFavorite() { toggleFavorite(); }
             @Override public void onDownload() { saveBiliOffline(); }
         });
-        // 过渡期兼容：Scene 层布局手术仍直接访问单个按钮
-        btnPlayPause = controlBar.accessButton(R.id.play_pause_button);
-        btnPrevious = controlBar.accessButton(R.id.previous_button);
-        btnNext = controlBar.accessButton(R.id.next_button);
-        btnHistory = controlBar.accessButton(R.id.history_button);
-        btnFavorite = controlBar.accessButton(R.id.mode_button);  // 复用 mode_button 位置
-        btnDownload = controlBar.accessButton(R.id.download_button);
-        btnPlayOrder = controlBar.accessButton(R.id.play_order_button);
-        btnBack = view.findViewById(R.id.back_button);
-        btnSpectrum = view.findViewById(R.id.spectrum_button);
-        btnOutfit = view.findViewById(R.id.outfit_button);
-        btnLyricSearch = view.findViewById(R.id.lyric_search_button);
-        btnEffect = view.findViewById(R.id.effect_button);
         overlayView = view.findViewById(R.id.overlay_view);
         whiteOverlay = view.findViewById(R.id.white_overlay);
         // 初始化白天模式渐变遮罩：浅蓝(0xFFADD8E6)→白(0xFFFFFFFF)，左上到右下
@@ -751,15 +726,6 @@ public class PlayerFragment extends BaseFloatFragment {
             updateLayoutForMode(m);
         });
         lyricView.setOnModeChangeListener(newMode -> updateLayoutForMode(newMode));
-        btnOutfit.setOnClickListener(v -> toggleImmersiveMode());
-        // 单击：弹出频谱选择面板（频谱可见时）或恢复显示频谱
-        // 长按：切换频谱显示/隐藏
-        btnBack.setOnClickListener(v -> {
-            stopSpectrum();
-            requireActivity().onBackPressed();
-        });
-        btnLyricSearch.setOnClickListener(v -> showLyricSearchPopup());
-        btnEffect.setOnClickListener(v -> showEffectPickerPopup());
 
         // 注册广播接收器（监听切歌和播放状态）
             IntentFilter filter = new IntentFilter();
@@ -835,9 +801,7 @@ public class PlayerFragment extends BaseFloatFragment {
         boolean spectrumEnabled = SettingsFragment.isSpectrumEnabled(requireContext());
         if (!spectrumEnabled) {
             stopSpectrum();
-            btnSpectrum.setVisibility(View.GONE);
         } else {
-            btnSpectrum.setVisibility(View.VISIBLE);
             if (bound && playerBinder != null && playerBinder.isPlaying()) {
                 startSpectrumWithPermission();
             }
@@ -1227,16 +1191,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private void initCoverScene() {
         android.widget.FrameLayout rootLayout = mRootView.findViewById(R.id.root_layout);
         sceneHelper = new CoverSceneHelper(
-                rootLayout, blurBackground, tvSongName, tvArtist,
-                lyricView, spectrumView, seekBar, tvCurrentTime, tvTotalTime,
-                btnPlayPause, btnPrevious, btnNext, btnFavorite,
-                infoPanel, coverPlaceholder, overlayView, whiteOverlay,
-                immersiveDarkOverlay, immersiveOverlay,
-                btnBack, btnSpectrum, btnOutfit,
-                mRootView.findViewById(R.id.top_buttons_bar),
-                mRootView.findViewById(R.id.control_buttons),
-                mRootView.findViewById(R.id.progress_panel),
-                mRootView.findViewById(R.id.right_buttons_group),
+                rootLayout, blurBackground, spectrumView, infoPanel,
                 getResources().getDisplayMetrics().density);
         sceneHelper.bgSkinMode = bgSkinMode;
         sceneHelper.coverStyle = coverStyle;
@@ -1748,13 +1703,11 @@ public class PlayerFragment extends BaseFloatFragment {
                     historyPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
                 }
                 historyPopup.setElevation(8 * density * sf);
-                if (isLandscapeMode) {
-                    historyPopup.showAtLocation(btnHistory,
-                            android.view.Gravity.TOP | android.view.Gravity.START, 0, (int)(60 * density * sf));
-                } else {
-                    historyPopup.showAtLocation(btnHistory,
-                            android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL, 0, (int)(60 * density * sf));
-                }
+                historyPopup.showAtLocation(mRootView,
+                        isLandscapeMode
+                                ? (android.view.Gravity.TOP | android.view.Gravity.START)
+                                : (android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL),
+                        0, (int)(60 * density * sf));
             });
         });
     }
@@ -2029,7 +1982,7 @@ public class PlayerFragment extends BaseFloatFragment {
         }
         spectrumPickerPopup.setElevation(8 * density * sf);
         // 左边距0，垂直居中
-        spectrumPickerPopup.showAtLocation(btnSpectrum, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
+        spectrumPickerPopup.showAtLocation(mRootView, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
                 0, 0);
     }
 
@@ -2156,9 +2109,6 @@ public class PlayerFragment extends BaseFloatFragment {
         if (mRootView != null) {
             effectPickerPopup.showAtLocation(mRootView, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
                     0, 0);
-        } else {
-            effectPickerPopup.showAtLocation(btnEffect, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
-                    0, 0);
         }
     }
 
@@ -2273,13 +2223,11 @@ public class PlayerFragment extends BaseFloatFragment {
             lyricSearchPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         }
         lyricSearchPopup.setElevation(8 * density * sf);
-        if (isLandscapeMode) {
-            lyricSearchPopup.showAtLocation(btnLyricSearch,
-                    android.view.Gravity.TOP | android.view.Gravity.START, 0, popupTop);
-        } else {
-            lyricSearchPopup.showAtLocation(btnLyricSearch,
-                    android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL, 0, popupTop);
-        }
+        lyricSearchPopup.showAtLocation(mRootView,
+                isLandscapeMode
+                        ? (android.view.Gravity.TOP | android.view.Gravity.START)
+                        : (android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL),
+                0, popupTop);
 
         // 异步搜索（传入当前歌曲时长用于排序，优先用ExoPlayer真实时长）
         final String searchTitle = cleanTitle;
@@ -2462,14 +2410,6 @@ public class PlayerFragment extends BaseFloatFragment {
         // 底部控制条（7键含收藏红态）
         controlBar.applyTheme(isNight, isFavorite,
                 ThemeColors.dayTextPrimary(), ThemeColors.FAVORITE_RED);
-        // 顶部栏按钮
-        ImageView[] buttons = {btnBack, btnSpectrum, btnOutfit, btnLyricSearch, btnEffect};
-        if (isNight) {
-            for (ImageView btn : buttons) btn.clearColorFilter();
-        } else {
-            int buttonColor = ThemeColors.dayTextPrimary();
-            for (ImageView btn : buttons) btn.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
-        }
         // 光晕模式下用专用进度条配色，非光晕模式用原逻辑
     }
 

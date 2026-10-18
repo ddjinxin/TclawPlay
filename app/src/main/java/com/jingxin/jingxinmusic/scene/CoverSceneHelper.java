@@ -1,27 +1,13 @@
 package com.jingxin.jingxinmusic.scene;
 
-import android.graphics.Bitmap;
-import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
-import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.SeekBar;
-import android.widget.TextView;
 
-import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
-import com.jingxin.jingxinmusic.util.BlurUtil;
-import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable;
-import com.jingxin.jingxinmusic.view.CoverCarouselAdapter;
-import com.jingxin.jingxinmusic.view.CoverCarouselView;
-import com.jingxin.jingxinmusic.view.ImmersiveOverlayView;
 import com.jingxin.jingxinmusic.view.LandscapeGradientOverlay;
-import com.jingxin.jingxinmusic.view.LyricView;
+import com.jingxin.jingxinmusic.view.ImmersiveOverlayView;
 import com.jingxin.jingxinmusic.view.SpectrumView;
 
 
@@ -33,35 +19,12 @@ import java.util.concurrent.ExecutorService;
  */
 public class CoverSceneHelper {
 
-    // --- View 引用 ---
-    public final FrameLayout rootLayout;
-    public final ImageView blurBackground;
-    // （旧共享封面 coverView 已随旧四风格页下线；V2 页自持封面）
-    public final TextView tvSongName;
-    public final TextView tvArtist;
-    public final LyricView lyricView;
-    public final SpectrumView spectrumView;
-    public final SeekBar seekBar;
-    public final TextView tvCurrentTime;
-    public final TextView tvTotalTime;
-    public final ImageView btnPlayPause;
-    public final ImageView btnPrevious;
-    public final ImageView btnNext;
-    public final ImageView btnFavorite;
-    public final View infoPanel;
-    public final View coverPlaceholder;
-    public final View overlayView;
-    public final View whiteOverlay;
-    public final View immersiveDarkOverlay;
-    public final ImmersiveOverlayView immersiveOverlay;
-    public final ImageView btnBack;
-    public final ImageView btnSpectrum;
-    public final ImageView btnOutfit;
-    public final View topButtonsBar;
-    public final View controlButtons;
-    public final View progressLayout;
-    public final LinearLayout rightButtonsGroup;
-    // （旧共享唱臂 tonearmView 已随旧四风格页下线；V2 唱机页自持唱臂）
+    // --- View 引用（旧架构 26 视图已收敛：V2 页自持全部组件，
+    //     helper 仅保留跨页/跨模块仍被引用的 4 个）---
+    public final FrameLayout rootLayout;      // V2 页 install 宿主 + 布局基准
+    public final ImageView blurBackground;    // 背景皮肤链（BackgroundSkinContext）
+    public final SpectrumView spectrumView;   // 频谱真值锚（prefs 同步源/数据泵宿主）
+    public final View infoPanel;              // 皮肤层级锚（AuroraBackgroundSkin 层序定位）
 
 
     // --- 可变状态 ---
@@ -84,59 +47,17 @@ public class CoverSceneHelper {
     public CoverSceneHelper(
             FrameLayout rootLayout,
             ImageView blurBackground,
-            TextView tvSongName,
-            TextView tvArtist,
-            LyricView lyricView,
             SpectrumView spectrumView,
-            SeekBar seekBar,
-            TextView tvCurrentTime,
-            TextView tvTotalTime,
-            ImageView btnPlayPause,
-            ImageView btnPrevious,
-            ImageView btnNext,
-            ImageView btnFavorite,
             View infoPanel,
-            View coverPlaceholder,
-            View overlayView,
-            View whiteOverlay,
-            View immersiveDarkOverlay,
-            ImmersiveOverlayView immersiveOverlay,
-            ImageView btnBack,
-            ImageView btnSpectrum,
-            ImageView btnOutfit,
-            View topButtonsBar,
-            View controlButtons,
-            View progressLayout,
-            LinearLayout rightButtonsGroup,
             float density) {
         this.rootLayout = rootLayout;
         this.blurBackground = blurBackground;
-        this.tvSongName = tvSongName;
-        this.tvArtist = tvArtist;
-        this.lyricView = lyricView;
         this.spectrumView = spectrumView;
-        this.seekBar = seekBar;
-        this.tvCurrentTime = tvCurrentTime;
-        this.tvTotalTime = tvTotalTime;
-        this.btnPlayPause = btnPlayPause;
-        this.btnPrevious = btnPrevious;
-        this.btnNext = btnNext;
-        this.btnFavorite = btnFavorite;
         this.infoPanel = infoPanel;
-        this.coverPlaceholder = coverPlaceholder;
-        this.overlayView = overlayView;
-        this.whiteOverlay = whiteOverlay;
-        this.immersiveDarkOverlay = immersiveDarkOverlay;
-        this.immersiveOverlay = immersiveOverlay;
-        this.btnBack = btnBack;
-        this.btnSpectrum = btnSpectrum;
-        this.btnOutfit = btnOutfit;
-        this.topButtonsBar = topButtonsBar;
-        this.controlButtons = controlButtons;
-        this.progressLayout = progressLayout;
-        this.rightButtonsGroup = rightButtonsGroup;
         this.density = density;
     }
+
+    // ========== 通用工具方法 ==========
 
     // ========== 通用工具方法 ==========
 
@@ -160,27 +81,6 @@ public class CoverSceneHelper {
         float aspectFactor = 1f + Math.max(0f, (width / (float) height - 1.78f) / 3f);
         int topBtnSize = (int) (height * rBackTop * aspectFactor * 1.3f);
         return topMargin + topBtnSize;
-    }
-
-    /** 设置底部按钮高度和 padding */
-    private void resizeBottomButton(int viewId, int size, int padding) {
-        resizeBottomButton(viewId, size, padding, 1f);
-    }
-
-    /** 设置底部按钮高度、padding、宽度权重（weight 越大分到的格子越宽） */
-    private void resizeBottomButton(int viewId, int size, int padding, float weight) {
-        ImageView btn = rootLayout.findViewById(viewId);
-        if (btn != null) {
-            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) btn.getLayoutParams();
-            p.height = size; p.weight = weight;
-            btn.setLayoutParams(p);
-            btn.setPadding(padding, padding, padding, padding);
-        }
-    }
-
-    /** 值域约束 */
-    private static float clamp(float value, float min, float max) {
-        return Math.max(min, Math.min(max, value));
     }
 
     /**
