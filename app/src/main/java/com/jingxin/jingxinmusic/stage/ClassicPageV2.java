@@ -74,7 +74,8 @@ public class ClassicPageV2 extends StagePage {
 
     // 竖屏视图
     private AuroraGradientView aurora; private ImageView blurBg;
-    private View lightMask, darkMask, hideTouchLayer, coverPlaceholder;
+    private View lightMask, darkMask, hideTouchLayer;
+    protected View coverPlaceholder; // 子类（轮播V2）按旧轮播占位公式重设高度
     protected FrameLayout coverArea;
     protected RotatingCoverView cover;
     private SpectrumView spectrumRing;
@@ -93,7 +94,7 @@ public class ClassicPageV2 extends StagePage {
     private SpectrumView spectrumRingL;
     private LinearLayout infoFlowL;
     protected SongTitleBar titleL; protected LyricView lyricL;
-    private SpectrumView spectrumL;
+    protected SpectrumView spectrumL; // 子类（轮播V2）横屏频谱高按旧公式 0.08H 重设
     private ProgressPanel progressL; private ControlBar controlL;
     private LinearLayout topBarL; private View topSpacerL, rightGroupL;
     private ImageView btnBackL, btnEffectL, btnLyricSearchL, btnSpectrumL, btnOutfitL;
@@ -116,8 +117,8 @@ public class ClassicPageV2 extends StagePage {
 
     // 频谱圆环圆心（layout 时算出，传给 ring 实例）
     private int ringCx, ringCy, ringSize;
-    // 最近一次布局尺寸（applyThemeColors 里进度条缩放需要）
-    private int lastWidth, lastHeight;
+    // 最近一次布局尺寸（applyThemeColors 里进度条缩放需要；子类歌词联动后重申几何）
+    protected int lastWidth, lastHeight;
 
     public ClassicPageV2(com.jingxin.jingxinmusic.scene.CoverSceneHelper helper) {
         super(helper);
