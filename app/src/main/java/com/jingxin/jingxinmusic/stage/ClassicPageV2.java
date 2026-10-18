@@ -58,24 +58,28 @@ public class ClassicPageV2 extends StagePage {
         boolean isBiliSong();
         void exitPlayerPage(); // 返回键：退出播放页（与旧页语义一致）；装扮键切换走 outfit 循环
         void switchOutfitStyle(); // 装扮键：outfit 循环切换风格（第5风格进出循环）
+        // 进度条拖动（旧页 onSeek* 三回调：start暂停自动隐藏/to执行seek/stop恢复计时）
+        void onSeekStart();
+        void onSeekTo(int positionMs);
+        void onSeekStop();
         boolean isControlsHidden(); // 当前精简模式态（旧页 controlsHidden，进 V2 时同步）
         void onV2ControlsTouched(); // V2 内交互：向旧机制上报活动（重置隐藏计时）
     }
 
-    private Actions actions;
+    protected Actions actions;
 
     // ===== 双 XML 根与视图 =====
-    private View portraitRoot;   // stage_page_classic_v2.xml
-    private View landscapeRoot;  // stage_page_classic_v2_land.xml
+    protected View portraitRoot;   // stage_page_classic_v2.xml
+    protected View landscapeRoot;  // stage_page_classic_v2_land.xml
 
     // 竖屏视图
     private AuroraGradientView aurora; private ImageView blurBg;
     private View lightMask, darkMask, hideTouchLayer, coverPlaceholder;
-    private FrameLayout coverArea;
-    private RotatingCoverView cover;
+    protected FrameLayout coverArea;
+    protected RotatingCoverView cover;
     private SpectrumView spectrumRing;
     private LinearLayout infoFlow;
-    private SongTitleBar title; private LyricView lyric;
+    protected SongTitleBar title; protected LyricView lyric;
     private SpectrumView spectrum;
     private ProgressPanel progress; private ControlBar control;
     private LinearLayout topBar; private View topSpacer, rightGroup;
@@ -84,11 +88,11 @@ public class ClassicPageV2 extends StagePage {
     // 横屏视图（_land 后缀 XML，独立实例）
     private AuroraGradientView auroraL; private ImageView blurBgL;
     private View lightMaskL, darkMaskL, hideTouchLayerL;
-    private FrameLayout coverCol;
-    private RotatingCoverView coverL;
+    protected FrameLayout coverCol;
+    protected RotatingCoverView coverL;
     private SpectrumView spectrumRingL;
     private LinearLayout infoFlowL;
-    private SongTitleBar titleL; private LyricView lyricL;
+    protected SongTitleBar titleL; protected LyricView lyricL;
     private SpectrumView spectrumL;
     private ProgressPanel progressL; private ControlBar controlL;
     private LinearLayout topBarL; private View topSpacerL, rightGroupL;
@@ -205,6 +209,12 @@ public class ClassicPageV2 extends StagePage {
         ImageView outfit = land ? btnOutfitL : btnOutfit;
         View touchLayer = land ? hideTouchLayerL : hideTouchLayer;
 
+        // 进度条拖动（三 V2 风格此前未接此监听——拖动无响应的根因）
+        pp.setListener(new ProgressPanel.Listener() {
+            @Override public void onSeekStart() { if (actions != null) actions.onSeekStart(); }
+            @Override public void onSeekTo(int positionMs) { if (actions != null) actions.onSeekTo(positionMs); }
+            @Override public void onSeekStop() { if (actions != null) actions.onSeekStop(); }
+        });
         // 数据通道订阅：统一在 enter() 时 attach（exit 会 detach，横竖重入后必须重接）
         // 监听器（控制事件/点击）在 install 时一次性绑定，不随 exit 失效
         cb.setListener(new ControlBar.Listener() {
@@ -246,7 +256,10 @@ public class ClassicPageV2 extends StagePage {
         });
 
         //歌词：数据经 Hub 广播灌入；点击切模式 → 本页联动（经典分支：toggleMode + 本页收敛）
-        ly.setOnModeChangeListener(mode -> applyLyricModeEffect(land));
+        ly.setOnModeChangeListener(mode -> {
+            applyLyricModeEffect(land);
+            onLyricModeChanged(mode == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
+        });
         ly.setOnClickListener(v -> {
             LyricView.DisplayMode m = ly.toggleMode();
             applyLyricModeEffect(land);
@@ -449,7 +462,8 @@ public class ClassicPageV2 extends StagePage {
 
     // ===== 封面 / 双色 / 歌词到达 =====
 
-    private void onCoverArrived(Bitmap bitmap, boolean landscape) {
+    /** 封面到达（protected hook：唱片机子类覆盖以叠加黑胶形态） */
+    protected void onCoverArrived(Bitmap bitmap, boolean landscape) {
         hasCoverImage = true;
         cover.setImageBitmap(bitmap);
         coverL.setImageBitmap(bitmap);
