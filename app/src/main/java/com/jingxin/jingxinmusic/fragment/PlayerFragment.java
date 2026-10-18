@@ -222,6 +222,8 @@ public class PlayerFragment extends BaseFloatFragment {
                 song = newSong;
                 songTitleBar.setSong(newSong);
                 progressPanel.resetForNewSong(newSong.duration);
+                // Hub 封面/歌词快照失效（新歌数据到达前，独立页不读到旧歌缓存）
+                stateHub.invalidateCoverAndLyric();
                 loadCover();
                 fetchLyrics();
                 checkFavoriteStatus();
@@ -1638,10 +1640,14 @@ public class PlayerFragment extends BaseFloatFragment {
         LyricFetcher.loadLyric(title, artist, song.filePath, lyricsDir, new LyricFetcher.LyricCallback() {
             @Override
             public void onLyricFetched(KrcParser.LyricData lyricData) {
-                if (lyricView != null && lyricData != null && lyricData.lines != null && !lyricData.lines.isEmpty()) {
-                    uiHandler.post(() -> {
-                        lyricView.setLyricData(lyricData);
-                    });
+                if (lyricData != null && lyricData.lines != null && !lyricData.lines.isEmpty()) {
+                    // Hub 歌词通道广播（独立页订阅；同一 LyricData 对象引用转发，零重复解析）
+                    stateHub.setLyricData(lyricData);
+                    if (lyricView != null) {
+                        uiHandler.post(() -> {
+                            lyricView.setLyricData(lyricData);
+                        });
+                    }
                 } else {
                 }
             }
@@ -1720,10 +1726,12 @@ public class PlayerFragment extends BaseFloatFragment {
         hasCoverLoaded = true;
         syncSceneState();
         currentScene.setCover(bitmap);
+        // Hub 封面通道广播（独立页订阅；旧页直调路径不变，双轨互不影响）
+        stateHub.setCover(bitmap);
         // 通知 Service 更新 MediaSession metadata（含封面）
         notifyMetadataUpdate();
-        // 双色光晕模式（仅经典模式）：从封面提取双色，更新光晕 View + 歌词高亮色
-        if (isAuroraActive() && auroraBackgroundView != null) {
+        // 双色提取（无条件执行：双色广播给独立页随时可切光晕；旧路径仅光晕激活时消费）
+        {
             final int token = ++coverColorToken; // 每次取色递增token，回调时校验防竞态
             executor.execute(() -> {
                 try {
@@ -1737,6 +1745,8 @@ public class PlayerFragment extends BaseFloatFragment {
                         uiHandler.post(() -> {
                             // 主线程再次校验token，确保最终应用的是最新歌曲的颜色
                             if (token != coverColorToken) return;
+                            // Hub 双色通道广播（独立页光晕/歌词高亮消费）
+                            stateHub.setCoverColors(colors.top, colors.bottom);
                             if (auroraBackgroundView != null) {
                                 auroraBackgroundView.setColors(colors.top, colors.bottom);
                             }
@@ -2582,9 +2592,13 @@ public class PlayerFragment extends BaseFloatFragment {
                                 @Override
                                 public void onLyricFetched(KrcParser.LyricData lyricData) {
                                     uiHandler.post(() -> {
-                                        if (lyricView != null && lyricData != null
-                                                && lyricData.lines != null && !lyricData.lines.isEmpty()) {
-                                            lyricView.setLyricData(lyricData);
+                                        if (lyricData != null && lyricData.lines != null
+                                                && !lyricData.lines.isEmpty()) {
+                                            // Hub 歌词通道广播（歌词搜索下载成功路径）
+                                            stateHub.setLyricData(lyricData);
+                                            if (lyricView != null) {
+                                                lyricView.setLyricData(lyricData);
+                                            }
                                             android.widget.Toast.makeText(requireContext(),
                                                     "歌词已更新", android.widget.Toast.LENGTH_SHORT).show();
                                         }

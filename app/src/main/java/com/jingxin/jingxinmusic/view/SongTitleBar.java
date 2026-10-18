@@ -76,7 +76,46 @@ public class SongTitleBar extends LinearLayout {
         tvArtist.setTextColor(color);
     }
 
-    // ===== 兼容访问（Scene 布局手术 / 歌词定位取坐标） =====
+    // ===== 页面传参模式（独立页：组件自改布局，宿主不碰内部 View） =====
+
+    /** 标题排布参数（页面声明诉求，组件内部自设） */
+    public static class TitleScene {
+        public final float nameTextSizePx;   // 歌名字号
+        public final float artistScale;      // 歌手字号 = 歌名 × 此系数
+        public final int topMarginPx;        // 歌名 topMargin（本组件父为垂直流）
+        public final boolean centerHorizontal; // 水平居中
+
+        public TitleScene(float nameTextSizePx, float artistScale,
+                          int topMarginPx, boolean centerHorizontal) {
+            this.nameTextSizePx = nameTextSizePx;
+            this.artistScale = artistScale;
+            this.topMarginPx = topMarginPx;
+            this.centerHorizontal = centerHorizontal;
+        }
+    }
+
+    /** 应用排布参数（组件自理：字号/对齐/margin 全部内部设置） */
+    public void applyScene(TitleScene scene) {
+        if (scene == null) return;
+        tvSongName.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, scene.nameTextSizePx);
+        tvArtist.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX,
+                scene.nameTextSizePx * scene.artistScale);
+        tvSongName.setGravity(scene.centerHorizontal
+                ? android.view.Gravity.CENTER_HORIZONTAL : android.view.Gravity.START);
+        tvArtist.setGravity(tvSongName.getGravity());
+        android.widget.LinearLayout.LayoutParams p =
+                (android.widget.LinearLayout.LayoutParams) tvSongName.getLayoutParams();
+        p.topMargin = scene.topMarginPx;
+        tvSongName.setLayoutParams(p);
+    }
+
+    /** 歌词全屏等场景整组显隐 */
+    public void setTitleVisible(boolean visible) {
+        tvSongName.setVisibility(visible ? VISIBLE : GONE);
+        tvArtist.setVisibility(visible ? VISIBLE : GONE);
+    }
+
+    // ===== 兼容访问（Scene 布局手术 / 歌词定位取坐标，过渡期） =====
 
     public TextView songNameView() {
         return tvSongName;

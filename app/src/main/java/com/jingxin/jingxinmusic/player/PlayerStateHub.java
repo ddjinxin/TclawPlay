@@ -79,14 +79,37 @@ public class PlayerStateHub {
         void onProgress(int positionMs, int durationMs);
     }
 
+    /** 封面观察者（封面 bitmap，低频：切歌/加载完成） */
+    public interface CoverObserver {
+        void onCoverChanged(android.graphics.Bitmap bitmap);
+    }
+
+    /** 封面双色观察者（主色 top / 副色 bottom，光晕皮肤消费） */
+    public interface CoverColorObserver {
+        void onCoverColorsChanged(int colorTop, int colorBottom);
+    }
+
+    /** 歌词观察者（歌词数据，低频：切歌/搜索下载完成） */
+    public interface LyricObserver {
+        void onLyricLoaded(com.jingxin.jingxinmusic.util.KrcParser.LyricData data);
+    }
+
     // ===== 当前值 =====
     private volatile State state = new State(null, false, 0, false, 0, false);
     private volatile int positionMs = 0;
     private volatile int durationMs = 0;
+    private volatile android.graphics.Bitmap coverBitmap = null;
+    private volatile boolean hasCoverColors = false;
+    private volatile int coverColorTop = 0;
+    private volatile int coverColorBottom = 0;
+    private volatile com.jingxin.jingxinmusic.util.KrcParser.LyricData lyricData = null;
 
     // ===== 观察者 =====
     private final List<Observer> observers = new CopyOnWriteArrayList<>();
     private final List<ProgressObserver> progressObservers = new CopyOnWriteArrayList<>();
+    private final List<CoverObserver> coverObservers = new CopyOnWriteArrayList<>();
+    private final List<CoverColorObserver> coverColorObservers = new CopyOnWriteArrayList<>();
+    private final List<LyricObserver> lyricObservers = new CopyOnWriteArrayList<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     // ===== 订阅 =====
@@ -105,6 +128,30 @@ public class PlayerStateHub {
 
     public void removeProgressObserver(ProgressObserver o) {
         progressObservers.remove(o);
+    }
+
+    public void addCoverObserver(CoverObserver o) {
+        if (o != null && !coverObservers.contains(o)) coverObservers.add(o);
+    }
+
+    public void removeCoverObserver(CoverObserver o) {
+        coverObservers.remove(o);
+    }
+
+    public void addCoverColorObserver(CoverColorObserver o) {
+        if (o != null && !coverColorObservers.contains(o)) coverColorObservers.add(o);
+    }
+
+    public void removeCoverColorObserver(CoverColorObserver o) {
+        coverColorObservers.remove(o);
+    }
+
+    public void addLyricObserver(LyricObserver o) {
+        if (o != null && !lyricObservers.contains(o)) lyricObservers.add(o);
+    }
+
+    public void removeLyricObserver(LyricObserver o) {
+        lyricObservers.remove(o);
     }
 
     // ===== 同步读取 =====
@@ -139,6 +186,21 @@ public class PlayerStateHub {
 
     public int getDurationMs() {
         return durationMs;
+    }
+
+    /** 当前封面快照（可能为 null：无封面/未加载） */
+    public android.graphics.Bitmap getCover() {
+        return coverBitmap;
+    }
+
+    /** 当前歌词快照（可能为 null） */
+    public com.jingxin.jingxinmusic.util.KrcParser.LyricData getLyricData() {
+        return lyricData;
+    }
+
+    /** 封面双色是否已提取 */
+    public boolean hasCoverColors() {
+        return hasCoverColors;
     }
 
     // ===== 写入（值语义，变化才通知） =====
@@ -183,6 +245,70 @@ public class PlayerStateHub {
         this.positionMs = positionMs;
         this.durationMs = durationMs;
         notifyProgress();
+    }
+
+    // ===== 封面/歌词通道（低频，值语义：引用变化才通知） =====
+
+    /**
+     * 封面广播（生产端：Fragment.setCoverBitmap）。同一引用/未变化不重复通知。
+     * 生命周期规约：消费者只引用不 recycle，Bitmap 由生产端生命周期管理。
+     */
+    public void setCover(android.graphics.Bitmap bitmap) {
+        if (bitmap == null) return; // null 不广播（禁止清空语义误用）
+        if (this.coverBitmap == bitmap) return;
+        this.coverBitmap = bitmap;
+        notifyOnMain(() -> {
+            android.graphics.Bitmap b = coverBitmap;
+            for (CoverObserver o : coverObservers) {
+                try { o.onCoverChanged(b); } catch (Exception ignored) {}
+            }
+        });
+    }
+
+    /** 封面双色广播（生产端：封面取色完成后）。双 0 表示清除（下次广播重新生效） */
+    public void setCoverColors(int colorTop, int colorBottom) {
+        if (this.hasCoverColors && this.coverColorTop == colorTop
+                && this.coverColorBottom == colorBottom) return;
+        this.hasCoverColors = (colorTop != 0 || colorBottom != 0);
+        this.coverColorTop = colorTop;
+        this.coverColorBottom = colorBottom;
+        notifyOnMain(() -> {
+            int t = coverColorTop, b = coverColorBottom;
+            for (CoverColorObserver o : coverColorObservers) {
+                try { o.onCoverColorsChanged(t, b); } catch (Exception ignored) {}
+            }
+        });
+    }
+
+    /** 切歌时清除封面/双色/歌词缓存（新歌数据到来前，快照读旧值语义明确） */
+    public void invalidateCoverAndLyric() {
+        coverBitmap = null;
+        hasCoverColors = false;
+        coverColorTop = 0;
+        coverColorBottom = 0;
+        lyricData = null;
+    }
+
+    /** 歌词广播（生产端：歌词加载/下载完成）。空 lines 不广播 */
+    public void setLyricData(com.jingxin.jingxinmusic.util.KrcParser.LyricData data) {
+        if (data == null || data.lines == null || data.lines.isEmpty()) return;
+        if (this.lyricData == data) return;
+        this.lyricData = data;
+        notifyOnMain(() -> {
+            com.jingxin.jingxinmusic.util.KrcParser.LyricData d = lyricData;
+            for (LyricObserver o : lyricObservers) {
+                try { o.onLyricLoaded(d); } catch (Exception ignored) {}
+            }
+        });
+    }
+
+    /** 主线程统一投递（任意线程调用安全） */
+    private void notifyOnMain(Runnable r) {
+        if (mainHandler.getLooper() == Looper.myLooper()) {
+            r.run();
+        } else {
+            mainHandler.post(r);
+        }
     }
 
     private void updateState(State next) {

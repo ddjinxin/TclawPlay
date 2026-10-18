@@ -57,6 +57,77 @@ public class ControlBar extends LinearLayout {
         setPlayOrder(hub.getPlayOrder());
     }
 
+    // ===== 页面传参模式（独立页：按钮几何公式收口为实例方法） =====
+
+    /**
+     * 底部按钮几何（公式与 CoverSceneHelper.applyButtonMargins 按钮段逐行同源）：
+     * 屏高三档基础比例 × 宽高比修正；上一曲/下一曲 ×1.21、播放 ×1.5（先1.25再1.2）；
+     * padding 固定基于普通按钮尺寸，保证放大按钮的图标区域真正变大。
+     *
+     * @param actHeight 可用屏高
+     * @param actWidth  可用屏宽
+     * @param landscape 是否横屏
+     */
+    public void applyGeometry(int actHeight, int actWidth, boolean landscape) {
+        float rBack, rPlay;
+        float rPrevNext;
+        float rPlayBig;
+        if (actHeight < 700) {
+            rBack = 0.048f; rPlay = 0.058f;
+            rPrevNext = 0.048f * 1.21f;
+            rPlayBig = 0.058f * 1.5f;
+        } else if (actHeight <= 1200) {
+            rBack = 0.055f; rPlay = 0.067f;
+            rPrevNext = 0.055f * 1.21f;
+            rPlayBig = 0.067f * 1.5f;
+        } else {
+            rBack = 0.060f; rPlay = 0.075f;
+            rPrevNext = 0.060f * 1.21f;
+            rPlayBig = 0.075f * 1.5f;
+        }
+        float aspectFactor = 1f + Math.max(0f, (actWidth / (float) actHeight - 1.78f) / 3f);
+        int bottomBtnSize = (int) (actHeight * rBack * aspectFactor);
+        int prevNextBtnSize = (int) (actHeight * rPrevNext * aspectFactor);
+        int playBtnSize = (int) (actHeight * rPlayBig * aspectFactor);
+
+        int bottomPadding6 = (int) (bottomBtnSize * 0.15f);
+        int bottomPadding8 = (int) (bottomBtnSize * 0.20f);
+        float prevNextWeight = landscape ? 1f : 1.5f;
+        resizeButton(R.id.previous_button, prevNextBtnSize, bottomPadding6, prevNextWeight);
+        resizeButton(R.id.play_pause_button, playBtnSize, bottomPadding6, landscape ? 1f : 2f);
+        resizeButton(R.id.next_button, prevNextBtnSize, bottomPadding6, prevNextWeight);
+        resizeButton(R.id.play_order_button, bottomBtnSize, bottomPadding6);
+        resizeButton(R.id.history_button, bottomBtnSize, bottomPadding8);
+        resizeButton(R.id.mode_button, bottomBtnSize, bottomPadding8);
+        resizeButton(R.id.download_button, bottomBtnSize, bottomPadding8);
+    }
+
+    /** 底边距设置（本组件直接父容器为 FrameLayout 槽或 LinearLayout 流，均 MarginLayoutParams 安全） */
+    public void applyBottomMargin(int bottomMarginPx) {
+        android.view.ViewGroup.LayoutParams params = getLayoutParams();
+        if (params instanceof android.view.ViewGroup.MarginLayoutParams) {
+            ((android.view.ViewGroup.MarginLayoutParams) params).bottomMargin = bottomMarginPx;
+            setLayoutParams(params);
+        }
+    }
+
+    /** 按钮高度/padding/weight 复用（内部findViewById，与Helper同源公式） */
+    private void resizeButton(int viewId, int size, int padding) {
+        resizeButton(viewId, size, padding, 1f);
+    }
+
+    private void resizeButton(int viewId, int size, int padding, float weight) {
+        ImageView btn = findViewById(viewId);
+        if (btn != null) {
+            android.widget.LinearLayout.LayoutParams p =
+                    (android.widget.LinearLayout.LayoutParams) btn.getLayoutParams();
+            p.height = size;
+            p.weight = weight;
+            btn.setLayoutParams(p);
+            btn.setPadding(padding, padding, padding, padding);
+        }
+    }
+
     /** 解绑数据中枢（onDestroyView 调用，防泄漏） */
     public void detachHub() {
         if (hub != null && hubObserver != null) {

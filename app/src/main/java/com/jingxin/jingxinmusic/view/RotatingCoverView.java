@@ -94,6 +94,58 @@ public class RotatingCoverView extends AppCompatImageView {
         }
         invalidate();
     }
+
+    // ===== 页面传参模式（独立页：形态特征收口，页面不再散装手术） =====
+
+    /** 封面形态特征枚举（对应四风格的封面外观） */
+    public enum CoverStyle {
+        /** 圆形裁剪 + 描边背景（经典） */
+        CIRCLE,
+        /** 黑胶盘 + 中心圆封（唱片机；黑胶渲染内部自理） */
+        VINYL,
+        /** 矩形不裁剪 + 无背景（沉浸横屏等矩形用法） */
+        RECT,
+        /** 矩形 + 前景边缘渐变（沉浸横屏渐变边；渐变 Drawable 由页面经 setBorderGradient 注入） */
+        RECT_BORDER_GRADIENT
+    }
+
+    /**
+     * 应用形态特征（组件内部自理 clipToOutline/background/foreground，幂等）。
+     * RECT_BORDER_GRADIENT 的渐变色随后经 setBorderGradient(Drawable) 注入。
+     */
+    public void setStyle(CoverStyle style) {
+        switch (style) {
+            case CIRCLE:
+                vinylMode = false;
+                setClipToOutline(true);
+                setBackgroundResource(R.drawable.circle_cover_background);
+                com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(this, null);
+                break;
+            case VINYL:
+                vinylMode = true;
+                setClipToOutline(false);
+                setBackground(null);
+                com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(this, null);
+                break;
+            case RECT:
+                vinylMode = false;
+                setClipToOutline(false);
+                setBackground(null);
+                com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(this, null);
+                break;
+            case RECT_BORDER_GRADIENT:
+                vinylMode = false;
+                setClipToOutline(false);
+                setBackground(null);
+                break;
+        }
+        invalidate();
+    }
+
+    /** 注入前景渐变（仅 RECT_BORDER_GRADIENT 风格用，可 null 清除） */
+    public void setBorderGradient(android.graphics.drawable.Drawable gradient) {
+        com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(this, gradient);
+    }
     
     public boolean isVinylMode() {
         return vinylMode;
