@@ -1323,58 +1323,96 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 沉浸模式下调整歌名和歌词区域的顶部 margin
-     * 歌名歌手推到遮罩区域顶部，歌词紧跟其下
+     * 动态调整唱臂位置和尺寸
+     * 
+     * 横屏：pivot在View底部居中，View底边对齐封面上边沿，View水平居中于封面
+     *       View尺寸=封面尺寸×1.2（方形，足够容纳旋转45°）
+     * 
+     * 竖屏：pivot在View左上角，View左边对齐封面右边缘，View顶边对齐封面上边沿
      */
-    private void updateImmersiveLyricMargin(boolean isFullScreen) {
-        if (lyricView == null) return;
+    private void updateTonearmPosition() {
+        if (tonearmView == null || coverView == null) return;
+        // 调用方需保证封面已完成 layout（如 coverView.OnLayoutChangeListener）
+        int coverW = coverView.getWidth();
+        int coverH = coverView.getHeight();
+        if (coverW <= 0 || coverH <= 0) return;
 
-        // 计算屏幕可用高度
-        int screenHeight = getAvailableScreenHeight();
+        // 用绝对坐标定位，避免gravity导致getLeft/getTop不准
+        int[] coverLoc = new int[2];
+        int[] rootLoc = new int[2];
+        coverView.getLocationOnScreen(coverLoc);
+        android.widget.FrameLayout rootView = mRootView.findViewById(R.id.root_layout);
+        rootView.getLocationOnScreen(rootLoc);
+        // 封面中心相对于根布局
+        float coverCenterX = coverLoc[0] - rootLoc[0] + coverW / 2f;
+        float coverCenterY = coverLoc[1] - rootLoc[1] + coverH / 2f;
 
-        // 歌名推到遮罩区起始位置（43%）
-        int nameTopOffset = (int) (screenHeight * 0.43f);
-        int density = (int) getResources().getDisplayMetrics().density;
-        android.widget.LinearLayout.LayoutParams nameParams =
-                (android.widget.LinearLayout.LayoutParams) tvSongName.getLayoutParams();
-        nameParams.topMargin = nameTopOffset;
-        tvSongName.setLayoutParams(nameParams);
+        android.widget.FrameLayout.LayoutParams lp =
+                (android.widget.FrameLayout.LayoutParams) tonearmView.getLayoutParams();
+        lp.gravity = 0;
 
-        // 歌词紧跟歌名歌手下方，只需小 margin
-        android.widget.LinearLayout.LayoutParams lyricParams =
-                (android.widget.LinearLayout.LayoutParams) lyricView.getLayoutParams();
-        lyricParams.topMargin = density * 8;
-        lyricView.setLayoutParams(lyricParams);
-    }
+        // ---- 唱臂几何常量（与TonearmView.onDraw一致） ----
+        float unit = isLandscapeMode ? coverW / 21f : coverW / 18f;
+        float armLength = 5.5f * unit;
+        float bendLength = 1.5f * unit;
+        float bendAngle = 35f;
+        float headHeight = 1.3f * unit;
+        float stylusLength = 0.6f * unit;
+        float cwDistance = 1.8f * unit;
+        float cwRadius = 0.7f * unit;
 
-    /**
-     * 恢复歌名和歌词区域原始 margin（非沉浸模式）
-     * 轮播模式由 Scene 自行管理歌名 topMargin，此处不覆盖
-     */
-    private void resetLyricMargin() {
-        if (lyricView == null) return;
-        int density = (int) getResources().getDisplayMetrics().density;
+        // pivot在View内偏移（与TonearmView.onDraw一致）
+        float pivotOffsetY = cwDistance + cwRadius + 0.3f * unit;
+        float pivotRightSpace = 0.707f * cwDistance + cwRadius + 0.5f * unit;
 
-        // 恢复歌名原始 margin（竖屏16dp，横屏动态计算：返回按钮高度 + 8dp）
-        {
-            // 恢复歌名原始 margin（竖屏16dp，横屏动态计算：返回按钮高度 + 8dp）
-            android.widget.LinearLayout.LayoutParams nameParams =
-                    (android.widget.LinearLayout.LayoutParams) tvSongName.getLayoutParams();
-            if (isLandscapeMode && sceneHelper != null) {
-                int width = getResources().getDisplayMetrics().widthPixels;
-                int height = getAvailableScreenHeight();
-                nameParams.topMargin = sceneHelper.calcTopBarHeight(height, width, true) + (int) (density * 8);
-            } else {
-                nameParams.topMargin = density * 16;
-            }
-            tvSongName.setLayoutParams(nameParams);
+        // ---- pivot到唱针尖端的偏移（未旋转时，向下为正Y，向右为正X） ----
+        double bendRad = Math.toRadians(bendAngle);
+        float totalBendDist = bendLength + headHeight + stylusLength;
+        float needleDx = (float) Math.sin(bendRad) * totalBendDist;
+        float needleDy = armLength + (float) Math.cos(bendRad) * totalBendDist;
+
+        // ---- 播放时唱针目标位置 ----
+        float vinylRadius = coverW / 2f;
+        float coverRadius = coverW * 2f / 3f / 2f;
+        // 横屏唱针在黑胶环偏内侧(0.3)，竖屏唱针在黑胶环中间(0.5)
+        float needleTargetR = coverRadius + (vinylRadius - coverRadius) * (isLandscapeMode ? 0.3f : 0.5f);
+
+        if (isLandscapeMode) {
+            // 横屏：主臂杆对齐封面中心线，pivot X = coverCenterX
+            float pivotScreenX = coverCenterX;
+            float pivotScreenY = coverCenterY - needleTargetR - needleDy;
+            // View尺寸
+            int armW = (int) (coverW * 1.2f);
+            int armH = (int) (pivotOffsetY + armLength + totalBendDist + cwDistance + cwRadius + unit);
+            // pivot在View内: (armW/2, pivotOffsetY)
+            lp.width = armW;
+            lp.height = armH;
+            lp.leftMargin = (int) (pivotScreenX - armW / 2f);
+            lp.topMargin = (int) (pivotScreenY - pivotOffsetY);
+        } else {
+            // 竖屏：唱臂在封面右侧，暂停0°垂直，播放45°唱针落入黑胶4点钟方向
+            float playAngle = 45f;
+            double playRad = Math.toRadians(playAngle);
+            float rotatedNeedleDy = (float)(-needleDx * Math.sin(playRad) + needleDy * Math.cos(playRad));
+            // 4点方向Y
+            float needleTargetY = coverCenterY + needleTargetR * 0.5f;
+            // pivot X：封面右边缘 + 偏移让唱针落在黑胶中间
+            float pivotScreenX = coverLoc[0] - rootLoc[0] + coverW + needleTargetR * 0.35f;
+            float pivotScreenY = needleTargetY - rotatedNeedleDy - unit;
+            // View尺寸
+            int armW = (int) (coverW + pivotRightSpace + cwDistance + cwRadius + unit);
+            int armH = (int) (pivotOffsetY + armLength + totalBendDist + cwDistance + cwRadius + unit);
+            // pivot在View内: (armW - pivotRightSpace, pivotOffsetY)
+            float pivotViewX = armW - pivotRightSpace;
+            lp.width = armW;
+            lp.height = armH;
+            lp.leftMargin = (int) (pivotScreenX - pivotViewX);
+            lp.topMargin = (int) (pivotScreenY - pivotOffsetY);
         }
 
-        // 恢复歌词原始 margin
-        android.widget.LinearLayout.LayoutParams lyricParams =
-                (android.widget.LinearLayout.LayoutParams) lyricView.getLayoutParams();
-        lyricParams.topMargin = density * 10;
-        lyricView.setLayoutParams(lyricParams);
+        tonearmView.setCoverSize(coverW);
+        tonearmView.setLayoutParams(lp);
+        tonearmView.bringToFront();
     }
 
     /**
@@ -1384,22 +1422,6 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private int getAvailableScreenHeight() {
         return sceneHelper != null ? sceneHelper.getAvailableScreenHeight() : getResources().getDisplayMetrics().heightPixels;
-    }
-
-    /**
-     * 设置竖屏封面占位高度，把歌名推到封面下方
-     */
-    private void updateCoverPlaceholder() {
-        int screenHeight = getAvailableScreenHeight();
-        int coverSize = (int) (screenHeight * 0.25f);
-        int coverMarginTop = (int) (screenHeight * 0.056f) + (sceneHelper != null ? sceneHelper.systemTopInset : 0);
-        int coverNameGap = (int) (screenHeight * 0.016f);
-        coverPlaceholder.setVisibility(View.VISIBLE);
-        android.widget.LinearLayout.LayoutParams placeholderParams =
-                (android.widget.LinearLayout.LayoutParams) coverPlaceholder.getLayoutParams();
-        placeholderParams.height = coverMarginTop + coverSize + coverNameGap;
-        placeholderParams.width = 1;
-        coverPlaceholder.setLayoutParams(placeholderParams);
     }
 
     /**
@@ -1422,39 +1444,6 @@ public class PlayerFragment extends BaseFloatFragment {
                 getResources().getDisplayMetrics().density);
         sceneHelper.bgSkinMode = bgSkinMode;
         sceneHelper.coverStyle = coverStyle;
-        sceneHelper.callback = new CoverSceneHelper.Callback() {
-            @Override public void loadCover() { PlayerFragment.this.loadCover(); }
-            @Override public void updateCoverPlaceholder() { PlayerFragment.this.updateCoverPlaceholder(); }
-            @Override public void resetLyricMargin() { PlayerFragment.this.resetLyricMargin(); }
-            @Override public void updateImmersiveLyricMargin(boolean isFullScreen) { PlayerFragment.this.updateImmersiveLyricMargin(isFullScreen); }
-            @Override public void updateThemeUI() { PlayerFragment.this.updateThemeUI(); }
-            @Override public void extractAndApplyDominantColor(Bitmap bitmap) {
-                executor.execute(() -> {
-                    int dominantColor = extractDominantColor(bitmap);
-                    if (!isActivityGone()) {
-                        uiHandler.post(() -> {
-                            // 光晕模式下渐变颜色用光晕底色（白天白/夜间深），不用封面主色调
-                            if (isAuroraActive()) return;
-                            if (immersiveOverlay != null) {
-                                immersiveOverlay.setDominantColor(dominantColor);
-                            }
-                            if (isLandscapeMode && coverBorderGradient != null) {
-                                coverBorderGradient.setOverlayColor(immersiveOverlay.getOverlayColor());
-                            }
-                            if (isLandscapeMode && sceneHelper.landscapeGradientOverlay != null) {
-                                sceneHelper.landscapeGradientOverlay.setOverlayColor(immersiveOverlay.getOverlayColor());
-                            }
-                        });
-                    }
-                });
-            }
-            @Override public void updateTonearmPosition() { PlayerFragment.this.updateTonearmPosition(); }
-            @Override public void markTonearmNeedsUpdate() { tonearmNeedsUpdate = true; }
-            @Override public void playSongAt(int pos) { PlayerFragment.this.playSongAt(pos); }
-        };
-
-
-        // 新架构轮播页面（双轨试点）：横竖屏合并单页面，首次进入时惰性 install
 
         // 背景皮肤控制器装配（组件化第3步）：视图与 Helper 均就绪，mRootView 即 root_layout
         bgSkinController = new com.jingxin.jingxinmusic.bg.BackgroundSkinController(
@@ -2106,99 +2095,6 @@ public class PlayerFragment extends BaseFloatFragment {
         String[] styleNames = {"经典模式", "沉浸模式", "唱片机模式", "轮播模式", "新经典模式", "沉浸·新", "唱片机·新", "轮播·新"};
         android.widget.Toast.makeText(requireContext(), styleNames[coverStyle],
                 android.widget.Toast.LENGTH_SHORT).show();
-    }
-
-    /**
-     * 动态调整唱臂位置和尺寸
-     * 
-     * 横屏：pivot在View底部居中，View底边对齐封面上边沿，View水平居中于封面
-     *       View尺寸=封面尺寸×1.2（方形，足够容纳旋转45°）
-     * 
-     * 竖屏：pivot在View左上角，View左边对齐封面右边缘，View顶边对齐封面上边沿
-     */
-    private void updateTonearmPosition() {
-        if (tonearmView == null || coverView == null) return;
-        // 调用方需保证封面已完成 layout（如 coverView.OnLayoutChangeListener）
-        int coverW = coverView.getWidth();
-        int coverH = coverView.getHeight();
-        if (coverW <= 0 || coverH <= 0) return;
-
-        // 用绝对坐标定位，避免gravity导致getLeft/getTop不准
-        int[] coverLoc = new int[2];
-        int[] rootLoc = new int[2];
-        coverView.getLocationOnScreen(coverLoc);
-        android.widget.FrameLayout rootView = mRootView.findViewById(R.id.root_layout);
-        rootView.getLocationOnScreen(rootLoc);
-        // 封面中心相对于根布局
-        float coverCenterX = coverLoc[0] - rootLoc[0] + coverW / 2f;
-        float coverCenterY = coverLoc[1] - rootLoc[1] + coverH / 2f;
-
-        android.widget.FrameLayout.LayoutParams lp =
-                (android.widget.FrameLayout.LayoutParams) tonearmView.getLayoutParams();
-        lp.gravity = 0;
-
-        // ---- 唱臂几何常量（与TonearmView.onDraw一致） ----
-        float unit = isLandscapeMode ? coverW / 21f : coverW / 18f;
-        float armLength = 5.5f * unit;
-        float bendLength = 1.5f * unit;
-        float bendAngle = 35f;
-        float headHeight = 1.3f * unit;
-        float stylusLength = 0.6f * unit;
-        float cwDistance = 1.8f * unit;
-        float cwRadius = 0.7f * unit;
-
-        // pivot在View内偏移（与TonearmView.onDraw一致）
-        float pivotOffsetY = cwDistance + cwRadius + 0.3f * unit;
-        float pivotRightSpace = 0.707f * cwDistance + cwRadius + 0.5f * unit;
-
-        // ---- pivot到唱针尖端的偏移（未旋转时，向下为正Y，向右为正X） ----
-        double bendRad = Math.toRadians(bendAngle);
-        float totalBendDist = bendLength + headHeight + stylusLength;
-        float needleDx = (float) Math.sin(bendRad) * totalBendDist;
-        float needleDy = armLength + (float) Math.cos(bendRad) * totalBendDist;
-
-        // ---- 播放时唱针目标位置 ----
-        float vinylRadius = coverW / 2f;
-        float coverRadius = coverW * 2f / 3f / 2f;
-        // 横屏唱针在黑胶环偏内侧(0.3)，竖屏唱针在黑胶环中间(0.5)
-        float needleTargetR = coverRadius + (vinylRadius - coverRadius) * (isLandscapeMode ? 0.3f : 0.5f);
-
-        if (isLandscapeMode) {
-            // 横屏：主臂杆对齐封面中心线，pivot X = coverCenterX
-            float pivotScreenX = coverCenterX;
-            float pivotScreenY = coverCenterY - needleTargetR - needleDy;
-            // View尺寸
-            int armW = (int) (coverW * 1.2f);
-            int armH = (int) (pivotOffsetY + armLength + totalBendDist + cwDistance + cwRadius + unit);
-            // pivot在View内: (armW/2, pivotOffsetY)
-            lp.width = armW;
-            lp.height = armH;
-            lp.leftMargin = (int) (pivotScreenX - armW / 2f);
-            lp.topMargin = (int) (pivotScreenY - pivotOffsetY);
-        } else {
-            // 竖屏：唱臂在封面右侧，暂停0°垂直，播放45°唱针落入黑胶4点钟方向
-            float playAngle = 45f;
-            double playRad = Math.toRadians(playAngle);
-            float rotatedNeedleDy = (float)(-needleDx * Math.sin(playRad) + needleDy * Math.cos(playRad));
-            // 4点方向Y
-            float needleTargetY = coverCenterY + needleTargetR * 0.5f;
-            // pivot X：封面右边缘 + 偏移让唱针落在黑胶中间
-            float pivotScreenX = coverLoc[0] - rootLoc[0] + coverW + needleTargetR * 0.35f;
-            float pivotScreenY = needleTargetY - rotatedNeedleDy - unit;
-            // View尺寸
-            int armW = (int) (coverW + pivotRightSpace + cwDistance + cwRadius + unit);
-            int armH = (int) (pivotOffsetY + armLength + totalBendDist + cwDistance + cwRadius + unit);
-            // pivot在View内: (armW - pivotRightSpace, pivotOffsetY)
-            float pivotViewX = armW - pivotRightSpace;
-            lp.width = armW;
-            lp.height = armH;
-            lp.leftMargin = (int) (pivotScreenX - pivotViewX);
-            lp.topMargin = (int) (pivotScreenY - pivotOffsetY);
-        }
-
-        tonearmView.setCoverSize(coverW);
-        tonearmView.setLayoutParams(lp);
-        tonearmView.bringToFront();
     }
 
     /**
