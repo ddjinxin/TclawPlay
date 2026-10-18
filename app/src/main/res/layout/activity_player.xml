@@ -56,7 +56,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:gravity="center_horizontal">
+        android:gravity="center_horizontal"        android:visibility="gone"
+    >
 
         <!-- 封面占位（竖屏时留出封面空间） -->
         <View
@@ -126,7 +127,8 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"        android:visibility="gone"
+    >
 
         <ImageView
             android:id="@+id/back_button"

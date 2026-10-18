@@ -9,6 +9,7 @@ import android.widget.LinearLayout;
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.view.CoverCarouselAdapter;
+import com.jingxin.jingxinmusic.view.SpectrumView;
 import com.jingxin.jingxinmusic.view.CoverCarouselView;
 import com.jingxin.jingxinmusic.view.LyricView;
 import com.jingxin.jingxinmusic.view.SongTitleBar;
@@ -90,12 +91,6 @@ public class CarouselPageV2 extends ClassicPageV2 {
 
     @Override
     public void enter() {
-        // 圆环频谱降级（镜像旧 CarouselPage.enter：轮播无圆形封面可挂，overlay 样式循环切走）
-        if (h.spectrumView != null && h.spectrumView.isCoverOverlayMode()) {
-            while (h.spectrumView.isCoverOverlayMode()) {
-                h.spectrumView.switchStyle();
-            }
-        }
         super.enter();
         boolean landscape = h.isLandscapeMode;
         // 圆形封面/封面列退出（XML 默认 GONE，此处防父类路径回置），卡片层接管

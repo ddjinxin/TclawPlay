@@ -78,10 +78,10 @@ public class ClassicPageV2 extends StagePage {
     protected View coverPlaceholder; // 子类（轮播V2）按旧轮播占位公式重设高度
     protected FrameLayout coverArea;
     protected RotatingCoverView cover;
-    private SpectrumView spectrumRing;
+    protected SpectrumView spectrumRing;
     private LinearLayout infoFlow;
     protected SongTitleBar title; protected LyricView lyric;
-    private SpectrumView spectrum;
+    protected SpectrumView spectrum;
     private ProgressPanel progress; private ControlBar control;
     private LinearLayout topBar; private View topSpacer, rightGroup;
     private ImageView btnBack, btnEffect, btnLyricSearch, btnSpectrum, btnOutfit;
@@ -91,7 +91,7 @@ public class ClassicPageV2 extends StagePage {
     private View lightMaskL, darkMaskL, hideTouchLayerL;
     protected FrameLayout coverCol;
     protected RotatingCoverView coverL;
-    private SpectrumView spectrumRingL;
+    protected SpectrumView spectrumRingL;
     private LinearLayout infoFlowL;
     protected SongTitleBar titleL; protected LyricView lyricL;
     protected SpectrumView spectrumL; // 子类（轮播V2）横屏频谱高按旧公式 0.08H 重设
@@ -112,7 +112,7 @@ public class ClassicPageV2 extends StagePage {
     private boolean playing;
     private boolean controlsHidden = false; // 精简模式态（镜像旧页 controlsHidden）
     private boolean hasCoverImage = false;   // V2 blur 已有位图（默认封面也经 Hub 广播到此）
-    private boolean spectrumHidden = false;  // 频谱用户隐藏态（镜像旧实例）
+    protected boolean spectrumHidden = false;  // 频谱用户隐藏态（镜像旧实例）
     private int coverColorsTop, coverColorsBottom;
 
     // 频谱圆环圆心（layout 时算出，传给 ring 实例）

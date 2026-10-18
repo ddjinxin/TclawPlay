@@ -75,9 +75,6 @@ public class PlayerFragment extends BaseFloatFragment {
     // ===== 控制栏自动隐藏（精简模式） =====
     private boolean controlsHidden = false;      // 当前控制栏是否隐藏
     private boolean controlsHideEnabled = false; // 播放中且配置不为"不隐藏"才启用（暂停/未开始不启用）
-    private View controlsHideTouchLayer;         // 精简模式触摸拦截层
-    private View progressLayout;                 // 进度条+时间（ProgressPanel内部布局）
-    private View controlButtons;                // 底部控制条（ControlBar组件壳）
     private com.jingxin.jingxinmusic.view.ControlBar controlBar; // 控制条组件（状态+事件统一入口）
     private com.jingxin.jingxinmusic.view.ProgressPanel progressPanel; // 进度组件（状态+事件统一入口）
 
@@ -449,11 +446,8 @@ public class PlayerFragment extends BaseFloatFragment {
                 int duration = playerBinder.getDuration();
                 if (duration > 0) {
                     // 数据中枢：进度唯一写入点，ProgressPanel/歌词等订阅方各自消费
+                    // （旧 lyricView 直调已删：V2 页四实例均订阅 ProgressObserver）
                     stateHub.setProgress(currentPosition, duration);
-                    // 同步歌词位置（歌词暂仍直调，后续组件迁移时改订阅）
-                    if (lyricView != null) {
-                        lyricView.updatePosition(currentPosition);
-                    }
                 }
             }
             uiHandler.postDelayed(this, PROGRESS_UPDATE_INTERVAL);
@@ -492,13 +486,10 @@ public class PlayerFragment extends BaseFloatFragment {
         }
     };
 
-    /** 隐藏控制栏（精简模式）：隐藏进度条+底部按钮，歌词自动撑满 */
+    /** 隐藏控制栏（精简模式）：旧共享实例已 GONE（info_panel 收纳），仅驱动 V2 页 */
     private void hideControls() {
-        if (controlsHidden || progressLayout == null || controlButtons == null) return;
+        if (controlsHidden) return;
         controlsHidden = true;
-        progressLayout.setVisibility(View.GONE);
-        controlButtons.setVisibility(View.GONE);
-        if (controlsHideTouchLayer != null) controlsHideTouchLayer.setVisibility(View.VISIBLE);
         // 同步第5风格（V2）自持实例
         if (classicV2PageAdapter != null) {
             ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
@@ -528,9 +519,6 @@ public class PlayerFragment extends BaseFloatFragment {
             return;
         }
         controlsHidden = false;
-        if (progressLayout != null) progressLayout.setVisibility(View.VISIBLE);
-        if (controlButtons != null) controlButtons.setVisibility(View.VISIBLE);
-        if (controlsHideTouchLayer != null) controlsHideTouchLayer.setVisibility(View.GONE);
         // 同步第5风格（V2）自持实例
         if (classicV2PageAdapter != null) {
             ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
@@ -606,15 +594,12 @@ public class PlayerFragment extends BaseFloatFragment {
         lyricView = view.findViewById(R.id.lyric_view);
         spectrumView = view.findViewById(R.id.spectrum_view);
         // 进度组件（SeekBar+双时间，事件经 Listener 上抛）
-        // progressLayout 直接指向组件（继承LinearLayout，与旧progress_layout节点同型，Scene手术强转安全）
         progressPanel = view.findViewById(R.id.progress_panel);
-        progressLayout = progressPanel;
         seekBar = progressPanel.seekBar();
         tvCurrentTime = progressPanel.currentTimeView();
         tvTotalTime = progressPanel.totalTimeView();
         // 底部控制条组件（内部含7键：播放/上一首/下一首/模式/历史/收藏/下载）
         controlBar = view.findViewById(R.id.control_buttons);
-        controlButtons = controlBar;
         controlBar.setListener(new com.jingxin.jingxinmusic.view.ControlBar.Listener() {
             @Override public void onPlayPause() { togglePlayPause(); }
             @Override public void onPrevious() { playPrevious(); }
@@ -650,21 +635,6 @@ public class PlayerFragment extends BaseFloatFragment {
         immersiveOverlay = view.findViewById(R.id.immersive_overlay);
         infoPanel = view.findViewById(R.id.info_panel);
         coverPlaceholder = view.findViewById(R.id.cover_placeholder);
-
-        // ===== 控制栏自动隐藏初始化 =====
-        controlsHideTouchLayer = view.findViewById(R.id.controls_hide_touch_layer);
-        progressLayout = progressPanel;   // 已在绑定处指向组件，此处保持同源
-        controlButtons = view.findViewById(R.id.control_buttons);
-        if (controlsHideTouchLayer != null) {
-            controlsHideTouchLayer.setOnClickListener(v -> showControls(true));
-            controlsHideTouchLayer.setOnTouchListener((v, event) -> {
-                // 触摸（点击/滑动）即恢复控制栏
-                if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
-                    showControls(true);
-                }
-                return true; // 消费事件，避免透传给下方歌词触发切换
-            });
-        }
 
         // 初始化 CoverScene 策略
         initCoverScene();
@@ -1871,24 +1841,6 @@ public class PlayerFragment extends BaseFloatFragment {
         };
     }
 
-    /** 把频谱样式（prefs 新值）同步到当前活跃 V2 页自持实例（切风格跳圆环样式后调用） */
-    private void syncSpectrumStyleToActivePage() {
-        int style = spectrumView.getCurrentStyle();
-        com.jingxin.jingxinmusic.stage.ClassicPageV2 page = null;
-        if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
-            page = (com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage();
-        } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2PageAdapter != null) {
-            page = (com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage();
-        } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
-            page = (com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage();
-        }
-        if (page != null) page.applySpectrumStyle(style);
-        if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
-                    .applySpectrumStyle(style);
-        }
-    }
-
     private void toggleImmersiveMode() {
         // 装扮循环只在 V2 新风格间切换（旧四风格已隐藏，收口入口；若内存值为旧风格异常态则先归位）
         coverStyle = HIDE_LEGACY_STYLES
@@ -1896,19 +1848,33 @@ public class PlayerFragment extends BaseFloatFragment {
                 : (coverStyle + 1) % 8;
         requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
-        // 沉浸模式下圆环/扩散圆环/波浪圆环不可用，循环跳过
-        // 风格不支持当前圆环类样式时循环跳过；样式真值由 SpectrumView 自身 prefs 持久化，
-        // 这里统一改写 prefs 并同步双端（旧实例仍活跃于数据泵/V2页镜像）
-        int curStyle = spectrumView.getCurrentStyle();
-        if (!currentScene.shouldShowSpectrumButton(curStyle)) {
-            while (!currentScene.shouldShowSpectrumButton(spectrumView.getCurrentStyle())) {
-                spectrumView.switchStyle();
-            }
-            syncSpectrumStyleToActivePage();
-        }
-
+        // 目标风格不适配环类频谱时（轮播无圆形封面可挂）：真值直接归位第一个频谱（竖条）。
+        // 写 prefs + 全实例同步：不适配的风格内显示竖条；切回唱机看到的也是竖条（明确状态），
+        // 用户再选环即可。不用降级跳档（跳到哪档不可控→"样式自己变"），不静默压制
+        // （环/底实例判定链会回置→"频谱消失"）。
         syncSceneState();
-        switchScene();
+        if (switchScene()) {
+            int nowStyle = spectrumView.getCurrentStyle();
+            if (com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(nowStyle)
+                    && !currentScene.shouldShowSpectrumButton(nowStyle)) {
+                spectrumView.setStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
+                if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
+                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                            .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
+                } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2PageAdapter != null) {
+                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage())
+                            .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
+                } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
+                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage())
+                            .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
+                } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
+                    ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+                            .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
+                }
+                // 样式变更影响布局（环→条），重排版
+                currentScene.layout(getLayoutWidth(), getAvailableScreenHeight());
+            }
+        }
         updateThemeUI(); // 切换封面风格后更新背景（光晕/遮罩等）
         // 切换封面风格后，若不在「双色光晕+非沉浸」组合则恢复自定义歌词高亮色
         if (!(isAuroraActive()) && lyricView != null) {
@@ -2505,63 +2471,8 @@ public class PlayerFragment extends BaseFloatFragment {
             for (ImageView btn : buttons) btn.setColorFilter(buttonColor, PorterDuff.Mode.SRC_IN);
         }
         // 光晕模式下用专用进度条配色，非光晕模式用原逻辑
-        if (isAuroraActive()) {
-            applyAuroraSeekBarTheme(isNight);
-        } else {
-            applySeekBarThemeColor(isNight ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary());
-        }
     }
 
-    private void applySeekBarThemeColor(int color) {
-        try {
-            Drawable progressDrawable = seekBar.getProgressDrawable().mutate();
-            if (progressDrawable instanceof LayerDrawable) {
-                LayerDrawable layerDrawable = (LayerDrawable) progressDrawable;
-                Drawable bg = layerDrawable.findDrawableByLayerId(android.R.id.background);
-                if (bg != null) {
-                    bg.setColorFilter(color, PorterDuff.Mode.SRC_IN);
-                }
-                // 清除光晕模式残留：progress 恢复默认黄色
-                Drawable progress = layerDrawable.findDrawableByLayerId(android.R.id.progress);
-                if (progress != null) {
-                    progress.clearColorFilter();
-                }
-            }
-            // 清除光晕模式残留：thumb 恢复默认黄色
-            Drawable thumb = seekBar.getThumb();
-            if (thumb != null) {
-                thumb.mutate().clearColorFilter();
-            }
-        } catch (Exception ignored) {}
-    }
-
-    /** 中性浅灰轨道（光晕模式专用） */
-    private static final int AURORA_TRACK_GRAY = 0xFFC8C8C8;
-
-    /**
-     * 双色光晕模式专用：进度条已播放部分和圆球跟随按钮色（白天黑/夜间白），轨道浅灰
-     */
-    private void applyAuroraSeekBarTheme(boolean isNight) {
-        int accent = isNight ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
-        try {
-            Drawable progressDrawable = seekBar.getProgressDrawable().mutate();
-            if (progressDrawable instanceof LayerDrawable) {
-                LayerDrawable layerDrawable = (LayerDrawable) progressDrawable;
-                Drawable bg = layerDrawable.findDrawableByLayerId(android.R.id.background);
-                if (bg != null) {
-                    bg.setColorFilter(AURORA_TRACK_GRAY, PorterDuff.Mode.SRC_IN);
-                }
-                Drawable progress = layerDrawable.findDrawableByLayerId(android.R.id.progress);
-                if (progress != null) {
-                    progress.setColorFilter(accent, PorterDuff.Mode.SRC_IN);
-                }
-            }
-            Drawable thumb = seekBar.getThumb();
-            if (thumb != null) {
-                thumb.mutate().setColorFilter(accent, PorterDuff.Mode.SRC_IN);
-            }
-        } catch (Exception ignored) {}
-    }
 
     /**
      * 保存当前播放歌曲信息到 SharedPreferences，下次启动时自动恢复
