@@ -63,6 +63,7 @@ public class ClassicPageV2 extends StagePage {
         void onSeekTo(int positionMs);
         void onSeekStop();
         boolean isControlsHidden(); // 当前精简模式态（旧页 controlsHidden，进 V2 时同步）
+        boolean isBiliDownloadEnabled(); // B站下载键可用态（离线保存进行中禁用；默认 true）
         void onV2ControlsTouched(); // V2 内交互：向旧机制上报活动（重置隐藏计时）
     }
 
@@ -417,7 +418,15 @@ public class ClassicPageV2 extends StagePage {
             controlL.setFavorite(actions.isFavorite());
             control.setDownloadVisible(actions.isBiliSong());
             controlL.setDownloadVisible(actions.isBiliSong());
+            boolean dlEnabled = actions.isBiliDownloadEnabled();
+            control.setDownloadEnabled(dlEnabled);
+            controlL.setDownloadEnabled(dlEnabled);
         }
+    }
+
+    /** 外部（Fragment 收藏/下载态变化点）通知刷本页控制条附加态 */
+    public void notifyControlExtrasChanged() {
+        syncControlExtras();
     }
 
     @Override

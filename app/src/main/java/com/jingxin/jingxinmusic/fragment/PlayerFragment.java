@@ -75,8 +75,6 @@ public class PlayerFragment extends BaseFloatFragment {
     // ===== 控制栏自动隐藏（精简模式） =====
     private boolean controlsHidden = false;      // 当前控制栏是否隐藏
     private boolean controlsHideEnabled = false; // 播放中且配置不为"不隐藏"才启用（暂停/未开始不启用）
-    private com.jingxin.jingxinmusic.view.ControlBar controlBar; // 控制条组件（状态+事件统一入口）
-    private com.jingxin.jingxinmusic.view.ProgressPanel progressPanel; // 进度组件（状态+事件统一入口）
 
     /** 读取自动隐藏延时配置（秒），-1=不隐藏 */
     private int getControlsHideDelayMs() {
@@ -95,15 +93,9 @@ public class PlayerFragment extends BaseFloatFragment {
 
     // UI
     private ImageView blurBackground;
-    private TextView tvSongName;   // 过渡期兼容字段（Scene 手术用，指向 SongTitleBar 内部）
-    private TextView tvArtist;     // 同上
-    private com.jingxin.jingxinmusic.view.SongTitleBar songTitleBar; // 标题组件（状态+染色统一入口）
     private LyricView lyricView;
     private SpectrumView spectrumView;
     
-    private SeekBar seekBar;
-    private TextView tvCurrentTime;
-    private TextView tvTotalTime;
     private android.widget.PopupWindow effectPickerPopup; // 音效选择浮窗
     private View overlayView;
     private View whiteOverlay;
@@ -128,6 +120,7 @@ public class PlayerFragment extends BaseFloatFragment {
         stateHub.setNightMode(night);
     }
     private boolean isFavorite = false;  // 当前歌曲是否已收藏
+    private boolean biliDownloadEnabled = true; // B站离线保存进行中置 false（下载键禁用）
 
     // 封面风格：0=经典, 1=沉浸, 2=唱片机
     private static final int COVER_STYLE_CLASSIC = 0;
@@ -163,8 +156,6 @@ public class PlayerFragment extends BaseFloatFragment {
 
     // 横屏模式
     private boolean isLandscapeMode = false; // 宽>高*1.2 时为横屏
-    private View infoPanel;     // 左侧信息面板
-    private View coverPlaceholder; // 竖屏时封面占位
     private com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable coverBorderGradient; // 横屏沉浸封面边缘渐变
     private com.jingxin.jingxinmusic.view.LandscapeGradientOverlay landscapeGradientOverlay; // 横屏沉浸渐变过渡层
 
@@ -216,8 +207,6 @@ public class PlayerFragment extends BaseFloatFragment {
                 stateHub.setSong(newSong); // 数据中枢同步（组件化第2步）
 
                 song = newSong;
-                songTitleBar.setSong(newSong);
-                progressPanel.resetForNewSong(newSong.duration);
                 // Hub 封面/歌词快照失效（新歌数据到达前，独立页不读到旧歌缓存）
                 stateHub.invalidateCoverAndLyric();
                 loadCover();
@@ -330,7 +319,6 @@ public class PlayerFragment extends BaseFloatFragment {
                     if (bound && playerBinder != null && allSongs != null) {
                         if (resumePlay && playerBinder.isPlaying()) {
                             // 从 mini 播放条跳转，音乐已在后台播放，只更新 UI
-                            controlBar.setPlaying(true);
                             startSpectrumWithPermission();
                             // 通过 Scene 同步播放状态（唱片机同步唱臂等）
                             currentScene.onServiceResumed(true);
@@ -575,28 +563,15 @@ public class PlayerFragment extends BaseFloatFragment {
         blurBackground = view.findViewById(R.id.blur_background);
         auroraBackgroundView = view.findViewById(R.id.aurora_background);
           // 歌名+歌手组件
-        songTitleBar = view.findViewById(R.id.song_title_bar);
         // 过渡期兼容：Scene 布局手术仍直接访问文本 View
-        tvSongName = songTitleBar.songNameView();
-        tvArtist = songTitleBar.artistView();
-        lyricView = view.findViewById(R.id.lyric_view);
-        spectrumView = view.findViewById(R.id.spectrum_view);
+        // 歌词数据泵：detached 实例（fetchLyrics/搜索回填写入点 → Hub 广播到 V2 页；
+        // 旧 lyric_view 节点已删，V2 页各持显示实例）
+        lyricView = new LyricView(requireContext());
+        // 频谱真值锚：detached 实例（不挂视图树，仅承载 prefs 样式读写与采集参数；
+        // 旧 spectrum_view 节点已删，V2 页各持显示实例）
+        spectrumView = new SpectrumView(requireContext());
         // 进度组件（SeekBar+双时间，事件经 Listener 上抛）
-        progressPanel = view.findViewById(R.id.progress_panel);
-        seekBar = progressPanel.seekBar();
-        tvCurrentTime = progressPanel.currentTimeView();
-        tvTotalTime = progressPanel.totalTimeView();
         // 底部控制条组件（内部含7键：播放/上一首/下一首/模式/历史/收藏/下载）
-        controlBar = view.findViewById(R.id.control_buttons);
-        controlBar.setListener(new com.jingxin.jingxinmusic.view.ControlBar.Listener() {
-            @Override public void onPlayPause() { togglePlayPause(); }
-            @Override public void onPrevious() { playPrevious(); }
-            @Override public void onNext() { playNext(); }
-            @Override public void onPlayOrder() { togglePlayOrder(); }
-            @Override public void onHistory() { showHistoryDialog(); }
-            @Override public void onFavorite() { toggleFavorite(); }
-            @Override public void onDownload() { saveBiliOffline(); }
-        });
         overlayView = view.findViewById(R.id.overlay_view);
         whiteOverlay = view.findViewById(R.id.white_overlay);
         // 初始化白天模式渐变遮罩：浅蓝(0xFFADD8E6)→白(0xFFFFFFFF)，左上到右下
@@ -608,8 +583,6 @@ public class PlayerFragment extends BaseFloatFragment {
         whiteOverlay.setAlpha(0.7f);
         immersiveDarkOverlay = view.findViewById(R.id.immersive_dark_overlay);
         immersiveOverlay = view.findViewById(R.id.immersive_overlay);
-        infoPanel = view.findViewById(R.id.info_panel);
-        coverPlaceholder = view.findViewById(R.id.cover_placeholder);
 
         // 初始化 CoverScene 策略
         initCoverScene();
@@ -694,38 +667,12 @@ public class PlayerFragment extends BaseFloatFragment {
         switchScene();
 
         // 显示歌曲信息
-        songTitleBar.setSong(song);
-        progressPanel.resetForNewSong(song.duration);
         updateDownloadButtonVisibility();
 
-        // 进度条：事件已在 ProgressPanel.Listener 中统一接入
-        progressPanel.setListener(new com.jingxin.jingxinmusic.view.ProgressPanel.Listener() {
-            @Override public void onSeekStart() {
-                userSeeking = true;
-                stopControlsHideTimer(); // 拖动时暂停自动隐藏，避免拖动中被隐藏
-            }
-            @Override public void onSeekTo(int positionMs) {
-                if (bound && playerBinder != null) playerBinder.seekTo(positionMs);
-                // 拖动结果立即入中枢，等待服务进度回流确认
-                stateHub.setProgress(positionMs, stateHub.getDurationMs());
-            }
-            @Override public void onSeekStop() {
-                userSeeking = false;
-                resetControlsHideTimer();
-            }
-        });
-        progressPanel.attachHub(stateHub); // 订阅模式：进度自动刷新
-        controlBar.attachHub(stateHub);    // 订阅模式：播放态/模式自动刷新
-        songTitleBar.attachHub(stateHub);  // 订阅模式：切歌自动刷新
 
         // 控制按钮：事件已在 ControlBar.Listener 中统一接入（controlBar.setListener）
 
         // 歌词区域：单击切换模式（V2 页内自管联动；Fragment 仅同步旧共享实例显示模式）
-        lyricView.setOnClickListener(v -> {
-            com.jingxin.jingxinmusic.view.LyricView.DisplayMode m = lyricView.toggleMode();
-            updateLayoutForMode(m);
-        });
-        lyricView.setOnModeChangeListener(newMode -> updateLayoutForMode(newMode));
 
         // 注册广播接收器（监听切歌和播放状态）
             IntentFilter filter = new IntentFilter();
@@ -883,7 +830,6 @@ public class PlayerFragment extends BaseFloatFragment {
                 resumePosition = 0;
             }
             playerBinder.playSong(song, position);
-            controlBar.setPlaying(true);
             startSpectrumWithPermission();
             saveLastPlayed();
             // 开始播放：启用控制栏自动隐藏
@@ -911,10 +857,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     if (allPos >= 0) position = allPos;
                 }
                 song = newSong;
-                songTitleBar.setSong(song);
-                progressPanel.resetForNewSong(song.duration);
                 playerBinder.playSongAtPosition(newIdx);
-                controlBar.setPlaying(true);
                     startSpectrumWithPermission();
                 loadCover();
                 fetchLyrics();
@@ -959,9 +902,6 @@ public class PlayerFragment extends BaseFloatFragment {
      * 旧共享实例始终喂（退出 V2 后仍活跃）；第5风格（V2）激活时分流其自持实例。
      */
     private void feedSpectrumData(float[] magnitudes, float maxMag) {
-        if (spectrumView != null) {
-            spectrumView.updateDTFMagnitudes(magnitudes, maxMag);
-        }
         if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
             ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
                     .feedSpectrumData(magnitudes, maxMag);
@@ -1058,7 +998,6 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     private void updatePlayOrderIcon(int order) {
-        controlBar.setPlayOrder(order);
     }
 
     /**
@@ -1072,14 +1011,12 @@ public class PlayerFragment extends BaseFloatFragment {
         if (isFavorite) {
             FavoriteManager.removeFavorite(favDir, song);
             isFavorite = false;
-            controlBar.setFavorite(false);
-            applyButtonTheme(isNightMode);
+            notifyActivePageControlExtras();
             android.widget.Toast.makeText(requireContext(), "取消收藏", android.widget.Toast.LENGTH_SHORT).show();
         } else {
             FavoriteManager.addFavorite(favDir, song);
             isFavorite = true;
-            controlBar.setFavorite(true);
-            applyButtonTheme(isNightMode);
+            notifyActivePageControlExtras();
             android.widget.Toast.makeText(requireContext(), "已收藏", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
@@ -1091,8 +1028,7 @@ public class PlayerFragment extends BaseFloatFragment {
         if (song == null) return;
         File favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(requireContext());
         isFavorite = FavoriteManager.isFavorite(favDir, song.title, song.artist);
-        controlBar.setFavorite(isFavorite);
-        applyButtonTheme(isNightMode);
+        notifyActivePageControlExtras();
     }
 
     /**
@@ -1117,7 +1053,8 @@ public class PlayerFragment extends BaseFloatFragment {
         }
 
         // 禁用按钮防止重复点击
-        controlBar.setDownloadEnabled(false);
+        biliDownloadEnabled = false;
+        notifyActivePageControlExtras();
         android.widget.Toast.makeText(requireContext(), "开始离线保存...",
                 android.widget.Toast.LENGTH_SHORT).show();
 
@@ -1126,7 +1063,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     @Override
                     public void onSuccess(java.io.File m4aFile) {
                         runOnUi(() -> {
-                            controlBar.setDownloadEnabled(true);
+                            biliDownloadEnabled = true; notifyActivePageControlExtras();
                             android.widget.Toast.makeText(requireContext(),
                                     "已保存到 Download/music/",
                                     android.widget.Toast.LENGTH_SHORT).show();
@@ -1136,7 +1073,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     @Override
                     public void onSkipped(String reason) {
                         runOnUi(() -> {
-                            controlBar.setDownloadEnabled(true);
+                            biliDownloadEnabled = true; notifyActivePageControlExtras();
                             android.widget.Toast.makeText(requireContext(),
                                     reason, android.widget.Toast.LENGTH_SHORT).show();
                         });
@@ -1145,7 +1082,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     @Override
                     public void onFailed(String error) {
                         runOnUi(() -> {
-                            controlBar.setDownloadEnabled(true);
+                            biliDownloadEnabled = true; notifyActivePageControlExtras();
                             android.widget.Toast.makeText(requireContext(),
                                     "保存失败: " + error,
                                     android.widget.Toast.LENGTH_SHORT).show();
@@ -1163,8 +1100,7 @@ public class PlayerFragment extends BaseFloatFragment {
      * 更新下载按钮可见性：仅B站音源显示
      */
     private void updateDownloadButtonVisibility() {
-        if (controlBar == null) return;
-        controlBar.setDownloadVisible(song != null && song.sourceType == Song.SOURCE_BILI);
+        notifyActivePageControlExtras(); // V2 页经 actions.isBiliSong() 自行判显隐
     }
 
     /**
@@ -1191,7 +1127,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private void initCoverScene() {
         android.widget.FrameLayout rootLayout = mRootView.findViewById(R.id.root_layout);
         sceneHelper = new CoverSceneHelper(
-                rootLayout, blurBackground, spectrumView, infoPanel,
+                rootLayout, blurBackground, spectrumView, null,
                 getResources().getDisplayMetrics().density);
         sceneHelper.bgSkinMode = bgSkinMode;
         sceneHelper.coverStyle = coverStyle;
@@ -1360,14 +1296,12 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void updatePlayPauseButton(boolean isPlaying) {
         if (isPlaying) {
-            controlBar.setPlaying(true);
             currentScene.onPlayingStateChanged(true);
             // 恢复播放时重启频谱数据采集（暂停期间 Visualizer 可能已失效）
             if (SettingsFragment.isSpectrumEnabled(requireContext())) {
                 startSpectrumWithPermission();
             }
         } else {
-            controlBar.setPlaying(false);
             currentScene.onPlayingStateChanged(false);
         }
     }
@@ -1390,12 +1324,7 @@ public class PlayerFragment extends BaseFloatFragment {
             public void onLyricFetched(KrcParser.LyricData lyricData) {
                 if (lyricData != null && lyricData.lines != null && !lyricData.lines.isEmpty()) {
                     // Hub 歌词通道广播（独立页订阅；同一 LyricData 对象引用转发，零重复解析）
-                    stateHub.setLyricData(lyricData);
-                    if (lyricView != null) {
-                        uiHandler.post(() -> {
-                            lyricView.setLyricData(lyricData);
-                        });
-                    }
+                    stateHub.setLyricData(lyricData); // 广播 V2 页（双写旧实例已删）
                 } else {
                 }
             }
@@ -1654,8 +1583,6 @@ public class PlayerFragment extends BaseFloatFragment {
                         if (historyPopup != null) historyPopup.dismiss();
                         Song s = item.song;
                         song = s;
-                        songTitleBar.setSong(s);
-                        progressPanel.resetForNewSong(s.duration);
                         loadCover();
                         fetchLyrics();
 
@@ -1666,7 +1593,6 @@ public class PlayerFragment extends BaseFloatFragment {
                             }
                             playerBinder.setPlaylist(historySongs);
                             playerBinder.playSong(s, history.indexOf(item));
-                            controlBar.setPlaying(true);
                             startSpectrumWithPermission();
                         }
                     });
@@ -1731,6 +1657,7 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override public void showLyricSearchPopup(View anchor) { base.showLyricSearchPopup(anchor); }
             @Override public boolean isFavorite() { return base.isFavorite(); }
             @Override public boolean isBiliSong() { return base.isBiliSong(); }
+            @Override public boolean isBiliDownloadEnabled() { return base.isBiliDownloadEnabled(); }
             @Override public void exitPlayerPage() { base.exitPlayerPage(); }
             @Override public void switchOutfitStyle() { base.switchOutfitStyle(); }
             @Override public void onSeekStart() { base.onSeekStart(); }
@@ -1763,6 +1690,7 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override public void showLyricSearchPopup(View anchor) { PlayerFragment.this.showLyricSearchPopup(); }
             @Override public boolean isFavorite() { return PlayerFragment.this.isFavorite; }
             @Override public boolean isBiliSong() { return song != null && song.sourceType == Song.SOURCE_BILI; }
+            @Override public boolean isBiliDownloadEnabled() { return biliDownloadEnabled; }
             @Override public void exitPlayerPage() {
                 stopSpectrum();
                 requireActivity().onBackPressed();
@@ -1792,6 +1720,23 @@ public class PlayerFragment extends BaseFloatFragment {
                 }
             }
         };
+    }
+
+    /** 收藏态/B站下载键态变化 → 通知当前活跃 V2 页刷新控制条附加态 */
+    private void notifyActivePageControlExtras() {
+        if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                    .notifyControlExtrasChanged();
+        } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage())
+                    .notifyControlExtrasChanged();
+        } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage())
+                    .notifyControlExtrasChanged();
+        } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+                    .notifyControlExtrasChanged();
+        }
     }
 
     private void toggleImmersiveMode() {
@@ -2201,12 +2146,9 @@ public class PlayerFragment extends BaseFloatFragment {
         container.addView(emptyText);
 
         // 创建弹窗：竖屏宽度80%水平居中，横屏宽度65%左对齐
-        int[] songNameLoc = new int[2];
-        tvSongName.getLocationOnScreen(songNameLoc);
-        int[] spectrumLoc = new int[2];
-        spectrumView.getLocationOnScreen(spectrumLoc);
-        int popupTop = songNameLoc[1];
-        int spectrumBottom = spectrumLoc[1] + spectrumView.getHeight();
+        // 旧 song_title_bar/spectrum_view 节点已删；弹窗几何改屏高比例估算
+        int spectrumBottom = (int) (getAvailableScreenHeight() * 0.62f);
+        int popupTop = (int) (getAvailableScreenHeight() * 0.12f);
         int popupHeight = spectrumBottom - popupTop;
         if (popupHeight < (int)(200 * density * sf)) popupHeight = (int)(200 * density * sf);
         int screenWidth = mRootView.getWidth();
@@ -2398,8 +2340,6 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private void applyTextTheme(boolean isNight) {
         int textColor = isNight ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
-        songTitleBar.setTextColor(textColor);
-        progressPanel.setTimeTextColor(textColor);
     }
 
     /**
@@ -2407,9 +2347,6 @@ public class PlayerFragment extends BaseFloatFragment {
      * ControlBar 内部按钮由组件自染；顶部栏按钮仍由 Fragment 染色
      */
     private void applyButtonTheme(boolean isNight) {
-        // 底部控制条（7键含收藏红态）
-        controlBar.applyTheme(isNight, isFavorite,
-                ThemeColors.dayTextPrimary(), ThemeColors.FAVORITE_RED);
         // 光晕模式下用专用进度条配色，非光晕模式用原逻辑
     }
 
@@ -2524,7 +2461,7 @@ public class PlayerFragment extends BaseFloatFragment {
                                 }
                             }
                             float finalMax = maxMag;
-                            spectrumView.post(() -> feedSpectrumData(magnitudes, finalMax));
+                            mRootView.post(() -> feedSpectrumData(magnitudes, finalMax));
                         }
                     }, Visualizer.getMaxCaptureRate(), false, true);
 
@@ -2697,7 +2634,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
                     float finalMax = maxMag;
                     if (spectrumView != null) {
-                        spectrumView.post(() -> feedSpectrumData(magnitudes, finalMax));
+                        mRootView.post(() -> feedSpectrumData(magnitudes, finalMax));
                     }
                 }
             } catch (Exception e) {
@@ -2766,9 +2703,6 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        progressPanel.detachHub(); // 解除中枢订阅防泄漏
-        controlBar.detachHub();
-        songTitleBar.detachHub();
         stopSpectrum();
         stopControlsHideTimer();
         uiHandler.removeCallbacks(progressRunnable);

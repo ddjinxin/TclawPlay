@@ -579,7 +579,15 @@ public class ImmersivePageV2 extends StagePage {
             controlL.setFavorite(actions.isFavorite());
             control.setDownloadVisible(actions.isBiliSong());
             controlL.setDownloadVisible(actions.isBiliSong());
+            boolean dlEnabled = actions.isBiliDownloadEnabled();
+            control.setDownloadEnabled(dlEnabled);
+            controlL.setDownloadEnabled(dlEnabled);
         }
+    }
+
+    /** 外部（Fragment 收藏/下载态变化点）通知刷本页控制条附加态 */
+    public void notifyControlExtrasChanged() {
+        syncControlExtras();
     }
 
     // ===== 精简模式 =====
