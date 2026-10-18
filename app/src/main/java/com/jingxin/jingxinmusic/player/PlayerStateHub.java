@@ -203,6 +203,16 @@ public class PlayerStateHub {
         return hasCoverColors;
     }
 
+    /** 封面双色快照（主色；hasCoverColors 为 true 时有效） */
+    public int getCoverColorTop() {
+        return coverColorTop;
+    }
+
+    /** 封面双色快照（副色；hasCoverColors 为 true 时有效） */
+    public int getCoverColorBottom() {
+        return coverColorBottom;
+    }
+
     // ===== 写入（值语义，变化才通知） =====
 
     public void setSong(Song song) {

@@ -136,6 +136,57 @@ public class ProgressPanel extends LinearLayout {
         tvTotalTime.setTextColor(color);
     }
 
+    /**
+     * 进度条视觉（公式与 CoverSceneHelper.applyProgressScaling 同源）：
+     * 圆球=屏高2%×aspect 轨道高度=屏高0.5%×aspect；光晕模式球色跟随文字色，默认黄球。
+     * 时间文字同步 2% 缩放；已进度段染色：夜间白/白天黑。
+     */
+    public void applyTrackTheme(int actHeight, int actWidth, boolean night, boolean auroraSkin) {
+        float aspectFactor = 1f + Math.max(0f, (actWidth / (float) actHeight - 1.78f) / 3f);
+        int thumbSize = Math.max(8, (int) (actHeight * 0.02f * aspectFactor));
+        android.graphics.drawable.GradientDrawable thumb = new android.graphics.drawable.GradientDrawable();
+        thumb.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        if (auroraSkin) {
+            thumb.setColor(night
+                    ? com.jingxin.jingxinmusic.util.ThemeColors.nightTextPrimary()
+                    : com.jingxin.jingxinmusic.util.ThemeColors.dayTextPrimary());
+        } else {
+            thumb.setColor(android.graphics.Color.parseColor("#FFD54F"));
+        }
+        thumb.setSize(thumbSize, thumbSize);
+        seekBar.setThumb(thumb);
+        seekBar.setThumbOffset(thumbSize / 2);
+        // 轨道高度（bounds 垂直居中公式同 helper，防轨道贴顶错位）
+        int trackHeight = Math.max(2, (int) (actHeight * 0.005f * aspectFactor));
+        android.graphics.drawable.Drawable trackDrawable = seekBar.getProgressDrawable();
+        if (trackDrawable != null) {
+            int trackWidth = seekBar.getWidth() - seekBar.getPaddingLeft() - seekBar.getPaddingRight();
+            if (trackWidth <= 0) trackWidth = 1080;
+            int paddedHeight = seekBar.getHeight() - seekBar.getPaddingTop() - seekBar.getPaddingBottom();
+            int sysTrackHeight = Math.min(trackHeight, Math.max(0, paddedHeight));
+            int trackOffset = Math.max(0, (paddedHeight - sysTrackHeight) / 2);
+            trackDrawable.setBounds(0, trackOffset, trackWidth, trackOffset + sysTrackHeight);
+        }
+        // 已进度段染色（同 applySeekBarThemeColor 核心）
+        try {
+            android.graphics.drawable.Drawable pd = seekBar.getProgressDrawable().mutate();
+            if (pd instanceof android.graphics.drawable.LayerDrawable) {
+                android.graphics.drawable.Drawable prog = ((android.graphics.drawable.LayerDrawable) pd)
+                        .findDrawableByLayerId(android.R.id.progress);
+                if (prog != null) {
+                    prog.setColorFilter(night
+                            ? com.jingxin.jingxinmusic.util.ThemeColors.nightTextPrimary()
+                            : com.jingxin.jingxinmusic.util.ThemeColors.dayTextPrimary(),
+                            android.graphics.PorterDuff.Mode.SRC_IN);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        float timeTextSize = actHeight * 0.02f * aspectFactor;
+        tvCurrentTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
+        tvTotalTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
+    }
+
     // ===== 兼容访问（Scene 布局手术 / 主题滤镜） =====
 
     public SeekBar seekBar() {

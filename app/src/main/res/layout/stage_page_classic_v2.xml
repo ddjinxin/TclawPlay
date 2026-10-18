@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 新经典风格页 V2 · 竖屏（第5风格，完全自持实例）
+     与旧经典页像素级对齐：封面25%屏高+5.6%顶距 / info流(占位+标题+歌词weight+频谱+进度+控制)
+     全部视图为本页私有实例（v2_ 前缀），订阅 PlayerStateHub 自取数据，零共享视图接触 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/v2_page_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/player_bg">
+
+    <!-- ===== 背景栈（本页私有，四态：默认日/夜 + 光晕日/夜）===== -->
+    <com.jingxin.jingxinmusic.view.AuroraGradientView
+        android:id="@+id/v2_aurora"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/v2_blur"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0"
+        android:visibility="gone" />
+
+    <!-- 白天白遮罩（默认皮肤日间，对应旧 whiteOverlay 0.7） -->
+    <View
+        android:id="@+id/v2_light_mask"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FFFFFF"
+        android:alpha="0.7"
+        android:visibility="gone" />
+
+    <!-- 夜间黑遮罩（默认皮肤夜间/夜间兜底） -->
+    <View
+        android:id="@+id/v2_dark_mask"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/overlay_dark_black"
+        android:visibility="gone" />
+
+    <!-- ===== 精简模式触摸拦截层（controlsHide 机制的 V2 实例）===== -->
+    <View
+        android:id="@+id/v2_hide_touch_layer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- ===== 封面区（顶部居中，尺寸代码按25%屏高设置；与标题非同一流，帧容器定位）===== -->
+    <FrameLayout
+        android:id="@+id/v2_cover_area"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.jingxin.jingxinmusic.view.RotatingCoverView
+            android:id="@+id/v2_cover"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal|top"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_round" />
+
+        <!-- 圆环频谱（同槽承接：圆形覆盖封面模式时驻留于此，默认底部态走 info 流） -->
+        <com.jingxin.jingxinmusic.view.SpectrumView
+            android:id="@+id/v2_spectrum_ring"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- ===== 信息流（全宽居中垂直流：占位+标题+歌词+频谱+进度+控制条）===== -->
+    <LinearLayout
+        android:id="@+id/v2_info_flow"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <!-- 封面占位（高度代码设置 = 顶距+封面+题间距，全屏歌词时 GONE） -->
+        <View
+            android:id="@+id/v2_cover_placeholder"
+            android:layout_width="1dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
+        <com.jingxin.jingxinmusic.view.SongTitleBar
+            android:id="@+id/v2_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <com.jingxin.jingxinmusic.view.LyricView
+            android:id="@+id/v2_lyric"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp" />
+
+        <com.jingxin.jingxinmusic.view.SpectrumView
+            android:id="@+id/v2_spectrum"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:layout_marginBottom="16dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp" />
+
+        <com.jingxin.jingxinmusic.view.ProgressPanel
+            android:id="@+id/v2_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp" />
+
+        <com.jingxin.jingxinmusic.view.ControlBar
+            android:id="@+id/v2_control"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp" />
+    </LinearLayout>
+
+    <!-- ===== 顶栏（全5键：返回/音效/弹性空位/歌词搜索/频谱/装扮右侧组35%）===== -->
+    <LinearLayout
+        android:id="@+id/v2_top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/v2_btn_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_back"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_round"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <ImageView
+            android:id="@+id/v2_btn_effect"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_effect"
+            android:padding="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_round"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <View
+            android:id="@+id/v2_top_spacer"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/v2_right_group"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/v2_btn_lyric_search"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_lyric_search"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tv_focus_round"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageView
+                android:id="@+id/v2_btn_spectrum"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_spectrum"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tv_focus_round"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageView
+                android:id="@+id/v2_btn_outfit"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_outfit"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tv_focus_round"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>

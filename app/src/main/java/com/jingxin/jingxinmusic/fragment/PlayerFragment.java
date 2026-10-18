@@ -151,6 +151,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int COVER_STYLE_IMMERSIVE = 1;
     private static final int COVER_STYLE_RECORD = 2;
     private static final int COVER_STYLE_CAROUSEL = 3;
+    private static final int COVER_STYLE_CLASSIC_V2 = 4; // 第5风格：新经典（自持实例页）
     private int coverStyle = COVER_STYLE_CLASSIC;
     private com.jingxin.jingxinmusic.view.AuroraGradientView auroraBackgroundView;
     private int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
@@ -180,6 +181,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private com.jingxin.jingxinmusic.stage.StagePageAdapter recordPageAdapter;
     private com.jingxin.jingxinmusic.stage.StagePageAdapter classicPageAdapter;
     private com.jingxin.jingxinmusic.stage.StagePageAdapter immersivePageAdapter;
+    private com.jingxin.jingxinmusic.stage.StagePageAdapter classicV2PageAdapter; // 第5风格
     private CoverScene currentScene;
 
     // 播放服务
@@ -487,6 +489,11 @@ public class PlayerFragment extends BaseFloatFragment {
         progressLayout.setVisibility(View.GONE);
         controlButtons.setVisibility(View.GONE);
         if (controlsHideTouchLayer != null) controlsHideTouchLayer.setVisibility(View.VISIBLE);
+        // 同步第5风格（V2）自持实例
+        if (classicV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                    .setControlsHiddenFromHost(true);
+        }
     }
 
     /** 恢复控制栏，可选重置隐藏计时 */
@@ -499,6 +506,11 @@ public class PlayerFragment extends BaseFloatFragment {
         if (progressLayout != null) progressLayout.setVisibility(View.VISIBLE);
         if (controlButtons != null) controlButtons.setVisibility(View.VISIBLE);
         if (controlsHideTouchLayer != null) controlsHideTouchLayer.setVisibility(View.GONE);
+        // 同步第5风格（V2）自持实例
+        if (classicV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                    .setControlsHiddenFromHost(false);
+        }
         if (resetTimer) resetControlsHideTimer();
     }
 
@@ -711,9 +723,9 @@ public class PlayerFragment extends BaseFloatFragment {
         Context ctx = requireContext();
         isNightMode = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE).getBoolean("isNight", true);
         stateHub.setNightMode(isNightMode); // 初始值入中枢
-        stateHub.setBgSkinMode(bgSkinMode);
         coverStyle = ctx.getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC);
         bgSkinMode = SettingsFragment.getBgSkin(ctx);
+        stateHub.setBgSkinMode(bgSkinMode); // 必须在读取 bgSkinMode 之后写中枢（此前写在读取前，恒写 0=默认皮肤）
         sceneHelper.bgSkinMode = bgSkinMode; // 同步到 helper，确保 enter() 能正确判断
         sceneHelper.coverStyle = coverStyle;
         // 在初始化场景前先检测横竖屏（OnGlobalLayoutListener是异步的，会太晚）
@@ -903,6 +915,7 @@ public class PlayerFragment extends BaseFloatFragment {
             coverStyle = savedCoverStyle;
             sceneHelper.bgSkinMode = bgSkinMode;
             sceneHelper.coverStyle = coverStyle;
+            stateHub.setBgSkinMode(bgSkinMode); // Hub 同步（V2 自持页订阅皮肤通道）
             updateThemeUI();
             // 不在「双色光晕+非沉浸」组合时，恢复自定义歌词高亮色
             if (!(isAuroraActive()) && lyricView != null) {
@@ -1115,6 +1128,20 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private boolean isSpectrumStartable() {
         return getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.STARTED);
+    }
+
+    /**
+     * 频谱数据分发：Visualizer/AudioRecord 回调统一入口。
+     * 旧共享实例始终喂（退出 V2 后仍活跃）；第5风格（V2）激活时分流其自持实例。
+     */
+    private void feedSpectrumData(float[] magnitudes, float maxMag) {
+        if (spectrumView != null) {
+            spectrumView.updateDTFMagnitudes(magnitudes, maxMag);
+        }
+        if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                    .feedSpectrumData(magnitudes, maxMag);
+        }
     }
 
     private void startSpectrumWithPermission() {
@@ -1511,6 +1538,15 @@ public class PlayerFragment extends BaseFloatFragment {
                         new com.jingxin.jingxinmusic.stage.CarouselPage(sceneHelper));
             }
             target = carouselPageAdapter;
+        } else if (coverStyle == COVER_STYLE_CLASSIC_V2) {
+            // 第5风格：新经典 V2（完全自持实例，全页叠加在旧视图之上）
+            if (classicV2PageAdapter == null) {
+                com.jingxin.jingxinmusic.stage.ClassicPageV2 v2 =
+                        new com.jingxin.jingxinmusic.stage.ClassicPageV2(sceneHelper);
+                v2.setActions(buildV2Actions());
+                classicV2PageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(v2);
+            }
+            target = classicV2PageAdapter;
         } else {
             if (classicPageAdapter == null) {
                 classicPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
@@ -1978,9 +2014,40 @@ public class PlayerFragment extends BaseFloatFragment {
     /**
      * 循环切换封面风格：经典 → 沉浸 → 唱片机 → 轮播 → 经典
      */
+    /** 第5风格（新经典V2）的动作桥：数据与播放逻辑共享，视图独立 */
+    private com.jingxin.jingxinmusic.stage.ClassicPageV2.Actions buildV2Actions() {
+        return new com.jingxin.jingxinmusic.stage.ClassicPageV2.Actions() {
+            @Override public void togglePlayPause() { PlayerFragment.this.togglePlayPause(); }
+            @Override public void playPrevious() { PlayerFragment.this.playPrevious(); }
+            @Override public void playNext() { PlayerFragment.this.playNext(); }
+            @Override public void togglePlayOrder() { PlayerFragment.this.togglePlayOrder(); }
+            @Override public void showHistoryDialog() { PlayerFragment.this.showHistoryDialog(); }
+            @Override public void toggleFavorite() { PlayerFragment.this.toggleFavorite(); }
+            @Override public void saveBiliOffline() { PlayerFragment.this.saveBiliOffline(); }
+            @Override public void showSpectrumPicker(View anchor) { PlayerFragment.this.showSpectrumPicker(); }
+            @Override public void showEffectPickerPopup(View anchor) { PlayerFragment.this.showEffectPickerPopup(); }
+            @Override public void showLyricSearchPopup(View anchor) { PlayerFragment.this.showLyricSearchPopup(); }
+            @Override public boolean isFavorite() { return PlayerFragment.this.isFavorite; }
+            @Override public boolean isBiliSong() { return song != null && song.sourceType == Song.SOURCE_BILI; }
+            @Override public void exitPlayerPage() {
+                stopSpectrum();
+                requireActivity().onBackPressed();
+            }
+            @Override public void switchOutfitStyle() { PlayerFragment.this.toggleImmersiveMode(); }
+            @Override public boolean isControlsHidden() { return PlayerFragment.this.controlsHidden; }
+            @Override public void onV2ControlsTouched() {
+                // V2 内交互：等价旧页触摸活动（重置自动隐藏计时窗口）
+                if (controlsHideEnabled) {
+                    showControls(false);
+                    resetControlsHideTimer();
+                }
+            }
+        };
+    }
+
     private void toggleImmersiveMode() {
         int prevStyle = coverStyle;
-        coverStyle = (coverStyle + 1) % 4;
+        coverStyle = (coverStyle + 1) % 5;
         requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
         // 沉浸模式下圆环/扩散圆环/波浪圆环不可用，循环跳过
@@ -2029,7 +2096,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
         }
 
-        String[] styleNames = {"经典模式", "沉浸模式", "唱片机模式", "轮播模式"};
+        String[] styleNames = {"经典模式", "沉浸模式", "唱片机模式", "轮播模式", "新经典模式"};
         android.widget.Toast.makeText(requireContext(), styleNames[coverStyle],
                 android.widget.Toast.LENGTH_SHORT).show();
     }
@@ -2222,6 +2289,11 @@ public class PlayerFragment extends BaseFloatFragment {
                 if (disabled) return;
                 boolean wasRing = spectrumView.isCoverOverlayMode();
                 spectrumView.setStyle(style);
+                // 第5风格（V2）激活时：样式同步到 V2 自持实例（currentScene.layout 会重新收敛可见性）
+                if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
+                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                            .applySpectrumStyle(style);
+                }
                 boolean isRing = spectrumView.isCoverOverlayMode();
                 if (wasRing != isRing) {
                     int w = getLayoutWidth();
@@ -2865,11 +2937,7 @@ public class PlayerFragment extends BaseFloatFragment {
                                 }
                             }
                             float finalMax = maxMag;
-                            spectrumView.post(() -> {
-                                if (spectrumView != null) {
-                                    spectrumView.updateDTFMagnitudes(magnitudes, finalMax);
-                                }
-                            });
+                            spectrumView.post(() -> feedSpectrumData(magnitudes, finalMax));
                         }
                     }, Visualizer.getMaxCaptureRate(), false, true);
 
@@ -3042,11 +3110,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
                     float finalMax = maxMag;
                     if (spectrumView != null) {
-                        spectrumView.post(() -> {
-                            if (spectrumView != null) {
-                                spectrumView.updateDTFMagnitudes(magnitudes, finalMax);
-                            }
-                        });
+                        spectrumView.post(() -> feedSpectrumData(magnitudes, finalMax));
                     }
                 }
             } catch (Exception e) {
