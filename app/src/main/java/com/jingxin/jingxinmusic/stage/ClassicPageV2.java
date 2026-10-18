@@ -595,6 +595,13 @@ public class ClassicPageV2 extends StagePage {
             progress.applyTrackTheme(lastHeight, lastWidth, night, auroraSkin);
             progressL.applyTrackTheme(lastHeight, lastWidth, night, auroraSkin);
         }
+        // 光晕高亮收敛（旧 updateThemeUI 尾部同款）：setThemeMode 会把高亮色重置为自定义色，
+        // 光晕皮肤必须在其后重新覆盖为封面副色映射色，否则被洗掉
+        if (auroraSkin && coverColorsBottom != 0) {
+            int lyricColor = CoverColorExtractor.getLyricHighlightColor(coverColorsBottom, false);
+            lyric.setHighlightColor(lyricColor);
+            lyricL.setHighlightColor(lyricColor);
+        }
     }
 
     // ===== 布局（公式与旧 ClassicPage 像素级同源）=====

@@ -152,6 +152,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int COVER_STYLE_RECORD = 2;
     private static final int COVER_STYLE_CAROUSEL = 3;
     private static final int COVER_STYLE_CLASSIC_V2 = 4; // 第5风格：新经典（自持实例页）
+    private static final int COVER_STYLE_IMMERSIVE_V2 = 5; // 第6风格：沉浸 V2（自持实例页）
     private int coverStyle = COVER_STYLE_CLASSIC;
     private com.jingxin.jingxinmusic.view.AuroraGradientView auroraBackgroundView;
     private int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
@@ -182,6 +183,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private com.jingxin.jingxinmusic.stage.StagePageAdapter classicPageAdapter;
     private com.jingxin.jingxinmusic.stage.StagePageAdapter immersivePageAdapter;
     private com.jingxin.jingxinmusic.stage.StagePageAdapter classicV2PageAdapter; // 第5风格
+    private com.jingxin.jingxinmusic.stage.StagePageAdapter immersiveV2PageAdapter; // 第6风格
     private CoverScene currentScene;
 
     // 播放服务
@@ -494,6 +496,11 @@ public class PlayerFragment extends BaseFloatFragment {
             ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
                     .setControlsHiddenFromHost(true);
         }
+        // 同步第6风格（沉浸�V2）自持实例
+        if (immersiveV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+                    .setControlsHiddenFromHost(true);
+        }
     }
 
     /** 恢复控制栏，可选重置隐藏计时 */
@@ -509,6 +516,11 @@ public class PlayerFragment extends BaseFloatFragment {
         // 同步第5风格（V2）自持实例
         if (classicV2PageAdapter != null) {
             ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                    .setControlsHiddenFromHost(false);
+        }
+        // 同步第6风格（沉浸�V2）自持实例
+        if (immersiveV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
                     .setControlsHiddenFromHost(false);
         }
         if (resetTimer) resetControlsHideTimer();
@@ -1142,6 +1154,10 @@ public class PlayerFragment extends BaseFloatFragment {
             ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
                     .feedSpectrumData(magnitudes, maxMag);
         }
+        if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
+            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+                    .feedSpectrumData(magnitudes, maxMag);
+        }
     }
 
     private void startSpectrumWithPermission() {
@@ -1547,6 +1563,15 @@ public class PlayerFragment extends BaseFloatFragment {
                 classicV2PageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(v2);
             }
             target = classicV2PageAdapter;
+        } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2) {
+            // 第6风格：沉浸 V2（完全自持实例）
+            if (immersiveV2PageAdapter == null) {
+                com.jingxin.jingxinmusic.stage.ImmersivePageV2 iv2 =
+                        new com.jingxin.jingxinmusic.stage.ImmersivePageV2(sceneHelper);
+                iv2.setActions(buildV2Actions());
+                immersiveV2PageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(iv2);
+            }
+            target = immersiveV2PageAdapter;
         } else {
             if (classicPageAdapter == null) {
                 classicPageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(
@@ -1558,8 +1583,8 @@ public class PlayerFragment extends BaseFloatFragment {
             currentScene.onStyleExit();
             currentScene.exit();
             currentScene = target;
-            // 进入沉浸模式：不支持全屏歌词，若当前为全屏则降级为多行
-            if (coverStyle == COVER_STYLE_IMMERSIVE && lyricView != null
+            // 进入沉浸模式（含V2）：不支持全屏歌词，若当前为全屏则降级为多行
+            if ((coverStyle == COVER_STYLE_IMMERSIVE || coverStyle == COVER_STYLE_IMMERSIVE_V2) && lyricView != null
                     && lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL) {
                 lyricView.setDisplayMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode.MULTI_LINE);
             }
@@ -2047,7 +2072,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void toggleImmersiveMode() {
         int prevStyle = coverStyle;
-        coverStyle = (coverStyle + 1) % 5;
+        coverStyle = (coverStyle + 1) % 6;
         requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
         // 沉浸模式下圆环/扩散圆环/波浪圆环不可用，循环跳过
@@ -2090,13 +2115,13 @@ public class PlayerFragment extends BaseFloatFragment {
             syncCarouselSongs();
         }
 
-        // 同步歌词模式到沉浸遮罩（切换进沉浸时若为全屏，switchScene 已降级为多行）
+        // 同步歌词模式到沉浸遮罩（旧沉浸风格；进风格时若为全屏，switchScene 已降级为多行）
         if (coverStyle == COVER_STYLE_IMMERSIVE && lyricView != null) {
             immersiveOverlay.setFullScreenMode(
                     lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL);
         }
 
-        String[] styleNames = {"经典模式", "沉浸模式", "唱片机模式", "轮播模式", "新经典模式"};
+        String[] styleNames = {"经典模式", "沉浸模式", "唱片机模式", "轮播模式", "新经典模式", "沉浸·新"};
         android.widget.Toast.makeText(requireContext(), styleNames[coverStyle],
                 android.widget.Toast.LENGTH_SHORT).show();
     }
@@ -2292,6 +2317,11 @@ public class PlayerFragment extends BaseFloatFragment {
                 // 第5风格（V2）激活时：样式同步到 V2 自持实例（currentScene.layout 会重新收敛可见性）
                 if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
                     ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                            .applySpectrumStyle(style);
+                }
+                if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
+                    // 沉浸 V2：仅底部样式（圆环类已被禁用项过滤）
+                    ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
                             .applySpectrumStyle(style);
                 }
                 boolean isRing = spectrumView.isCoverOverlayMode();

@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 沉浸风格页 V2 · 竖屏（第6风格，完全自持实例）
+     结构：顶部43%封面原图层(CENTER_CROP) → 主色渐变遮罩(ImmersiveOverlayView自带) →
+     43%以下遮罩底色区 → 信息流(标题@43%分界 下方 歌词/频谱/进度/控制) -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/iv2_page_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/player_bg">
+
+    <!-- 封面原图层（顶部43%，高度代码设置：ic2_cover_top 层） -->
+    <ImageView
+        android:id="@+id/iv2_cover_top"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <!-- 封面边缘渐变（43%分界处的主色渐变收口，光晕模式用光晕底色；与遮罩同组件库） -->
+    <com.jingxin.jingxinmusic.view.ImmersiveOverlayView
+        android:id="@+id/iv2_mask"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- 夜间暗层 -->
+    <View
+        android:id="@+id/iv2_dark"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/overlay_dark_black"
+        android:visibility="gone" />
+
+    <!-- 光晕皮肤层（非透明底全屏；光晕沉浸竖屏=透明底叠加） -->
+    <com.jingxin.jingxinmusic.view.AuroraGradientView
+        android:id="@+id/iv2_aurora"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- 精简模式触摸层 -->
+    <View
+        android:id="@+id/iv2_hide_touch"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- 信息流（标题推至43%遮罩区分界下方；代码设置topMargin） -->
+    <LinearLayout
+        android:id="@+id/iv2_info"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <com.jingxin.jingxinmusic.view.SongTitleBar
+            android:id="@+id/iv2_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <com.jingxin.jingxinmusic.view.LyricView
+            android:id="@+id/iv2_lyric"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp" />
+
+        <com.jingxin.jingxinmusic.view.SpectrumView
+            android:id="@+id/iv2_spectrum"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:layout_marginBottom="16dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp" />
+
+        <com.jingxin.jingxinmusic.view.ProgressPanel
+            android:id="@+id/iv2_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp" />
+
+        <com.jingxin.jingxinmusic.view.ControlBar
+            android:id="@+id/iv2_control"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp" />
+    </LinearLayout>
+
+    <!-- 顶栏（全5键，与经典V2同构；沉浸无返回键时也保留，风格循环用） -->
+    <LinearLayout
+        android:id="@+id/iv2_top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/iv2_btn_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_back"
+            android:padding="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_round"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <ImageView
+            android:id="@+id/iv2_btn_effect"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_effect"
+            android:padding="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_round"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <View
+            android:id="@+id/iv2_top_spacer"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/iv2_right_group"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/iv2_btn_lyric_search"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_lyric_search"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tv_focus_round"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageView
+                android:id="@+id/iv2_btn_spectrum"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_spectrum"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tv_focus_round"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageView
+                android:id="@+id/iv2_btn_outfit"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_outfit"
+                android:padding="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="@drawable/tv_focus_round"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>
