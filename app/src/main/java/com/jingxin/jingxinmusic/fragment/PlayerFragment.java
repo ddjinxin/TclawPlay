@@ -39,7 +39,6 @@ import androidx.lifecycle.Lifecycle;
 
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
-import com.jingxin.jingxinmusic.scene.CoverScene;
 import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
@@ -125,14 +124,9 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int COVER_STYLE_CAROUSEL_V2 = 7; // 第8风格：轮播 V2（自持实例页）
 
     /**
-     * 风格入口收口：旧四风格（0~3）已隐藏（双轨观察期，代码保留），入口只在 V2 新风格间循环。
-     * 读 prefs 时旧值映射到对应新风格（0→新经典 1→沉浸新 2→唱片机新 3→轮播新）。
+     * 风格值规范化：旧 prefs 值 0~3 映射到 V2 新风格（4~7），越界回落新经典（幂等）。
      */
-    private static final boolean HIDE_LEGACY_STYLES = true;
-
-    /** 风格值规范化：隐藏开关开启时旧值映射到对应 V2 新风格（幂等） */
     private static int normalizeCoverStyle(int style) {
-        if (!HIDE_LEGACY_STYLES) return style;
         if (style < COVER_STYLE_CLASSIC_V2) return style + COVER_STYLE_CLASSIC_V2;
         return style > COVER_STYLE_CAROUSEL_V2 ? COVER_STYLE_CLASSIC_V2 : style;
     }
@@ -151,15 +145,15 @@ public class PlayerFragment extends BaseFloatFragment {
     private com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable coverBorderGradient; // 横屏沉浸封面边缘渐变
     private com.jingxin.jingxinmusic.view.LandscapeGradientOverlay landscapeGradientOverlay; // 横屏沉浸渐变过渡层
 
-    // CoverScene 模式策略
+    // 播放场景：四风格各持一个 StagePage 实例（组件化第5/6步）
     private CoverSceneHelper sceneHelper;
-    // 旧 8 个 Scene 实例已随 scene/ 拆除（步骤7）：四风格全部由 StagePageAdapter 承载
-    // 新架构风格页面（双轨，组件化第5/6步）：StagePageAdapter 接入 currentScene 调度
-    private com.jingxin.jingxinmusic.stage.StagePageAdapter classicV2PageAdapter; // 第5风格
-    private com.jingxin.jingxinmusic.stage.StagePageAdapter immersiveV2PageAdapter; // 第6风格
-    private com.jingxin.jingxinmusic.stage.StagePageAdapter recordV2PageAdapter; // 第7风格
-    private com.jingxin.jingxinmusic.stage.StagePageAdapter carouselV2PageAdapter; // 第8风格
-    private CoverScene currentScene;
+    private com.jingxin.jingxinmusic.stage.ClassicPageV2 classicV2Page; // 经典
+    private com.jingxin.jingxinmusic.stage.ImmersivePageV2 immersiveV2Page; // 沉浸
+    private com.jingxin.jingxinmusic.stage.RecordPageV2 recordV2Page; // 唱机
+    private com.jingxin.jingxinmusic.stage.CarouselPageV2 carouselV2Page; // 轮播
+    private com.jingxin.jingxinmusic.stage.StagePage currentScene;
+    /** currentScene 本次进入时的方向形态（横竖切换时 layout 前需 exit→enter 重建，等价旧架构两 Scene 实例） */
+    private boolean enteredAsLandscape = false;
 
     // 播放服务
     private MusicPlayerBinder playerBinder;
@@ -207,8 +201,8 @@ public class PlayerFragment extends BaseFloatFragment {
                 updateDownloadButtonVisibility();
                 saveLastPlayed();
                 // 第8风格（轮播V2）卡片位置同步（切歌即重新拉列表）
-                if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
-                    ((com.jingxin.jingxinmusic.stage.CarouselPageV2) carouselV2PageAdapter.getPage())
+                if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
+                    carouselV2Page
                             .syncPlaylistPosition();
                 }
                 // 切歌时重置自动隐藏计时（新歌重新计算5秒窗口）
@@ -267,7 +261,7 @@ public class PlayerFragment extends BaseFloatFragment {
                     applyLayoutMode();
                     int w = getLayoutWidth();
                     int h = getAvailableScreenHeight();
-                    currentScene.layout(w, h);
+                    sceneLayout(w, h);
                     updateThemeUI();
                     updateLayoutForMode(lyricView.getDisplayMode());
                     lyricView.post(lyricView::refreshTextSize);
@@ -390,8 +384,8 @@ public class PlayerFragment extends BaseFloatFragment {
                             playSong();
                         }
                         // 第8风格（轮播V2）：列表就绪后全量灌入轮布封面
-                        if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
-                            ((com.jingxin.jingxinmusic.stage.CarouselPageV2) carouselV2PageAdapter.getPage())
+                        if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
+                            carouselV2Page
                                     .syncPlaylistPosition();
                         }
                     }
@@ -459,23 +453,23 @@ public class PlayerFragment extends BaseFloatFragment {
         if (controlsHidden) return;
         controlsHidden = true;
         // 同步第5风格（V2）自持实例
-        if (classicV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+        if (classicV2Page != null) {
+            classicV2Page
                     .setControlsHiddenFromHost(true);
         }
         // 同步第7风格（唱片机 V2）自持实例
-        if (recordV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage())
+        if (recordV2Page != null) {
+            recordV2Page
                     .setControlsHiddenFromHost(true);
         }
         // 同步第8风格（轮播 V2）自持实例
-        if (carouselV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage())
+        if (carouselV2Page != null) {
+            carouselV2Page
                     .setControlsHiddenFromHost(true);
         }
         // 同步第6风格（沉浸�V2）自持实例
-        if (immersiveV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+        if (immersiveV2Page != null) {
+            immersiveV2Page
                     .setControlsHiddenFromHost(true);
         }
     }
@@ -488,23 +482,23 @@ public class PlayerFragment extends BaseFloatFragment {
         }
         controlsHidden = false;
         // 同步第5风格（V2）自持实例
-        if (classicV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+        if (classicV2Page != null) {
+            classicV2Page
                     .setControlsHiddenFromHost(false);
         }
         // 同步第7风格（唱片机 V2）自持实例
-        if (recordV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage())
+        if (recordV2Page != null) {
+            recordV2Page
                     .setControlsHiddenFromHost(false);
         }
         // 同步第8风格（轮播 V2）自持实例
-        if (carouselV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage())
+        if (carouselV2Page != null) {
+            carouselV2Page
                     .setControlsHiddenFromHost(false);
         }
         // 同步第6风格（沉浸�V2）自持实例
-        if (immersiveV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+        if (immersiveV2Page != null) {
+            immersiveV2Page
                     .setControlsHiddenFromHost(false);
         }
         if (resetTimer) resetControlsHideTimer();
@@ -606,7 +600,7 @@ public class PlayerFragment extends BaseFloatFragment {
                             // 始终重新layout，更新频谱位置（圆环模式需要跟随封面中心）
                             int w = getLayoutWidth();
                             int h = getAvailableScreenHeight();
-                            currentScene.layout(w, h);
+                            sceneLayout(w, h);
                             updateThemeUI();
                             updateLayoutForMode(lyricView.getDisplayMode());
                             // 兕底：Scene.layout() 设置了 LyricView 新 LayoutParams，
@@ -619,7 +613,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
         // 首次必须应用竖屏布局（设置封面占位等）——通过 scene layout
         syncSceneState();
-        currentScene.layout(getLayoutWidth(), getAvailableScreenHeight());
+        sceneLayout(getLayoutWidth(), getAvailableScreenHeight());
 
         // 读取主题状态并同步所有 UI
         Context ctx = requireContext();
@@ -852,15 +846,28 @@ public class PlayerFragment extends BaseFloatFragment {
      * 初始 currentScene 持有者：新经典 V2 adapter，并立即 enter 保证 install
      * （首个 onLayoutChange 前页面必须就绪，否则页面字段全 null）。
      */
-    private void initCurrentSceneHolder() {
-        if (classicV2PageAdapter == null) {
-            com.jingxin.jingxinmusic.stage.ClassicPageV2 v2 =
-                    new com.jingxin.jingxinmusic.stage.ClassicPageV2(sceneHelper);
-            v2.setActions(buildV2Actions());
-            classicV2PageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(v2);
+    /** 页面首次挂载到宿主（旧 StagePageAdapter.enter 的懒安装拆平后改由 Fragment 在建页时触发） */
+    private void installV2Page(com.jingxin.jingxinmusic.stage.StagePage page) {
+        page.install(android.view.LayoutInflater.from(requireContext()), (android.view.ViewGroup) sceneHelper.rootLayout);
+    }
+
+    /**
+     * 场景布局统一入口：方向变化时先重入（旧架构横竖是两个 Scene 实例，合并单实例后
+     * 不重入则页面停留在旧方向形态：沉浸横→竖封面不重铺/渐变层残留等）
+     */
+    private void sceneLayout(int width, int height) {
+        if (currentScene != null && enteredAsLandscape != isLandscapeMode) {
+            currentScene.exit();
+            enteredAsLandscape = isLandscapeMode;
+            currentScene.enter();
         }
-        currentScene = classicV2PageAdapter;
+        if (currentScene != null) currentScene.layout(width, height);
+    }
+
+    private void initCurrentSceneHolder() {
+        currentScene = ensurePage(COVER_STYLE_CLASSIC_V2);
         syncSceneState();
+        enteredAsLandscape = isLandscapeMode;
         currentScene.enter();
         currentScene.onStyleEnter();
     }
@@ -876,25 +883,25 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 频谱数据分发：Visualizer/AudioRecord 回调统一入口。
-     * 旧共享实例始终喂（退出 V2 后仍活跃）；第5风格（V2）激活时分流其自持实例。
+     * 频谱数据分发
      */
     private void feedSpectrumData(float[] magnitudes, float maxMag) {
-        if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
-                    .feedSpectrumData(magnitudes, maxMag);
-        }
-        if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
-                    .feedSpectrumData(magnitudes, maxMag);
-        }
-        if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage())
-                    .feedSpectrumData(magnitudes, maxMag);
-        }
-        if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage())
-                    .feedSpectrumData(magnitudes, maxMag);
+        com.jingxin.jingxinmusic.stage.StagePage p = activePage();
+        if (p != null) p.feedSpectrumData(magnitudes, maxMag);
+    }
+
+    /**
+     * 当前风格对应的活跃页（未建返回 null）。
+     * 不用 currentScene：onCreateView 早期 coverStyle 已读 prefs 但 switchScene 未跑，
+     * currentScene 仍是经典页，此时不应喂新风格页。
+     */
+    private com.jingxin.jingxinmusic.stage.StagePage activePage() {
+       switch (coverStyle) {
+            case COVER_STYLE_IMMERSIVE_V2:  return immersiveV2Page;
+            case COVER_STYLE_RECORD_V2:     return recordV2Page;
+            case COVER_STYLE_CAROUSEL_V2:   return carouselV2Page;
+            case COVER_STYLE_CLASSIC_V2:
+            default:                        return classicV2Page;
         }
     }
 
@@ -1105,7 +1112,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private void initCoverScene() {
         android.widget.FrameLayout rootLayout = mRootView.findViewById(R.id.root_layout);
         sceneHelper = new CoverSceneHelper(
-                rootLayout, spectrumView, null,
+                rootLayout, spectrumView,
                 getResources().getDisplayMetrics().density);
         sceneHelper.bgSkinMode = bgSkinMode;
         sceneHelper.coverStyle = coverStyle;
@@ -1135,57 +1142,58 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
+     * 风格页工厂：懒建+装机+初始化 actions。
+     * 唯一建页入口（switchScene/initCurrentSceneHolder 共用）；
+     * 新增风格只需补一个 case。
+     */
+    private com.jingxin.jingxinmusic.stage.StagePage ensurePage(int style) {
+        switch (style) {
+            case COVER_STYLE_IMMERSIVE_V2:
+                if (immersiveV2Page == null) {
+                    com.jingxin.jingxinmusic.stage.ImmersivePageV2 p =
+                            new com.jingxin.jingxinmusic.stage.ImmersivePageV2(sceneHelper);
+                    p.setActions(buildV2Actions());
+                    immersiveV2Page = p;
+                    installV2Page(p);
+                }
+                return immersiveV2Page;
+            case COVER_STYLE_RECORD_V2:
+                if (recordV2Page == null) {
+                    com.jingxin.jingxinmusic.stage.RecordPageV2 p =
+                            new com.jingxin.jingxinmusic.stage.RecordPageV2(sceneHelper);
+                    p.setActions(buildV2Actions());
+                    recordV2Page = p;
+                    installV2Page(p);
+                }
+                return recordV2Page;
+            case COVER_STYLE_CAROUSEL_V2:
+                if (carouselV2Page == null) {
+                    com.jingxin.jingxinmusic.stage.CarouselPageV2 p =
+                            new com.jingxin.jingxinmusic.stage.CarouselPageV2(sceneHelper);
+                    p.setActions(buildCarouselV2Actions()); // 轮播专属 actions（列表桥）
+                    carouselV2Page = p;
+                    installV2Page(p);
+                }
+                return carouselV2Page;
+            case COVER_STYLE_CLASSIC_V2:
+            default: // 异常 prefs 值也回落新经典（旧四风格已下线）
+                if (classicV2Page == null) {
+                    com.jingxin.jingxinmusic.stage.ClassicPageV2 p =
+                            new com.jingxin.jingxinmusic.stage.ClassicPageV2(sceneHelper);
+                    p.setActions(buildV2Actions());
+                    classicV2Page = p;
+                    installV2Page(p);
+                }
+                return classicV2Page;
+        }
+    }
+
+    /**
      * 根据当前 isLandscapeMode 和 coverStyle 切换到正确的 Scene
      * @return 是否发生了 Scene 切换
      */
     private boolean switchScene() {
-        CoverScene target;
-        if (coverStyle == COVER_STYLE_CLASSIC_V2) {
-            // 第5风格：新经典 V2（完全自持实例，全页叠加在旧视图之上）
-            if (classicV2PageAdapter == null) {
-                com.jingxin.jingxinmusic.stage.ClassicPageV2 v2 =
-                        new com.jingxin.jingxinmusic.stage.ClassicPageV2(sceneHelper);
-                v2.setActions(buildV2Actions());
-                classicV2PageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(v2);
-            }
-            target = classicV2PageAdapter;
-        } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2) {
-            // 第6风格：沉浸 V2（完全自持实例）
-            if (immersiveV2PageAdapter == null) {
-                com.jingxin.jingxinmusic.stage.ImmersivePageV2 iv2 =
-                        new com.jingxin.jingxinmusic.stage.ImmersivePageV2(sceneHelper);
-                iv2.setActions(buildV2Actions());
-                immersiveV2PageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(iv2);
-            }
-            target = immersiveV2PageAdapter;
-        } else if (coverStyle == COVER_STYLE_RECORD_V2) {
-            // 第7风格：唱片机 V2（继承新经典V2，黑胶+唱臂专属层）
-            if (recordV2PageAdapter == null) {
-                com.jingxin.jingxinmusic.stage.RecordPageV2 r2 =
-                        new com.jingxin.jingxinmusic.stage.RecordPageV2(sceneHelper);
-                r2.setActions(buildV2Actions());
-                recordV2PageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(r2);
-            }
-            target = recordV2PageAdapter;
-        } else if (coverStyle == COVER_STYLE_CAROUSEL_V2) {
-            // 第8风格：轮播 V2（继承新经典V2，卡片层+列表桥）
-            if (carouselV2PageAdapter == null) {
-                com.jingxin.jingxinmusic.stage.CarouselPageV2 c2 =
-                        new com.jingxin.jingxinmusic.stage.CarouselPageV2(sceneHelper);
-                c2.setActions(buildCarouselV2Actions());
-                carouselV2PageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(c2);
-            }
-            target = carouselV2PageAdapter;
-        } else {
-            // 新经典 V2（默认风格；旧四风格已下线，异常 prefs 值也回落到此）
-            if (classicV2PageAdapter == null) {
-                com.jingxin.jingxinmusic.stage.ClassicPageV2 v2 =
-                        new com.jingxin.jingxinmusic.stage.ClassicPageV2(sceneHelper);
-                v2.setActions(buildV2Actions());
-                classicV2PageAdapter = new com.jingxin.jingxinmusic.stage.StagePageAdapter(v2);
-            }
-            target = classicV2PageAdapter;
-        }
+        com.jingxin.jingxinmusic.stage.StagePage target = ensurePage(coverStyle);
         if (target != currentScene) {
             currentScene.onStyleExit();
             currentScene.exit();
@@ -1196,6 +1204,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 lyricView.setDisplayMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode.MULTI_LINE);
             }
             currentScene.enter();
+            enteredAsLandscape = isLandscapeMode;
             currentScene.onStyleEnter();
             return true;
         }
@@ -1242,7 +1251,7 @@ public class PlayerFragment extends BaseFloatFragment {
         switchScene();
         int width = getLayoutWidth();
         int height = getAvailableScreenHeight();
-        currentScene.layout(width, height);
+        sceneLayout(width, height);
         // 切换后需要重新加载封面的模式
         if (currentScene.needsReloadCover()) {
             loadCover();
@@ -1683,26 +1692,24 @@ public class PlayerFragment extends BaseFloatFragment {
 
     /** 收藏态/B站下载键态变化 → 通知当前活跃 V2 页刷新控制条附加态 */
     private void notifyActivePageControlExtras() {
-        if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+        if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2Page != null) {
+            classicV2Page
                     .notifyControlExtrasChanged();
-        } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage())
+        } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2Page != null) {
+            recordV2Page
                     .notifyControlExtrasChanged();
-        } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage())
+        } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
+            carouselV2Page
                     .notifyControlExtrasChanged();
-        } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
-            ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+        } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2Page != null) {
+            immersiveV2Page
                     .notifyControlExtrasChanged();
         }
     }
 
     private void toggleImmersiveMode() {
-        // 装扮循环只在 V2 新风格间切换（旧四风格已隐藏，收口入口；若内存值为旧风格异常态则先归位）
-        coverStyle = HIDE_LEGACY_STYLES
-                ? COVER_STYLE_CLASSIC_V2 + (Math.max(coverStyle, COVER_STYLE_CLASSIC_V2) + 1 - COVER_STYLE_CLASSIC_V2) % 4
-                : (coverStyle + 1) % 8;
+        // 装扮循环只在 V2 新风格间切换（收口入口；若内存值为旧风格异常态则先归位）
+        coverStyle = COVER_STYLE_CLASSIC_V2 + ((Math.max(coverStyle, COVER_STYLE_CLASSIC_V2) + 1 - COVER_STYLE_CLASSIC_V2) % 4);
         requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
         // 目标风格不适配环类频谱时（轮播无圆形封面可挂）：真值直接归位第一个频谱（竖条）。
@@ -1715,21 +1722,21 @@ public class PlayerFragment extends BaseFloatFragment {
             if (com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(nowStyle)
                     && !currentScene.shouldShowSpectrumButton(nowStyle)) {
                 spectrumView.setStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
-                if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
-                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2Page != null) {
+                    classicV2Page
                             .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
-                } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2PageAdapter != null) {
-                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage())
+                } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2Page != null) {
+                    recordV2Page
                             .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
-                } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
-                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage())
+                } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
+                    carouselV2Page
                             .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
-                } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
-                    ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+                } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2Page != null) {
+                    immersiveV2Page
                             .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
                 }
                 // 样式变更影响布局（环→条），重排版
-                currentScene.layout(getLayoutWidth(), getAvailableScreenHeight());
+                sceneLayout(getLayoutWidth(), getAvailableScreenHeight());
             }
         }
         updateThemeUI(); // 切换封面风格后更新背景（光晕/遮罩等）
@@ -1739,7 +1746,7 @@ public class PlayerFragment extends BaseFloatFragment {
         }
         int width = getLayoutWidth();
         int height = getAvailableScreenHeight();
-        currentScene.layout(width, height);
+        sceneLayout(width, height);
 
         // 重新加载封面
         loadCover();
@@ -1844,29 +1851,29 @@ public class PlayerFragment extends BaseFloatFragment {
                 if (disabled) return;
                 boolean wasRing = spectrumView.isCoverOverlayMode();
                 spectrumView.setStyle(style); // setStyle 写 prefs 持久化（真值唯一来源）
-                // 第5风格（V2）激活时：样式同步到 V2 自持实例（currentScene.layout 会重新收敛可见性）
-                if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2PageAdapter != null) {
-                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) classicV2PageAdapter.getPage())
+                // 第5风格（V2）激活时：样式同步到 V2 自持实例（sceneLayout 会重新收敛可见性）
+                if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2Page != null) {
+                    classicV2Page
                             .applySpectrumStyle(style);
                 }
-                if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2PageAdapter != null) {
+                if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2Page != null) {
                     // 沉浸 V2：仅底部样式（圆环类已被禁用项过滤）
-                    ((com.jingxin.jingxinmusic.stage.ImmersivePageV2) immersiveV2PageAdapter.getPage())
+                    immersiveV2Page
                             .applySpectrumStyle(style);
                 }
-                if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2PageAdapter != null) {
-                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) recordV2PageAdapter.getPage())
+                if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2Page != null) {
+                    recordV2Page
                             .applySpectrumStyle(style);
                 }
-                if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2PageAdapter != null) {
-                    ((com.jingxin.jingxinmusic.stage.ClassicPageV2) carouselV2PageAdapter.getPage())
+                if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
+                    carouselV2Page
                             .applySpectrumStyle(style);
                 }
                 boolean isRing = spectrumView.isCoverOverlayMode();
                 if (wasRing != isRing) {
                     int w = getLayoutWidth();
                     int h = getAvailableScreenHeight();
-                    currentScene.layout(w, h);
+                    sceneLayout(w, h);
                 }
                 spectrumPickerPopup.dismiss();
             });

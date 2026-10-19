@@ -55,6 +55,9 @@ public abstract class StagePage {
     /** 封面位图（对应旧 Scene.setCover，各风格差异化：经典裁剪/轮播模糊底/沉浸全屏） */
     public void setCover(android.graphics.Bitmap bitmap) {}
 
+    /** 频谱数据（各页自持实例的分发入口，无频谱页用空桩） */
+    public void feedSpectrumData(float[] magnitudes, float maxMag) {}
+
     /** 页面销毁：清理子视图（宿主容器不动的共享组件除外） */
     public void destroy() {}
 
@@ -65,4 +68,8 @@ public abstract class StagePage {
     public boolean needsReloadCover() { return false; }
     public float getSpectrumHeightRatio() { return 0.10f; }
     public float getInfoPanelWidthRatio() { return 1.0f; }
+
+    /** 兼容旧 Scene 的 onStyleEnter/onStyleExit（新架构风格逻辑已并入 enter/exit，占位保留调度调用） */
+    public void onStyleEnter() {}
+    public void onStyleExit() {}
 }
