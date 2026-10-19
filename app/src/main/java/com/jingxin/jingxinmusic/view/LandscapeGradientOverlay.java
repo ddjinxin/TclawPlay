@@ -63,8 +63,9 @@ public class LandscapeGradientOverlay extends View {
         int h = getHeight();
         if (w == 0 || h == 0) return;
 
-        int leftEnd = w - (int) (w * 0.35f);
-        int gradEnd = (int) (w * 0.85f);
+        int leftEnd = w - (int) (w * 0.35f);       // 左实色边界 65%
+        int gradEnd = (int) (w * 0.75f);           // 左渐变带终点 75%
+        int gradRightStart = (int) (w * 0.90f);    // 右渐变带起点 90%
 
         // 左侧65%实色（光晕模式下不绘制，透出光晕）
         if (solidLeft) {
@@ -72,12 +73,18 @@ public class LandscapeGradientOverlay extends View {
             canvas.drawRect(0, 0, leftEnd, h, paintSolid);
         }
 
-        // 65%~85%渐变：遮罩色→透明（保持RGB不变，只过渡alpha）
         int transparentColor = 0x00000000 | (overlayColor & 0x00FFFFFF);
+
+        // 65%~75%渐变：遮罩色→透明（封面左缘融入）
         paintGrad.setShader(new LinearGradient(leftEnd, 0, gradEnd, 0,
                 overlayColor, transparentColor, Shader.TileMode.CLAMP));
         canvas.drawRect(leftEnd, 0, gradEnd, h, paintGrad);
 
-        // 右侧15%不绘制（透明）
+        // 75%~90%：不绘制（封面中段纯透出，中间无渐变）
+
+        // 90%~100%渐变：透明→遮罩色（封面右缘渐入遮罩）
+        paintGrad.setShader(new LinearGradient(gradRightStart, 0, w, 0,
+                transparentColor, overlayColor, Shader.TileMode.CLAMP));
+        canvas.drawRect(gradRightStart, 0, w, h, paintGrad);
     }
 }

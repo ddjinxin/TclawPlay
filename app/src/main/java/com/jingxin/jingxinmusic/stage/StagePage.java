@@ -58,6 +58,17 @@ public abstract class StagePage {
     /** 频谱数据（各页自持实例的分发入口，无频谱页用空桩） */
     public void feedSpectrumData(float[] magnitudes, float maxMag) {}
 
+    // ===== 页面能力接口（各页按需覆写，Fragment 经 activePage() 多态分发） =====
+
+    /** 控制条触摸隐藏态由宿主同步（无控制条页用空桩） */
+    public void setControlsHiddenFromHost(boolean hidden) {}
+
+    /** 收藏/下载键附加态变化刷新（无控制条页用空桩） */
+    public void notifyControlExtrasChanged() {}
+
+    /** 频谱样式同步到页自持实例（无频谱页用空桩） */
+    public void applySpectrumStyle(int style) {}
+
     /** 页面销毁：清理子视图（宿主容器不动的共享组件除外） */
     public void destroy() {}
 

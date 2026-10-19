@@ -465,26 +465,18 @@ public class ImmersivePageV2 extends StagePage {
             maskL.setDominantColor(dominantColor != 0 ? dominantColor : coverColorsTop);
             maskL.setVisibility(View.VISIBLE);
         }
-        // 横屏渐变过渡层 + 封面边缘前景渐变：与遮罩同款映射色（组件外一次计算，供两者共用）
+        // 横屏渐变过渡层：与遮罩同款映射色（组件外一次计算）
         int gradColor = effectiveMaskColor();
         if (gradientL != null) {
             gradientL.setOverlayColor(gradColor);
             gradientL.setSolidLeft(!auroraSkin);
             gradientL.setVisibility(View.VISIBLE);
         }
-        applyCoverBorderGradient(gradColor);
         // 夜间暗层（两皮肤通用：夜间补压一层黑；白天隐藏）
         dark.setVisibility(night ? View.VISIBLE : View.GONE);
         darkL.setVisibility(night ? View.VISIBLE : View.GONE);
     }
 
-    /** 横屏封面前景边缘渐变（CoverBorderGradientDrawable 主色/光晕底色） */
-    private void applyCoverBorderGradient(int color) {
-        float borderWidthPx = h.density * 40f;
-        com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable g =
-                new com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable(color, borderWidthPx);
-        coverL.setBorderGradient(g);
-    }
 
     // ===== 频谱 =====
 

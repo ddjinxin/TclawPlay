@@ -200,11 +200,11 @@ public class PlayerFragment extends BaseFloatFragment {
                 checkFavoriteStatus();
                 updateDownloadButtonVisibility();
                 saveLastPlayed();
-                // 第8风格（轮播V2）卡片位置同步（切歌即重新拉列表）
-                if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
-                    carouselV2Page
-                            .syncPlaylistPosition();
-                }
+            // CarouselV2 切歌后卡片位置同步（activePage 已建则同步，未建则待 enter 时拉取）
+            com.jingxin.jingxinmusic.stage.StagePage cp = activePage();
+            if (cp instanceof com.jingxin.jingxinmusic.stage.CarouselPageV2) {
+                ((com.jingxin.jingxinmusic.stage.CarouselPageV2) cp).syncPlaylistPosition();
+            }
                 // 切歌时重置自动隐藏计时（新歌重新计算5秒窗口）
                 if (controlsHideEnabled) {
                     showControls(false);
@@ -383,10 +383,10 @@ public class PlayerFragment extends BaseFloatFragment {
                             playerBinder.setPlaylist(allSongs);
                             playSong();
                         }
-                        // 第8风格（轮播V2）：列表就绪后全量灌入轮布封面
-                        if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
-                            carouselV2Page
-                                    .syncPlaylistPosition();
+                        // 列表就绪后：若当前为轮播页，全量灌入轮播封面
+                        com.jingxin.jingxinmusic.stage.StagePage cp2 = activePage();
+                        if (cp2 instanceof com.jingxin.jingxinmusic.stage.CarouselPageV2) {
+                            ((com.jingxin.jingxinmusic.stage.CarouselPageV2) cp2).syncPlaylistPosition();
                         }
                     }
                 });
@@ -452,26 +452,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private void hideControls() {
         if (controlsHidden) return;
         controlsHidden = true;
-        // 同步第5风格（V2）自持实例
-        if (classicV2Page != null) {
-            classicV2Page
-                    .setControlsHiddenFromHost(true);
-        }
-        // 同步第7风格（唱片机 V2）自持实例
-        if (recordV2Page != null) {
-            recordV2Page
-                    .setControlsHiddenFromHost(true);
-        }
-        // 同步第8风格（轮播 V2）自持实例
-        if (carouselV2Page != null) {
-            carouselV2Page
-                    .setControlsHiddenFromHost(true);
-        }
-        // 同步第6风格（沉浸�V2）自持实例
-        if (immersiveV2Page != null) {
-            immersiveV2Page
-                    .setControlsHiddenFromHost(true);
-        }
+        syncPagesControlsHidden(true);
     }
 
     /** 恢复控制栏，可选重置隐藏计时 */
@@ -481,27 +462,16 @@ public class PlayerFragment extends BaseFloatFragment {
             return;
         }
         controlsHidden = false;
-        // 同步第5风格（V2）自持实例
-        if (classicV2Page != null) {
-            classicV2Page
-                    .setControlsHiddenFromHost(false);
-        }
-        // 同步第7风格（唱片机 V2）自持实例
-        if (recordV2Page != null) {
-            recordV2Page
-                    .setControlsHiddenFromHost(false);
-        }
-        // 同步第8风格（轮播 V2）自持实例
-        if (carouselV2Page != null) {
-            carouselV2Page
-                    .setControlsHiddenFromHost(false);
-        }
-        // 同步第6风格（沉浸�V2）自持实例
-        if (immersiveV2Page != null) {
-            immersiveV2Page
-                    .setControlsHiddenFromHost(false);
-        }
+        syncPagesControlsHidden(false);
         if (resetTimer) resetControlsHideTimer();
+    }
+
+    /** 控制条隐藏态同步到全部已建页（仅活跃页可见，其余页同步后状态一致，进入时立即应用） */
+    private void syncPagesControlsHidden(boolean hidden) {
+        if (classicV2Page != null) classicV2Page.setControlsHiddenFromHost(hidden);
+        if (recordV2Page != null) recordV2Page.setControlsHiddenFromHost(hidden);
+        if (carouselV2Page != null) carouselV2Page.setControlsHiddenFromHost(hidden);
+        if (immersiveV2Page != null) immersiveV2Page.setControlsHiddenFromHost(hidden);
     }
 
     /** 根据播放状态更新自动隐藏开关：播放中启用，暂停/停止禁用并强制显示 */
@@ -1690,21 +1660,10 @@ public class PlayerFragment extends BaseFloatFragment {
         };
     }
 
-    /** 收藏态/B站下载键态变化 → 通知当前活跃 V2 页刷新控制条附加态 */
+    /** 收藏态/B站下载键态变化 → 通知当前活跃页刷新控制条附加态 */
     private void notifyActivePageControlExtras() {
-        if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2Page != null) {
-            classicV2Page
-                    .notifyControlExtrasChanged();
-        } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2Page != null) {
-            recordV2Page
-                    .notifyControlExtrasChanged();
-        } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
-            carouselV2Page
-                    .notifyControlExtrasChanged();
-        } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2Page != null) {
-            immersiveV2Page
-                    .notifyControlExtrasChanged();
-        }
+        com.jingxin.jingxinmusic.stage.StagePage p = activePage();
+        if (p != null) p.notifyControlExtrasChanged();
     }
 
     private void toggleImmersiveMode() {
@@ -1722,19 +1681,8 @@ public class PlayerFragment extends BaseFloatFragment {
             if (com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(nowStyle)
                     && !currentScene.shouldShowSpectrumButton(nowStyle)) {
                 spectrumView.setStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
-                if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2Page != null) {
-                    classicV2Page
-                            .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
-                } else if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2Page != null) {
-                    recordV2Page
-                            .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
-                } else if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
-                    carouselV2Page
-                            .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
-                } else if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2Page != null) {
-                    immersiveV2Page
-                            .applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
-                }
+                com.jingxin.jingxinmusic.stage.StagePage ap = activePage();
+                if (ap != null) ap.applySpectrumStyle(com.jingxin.jingxinmusic.view.SpectrumView.STYLE_BAR);
                 // 样式变更影响布局（环→条），重排版
                 sceneLayout(getLayoutWidth(), getAvailableScreenHeight());
             }
@@ -1851,24 +1799,9 @@ public class PlayerFragment extends BaseFloatFragment {
                 if (disabled) return;
                 boolean wasRing = spectrumView.isCoverOverlayMode();
                 spectrumView.setStyle(style); // setStyle 写 prefs 持久化（真值唯一来源）
-                // 第5风格（V2）激活时：样式同步到 V2 自持实例（sceneLayout 会重新收敛可见性）
-                if (coverStyle == COVER_STYLE_CLASSIC_V2 && classicV2Page != null) {
-                    classicV2Page
-                            .applySpectrumStyle(style);
-                }
-                if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && immersiveV2Page != null) {
-                    // 沉浸 V2：仅底部样式（圆环类已被禁用项过滤）
-                    immersiveV2Page
-                            .applySpectrumStyle(style);
-                }
-                if (coverStyle == COVER_STYLE_RECORD_V2 && recordV2Page != null) {
-                    recordV2Page
-                            .applySpectrumStyle(style);
-                }
-                if (coverStyle == COVER_STYLE_CAROUSEL_V2 && carouselV2Page != null) {
-                    carouselV2Page
-                            .applySpectrumStyle(style);
-                }
+                // 样式同步到当前活跃页自持实例（sceneLayout 会重新收敛可见性）
+                com.jingxin.jingxinmusic.stage.StagePage ap = activePage();
+                if (ap != null) ap.applySpectrumStyle(style);
                 boolean isRing = spectrumView.isCoverOverlayMode();
                 if (wasRing != isRing) {
                     int w = getLayoutWidth();

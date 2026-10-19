@@ -6,7 +6,7 @@
     <!-- 播放页 -->
     <color name="player_bg">#000000</color>
     <color name="overlay_semi_black">#80000000</color>
-    <color name="overlay_dark_black">#AA000000</color>
+    <color name="overlay_dark_black">#66000000</color>
 
     <!-- 文字色 -->
     <color name="text_primary">#FFFFFF</color>

@@ -169,17 +169,19 @@ public class ImmersiveOverlayView extends View {
         int overlayColor = getEffectiveOverlayColor();
         int transparentColor = getEffectiveTransparentColor();
 
-        // 0~20%：主色调→透明垂直线性渐变
-        int topEnd = (int) (h * 0.20f);
+        // 0~15%：遮罩色→透明垂直线性渐变（顶部压色渐隐）
+        int topEnd = (int) (h * 0.15f);
         paintTop.setShader(new LinearGradient(0, 0, 0, topEnd,
                 overlayColor, transparentColor, Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, topEnd, paintTop);
 
-        // 20%~43%：透明→主色调垂直线性渐变
+        // 15%~33%：不绘制（封面中段纯透出，中间无渐变）
+        // 33%~43%：透明→主色调垂直线性渐变（封面下缘融入）
+        int transStart = (int) (h * 0.33f);
         int transEnd = (int) (h * 0.43f);
-        paintTransition.setShader(new LinearGradient(0, topEnd, 0, transEnd,
+        paintTransition.setShader(new LinearGradient(0, transStart, 0, transEnd,
                 transparentColor, overlayColor, Shader.TileMode.CLAMP));
-        canvas.drawRect(0, topEnd, w, transEnd, paintTransition);
+        canvas.drawRect(0, transStart, w, transEnd, paintTransition);
 
         // 43%~100%：主色调实色
         paintDominant.setColor(overlayColor);
