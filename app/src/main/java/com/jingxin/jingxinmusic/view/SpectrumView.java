@@ -71,9 +71,13 @@ public class SpectrumView extends View {
     // AiVoiceView模式FFT数据量
     private static final int AIVOICE_INPUT_COUNT = 256;
     
-    // WaveColumnformView模式FFT数据量（横屏128，竖屏64）
+    // WaveColumnformView模式柱数（横屏128，竖屏64）
     private static final int WAVECOLUMN_COUNT_LANDSCAPE = 128;
     private static final int WAVECOLUMN_COUNT_PORTRAIT = 64;
+    // WaveColumn柱宽（横屏10，竖屏5）
+    private static final int WAVECOLUMN_RECT_WIDTH_LANDSCAPE = 10;
+    private static final int WAVECOLUMN_RECT_WIDTH_PORTRAIT = 5;
+    private int waveColumnRectWidth = WAVECOLUMN_RECT_WIDTH_PORTRAIT;
     private int waveColumnCount = WAVECOLUMN_COUNT_PORTRAIT;
     
     // KugouColumn模式状态（严格匹配原版KugouColumn）
@@ -96,11 +100,10 @@ public class SpectrumView extends View {
     // WaveColumnformView模式状态（严格匹配原版WaveColumnformView）
     private Paint waveColumnPaint;
     private int waveColumnMainColor;        // 主色调 #F53F3F
-    private Integer waveColumnShaderColor = null; // 当前shader对应主色（null=未建，用于跟随色切换时重建）
+    private int[] waveColumnShaderColors = null; // 当前shader对应的双色（null=非光晕，用于跟随色切换时重建）
     private int waveColumnSpacingOffset;    // 间距偏移（默认0）
     private int waveColumnCenterHolder;     // 中心保持距离（默认20）
     private static final int WAVECOLUMN_LAGER_OFFSET = 10; // 放大量（匹配原版LAGER_OFFSET）
-    private static final int WAVECOLUMN_RECT_WIDTH = 10;   // 圆角矩形宽度（用户指定10px）
     private static final float WAVECOLUMN_ROUND_RX = 10f;  // 圆角x半径
     private static final float WAVECOLUMN_ROUND_RY = 10f;  // 圆角y半径
     
@@ -435,7 +438,7 @@ public class SpectrumView extends View {
         }
         if (currentStyle != STYLE_WAVECOLUMN) {
             waveColumnPaint.setShader(null);
-            waveColumnShaderColor = null;
+            waveColumnShaderColors = null;
         }
         if (currentStyle == STYLE_AIVOICE) {
             setLayerType(LAYER_TYPE_SOFTWARE, null);
@@ -494,6 +497,7 @@ public class SpectrumView extends View {
                 break;
             case STYLE_WAVECOLUMN:
                 waveColumnCount = (getWidth() > getHeight()) ? WAVECOLUMN_COUNT_LANDSCAPE : WAVECOLUMN_COUNT_PORTRAIT;
+                waveColumnRectWidth = (getWidth() > getHeight()) ? WAVECOLUMN_RECT_WIDTH_LANDSCAPE : WAVECOLUMN_RECT_WIDTH_PORTRAIT;
                 currentCount = waveColumnCount;
                 break;
             case STYLE_DIFFUSION_RING:
@@ -702,6 +706,7 @@ public class SpectrumView extends View {
             int newWaveColumnCount = (w > h) ? WAVECOLUMN_COUNT_LANDSCAPE : WAVECOLUMN_COUNT_PORTRAIT;
             if (newWaveColumnCount != waveColumnCount) {
                 waveColumnCount = newWaveColumnCount;
+                waveColumnRectWidth = (w > h) ? WAVECOLUMN_RECT_WIDTH_LANDSCAPE : WAVECOLUMN_RECT_WIDTH_PORTRAIT;
                 if (currentStyle == STYLE_WAVECOLUMN) {
                     currentCount = waveColumnCount;
                     rebuildArrays();
@@ -890,9 +895,9 @@ public class SpectrumView extends View {
                 for (int i = 0; i < waveColumnCount && left < getWidth(); i++) {
                     float top = midY - waveColumnCenterHolder;
                     float bottom = midY + waveColumnCenterHolder;
-                    canvas.drawRoundRect(left, top, left + WAVECOLUMN_RECT_WIDTH, bottom,
+                    canvas.drawRoundRect(left, top, left + waveColumnRectWidth, bottom,
                             WAVECOLUMN_ROUND_RX, WAVECOLUMN_ROUND_RY, waveColumnPaint);
-                    left += WAVECOLUMN_RECT_WIDTH + spacing;
+                    left += waveColumnRectWidth + spacing;
                 }
                 break;
             }
@@ -1405,21 +1410,37 @@ public class SpectrumView extends View {
         // 原版 spacing = getWidth() / SAMPLE_SIZE + spacingOffset
         int spacing = (int) (viewWidth / waveColumnCount) + waveColumnSpacingOffset;
         
-        // 更新渐变shader（匹配原版onLayout中的水平渐变）
-        // 光晕模式仅白天跟随封面主色，夜间用白色；用主色标记判断shader是否需要重建
-        int mainColor = (tintColors != null && !isNightMode) ? tintColors[0]
-                : (tintColors != null ? Color.WHITE : waveColumnMainColor);
-        if ((waveColumnPaint.getShader() == null || !Integer.valueOf(mainColor).equals(waveColumnShaderColor)) && viewWidth > 0 && viewHeight > 0) {
-            waveColumnShaderColor = mainColor;
-            waveColumnPaint.setShader(new LinearGradient(0f, viewHeight / 2f, viewWidth, viewHeight / 2f,
-                    new int[]{
-                            getColorWithAlpha(0.3f, mainColor),
-                            getColorWithAlpha(1f, mainColor),
-                            getColorWithAlpha(1f, mainColor),
-                            getColorWithAlpha(0.3f, mainColor)
-                    },
-                    new float[]{0, 0.1f, 0.9f, 1f},
-                    Shader.TileMode.CLAMP));
+        // 更新渐变shader（原版onLayout中的水平渐变）
+        // 光晕模式用封面双色渐变（两端各自渐显渐隐）；非光晕用默认热色
+        boolean wantTint = tintColors != null;
+        boolean shaderIsTint = waveColumnShaderColors != null;
+        boolean needRebuild = waveColumnPaint.getShader() == null
+                || (wantTint != shaderIsTint)
+                || (wantTint && (waveColumnShaderColors[0] != tintColors[0] || waveColumnShaderColors[1] != tintColors[1]));
+        if (needRebuild && viewWidth > 0 && viewHeight > 0) {
+            if (wantTint) {
+                waveColumnShaderColors = new int[]{tintColors[0], tintColors[1]};
+                waveColumnPaint.setShader(new LinearGradient(0f, viewHeight / 2f, viewWidth, viewHeight / 2f,
+                        new int[]{
+                                getColorWithAlpha(0.3f, tintColors[0]),
+                                getColorWithAlpha(1f, tintColors[0]),
+                                getColorWithAlpha(1f, tintColors[1]),
+                                getColorWithAlpha(0.3f, tintColors[1])
+                        },
+                        new float[]{0, 0.1f, 0.9f, 1f},
+                        Shader.TileMode.CLAMP));
+            } else {
+                waveColumnShaderColors = null;
+                waveColumnPaint.setShader(new LinearGradient(0f, viewHeight / 2f, viewWidth, viewHeight / 2f,
+                        new int[]{
+                                getColorWithAlpha(0.3f, waveColumnMainColor),
+                                getColorWithAlpha(1f, waveColumnMainColor),
+                                getColorWithAlpha(1f, waveColumnMainColor),
+                                getColorWithAlpha(0.3f, waveColumnMainColor)
+                        },
+                        new float[]{0, 0.1f, 0.9f, 1f},
+                        Shader.TileMode.CLAMP));
+            }
         }
         
         // 平滑过渡
@@ -1456,7 +1477,7 @@ public class SpectrumView extends View {
             
             float top = defultY - bottomOffset;   // 上边界（原版 rect.bottom = defultY + (-data*10 - 20)）
             float bottom = defultY + topOffset;     // 下边界（原版 rect.top = defultY + (data*10 + 20)）
-            float right = left + WAVECOLUMN_RECT_WIDTH;
+            float right = left + waveColumnRectWidth;
             
             canvas.drawRoundRect(left, top, right, bottom,
                     WAVECOLUMN_ROUND_RX, WAVECOLUMN_ROUND_RY, waveColumnPaint);
