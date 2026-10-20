@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * 轮播风格页面 V2（第8风格，完全自持实例）
  *
- * 继承 ClassicPageV2（染色/背景/订阅/隐藏全复用），但骨架 XML 独立（stage_page_carousel_v2）：
+ * 继承 StandardPageBase（拆基后；染色/背景/订阅/隐藏全复用，基座无风格身份），但骨架 XML 独立（stage_page_carousel_v2）：
  * - 竖屏：卡片层 cv2_carousel 挂页根顶部（cover_area 收起仅保父类绑定）
  * - 横屏：独立骨架（非经典 65/35 分栏）：卡片置顶全宽 + 信息流满宽 + 底部三件全宽
  *   （旧轮播 setLayoutInfoPanelFullWidth 等效）
@@ -31,10 +31,10 @@ import java.util.List;
  * - 圆形封面隐藏（父类 onCoverArrived 的 CIRCLE 被覆盖为卡片层接管）；
  *   封面 Bitmap 仅作模糊背景（父类已做）
  */
-public class CarouselPageV2 extends ClassicPageV2 {
+public class CarouselPageV2 extends StandardPageBase {
 
-    // 轮播专属扩展（继承父接口加列表三方法）
-    public interface Actions extends ClassicPageV2.Actions {
+    // 轮播专属扩展（继承基接口 StagePage.Actions 加列表三方法）
+    public interface Actions extends StagePage.Actions {
         List<Song> getPlaylist();
         int getCurrentIndex();
         void playSongAt(int delta); // 相对当前移动（±1 卡片滑动切歌）

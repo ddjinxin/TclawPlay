@@ -10,7 +10,7 @@ import com.jingxin.jingxinmusic.view.TonearmView;
 /**
  * 唱片机风格页面 V2（第7风格，完全自持实例）
  *
- * 继承 ClassicPageV2（对齐旧 RecordPage extends ClassicPage 结构）：
+ * 继承 StandardPageBase（拆基后，基座无风格身份；对齐旧 RecordPage extends ClassicPage 结构）：
  * 布局/染色/背景四态/订阅/精简模式全复用父类，本类只叠加唱片机专属：
  * - 封面：黑胶模式（不用 setStyle 四形态，走 setVinylMode 原路径——黑胶由组件内部渲染）
  * - 唱臂：TonearmView 竖/横双坐标公式（自 Fragment.updateTonearmPosition 逐行同源移植，
@@ -23,7 +23,7 @@ import com.jingxin.jingxinmusic.view.TonearmView;
  * - 唱臂定位需封面完成布局：post 延迟实测坐标（非 guess）
  * - 横屏封面居中基准已由父类 post 修正，唱臂坐标系用封面真实 getLocationOnScreen
  */
-public class RecordPageV2 extends ClassicPageV2 {
+public class RecordPageV2 extends StandardPageBase {
 
     // 唱臂（竖/横双实例）
     private TonearmView tonearm;

@@ -36,8 +36,8 @@ import com.jingxin.jingxinmusic.view.SpectrumView;
  */
 public class ImmersivePageV2 extends StagePage {
 
-    // 动作桥直接复用经典页同构接口（播放/弹窗/退出/隐藏态；数据与逻辑共享）
-    private ClassicPageV2.Actions actions;
+    // 动作桥走基接口 StagePage.Actions（沉降至基接口后，本页零依赖具体风格页）
+    private StagePage.Actions actions;
 
     // ===== 双 XML 根 =====
     private View portraitRoot, landscapeRoot;
@@ -95,7 +95,7 @@ public class ImmersivePageV2 extends StagePage {
         super(helper);
     }
 
-    public void setActions(ClassicPageV2.Actions actions) { this.actions = actions; }
+    public void setActions(StagePage.Actions actions) { this.actions = actions; }
 
     // ===== install =====
 
@@ -465,18 +465,23 @@ public class ImmersivePageV2 extends StagePage {
             maskL.setDominantColor(dominantColor != 0 ? dominantColor : coverColorsTop);
             maskL.setVisibility(View.VISIBLE);
         }
-        // 横屏渐变过渡层：与遮罩同款映射色（组件外一次计算）
+        // 横屏渐变过渡层：与遮罩同款映射色（夜间光晕/非光晕用）
         int gradColor = effectiveMaskColor();
         if (gradientL != null) {
             gradientL.setOverlayColor(gradColor);
             gradientL.setSolidLeft(!auroraSkin);
-            gradientL.setVisibility(View.VISIBLE);
+            // 白天光晕：静态渐变带整体退役（GONE）——静态色追不上逐帧光晕动画是白线病根；
+            // 封面左缘 4% alpha 淡出透出「页面底色+动态光晕」接管过渡（见下方 edgeFade）。
+            // 夜间光晕/非光晕保持原带原路径零改动。
+            gradientL.setVisibility(auroraSkin && !night ? View.GONE : View.VISIBLE);
         }
+        // 封面左缘淡出：仅白天光晕横屏开（4%），其余模式恒关（竖屏封面 coverTop 不参与）
+        float edgeFade = (auroraSkin && !night) ? 0.04f : 0f;
+        if (coverL != null) coverL.setLeftFade(h.isLandscapeMode ? edgeFade : 0f);
         // 夜间暗层（两皮肤通用：夜间补压一层黑；白天隐藏）
         dark.setVisibility(night ? View.VISIBLE : View.GONE);
         darkL.setVisibility(night ? View.VISIBLE : View.GONE);
     }
-
 
     // ===== 频谱 =====
 
@@ -656,13 +661,13 @@ public class ImmersivePageV2 extends StagePage {
         controlL.applyGeometry(height, width, true);
         controlL.applyBottomMargin(Math.max(8, (int) (height * 0.01f)));
 
-        int infoWidth = (int) (width * 0.65f);
+        int infoWidth = (int) (width * 0.55f);
         int topBarH = h.calcTopBarHeight(height, width, true);
         titleL.applyScene(new SongTitleBar.TitleScene(
                 infoWidth * 0.048f, 0.7f, topBarH + (int) (h.density * 8), true));
 
-        // 封面列：全高跨屏（页面根子级），宽 35% 屏宽右贴边；旧 applyLandscapeImmersiveCover 同源
-        int coverWidth = (int) (width * 0.35f);
+        // 封面列：全高跨屏（页面根子级），宽 45% 屏宽右贴边（旧版 35%，加宽封面）；旧 applyLandscapeImmersiveCover 同源
+        int coverWidth = (int) (width * 0.45f);
         FrameLayout.LayoutParams ccP = (FrameLayout.LayoutParams) coverCol.getLayoutParams();
         ccP.width = coverWidth;
         ccP.height = FrameLayout.LayoutParams.MATCH_PARENT;
@@ -683,9 +688,11 @@ public class ImmersivePageV2 extends StagePage {
         sp.height = (int) (height * 0.10f);
         spectrumL.setLayoutParams(sp);
         applySpectrumVisibility();
+        // 白天光晕：进横屏重申封面左缘淡出（皮肤态不变时 applyBackgroundState 不重跑）
+        if (coverL != null) coverL.setLeftFade(auroraSkin && !night ? 0.04f : 0f);
     }
 
-    /** 顶栏几何（公式同 ClassicPageV2.layoutTopBar） */
+    /** 顶栏几何（公式同 StandardPageBase.layoutTopBar） */
     private void layoutTopBarImpl(LinearLayout bar, ImageView back, ImageView effect,
                                   ImageView spec, ImageView outfit, ImageView search,
                                   View rightGrp, int width, int height, boolean landscape) {
@@ -780,7 +787,7 @@ public class ImmersivePageV2 extends StagePage {
 
     @Override
     public float getInfoPanelWidthRatio() {
-        return h.isLandscapeMode ? 0.65f : 1.0f;
+        return h.isLandscapeMode ? 0.55f : 1.0f;
     }
 
     @Override

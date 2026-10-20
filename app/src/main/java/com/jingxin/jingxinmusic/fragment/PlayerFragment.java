@@ -1581,7 +1581,7 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     /** 第8风格（轮播V2）动作桥：新经典桥 + 播放列表三方法（引用型数据走桥不走Hub） */
     private com.jingxin.jingxinmusic.stage.CarouselPageV2.Actions buildCarouselV2Actions() {
-        com.jingxin.jingxinmusic.stage.ClassicPageV2.Actions base = buildV2Actions();
+        com.jingxin.jingxinmusic.stage.StagePage.Actions base = buildV2Actions();
         return new com.jingxin.jingxinmusic.stage.CarouselPageV2.Actions() {
             @Override public void togglePlayPause() { base.togglePlayPause(); }
             @Override public void playPrevious() { base.playPrevious(); }
@@ -1614,8 +1614,8 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /** 第5风格（新经典V2）的动作桥：数据与播放逻辑共享，视图独立 */
-    private com.jingxin.jingxinmusic.stage.ClassicPageV2.Actions buildV2Actions() {
-        return new com.jingxin.jingxinmusic.stage.ClassicPageV2.Actions() {
+    private com.jingxin.jingxinmusic.stage.StagePage.Actions buildV2Actions() {
+        return new com.jingxin.jingxinmusic.stage.StagePage.Actions() {
             @Override public void togglePlayPause() { PlayerFragment.this.togglePlayPause(); }
             @Override public void playPrevious() { PlayerFragment.this.playPrevious(); }
             @Override public void playNext() { PlayerFragment.this.playNext(); }

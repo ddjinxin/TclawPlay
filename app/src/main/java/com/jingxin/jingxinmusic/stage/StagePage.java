@@ -83,4 +83,30 @@ public abstract class StagePage {
     /** 兼容旧 Scene 的 onStyleEnter/onStyleExit（新架构风格逻辑已并入 enter/exit，占位保留调度调用） */
     public void onStyleEnter() {}
     public void onStyleExit() {}
+
+    // ===== 宿主动作桥（页面协议一部分：页面只管视图，播放/弹窗/退出逻辑全部回调宿主） =====
+    // 自 ClassicPageV2 沉降至基接口：沉浸等独立页不再 import 任何具体风格类
+    public interface Actions {
+        void togglePlayPause();
+        void playPrevious();
+        void playNext();
+        void togglePlayOrder();
+        void showHistoryDialog();
+        void toggleFavorite();
+        void saveBiliOffline();
+        void showSpectrumPicker(View anchor);
+        void showEffectPickerPopup(View anchor);
+        void showLyricSearchPopup(View anchor);
+        boolean isFavorite();
+        boolean isBiliSong();
+        void exitPlayerPage(); // 返回键：退出播放页（与旧页语义一致）；装扮键切换走 outfit 循环
+        void switchOutfitStyle(); // 装扮键：outfit 循环切换风格（第5风格进出循环）
+        // 进度条拖动（旧页 onSeek* 三回调：start暂停自动隐藏/to执行seek/stop恢复计时）
+        void onSeekStart();
+        void onSeekTo(int positionMs);
+        void onSeekStop();
+        boolean isControlsHidden(); // 当前精简模式态（旧页 controlsHidden，进 V2 时同步）
+        boolean isBiliDownloadEnabled(); // B站下载键可用态（离线保存进行中禁用；默认 true）
+        void onV2ControlsTouched(); // V2 内交互：向旧机制上报活动（重置隐藏计时）
+    }
 }

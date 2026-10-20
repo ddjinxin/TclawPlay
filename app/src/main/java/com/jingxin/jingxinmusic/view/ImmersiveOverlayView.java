@@ -153,16 +153,16 @@ public class ImmersiveOverlayView extends View {
     }
 
     /**
-     * 横屏沉浸模式（底层面）：左边65%主色调实色，右边不绘制
+     * 横屏沉浸模式（底层面）：左边55%主色调实色，右边不绘制
      */
     private void drawLandscapeGradient(Canvas canvas, int w, int h) {
         int overlayColor = getEffectiveOverlayColor();
-        // 用 w - (int)(w * 0.35f) 计算，与封面左边缘算法一致，避免浮点取整差1px露出黑线
-        int leftEnd = w - (int) (w * 0.35f);
+        // 用 w - (int)(w * 0.45f) 计算，与封面左边缘算法一致，避免浮点取整差1px露出黑线
+        int leftEnd = w - (int) (w * 0.45f);
         paintDominant.setColor(overlayColor);
         paintDominant.setStyle(Paint.Style.FILL);
-        canvas.drawRect(0, 0, leftEnd, h, paintDominant);
-        // 右边35%不绘制（透明），封面不受底层遮罩影响
+        canvas.drawRect(0, 0, leftEnd + 1, h, paintDominant); // +1px 与封面左缘重叠消取整亮缝（对齐时被封面盖住，无视觉变化）
+        // 右边45%不绘制（透明），封面不受底层遮罩影响
     }
 
     private void drawNormalGradient(Canvas canvas, int w, int h) {

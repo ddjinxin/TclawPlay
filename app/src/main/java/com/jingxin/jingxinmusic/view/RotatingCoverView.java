@@ -5,9 +5,13 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.util.AttributeSet;
 import android.view.animation.LinearInterpolator;
 
@@ -146,6 +150,127 @@ public class RotatingCoverView extends AppCompatImageView {
     public void setBorderGradient(android.graphics.drawable.Drawable gradient) {
         com.jingxin.jingxinmusic.util.CompatUtil.setForegroundCompat(this, gradient);
     }
+
+    // ===== 左缘 alpha 淡出（沉浸横屏白天光晕专用） =====
+
+    private float leftFadeRatio = 0f;
+    private long fadeSeed = 0L; // 边缘形状种子：每封面随机一次（切歌换形状，播放期稳定不闪烁）
+
+    // 波浪动画态（淡出激活期间常驻；双buffer复用防每帧7MB级分配）
+    private ValueAnimator waveAnimator;
+    private float wavePhase = 0f;
+    private int waveFrame = 0;
+    private Bitmap fadeContentCache; // 封面内容离屏缓存（切歌/尺寸变时重建）
+    private Bitmap fadeWork;         // 每帧合成工作区（复用，不逐帧分配）
+    private int fadeCacheW = -1, fadeCacheH = -1;
+
+    @Override
+    public void setImageBitmap(android.graphics.Bitmap bm) {
+        super.setImageBitmap(bm);
+        fadeSeed = System.nanoTime();
+        if (fadeContentCache != null) { fadeContentCache.recycle(); fadeContentCache = null; } // 内容变：下帧重建
+        if (leftFadeRatio > 0f) invalidate();
+    }
+
+    /**
+     * 左缘 alpha 淡出比例（0=关闭，≤0.5）。
+     * 白线根治：静态渐变带追不上逐帧光晕动画，改为封面左缘淡出——
+     * 透出「页面底色+动态光晕」接管过渡，边界两侧是连续流动的同一层动画。
+     */
+    public void setLeftFade(float ratio) {
+        float r = Math.max(0f, Math.min(0.5f, ratio));
+        if (this.leftFadeRatio != r) {
+            this.leftFadeRatio = r;
+            if (r > 0f) startWaveAnim(); else stopWaveAnim();
+            invalidate();
+        }
+    }
+
+    /** 波浪动画启停：淡出激活时相位九秒一圈慢滚；停用即释放双buffer */
+    private void startWaveAnim() {
+        if (waveAnimator == null) {
+            waveAnimator = ValueAnimator.ofFloat(0f, (float) (2 * Math.PI));
+            waveAnimator.setDuration(9000L);
+            waveAnimator.setRepeatCount(ValueAnimator.INFINITE);
+            waveAnimator.setInterpolator(new LinearInterpolator());
+            waveAnimator.addUpdateListener(a -> {
+                wavePhase = (float) a.getAnimatedValue();
+                if ((waveFrame++ & 1) == 0) invalidate(); // 30fps 跳帧（低端机减负，波浪慢动无感知损失）
+            });
+        }
+        if (waveAnimator.isPaused()) waveAnimator.resume();
+        else if (!waveAnimator.isRunning()) waveAnimator.start();
+    }
+
+    private void stopWaveAnim() {
+        if (waveAnimator != null && waveAnimator.isRunning()) waveAnimator.pause();
+        releaseFadeBitmaps();
+    }
+
+    private void releaseFadeBitmaps() {
+        if (fadeContentCache != null) { fadeContentCache.recycle(); fadeContentCache = null; }
+        if (fadeWork != null) { fadeWork.recycle(); fadeWork = null; }
+        fadeCacheW = -1; fadeCacheH = -1;
+    }
+
+    /**
+     * 一维 value noise → 改用：双频正弦叠加，参数由 fadeSeed 哈希派生（见 drawLeftFaded）
+     */
+    /**
+     * 左缘淡出绘制（波浪动画版）：内容缓存（切歌/尺寸变才重建）→ 工作区副本上
+     * DST_IN 双频正弦波浪（相位随 wavePhase 慢滚：主波同速+细节波1.6倍速逆流）→ 回画。
+     * 防 10-19 坑：离屏合成不经 View 前景路径，DST_IN 只作用于本组件内容。
+     * 双buffer复用：仅切歌/转屏重建，每帧零分配；参数由 fadeSeed 哈希派生（每封面随机）。
+     * 仅非黑胶矩形封面使用；仅淡出激活期间持有位图（停用即释放）。
+     */
+    private void drawLeftFaded(Canvas canvas, int width, int height, float cx, float cy) {
+        try {
+            if (fadeContentCache == null || fadeCacheW != width || fadeCacheH != height) {
+                releaseFadeBitmaps();
+                fadeContentCache = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                Canvas cc = new Canvas(fadeContentCache);
+                cc.save();
+                cc.rotate(currentRotationAngle, cx, cy);
+                super.onDraw(cc);
+                cc.restore();
+                fadeWork = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                fadeCacheW = width; fadeCacheH = height;
+            }
+            Canvas off = new Canvas(fadeWork);
+            off.drawBitmap(fadeContentCache, 0, 0, null); // 副本上做 DST_IN，缓存本体不受伤
+            Paint fade = new Paint();
+            fade.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
+            int fadeW = Math.max(2, (int) (width * leftFadeRatio));
+            // 从 fadeSeed 哈希派生随机正弦参数（每封面一组）
+            float r1 = (fadeSeed & 0xFFFF) / 65535f;
+            float r2 = ((fadeSeed >> 16) & 0xFFFF) / 65535f;
+            float r3 = ((fadeSeed >> 32) & 0xFFFF) / 65535f;
+            float r4 = ((fadeSeed >> 48) & 0xFFFF) / 65535f;
+            float waveLen1 = height * (0.28f + 0.14f * r1);          // 主波：屏高 28%~42%
+            float waveLen2 = 90f + 60f * r2;                          // 细节波：90~150px
+            float phase1 = (float) (2 * Math.PI * r3) + wavePhase;          // 主波随相位慢滚
+            float phase2 = (float) (2 * Math.PI * r4) + wavePhase * 1.6f;   // 细节波1.6倍速逆流（层次感）
+            float amp = fadeW * (0.5f + 0.15f * r1);                  // 振幅：带宽 50%~65%
+            int band = 4;                                             // 4px/带：曲线平滑无台阶
+            for (int y = 0; y < height; y += band) {
+                int yEnd = Math.min(height, y + band);
+                float yc = y + band / 2f;
+                float n = 0.7f * (float) Math.sin(2 * Math.PI * yc / waveLen1 + phase1)
+                        + 0.3f * (float) Math.sin(2 * Math.PI * yc / waveLen2 + phase2);
+                int edge = Math.round(fadeW + amp * n);
+                edge = Math.max(1, Math.min(width, edge));
+                fade.setShader(new LinearGradient(0, 0, edge, 0,
+                        0x00000000, 0xFF000000, Shader.TileMode.CLAMP));
+                off.drawRect(0, y, edge, yEnd, fade);
+            }
+            canvas.drawBitmap(fadeWork, 0, 0, null);
+        } catch (Throwable t) {
+            canvas.save();
+            canvas.rotate(currentRotationAngle, cx, cy);
+            super.onDraw(canvas);
+            canvas.restore();
+        }
+    }
     
     public boolean isVinylMode() {
         return vinylMode;
@@ -166,6 +291,8 @@ public class RotatingCoverView extends AppCompatImageView {
         
         if (vinylMode) {
             drawVinylCover(canvas, cx, cy, viewRadius);
+        } else if (leftFadeRatio > 0f) {
+            drawLeftFaded(canvas, width, height, cx, cy);
         } else {
             canvas.save();
             canvas.rotate(currentRotationAngle, cx, cy);
@@ -245,6 +372,10 @@ public class RotatingCoverView extends AppCompatImageView {
         if (rotationAnimator != null && rotationAnimator.isRunning()) {
             rotationAnimator.pause();
         }
+        if (waveAnimator != null && waveAnimator.isRunning()) {
+            waveAnimator.pause();
+        }
+        releaseFadeBitmaps(); // detach 期间不驻留双 buffer，attach 后按需重建
     }
 
     @Override
@@ -254,5 +385,14 @@ public class RotatingCoverView extends AppCompatImageView {
         if (rotationAnimator != null && isRotating && rotationAnimator.isPaused()) {
             rotationAnimator.resume();
         }
+        if (waveAnimator != null && leftFadeRatio > 0f && waveAnimator.isPaused()) {
+            waveAnimator.resume();
+        }
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        releaseFadeBitmaps(); // 尺寸变（转屏/缩放）：缓存按新尺寸重建
     }
 }
