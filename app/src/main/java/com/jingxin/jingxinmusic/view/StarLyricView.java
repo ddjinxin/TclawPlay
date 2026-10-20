@@ -268,16 +268,20 @@ public class StarLyricView extends View {
         float t = DecelerateInterpolatorHolder.INSTANCE.getInterpolation(
                 (now - animStart) / (float) ANIM_MS);
 
-        // 旧句：整体淡出（字号自适应防溢出）
+        // 旧句（当前行让位）：边放大边下落，一直坠到页面底部（全程加速）
         if (animFromText != null) {
-            float oldAlpha = 1f - t;
+            float oldAlpha = (1f - t) * (1f - t);
             if (oldAlpha > 0.02f) {
+                float burst = t * t; // 加速：前段即完成大半行程
                 float oldSize = fromSize > 0 ? fromSize : fitTextSize(animFromText, textSizeCurrent);
-                textPaint.setTextSize(oldSize);
+                textPaint.setTextSize(oldSize * (1f + 0.55f * burst)); // 沿路持续放大
                 int a = (int) (oldAlpha * 255);
                 textPaint.setColor((a << 24) | (colorHighlight & 0xFFFFFF));
                 textPaint.setShadowLayer(0, 0, 0, 0);
-                canvas.drawText(animFromText, fromX > 0 ? fromX : layoutW / 2f, fromY > 0 ? fromY : currentLineY(), textPaint);
+                float startY = fromY > 0 ? fromY : currentLineY();
+                float endY = layoutH + fromSize * 0.3f; // 终点：页面底（再探出少许，整行出屏）
+                float dropY = startY + (endY - startY) * burst;
+                canvas.drawText(animFromText, fromX > 0 ? fromX : layoutW / 2f, dropY, textPaint);
             }
         }
 
