@@ -158,6 +158,8 @@ public class PlayerFragment extends BaseFloatFragment {
     // 播放服务
     private MusicPlayerBinder playerBinder;
     private boolean bound = false;
+    /** 歌词效果页管理器（长按歌词进入·单击退出，星空漫游等纯展示效果层） */
+    private com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager lyricEffectManager;
     private final Handler uiHandler = new Handler();
     private boolean userSeeking = false;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -549,6 +551,29 @@ public class PlayerFragment extends BaseFloatFragment {
 
         // 在根 FrameLayout 上监听尺寸变化（车机调整应用宽度时触发）
         android.widget.FrameLayout rootFrameLayout = view.findViewById(R.id.root_layout);
+
+        // 歌词效果页体系：长按歌词进入（全风格通用 hook）、单击退出、无按键纯展示
+        lyricEffectManager = new com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager(
+                com.jingxin.jingxinmusic.player.PlayerStateHub.get(),
+                rootFrameLayout,
+                new com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.SongProvider() {
+                    @Override
+                    public java.util.List<com.jingxin.jingxinmusic.model.Song> getPlaylist() {
+                        return (bound && playerBinder != null) ? playerBinder.getPlaylist() : null;
+                    }
+
+                    @Override
+                    public int getCurrentIndex() {
+                        return (bound && playerBinder != null) ? playerBinder.getCurrentIndex() : -1;
+                    }
+                });
+        com.jingxin.jingxinmusic.view.LyricView.setGlobalLongPressListener(v -> {
+            if (lyricEffectManager != null && !lyricEffectManager.isActive()) {
+                lyricEffectManager.attach(
+                        com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD);
+            }
+        });
+
         if (rootFrameLayout != null) {
             rootFrameLayout.addOnLayoutChangeListener(
                     (View v, int left, int top, int right, int bottom,
