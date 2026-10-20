@@ -98,4 +98,9 @@ public class StarfieldEffectPage extends LyricEffectPage {
     public void onProgress(int positionMs, int durationMs) {
         if (lyric != null) lyric.updatePosition(positionMs);
     }
+
+    /** 应用播放页高亮歌词色（歌名/当前行统一使用；Manager attach 时注入，并随主题变化重注入） */
+    public void applyHighlightColor(int color) {
+        if (lyric != null) lyric.setHighlightColor(color);
+    }
 }

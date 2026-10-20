@@ -324,6 +324,11 @@ public class LyricView extends View {
     public void restoreHighlightColor() {
         setThemeMode(currentTheme);
     }
+
+    /** 当前生效的高亮歌词色（跨组件共享真值：歌词效果页等取此色保持一致） */
+    public int getCurrentHighlightColor() {
+        return textColorCurrent;
+    }
     
     public void updatePosition(long positionMs) {
         this.currentPosition = positionMs;

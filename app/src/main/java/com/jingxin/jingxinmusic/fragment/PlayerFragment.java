@@ -566,7 +566,8 @@ public class PlayerFragment extends BaseFloatFragment {
                     public int getCurrentIndex() {
                         return (bound && playerBinder != null) ? playerBinder.getCurrentIndex() : -1;
                     }
-                });
+                },
+                () -> lyricView != null ? lyricView.getCurrentHighlightColor() : 0);
         com.jingxin.jingxinmusic.view.LyricView.setGlobalLongPressListener(v -> {
             if (lyricEffectManager != null && !lyricEffectManager.isActive()) {
                 lyricEffectManager.attach(

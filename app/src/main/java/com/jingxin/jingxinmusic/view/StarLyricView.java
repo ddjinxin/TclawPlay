@@ -28,9 +28,8 @@ import java.util.Random;
 public class StarLyricView extends View {
 
     // 配色（截图规格）
-    private static final int COLOR_CURRENT = Color.rgb(0xC9, 0xE4, 0xFF); // 浅冰蓝（当前行/歌名共用）
-    private static final int COLOR_NEXT = Color.rgb(0x8A, 0x96, 0xA6);    // 灰蓝（低饱和）
-    private static final int COLOR_GLOW = Color.argb(0xB4, 0x9A, 0xC4, 0xF0); // 柔光
+    // 全部文字颜色统一跟随播放页高亮色（COLOR_CURRENT 为未注入时的兜底）
+    private static final int COLOR_CURRENT = Color.rgb(0xC9, 0xE4, 0xFF); // 浅冰蓝（兜底）
 
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint dustPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -102,13 +101,11 @@ public class StarLyricView extends View {
         // 星尘粒子：伴随新句浮现
         spawnDusts();
 
-        // 计算旧字位置（用于淡出）
+        // 计算旧字位置（用于淡出；字号按旧文本自适应防淡出溢出）
         if (oldIndex >= 0 && animFromText != null) {
-            float oldSize = textSizeCurrent;
-            textPaint.setTextSize(oldSize);
+            fromSize = fitTextSize(animFromText, textSizeCurrent);
             fromX = layoutW / 2f;
             fromY = currentLineY();
-            fromSize = oldSize;
         }
         invalidate();
         postInvalidateOnAnimation();
@@ -131,14 +128,24 @@ public class StarLyricView extends View {
         }
     }
 
-    // 锚点：歌名底部（本视图局部坐标；内部自算：页顶 16dp + 标题行高）
-    private float titleBottomY(float density) {
-        // 歌名底部（页顶 16dp + 歌名行高；歌名字号=预唱行字号）
-        return (float) Math.ceil(density * 16f) + textSizeNext * 1.25f;
+    private boolean isPortrait() {
+        return layoutH > layoutW;
     }
 
+    /** 歌名顶部页边距：横屏 16dp；竖屏再下移一倍歌名自身字号（+1×字高） */
+    private float titleTopOffset(float density) {
+        return (float) Math.ceil(density * 16f) + (isPortrait() ? textSizeNext : 0f);
+    }
+
+    // 锚点：歌名底部（本视图局部坐标；页顶偏移 + 歌名行高；歌名字号=预唱行字号）
+    private float titleBottomY(float density) {
+        return titleTopOffset(density) + textSizeNext * 1.25f;
+    }
+
+    /** 当前行字号：横屏 5.2% 屏宽（参考图宽屏规格）；竖屏 8%（屏宽窄，视觉重量补偿） */
     private float currentTextSizePx() {
-        return Math.max(18f, layoutW * 0.052f);
+        float ratio = layoutW > layoutH ? 0.052f : 0.08f;
+        return Math.max(18f, layoutW * ratio);
     }
 
     private float nextTextSizePx() {
@@ -150,11 +157,12 @@ public class StarLyricView extends View {
         return layoutH * 0.50f + textSizeCurrent * 0.15f;
     }
 
-    /** 预唱行基线：文字顶部 = 歌名底部 + 预唱行高（基线 = 顶部 + 0.82 字高 ascent）
-     *  （规则：预唱行顶部与歌名底部之间的距离 = 预唱行自身高度，即一行的间隔） */
+    /** 预唱行基线：文字顶部 = 歌名底部 + 预唱行高 ×行距倍数（基线 = 顶部 + 0.82 字高 ascent）
+     *  横屏：距歌名 1× 行高；竖屏：3× 行高（拉开） */
     private float nextLineY() {
         float density = getResources().getDisplayMetrics().density;
-        return titleBottomY(density) + textSizeNext + 0.82f * textSizeNext;
+        float gapLines = isPortrait() ? 3f : 1f;
+        return titleBottomY(density) + gapLines * textSizeNext + 0.82f * textSizeNext;
     }
 
     @Override
@@ -164,6 +172,9 @@ public class StarLyricView extends View {
         textSizeCurrent = currentTextSizePx();
         textSizeNext = nextTextSizePx();
     }
+
+    // 预唱行缩放揭示：仅在换行转场内一次性完成（0.55→1.0 随主动画 t），
+    // 稳态不重跑（否则转场结束后文字先缩回再长一次，多余动作）
 
     @Override
     protected void onDraw(Canvas canvas) {
@@ -183,7 +194,23 @@ public class StarLyricView extends View {
         drawDusts(canvas, now);
     }
 
-    /** 歌名文案（歌名 · 歌手）；与本视图同坐标系自绘 */
+    // 颜色：与播放页高亮歌词色一致（效果页注入；未注入时退回浅冰蓝）
+    private int colorHighlight = COLOR_CURRENT;
+
+    /** 注入播放页高亮歌词色（跟随主题/自定义色/光晕动态色），全部文字统一使用 */
+    public void setHighlightColor(int color) {
+        if (color != 0) this.colorHighlight = color;
+        invalidate();
+    }
+
+    /** 预唱行抖动：微幅正弦振动（呼吸感，幅度随字高缩放；px 偏移） */
+    private float nextJitterOffsetPx(long nowMs) {
+        float amplitude = textSizeNext * 0.045f; // 约 4.5% 字高
+        float t = (nowMs % 1400L) / 1400f;
+        return amplitude * (float) Math.sin(t * 2 * Math.PI);
+    }
+
+    /** 歌名文案（歌名 - 歌手）；与本视图同坐标系自绘 */
     public void setTitleText(String text) {
         this.titleText = (text != null ? text : "");
         invalidate();
@@ -194,29 +221,45 @@ public class StarLyricView extends View {
         if (titleText.isEmpty()) return;
         float density = getResources().getDisplayMetrics().density;
         textPaint.setTextSize(textSizeNext);
-        textPaint.setColor(COLOR_CURRENT);
+        textPaint.setColor(colorHighlight);
         textPaint.setFakeBoldText(true);
         textPaint.setShadowLayer(0, 0, 0, 0);
         canvas.drawText(titleText, layoutW / 2f,
-                (float) Math.ceil(density * 16f) + textSizeNext * 0.85f, textPaint);
+                titleTopOffset(density) + textSizeNext * 0.85f, textPaint);
         textPaint.setFakeBoldText(false);
     }
 
+    /** 宽度自适应字号：按文本实测宽缩小至可用宽（留 6% 两侧边距）；不超原字号则原字号返回 */
+    private float fitTextSize(String text, float targetSize) {
+        if (text == null || text.isEmpty() || layoutW <= 0) return targetSize;
+        float avail = layoutW * 0.94f;
+        textPaint.setTextSize(targetSize);
+        float measured = textPaint.measureText(text);
+        if (measured <= avail) return targetSize;
+        // 字号上限下保护（防超长串缩到不可读）：最低不小于预唱行字号的 1.1 倍
+        float min = textSizeNext * 1.1f;
+        float scaled = targetSize * (avail / measured);
+        return Math.max(min, scaled);
+    }
+
     private void drawSteady(Canvas canvas) {
-        // 下一句（上方小字）
+        // 下一句（上方小字）：颜色同高亮、90% 透明度、微抖动（缩放揭示只在换行转场内一次完成）
+        // 超宽同样自动缩字号适配页宽
         String nextText = textOf(currentIndex + 1);
         if (nextText != null) {
-            textPaint.setTextSize(textSizeNext);
-            textPaint.setColor(COLOR_NEXT);
+            textPaint.setTextSize(fitTextSize(nextText, textSizeNext));
+            textPaint.setColor((230 << 24) | (colorHighlight & 0xFFFFFF)); // 90% alpha
             textPaint.setShadowLayer(0, 0, 0, 0);
-            canvas.drawText(nextText, layoutW / 2f, nextLineY(), textPaint);
+            float jitter = nextJitterOffsetPx(System.currentTimeMillis());
+            canvas.drawText(nextText, layoutW / 2f + jitter, nextLineY() + jitter * 0.4f, textPaint);
+            postInvalidateOnAnimation(); // 抖动持续驱动
         }
-        // 当前句（中心大字+柔光）
+        // 当前句（中心大字+柔光）：颜色与光晕均随高亮色
         String curText = textOf(currentIndex);
         if (curText != null) {
-            textPaint.setTextSize(textSizeCurrent);
-            textPaint.setColor(COLOR_CURRENT);
-            textPaint.setShadowLayer(18f, 0f, 0f, COLOR_GLOW);
+            textPaint.setTextSize(fitTextSize(curText, textSizeCurrent));
+            textPaint.setColor(colorHighlight);
+            textPaint.setShadowLayer(0, 0, 0, 0); // 光晕已取消：纯文字呈现
             canvas.drawText(curText, layoutW / 2f, currentLineY(), textPaint);
         }
     }
@@ -225,35 +268,42 @@ public class StarLyricView extends View {
         float t = DecelerateInterpolatorHolder.INSTANCE.getInterpolation(
                 (now - animStart) / (float) ANIM_MS);
 
-        // 旧句：整体淡出
+        // 旧句：整体淡出（字号自适应防溢出）
         if (animFromText != null) {
             float oldAlpha = 1f - t;
             if (oldAlpha > 0.02f) {
-                textPaint.setTextSize(fromSize > 0 ? fromSize : textSizeCurrent);
+                float oldSize = fromSize > 0 ? fromSize : fitTextSize(animFromText, textSizeCurrent);
+                textPaint.setTextSize(oldSize);
                 int a = (int) (oldAlpha * 255);
-                textPaint.setColor((a << 24) | (COLOR_CURRENT & 0xFFFFFF));
+                textPaint.setColor((a << 24) | (colorHighlight & 0xFFFFFF));
                 textPaint.setShadowLayer(0, 0, 0, 0);
                 canvas.drawText(animFromText, fromX > 0 ? fromX : layoutW / 2f, fromY > 0 ? fromY : currentLineY(), textPaint);
             }
         }
 
-        // 新句：从下一行位置（小字位）落入当前行位置，字号小→大，透明→亮
+        // 新句：从下一行位置（小字位）落入当前行位置，字号小→大（终点为自适应字号），透明→亮
         float startY = nextLineY(), endY = currentLineY();
-        float size = textSizeNext + (textSizeCurrent - textSizeNext) * t;
+        float endSize = animToText != null ? fitTextSize(animToText, textSizeCurrent) : textSizeCurrent;
+        // 旧句淡出字号也走自适应（否则旧长句淡出时溢出屏）
+        if (animFromText != null && fromSize <= 0) {
+            fromSize = fitTextSize(animFromText, textSizeCurrent);
+        }
+        float size = textSizeNext + (endSize - textSizeNext) * t;
         textPaint.setTextSize(size);
         int a = (int) (t * 255);
-        textPaint.setColor((a << 24) | (COLOR_CURRENT & 0xFFFFFF));
-        textPaint.setShadowLayer(18f * t, 0f, 0f, COLOR_GLOW);
+        textPaint.setColor((a << 24) | (colorHighlight & 0xFFFFFF));
+        textPaint.setShadowLayer(0, 0, 0, 0); // 光晕已取消
         if (animToText != null) {
             canvas.drawText(animToText, layoutW / 2f, startY + (endY - startY) * t, textPaint);
         }
 
-        // 转场期间下一行位置显示"再下一句"淡入
+        // 转场期间下一行位置显示"再下一句"：从小到大缩放 + 淡入（颜色同高亮 90%）
         String next2 = textOf(currentIndex + 1);
         if (next2 != null) {
-            textPaint.setTextSize(textSizeNext);
+            float scale2 = 0.55f + 0.45f * t;
+            textPaint.setTextSize(textSizeNext * scale2);
             int na = (int) (t * 220);
-            textPaint.setColor((na << 24) | (COLOR_NEXT & 0xFFFFFF));
+            textPaint.setColor((na << 24) | (colorHighlight & 0xFFFFFF));
             textPaint.setShadowLayer(0, 0, 0, 0);
             canvas.drawText(next2, layoutW / 2f, nextLineY(), textPaint);
         }

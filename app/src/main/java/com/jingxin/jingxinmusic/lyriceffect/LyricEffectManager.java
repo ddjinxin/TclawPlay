@@ -27,11 +27,17 @@ public class LyricEffectManager {
         int getCurrentIndex();
     }
 
+    /** 当前高亮歌词色提供者（与播放页 LyricView 真值同步：主题/自定义/光晕动态色） */
+    public interface HighlightColorProvider {
+        int getHighlightColor();
+    }
+
     private static final long FADE_MS = 240L;
 
     private final PlayerStateHub hub;
     private final ViewGroup host;            // 播放页 root_layout（FrameLayout）
     private final SongProvider songProvider;
+    private final HighlightColorProvider colorProvider;
     private StarfieldEffectPage activePage;  // 当前效果页（效果本体）
     private boolean active = false;
 
@@ -39,10 +45,12 @@ public class LyricEffectManager {
     private PlayerStateHub.ProgressObserver progressObserver;
     private PlayerStateHub.LyricObserver lyricObserver;
 
-    public LyricEffectManager(PlayerStateHub hub, ViewGroup host, SongProvider songProvider) {
+    public LyricEffectManager(PlayerStateHub hub, ViewGroup host, SongProvider songProvider,
+                              HighlightColorProvider colorProvider) {
         this.hub = hub;
         this.host = host;
         this.songProvider = songProvider;
+        this.colorProvider = colorProvider;
     }
 
     public boolean isActive() { return active; }
@@ -66,6 +74,9 @@ public class LyricEffectManager {
                 });
         activePage.setExitListener(v -> detach());
         activePage.build(LayoutInflater.from(host.getContext()), host);
+        if (colorProvider != null) {
+            activePage.applyHighlightColor(colorProvider.getHighlightColor());
+        }
 
         // 淡入（ViewPropertyAnimator：终点即目标 alpha；AlphaAnimation 结束会回弹到 setAlpha 初始值导致隐身）
         activePage.setAlpha(0f);
