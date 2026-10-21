@@ -124,87 +124,11 @@
             android:layout_marginEnd="8dp" />
     </LinearLayout>
 
-    <!-- ===== 顶栏（全5键：返回/音效/弹性空位/歌词搜索/频谱/装扮右侧组35%）===== -->
-    <LinearLayout
+    <com.jingxin.jingxinmusic.view.PlayerTopBar
         android:id="@+id/v2_top_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="top"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_gravity="top" />
 
-        <ImageView
-            android:id="@+id/v2_btn_back"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_back"
-            android:padding="6dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:foreground="@drawable/tv_focus_round"
-            android:background="?attr/selectableItemBackgroundBorderless" />
-
-        <ImageView
-            android:id="@+id/v2_btn_effect"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_effect"
-            android:padding="8dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:foreground="@drawable/tv_focus_round"
-            android:background="?attr/selectableItemBackgroundBorderless" />
-
-        <View
-            android:id="@+id/v2_top_spacer"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <LinearLayout
-            android:id="@+id/v2_right_group"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <ImageView
-                android:id="@+id/v2_btn_lyric_search"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:src="@drawable/ic_lyric_search"
-                android:padding="8dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="@drawable/tv_focus_round"
-                android:background="?attr/selectableItemBackgroundBorderless" />
-
-            <ImageView
-                android:id="@+id/v2_btn_spectrum"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:src="@drawable/ic_spectrum"
-                android:padding="8dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="@drawable/tv_focus_round"
-                android:background="?attr/selectableItemBackgroundBorderless" />
-
-            <ImageView
-                android:id="@+id/v2_btn_outfit"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:src="@drawable/ic_outfit"
-                android:padding="8dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="@drawable/tv_focus_round"
-                android:background="?attr/selectableItemBackgroundBorderless" />
-        </LinearLayout>
-    </LinearLayout>
 
 </FrameLayout>

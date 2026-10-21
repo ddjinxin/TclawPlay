@@ -30,45 +30,6 @@ public class LyricView extends View {
     
     private static final String TAG = "LyricView";
     
-    // ===== 歌词效果页入口（类级 hook：所有风格页的歌词实例统一获得长按能力） =====
-    // Fragment 启动时设置；600ms 长按触发进入歌词效果页（星空漫游等）
-    public interface OnLyricLongPressListener { void onLyricLongPressed(LyricView view); }
-    private static OnLyricLongPressListener sLongPressListener;
-    private static final long LONG_PRESS_MS = 600L;
-    private boolean longPressFired = false;
-    private final Runnable longPressRunnable = () -> {
-        if (sLongPressListener != null) {
-            longPressFired = true;
-            sLongPressListener.onLyricLongPressed(this);
-        }
-    };
-
-    public static void setGlobalLongPressListener(OnLyricLongPressListener l) {
-        sLongPressListener = l;
-    }
-
-    @Override
-    public boolean onTouchEvent(android.view.MotionEvent event) {
-        // 长按手势（600ms 进歌词效果页）：DOWN 起计时，UP/CANCEL 取消；
-        // 未触发前事件全交 super（保留原有单击切歌词模式），触发后的松手吞掉防误切模式
-        switch (event.getActionMasked()) {
-            case android.view.MotionEvent.ACTION_DOWN:
-                longPressFired = false;
-                removeCallbacks(longPressRunnable);
-                postDelayed(longPressRunnable, LONG_PRESS_MS);
-                break;
-            case android.view.MotionEvent.ACTION_UP:
-            case android.view.MotionEvent.ACTION_CANCEL:
-                removeCallbacks(longPressRunnable);
-                if (longPressFired && event.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
-                    longPressFired = false;
-                    return true; // 长按后的松手：不触发单击切模式
-                }
-                break;
-        }
-        return super.onTouchEvent(event);
-    }
-
     // 歌词显示模式
     public enum DisplayMode {
         DOUBLE_LINE,    // 三行模式（上一行 + 当前行 + 下一行）

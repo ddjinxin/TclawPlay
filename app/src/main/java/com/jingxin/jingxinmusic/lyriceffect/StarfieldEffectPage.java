@@ -27,11 +27,14 @@ public class StarfieldEffectPage extends LyricEffectPage {
     private StarLyricView lyric;
     private CoverFlowView coverFlow;
     private final CoverFlowView.SongProvider songProvider;
+    private final LyricEffectManager.PlayerController controller;
 
     public StarfieldEffectPage(Context context, PlayerStateHub hub,
-                                CoverFlowView.SongProvider songProvider) {
+                                CoverFlowView.SongProvider songProvider,
+                                LyricEffectManager.PlayerController controller) {
         super(context, hub);
         this.songProvider = songProvider;
+        this.controller = controller;
     }
 
     @Override
@@ -59,6 +62,14 @@ public class StarfieldEffectPage extends LyricEffectPage {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         coverFlow.setLayoutParams(cp);
         addView(coverFlow, cp);
+
+        // 封面卡点击：左二=上一曲，中心=播放/暂停，右二=下一曲（未命中处不消费→整页退出保留）
+        coverFlow.setOnCoverTapListener(offset -> {
+            if (controller == null) return;
+            if (offset < 0) controller.playPrevious();
+            else if (offset > 0) controller.playNext();
+            else controller.togglePlayPause();
+        });
 
         // 单击退出（根消费）
         setClickable(true);

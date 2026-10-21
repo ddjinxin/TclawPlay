@@ -10,6 +10,7 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.util.AttributeSet;
+import android.view.MotionEvent;
 import android.view.View;
 
 import com.jingxin.jingxinmusic.util.CoverLoader;
@@ -35,6 +36,13 @@ public class CoverFlowView extends View {
         int getCurrentIndex();
     }
 
+    /** 封面卡点击（offset：-2/-1=左侧两卡，0=中心卡，+1/+2=右侧两卡） */
+    public interface OnCoverTapListener { void onCoverTap(int offset); }
+    private OnCoverTapListener tapListener;
+    private int pressIdx = -1;
+
+    public void setOnCoverTapListener(OnCoverTapListener l) { this.tapListener = l; }
+
     private static final int CARD_COUNT = 5; // 当前+左右各二
     private final Bitmap[] coverBitmaps = new Bitmap[CARD_COUNT];
     private final SongProvider provider;
@@ -52,8 +60,8 @@ public class CoverFlowView extends View {
     // ===== 切歌轮转动画：全卡顺次向左（或向右）流动一格 =====
     // 视觉：旧位图集滑动（动画中加载新位图不影响画面），左移时左侧先动、
     // 右侧依次跟上；动画结束帧无缝切到新位图集（双缓冲不闪占位卡）
-    private static final long ROLL_MS = 840L;    // 单卡滑动时长（实测再慢一倍，不显乱）
-    private static final long ROLL_STAGGER_MS = 180L; // 相邻卡顺次延迟（拉开波浪）
+    private static final long ROLL_MS = 5200L;    // 单卡滑动时长（再放慢一倍）
+    private static final long ROLL_STAGGER_MS = 1280L; // 相邻卡顺次延迟（接力波浪拉开）
     private long rollAnimStart = -1L;
     private int rollFromOffset = 0;  // 动画起点：+1=新队列从右侧来（全队左移），-1=反向
     private final Bitmap[] rollOldBitmaps = new Bitmap[CARD_COUNT]; // 动画帧用的旧队列位图
@@ -199,6 +207,46 @@ public class CoverFlowView extends View {
     protected void onSizeChanged(int width, int height, int oldw, int oldh) {
         super.onSizeChanged(width, height, oldw, oldh);
         w = width; h = height;
+    }
+
+    /** 卡点击：命中序号卡才消费（动作交 tapListener）；不命中时 DOWN 即不消费，事件落到下层（整页退出） */
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (tapListener == null) return false;
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                pressIdx = hitCardIndex(event.getX(), event.getY());
+                return pressIdx >= 0;
+            case MotionEvent.ACTION_UP:
+                if (pressIdx >= 0 && hitCardIndex(event.getX(), event.getY()) == pressIdx) {
+                    tapListener.onCoverTap(pressIdx - 2);
+                }
+                pressIdx = -1;
+                return true;
+            case MotionEvent.ACTION_CANCEL:
+                pressIdx = -1;
+                return true;
+        }
+        return false;
+    }
+
+    /** 命中测试：返回卡序号 0~4（z 序中心优先，同绘制覆盖关系），未命中 -1；公式与 onDraw 同源 */
+    private int hitCardIndex(float x, float y) {
+        if (w <= 0 || h <= 0) return -1;
+        boolean portrait = h > w;
+        float flowW = w * (portrait ? 0.90f : 0.50f);
+        float cardSize = Math.min(flowW / 3.8f, h * 0.30f);
+        float step = cardSize * (1f - 0.30f);
+        float dropPerStep = cardSize * 0.20f;
+        float cx = w / 2f;
+        for (int idx : new int[]{2, 1, 3, 0, 4}) {
+            int off = idx - 2;
+            float size = cardSize * Math.max(0.92f, 1f + 0.06f * Math.max(0f, 1f - Math.abs(off)));
+            float px = cx + off * step;
+            float top = h + Math.abs(off) * dropPerStep - size; // 卡顶（底=屏底基准下沉）
+            if (x >= px - size / 2f && x <= px + size / 2f && y >= top && y <= h) return idx;
+        }
+        return -1;
     }
 
     @Override

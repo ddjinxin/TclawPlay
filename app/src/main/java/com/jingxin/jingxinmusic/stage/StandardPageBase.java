@@ -21,6 +21,7 @@ import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.AuroraGradientView;
 import com.jingxin.jingxinmusic.view.ControlBar;
 import com.jingxin.jingxinmusic.view.LyricView;
+import com.jingxin.jingxinmusic.view.PlayerTopBar;
 import com.jingxin.jingxinmusic.view.ProgressPanel;
 import com.jingxin.jingxinmusic.view.RotatingCoverView;
 import com.jingxin.jingxinmusic.view.SongTitleBar;
@@ -61,8 +62,7 @@ public class StandardPageBase extends StagePage {
     protected SongTitleBar title; protected LyricView lyric;
     protected SpectrumView spectrum;
     private ProgressPanel progress; private ControlBar control;
-    private LinearLayout topBar; private View topSpacer, rightGroup;
-    private ImageView btnBack, btnEffect, btnLyricSearch, btnSpectrum, btnOutfit;
+    private PlayerTopBar topBar;
 
     // 横屏视图（_land 后缀 XML，独立实例）
     private AuroraGradientView auroraL; private ImageView blurBgL;
@@ -74,8 +74,7 @@ public class StandardPageBase extends StagePage {
     protected SongTitleBar titleL; protected LyricView lyricL;
     protected SpectrumView spectrumL; // 子类（轮播V2）横屏频谱高按旧公式 0.08H 重设
     private ProgressPanel progressL; private ControlBar controlL;
-    private LinearLayout topBarL; private View topSpacerL, rightGroupL;
-    private ImageView btnBackL, btnEffectL, btnLyricSearchL, btnSpectrumL, btnOutfitL;
+    private PlayerTopBar topBarL;
 
     // ===== 状态 =====
     private boolean installed = false;
@@ -144,13 +143,6 @@ public class StandardPageBase extends StagePage {
         progress = portraitRoot.findViewById(R.id.v2_progress);
         control = portraitRoot.findViewById(R.id.v2_control);
         topBar = portraitRoot.findViewById(R.id.v2_top_bar);
-        topSpacer = portraitRoot.findViewById(R.id.v2_top_spacer);
-        rightGroup = portraitRoot.findViewById(R.id.v2_right_group);
-        btnBack = portraitRoot.findViewById(R.id.v2_btn_back);
-        btnEffect = portraitRoot.findViewById(R.id.v2_btn_effect);
-        btnLyricSearch = portraitRoot.findViewById(R.id.v2_btn_lyric_search);
-        btnSpectrum = portraitRoot.findViewById(R.id.v2_btn_spectrum);
-        btnOutfit = portraitRoot.findViewById(R.id.v2_btn_outfit);
         initCommon(ctx, false);
     }
 
@@ -170,13 +162,6 @@ public class StandardPageBase extends StagePage {
         progressL = landscapeRoot.findViewById(R.id.v2_progress_land);
         controlL = landscapeRoot.findViewById(R.id.v2_control_land);
         topBarL = landscapeRoot.findViewById(R.id.v2_top_bar_land);
-        topSpacerL = landscapeRoot.findViewById(R.id.v2_top_spacer_land);
-        rightGroupL = landscapeRoot.findViewById(R.id.v2_right_group_land);
-        btnBackL = landscapeRoot.findViewById(R.id.v2_btn_back_land);
-        btnEffectL = landscapeRoot.findViewById(R.id.v2_btn_effect_land);
-        btnLyricSearchL = landscapeRoot.findViewById(R.id.v2_btn_lyric_search_land);
-        btnSpectrumL = landscapeRoot.findViewById(R.id.v2_btn_spectrum_land);
-        btnOutfitL = landscapeRoot.findViewById(R.id.v2_btn_outfit_land);
         initCommon(ctx, true);
     }
 
@@ -188,11 +173,7 @@ public class StandardPageBase extends StagePage {
         SpectrumView ring = land ? spectrumRingL : spectrumRing;
         ControlBar cb = land ? controlL : control;
         ProgressPanel pp = land ? progressL : progress;
-        ImageView back = land ? btnBackL : btnBack;
-        ImageView effect = land ? btnEffectL : btnEffect;
-        ImageView search = land ? btnLyricSearchL : btnLyricSearch;
-        ImageView specBtn = land ? btnSpectrumL : btnSpectrum;
-        ImageView outfit = land ? btnOutfitL : btnOutfit;
+        PlayerTopBar tb = land ? topBarL : topBar;
         View touchLayer = land ? hideTouchLayerL : hideTouchLayer;
 
         // 进度条拖动（三 V2 风格此前未接此监听——拖动无响应的根因）
@@ -219,26 +200,34 @@ public class StandardPageBase extends StagePage {
             @Override public void onDownload() { if (actions != null) actions.saveBiliOffline(); notifyControlsActivity(); }
         });
 
-        // 顶栏事件：返回=退出播放页（同旧页 btnBack 语义）；装扮=outfit 循环切风格；其余弹窗桥到 Fragment
-        back.setOnClickListener(v -> { if (actions != null) actions.exitPlayerPage(); });
-        effect.setOnClickListener(v -> { if (actions != null) actions.showEffectPickerPopup(effect); });
-        search.setOnClickListener(v -> { if (actions != null) actions.showLyricSearchPopup(search); });
-        specBtn.setOnClickListener(v -> {
-            if (actions != null) {
-                // 判定用本页用户隐藏标志 spectrumHidden（长按切换的就是它）。
+        // 顶栏事件（PlayerTopBar 统一回调）：返回/装扮/弹窗/动效键全桥到 Fragment
+        tb.setListener(new PlayerTopBar.Listener() {
+            @Override public void onBack() { if (actions != null) actions.exitPlayerPage(); }
+            @Override public void onEffect(View anchor) { if (actions != null) actions.showEffectPickerPopup(anchor); }
+            @Override public void onLyricEffect() { if (actions != null) actions.openLyricEffect(); }
+            @Override public void onLyricSearch(View anchor) { if (actions != null) actions.showLyricSearchPopup(anchor); }
+            @Override public void onSpectrum(View anchor, boolean longPress) {
+                if (actions == null) return;
+                if (longPress) {
+                    // 长按=切换显示/隐藏（镜像旧顶栏行为）
+                    if (!com.jingxin.jingxinmusic.fragment.SettingsFragment
+                            .isSpectrumEnabled(anchor.getContext())) return;
+                    spectrumHidden = !spectrumHidden;
+                    applySpectrumVisibility();
+                    return;
+                }
+                // 单击判定用本页用户隐藏标志 spectrumHidden（长按切换的就是它）。
                 // 不能读 bottom 实例 isSpectrumVisible()：圆环样式时 applySpectrumVisibility
                 // 会把 bottom 实例布局性 GONE，重写的 setVisibility 同步置 visible=false，
                 // 误判成"用户隐藏"后走恢复分支空转，样式选择弹窗永不弹出（V2 圆环样式点击失效根因）
                 if (!spectrumHidden) {
-                    actions.showSpectrumPicker(specBtn);
+                    actions.showSpectrumPicker(anchor);
                 } else {
                     spectrumHidden = false;
                     applySpectrumVisibility();
                 }
             }
-        });
-        outfit.setOnClickListener(v -> {
-            if (actions != null) actions.switchOutfitStyle();
+            @Override public void onOutfit() { if (actions != null) actions.switchOutfitStyle(); }
         });
 
         //歌词：数据经 Hub 广播灌入；点击切模式 → 本页联动（经典分支：toggleMode + 本页收敛）
@@ -258,16 +247,6 @@ public class StandardPageBase extends StagePage {
                 notifyControlsActivity();
             }
         });
-
-        // 频谱按钮：单击（可见时弹样式选择/隐藏时恢复）；长按切换显示/隐藏（镜像旧顶栏行为）
-        android.view.View.OnLongClickListener toggleSpectrum = v -> {
-            if (!com.jingxin.jingxinmusic.fragment.SettingsFragment
-                    .isSpectrumEnabled(v.getContext())) return true;
-            spectrumHidden = !spectrumHidden;
-            applySpectrumVisibility();
-            return true;
-        };
-        specBtn.setOnLongClickListener(toggleSpectrum);
     }
 
     private PlayerStateHub hubRef() {
@@ -595,18 +574,9 @@ public class StandardPageBase extends StagePage {
         boolean fav = actions != null && actions.isFavorite();
         control.applyTheme(night, fav, ThemeColors.dayTextPrimary(), ThemeColors.FAVORITE_RED);
         controlL.applyTheme(night, fav, ThemeColors.dayTextPrimary(), ThemeColors.FAVORITE_RED);
-        // 顶栏 5 键：夜间清滤镜，白天染深色（镜像旧循环）
-        ImageView[][] topBtns = {
-                {btnBack, btnEffect, btnLyricSearch, btnSpectrum, btnOutfit},
-                {btnBackL, btnEffectL, btnLyricSearchL, btnSpectrumL, btnOutfitL}};
-        for (ImageView[] grp : topBtns) {
-            for (ImageView btn : grp) {
-                if (btn == null) continue;
-                if (night) btn.clearColorFilter();
-                else btn.setColorFilter(ThemeColors.dayTextPrimary(),
-                        android.graphics.PorterDuff.Mode.SRC_IN);
-            }
-        }
+        // 顶栏 6 键：夜间清滤镜，白天染深色（PlayerTopBar 统一实现）
+        topBar.applyTheme(night, ThemeColors.dayTextPrimary());
+        topBarL.applyTheme(night, ThemeColors.dayTextPrimary());
         // 进度时间文字 + 进度条圆球/轨道/已进度段（旧 applySeekBarTheme + applyProgressScaling 同源公式）
         progress.setTimeTextColor(name);
         progressL.setTimeTextColor(name);
@@ -647,7 +617,7 @@ public class StandardPageBase extends StagePage {
     /** 竖屏：公式同旧 ClassicPage.layoutPortrait */
     private void layoutPortraitImpl(int width, int height) {
         // 顶栏（同 applyButtonMargins 顶栏段：topMargin=系统栏+1%屏高，按钮三档×aspect）
-        layoutTopBar(topBar, btnBack, btnEffect, btnSpectrum, btnOutfit, btnLyricSearch, rightGroup, width, height, false);
+        topBar.applyGeometry(width, height, false, h.density, h.systemTopInset);
         control.applyGeometry(height, width, false);
         control.applyBottomMargin(Math.max(8, (int) (height * 0.01f)));
 
@@ -691,7 +661,7 @@ public class StandardPageBase extends StagePage {
 
     /** 横屏：公式同旧 ClassicPage.layoutLandscape（分栏已固化 XML） */
     private void layoutLandscapeImpl(int width, int height) {
-        layoutTopBar(topBarL, btnBackL, btnEffectL, btnSpectrumL, btnOutfitL, btnLyricSearchL, rightGroupL, width, height, true);
+        topBarL.applyGeometry(width, height, true, h.density, h.systemTopInset);
         controlL.applyGeometry(height, width, true);
         controlL.applyBottomMargin(Math.max(8, (int) (height * 0.01f)));
 
@@ -741,49 +711,6 @@ public class StandardPageBase extends StagePage {
         // 全屏歌词时封面列仍显示（旧横屏行为：FULL 横屏留封面）
         coverL.setVisibility(View.VISIBLE);
         coverCol.setVisibility(View.VISIBLE);
-    }
-
-    /** 顶栏几何（同 applyButtonMargins 顶栏段公式：右组宽35%、三键高、padding） */
-    private void layoutTopBar(LinearLayout bar, ImageView back, ImageView effect,
-                              ImageView spec, ImageView outfit, ImageView search,
-                              View rightGrp, int width, int height, boolean landscape) {
-        int topMargin = h.systemTopInset + Math.max(4, (int) (height * 0.01f));
-        int sidePadding = (int) (h.density * 8);
-        FrameLayout.LayoutParams bp = (FrameLayout.LayoutParams) bar.getLayoutParams();
-        bp.topMargin = topMargin;
-        bar.setLayoutParams(bp);
-        bar.setPadding(sidePadding, 0, sidePadding, 0);
-
-        float rBack = (height < 700) ? 0.048f : (height <= 1200) ? 0.055f : 0.060f;
-        float rRight = (height < 700) ? 0.043f : (height <= 1200) ? 0.050f : 0.055f;
-        float rBackTop = landscape ? rBack + 0.005f : rBack;
-        float rRightTop = landscape ? rRight + 0.005f : rRight;
-        float aspectFactor = 1f + Math.max(0f, (width / (float) height - 1.78f) / 3f);
-        int topBtnSize = (int) (height * rBackTop * aspectFactor * 1.3f);
-        int topRightBtnSize = (int) (height * rRightTop * aspectFactor);
-        LinearLayout.LayoutParams backP = new LinearLayout.LayoutParams(topBtnSize, topBtnSize);
-        back.setLayoutParams(backP);
-        int backPadding = (int) (topBtnSize / 1.3f * 0.15f);
-        back.setPadding(backPadding, backPadding, backPadding, backPadding);
-
-        // 右组：宽 35% 屏宽，高 topRightBtnSize
-        if (rightGrp != null) {
-            LinearLayout.LayoutParams rp = (LinearLayout.LayoutParams) rightGrp.getLayoutParams();
-            rp.width = (int) (width * 0.35f);
-            rp.height = topRightBtnSize;
-            rp.weight = 0;
-            rightGrp.setLayoutParams(rp);
-        }
-        // 三键（音效同规格）：高同步 + padding（横屏 5%，竖屏 22%）
-        int topRightPadding = landscape ? (int) (topRightBtnSize * 0.05f) : (int) (topRightBtnSize * 0.22f);
-        for (ImageView b : new ImageView[]{spec, outfit, search, effect}) {
-            if (b == null) continue;
-            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) b.getLayoutParams();
-            p.height = topRightBtnSize;
-            p.weight = 1;
-            b.setLayoutParams(p);
-            b.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
-        }
     }
 
     /** 圆环/非圆环频谱定位：圆心传递 + 可见性统一收敛（applySpectrumVisibility） */

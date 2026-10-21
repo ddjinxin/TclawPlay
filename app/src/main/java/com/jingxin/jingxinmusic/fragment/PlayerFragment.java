@@ -158,7 +158,7 @@ public class PlayerFragment extends BaseFloatFragment {
     // 播放服务
     private MusicPlayerBinder playerBinder;
     private boolean bound = false;
-    /** 歌词效果页管理器（长按歌词进入·单击退出，星空漫游等纯展示效果层） */
+    /** 歌词效果页管理器（顶栏歌词动效键进入·单击退出，星空漫游等纯展示效果层） */
     private com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager lyricEffectManager;
     private final Handler uiHandler = new Handler();
     private boolean userSeeking = false;
@@ -552,7 +552,7 @@ public class PlayerFragment extends BaseFloatFragment {
         // 在根 FrameLayout 上监听尺寸变化（车机调整应用宽度时触发）
         android.widget.FrameLayout rootFrameLayout = view.findViewById(R.id.root_layout);
 
-        // 歌词效果页体系：长按歌词进入（全风格通用 hook）、单击退出、无按键纯展示
+        // 歌词效果页体系：顶栏歌词动效键进入（全风格）、单击退出、无按键纯展示
         lyricEffectManager = new com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager(
                 com.jingxin.jingxinmusic.player.PlayerStateHub.get(),
                 rootFrameLayout,
@@ -567,13 +567,12 @@ public class PlayerFragment extends BaseFloatFragment {
                         return (bound && playerBinder != null) ? playerBinder.getCurrentIndex() : -1;
                     }
                 },
-                () -> lyricView != null ? lyricView.getCurrentHighlightColor() : 0);
-        com.jingxin.jingxinmusic.view.LyricView.setGlobalLongPressListener(v -> {
-            if (lyricEffectManager != null && !lyricEffectManager.isActive()) {
-                lyricEffectManager.attach(
-                        com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD);
-            }
-        });
+                () -> lyricView != null ? lyricView.getCurrentHighlightColor() : 0,
+                new com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.PlayerController() {
+                    @Override public void playPrevious() { PlayerFragment.this.playPrevious(); }
+                    @Override public void togglePlayPause() { PlayerFragment.this.togglePlayPause(); }
+                    @Override public void playNext() { PlayerFragment.this.playNext(); }
+                });
 
         if (rootFrameLayout != null) {
             rootFrameLayout.addOnLayoutChangeListener(
@@ -1619,6 +1618,7 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override public void showSpectrumPicker(View anchor) { base.showSpectrumPicker(anchor); }
             @Override public void showEffectPickerPopup(View anchor) { base.showEffectPickerPopup(anchor); }
             @Override public void showLyricSearchPopup(View anchor) { base.showLyricSearchPopup(anchor); }
+            @Override public void openLyricEffect() { base.openLyricEffect(); }
             @Override public boolean isFavorite() { return base.isFavorite(); }
             @Override public boolean isBiliSong() { return base.isBiliSong(); }
             @Override public boolean isBiliDownloadEnabled() { return base.isBiliDownloadEnabled(); }
@@ -1652,6 +1652,12 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override public void showSpectrumPicker(View anchor) { PlayerFragment.this.showSpectrumPicker(); }
             @Override public void showEffectPickerPopup(View anchor) { PlayerFragment.this.showEffectPickerPopup(); }
             @Override public void showLyricSearchPopup(View anchor) { PlayerFragment.this.showLyricSearchPopup(); }
+            @Override public void openLyricEffect() {
+                if (lyricEffectManager != null && !lyricEffectManager.isActive()) {
+                    lyricEffectManager.attach(
+                            com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD);
+                }
+            }
             @Override public boolean isFavorite() { return PlayerFragment.this.isFavorite; }
             @Override public boolean isBiliSong() { return song != null && song.sourceType == Song.SOURCE_BILI; }
             @Override public boolean isBiliDownloadEnabled() { return biliDownloadEnabled; }

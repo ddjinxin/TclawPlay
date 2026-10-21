@@ -37,6 +37,9 @@ public class StarLyricView extends View {
 
     private List<KrcParser.LyricLine> lines = Collections.emptyList();
     private int currentIndex = -1;
+    private int currentWordIndex = -1; // 当前行内播放到哪个字（逐字卡拉OK）
+    private long wordAnimStart = -1L;  // 当前字"拉长→还原"脉冲动画起点
+    private static final long WORD_ANIM_MS = 450L; // 每字拉长再还原总时长
     private String titleText = ""; // 歌名+歌手（本视图自绘，与歌词同坐标系锚定零误差）
 
     // 换行动画（600ms）
@@ -83,6 +86,23 @@ public class StarLyricView extends View {
         }
         if (idx != currentIndex) {
             onLineChanged(idx);
+        }
+        updateCurrentWord(idx, positionMs);
+    }
+
+    /** 逐字卡拉OK：按进度定位当前行内已播放到的字（startTime <= pos 的最后一个）；无逐字数据则 -1 */
+    private void updateCurrentWord(int lineIdx, int positionMs) {
+        if (lineIdx < 0 || lineIdx >= lines.size()) { currentWordIndex = -1; return; }
+        KrcParser.LyricLine line = lines.get(lineIdx);
+        if (line.words == null || line.words.isEmpty()) { currentWordIndex = -1; return; }
+        int wi = -1;
+        for (int i = 0; i < line.words.size(); i++) {
+            if (line.words.get(i).startTime <= positionMs) wi = i;
+        }
+        if (wi != currentWordIndex) {
+            currentWordIndex = wi;
+            wordAnimStart = System.currentTimeMillis(); // 进入新字：触发拉长→还原脉冲
+            invalidate();
         }
     }
 
@@ -142,9 +162,9 @@ public class StarLyricView extends View {
         return titleTopOffset(density) + textSizeNext * 1.25f;
     }
 
-    /** 当前行字号：横屏 5.2% 屏宽（参考图宽屏规格）；竖屏 8%（屏宽窄，视觉重量补偿） */
+    /** 当前行字号：横屏 4.8% 屏宽（参考图宽屏规格）；竖屏 8%（屏宽窄，视觉重量补偿） */
     private float currentTextSizePx() {
-        float ratio = layoutW > layoutH ? 0.052f : 0.08f;
+        float ratio = layoutW > layoutH ? 0.048f : 0.08f;
         return Math.max(18f, layoutW * ratio);
     }
 
@@ -254,13 +274,70 @@ public class StarLyricView extends View {
             canvas.drawText(nextText, layoutW / 2f + jitter, nextLineY() + jitter * 0.4f, textPaint);
             postInvalidateOnAnimation(); // 抖动持续驱动
         }
-        // 当前句（中心大字+柔光）：颜色与光晕均随高亮色
+        // 当前句（中心大字）：有逐字数据 → 卡拉OK逐字（播放到的字"拉长→还原"脉冲，其余静止）；
+        // 无逐字（纯 LRC）→ 整行静态高亮
         String curText = textOf(currentIndex);
         if (curText != null) {
-            textPaint.setTextSize(fitTextSize(curText, textSizeCurrent));
-            textPaint.setColor(colorHighlight);
-            textPaint.setShadowLayer(0, 0, 0, 0); // 光晕已取消：纯文字呈现
-            canvas.drawText(curText, layoutW / 2f, currentLineY(), textPaint);
+            if (currentIndex >= 0 && currentIndex < lines.size()
+                    && lines.get(currentIndex).words != null
+                    && !lines.get(currentIndex).words.isEmpty()) {
+                drawCurrentKaraoke(canvas);
+            } else {
+                textPaint.setTextSize(fitTextSize(curText, textSizeCurrent));
+                textPaint.setColor(colorHighlight);
+                textPaint.setShadowLayer(0, 0, 0, 0);
+                canvas.drawText(curText, layoutW / 2f, currentLineY(), textPaint);
+            }
+        }
+    }
+
+    // ===== 当前行逐字卡拉OK =====
+
+    /** 逐字绘制当前行：进入播放的字"拉长→还原"脉冲（宽度不变、高度先拉到 2 倍再回弹），其余字静止 */
+    private void drawCurrentKaraoke(Canvas canvas) {
+        KrcParser.LyricLine line = lines.get(currentIndex);
+        java.util.List<KrcParser.LyricWord> words = line.words;
+
+        float size = fitTextSize(line.text, textSizeCurrent);
+        textPaint.setTextSize(size);
+
+        // 逐字测宽并居中排布
+        float total = 0f;
+        for (KrcParser.LyricWord w : words) total += textPaint.measureText(w.text);
+        float x = (layoutW - total) / 2f;
+
+        Paint.FontMetrics fm = textPaint.getFontMetrics();
+        float baseline = currentLineY();
+        float centerY = baseline + (fm.ascent + fm.descent) * 0.5f;
+        long now = System.currentTimeMillis();
+
+        textPaint.setShadowLayer(0, 0, 0, 0); // 光晕已取消：纯文字呈现
+        for (int i = 0; i < words.size(); i++) {
+            KrcParser.LyricWord w = words.get(i);
+            float cw = textPaint.measureText(w.text);
+            float centerX = x + cw / 2f;
+            boolean isCurrent = (i == currentWordIndex);
+            if (isCurrent) {
+                // 仅播放到的字：先拉长到 2 倍再回弹还原（sin 半波 1→2→1）
+                float scaleY = 1f;
+                if (wordAnimStart > 0) {
+                    float t = (now - wordAnimStart) / (float) WORD_ANIM_MS;
+                    if (t < 1f) {
+                        scaleY = 1f + (float) Math.sin(t * Math.PI); // 峰值 2 再回 1
+                        postInvalidateOnAnimation();
+                    }
+                }
+                int sc = canvas.save();
+                canvas.scale(1f, scaleY, centerX, centerY);
+                textPaint.setColor(colorHighlight);
+                canvas.drawText(w.text, centerX, baseline, textPaint);
+                canvas.restoreToCount(sc);
+            } else {
+                // 已播/未播字静止（同一高亮色，不拉长）
+                textPaint.setColor(colorHighlight);
+                canvas.drawText(w.text, centerX, baseline, textPaint);
+            }
+            x += cw;
         }
     }
 

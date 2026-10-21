@@ -97,6 +97,7 @@ public abstract class StagePage {
         void showSpectrumPicker(View anchor);
         void showEffectPickerPopup(View anchor);
         void showLyricSearchPopup(View anchor);
+        void openLyricEffect(); // 歌词动效键：进入歌词动效页（星空漫游等）
         boolean isFavorite();
         boolean isBiliSong();
         void exitPlayerPage(); // 返回键：退出播放页（与旧页语义一致）；装扮键切换走 outfit 循环

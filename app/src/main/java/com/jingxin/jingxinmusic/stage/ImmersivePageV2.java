@@ -18,6 +18,7 @@ import com.jingxin.jingxinmusic.view.ControlBar;
 import com.jingxin.jingxinmusic.view.ImmersiveOverlayView;
 import com.jingxin.jingxinmusic.view.LandscapeGradientOverlay;
 import com.jingxin.jingxinmusic.view.LyricView;
+import com.jingxin.jingxinmusic.view.PlayerTopBar;
 import com.jingxin.jingxinmusic.view.ProgressPanel;
 import com.jingxin.jingxinmusic.view.RotatingCoverView;
 import com.jingxin.jingxinmusic.view.SongTitleBar;
@@ -52,9 +53,7 @@ public class ImmersivePageV2 extends StagePage {
     private SpectrumView spectrum;
     private ProgressPanel progress;
     private ControlBar control;
-    private LinearLayout topBar;
-    private View rightGroup;
-    private ImageView btnBack, btnEffect, btnLyricSearch, btnSpectrum, btnOutfit;
+    private PlayerTopBar topBarView;
 
     // 横屏
     private AuroraGradientView auroraL;
@@ -68,9 +67,7 @@ public class ImmersivePageV2 extends StagePage {
     private SpectrumView spectrumL;
     private ProgressPanel progressL;
     private ControlBar controlL;
-    private LinearLayout topBarL;
-    private View rightGroupL;
-    private ImageView btnBackL, btnEffectL, btnLyricSearchL, btnSpectrumL, btnOutfitL;
+    private PlayerTopBar topBarViewL;
 
     // ===== 状态 =====
     private boolean installed = false;
@@ -125,13 +122,7 @@ public class ImmersivePageV2 extends StagePage {
         spectrum = portraitRoot.findViewById(R.id.iv2_spectrum);
         progress = portraitRoot.findViewById(R.id.iv2_progress);
         control = portraitRoot.findViewById(R.id.iv2_control);
-        topBar = portraitRoot.findViewById(R.id.iv2_top_bar);
-        rightGroup = portraitRoot.findViewById(R.id.iv2_right_group);
-        btnBack = portraitRoot.findViewById(R.id.iv2_btn_back);
-        btnEffect = portraitRoot.findViewById(R.id.iv2_btn_effect);
-        btnLyricSearch = portraitRoot.findViewById(R.id.iv2_btn_lyric_search);
-        btnSpectrum = portraitRoot.findViewById(R.id.iv2_btn_spectrum);
-        btnOutfit = portraitRoot.findViewById(R.id.iv2_btn_outfit);
+        topBarView = portraitRoot.findViewById(R.id.iv2_top_bar);
         initCommon(ctx, false);
     }
 
@@ -149,13 +140,7 @@ public class ImmersivePageV2 extends StagePage {
         spectrumL = landscapeRoot.findViewById(R.id.iv2_spectrum_land);
         progressL = landscapeRoot.findViewById(R.id.iv2_progress_land);
         controlL = landscapeRoot.findViewById(R.id.iv2_control_land);
-        topBarL = landscapeRoot.findViewById(R.id.iv2_top_bar_land);
-        rightGroupL = landscapeRoot.findViewById(R.id.iv2_right_group_land);
-        btnBackL = landscapeRoot.findViewById(R.id.iv2_btn_back_land);
-        btnEffectL = landscapeRoot.findViewById(R.id.iv2_btn_effect_land);
-        btnLyricSearchL = landscapeRoot.findViewById(R.id.iv2_btn_lyric_search_land);
-        btnSpectrumL = landscapeRoot.findViewById(R.id.iv2_btn_spectrum_land);
-        btnOutfitL = landscapeRoot.findViewById(R.id.iv2_btn_outfit_land);
+        topBarViewL = landscapeRoot.findViewById(R.id.iv2_top_bar_land);
         initCommon(ctx, true);
     }
 
@@ -166,11 +151,7 @@ public class ImmersivePageV2 extends StagePage {
         SpectrumView sp = land ? spectrumL : spectrum;
         ControlBar cb = land ? controlL : control;
         ProgressPanel pp = land ? progressL : progress;
-        ImageView back = land ? btnBackL : btnBack;
-        ImageView effect = land ? btnEffectL : btnEffect;
-        ImageView search = land ? btnLyricSearchL : btnLyricSearch;
-        ImageView specBtn = land ? btnSpectrumL : btnSpectrum;
-        ImageView outfit = land ? btnOutfitL : btnOutfit;
+        PlayerTopBar tb = land ? topBarViewL : topBarView;
         View touchLayer = land ? hideTouchL : hideTouch;
 
         cb.setListener(new ControlBar.Listener() {
@@ -185,27 +166,28 @@ public class ImmersivePageV2 extends StagePage {
             @Override public void onDownload() { if (actions != null) actions.saveBiliOffline(); notifyActivity(); }
         });
 
-        back.setOnClickListener(v -> { if (actions != null) actions.exitPlayerPage(); });
-        effect.setOnClickListener(v -> { if (actions != null) actions.showEffectPickerPopup(effect); });
-        search.setOnClickListener(v -> { if (actions != null) actions.showLyricSearchPopup(search); });
-        specBtn.setOnClickListener(v -> {
-            if (actions == null) return;
-            SpectrumView active = land ? spectrumL : spectrum;
-            if (active.isSpectrumVisible()) {
-                actions.showSpectrumPicker(specBtn);
-            } else {
-                active.toggleVisibility();
-                spectrumHidden = !active.isSpectrumVisible();
+        tb.setListener(new PlayerTopBar.Listener() {
+            @Override public void onBack() { if (actions != null) actions.exitPlayerPage(); }
+            @Override public void onEffect(View anchor) { if (actions != null) actions.showEffectPickerPopup(anchor); }
+            @Override public void onLyricEffect() { if (actions != null) actions.openLyricEffect(); }
+            @Override public void onLyricSearch(View anchor) { if (actions != null) actions.showLyricSearchPopup(anchor); }
+            @Override public void onSpectrum(View anchor, boolean longPress) {
+                if (actions == null) return;
+                SpectrumView active = land ? spectrumL : spectrum;
+                if (longPress) {
+                    active.toggleVisibility();
+                    spectrumHidden = !active.isSpectrumVisible();
+                    return;
+                }
+                if (active.isSpectrumVisible()) {
+                    actions.showSpectrumPicker(anchor);
+                } else {
+                    active.toggleVisibility();
+                    spectrumHidden = !active.isSpectrumVisible();
+                }
             }
+            @Override public void onOutfit() { if (actions != null) actions.switchOutfitStyle(); }
         });
-        android.view.View.OnLongClickListener toggleSpectrum = v -> {
-            SpectrumView active = land ? spectrumL : spectrum;
-            active.toggleVisibility();
-            spectrumHidden = !active.isSpectrumVisible();
-            return true;
-        };
-        specBtn.setOnLongClickListener(toggleSpectrum);
-        outfit.setOnClickListener(v -> { if (actions != null) actions.switchOutfitStyle(); });
 
         // 歌词：沉浸不支持全屏（双行↔多行互切），模式变化后本页收敛
         ly.setOnModeChangeListener(mode -> applyLyricModeConverge(land));
@@ -548,17 +530,9 @@ public class ImmersivePageV2 extends StagePage {
         boolean fav = actions != null && actions.isFavorite();
         control.applyTheme(night, fav, ThemeColors.dayTextPrimary(), ThemeColors.FAVORITE_RED);
         controlL.applyTheme(night, fav, ThemeColors.dayTextPrimary(), ThemeColors.FAVORITE_RED);
-        ImageView[][] topBtns = {
-                {btnBack, btnEffect, btnLyricSearch, btnSpectrum, btnOutfit},
-                {btnBackL, btnEffectL, btnLyricSearchL, btnSpectrumL, btnOutfitL}};
-        for (ImageView[] grp : topBtns) {
-            for (ImageView btn : grp) {
-                if (btn == null) continue;
-                if (night) btn.clearColorFilter();
-                else btn.setColorFilter(ThemeColors.dayTextPrimary(),
-                        android.graphics.PorterDuff.Mode.SRC_IN);
-            }
-        }
+        // 顶栏 6 键：夜间清滤镜，白天染深色（PlayerTopBar 统一实现）
+        topBarView.applyTheme(night, ThemeColors.dayTextPrimary());
+        topBarViewL.applyTheme(night, ThemeColors.dayTextPrimary());
         progress.setTimeTextColor(name);
         progressL.setTimeTextColor(name);
         if (lastWidth > 0 && lastHeight > 0) {
@@ -627,8 +601,7 @@ public class ImmersivePageV2 extends StagePage {
 
     /** 竖屏：43% 封面层 + 标题推至遮罩分界（公式对齐旧 updateImmersiveLyricMargin） */
     private void layoutPortraitImpl(int width, int height) {
-        layoutTopBarImpl(topBar, btnBack, btnEffect, btnSpectrum, btnOutfit, btnLyricSearch,
-                rightGroup, width, height, false);
+        topBarView.applyGeometry(width, height, false, h.density, h.systemTopInset);
         control.applyGeometry(height, width, false);
         control.applyBottomMargin(Math.max(8, (int) (height * 0.01f)));
 
@@ -656,8 +629,7 @@ public class ImmersivePageV2 extends StagePage {
 
     /** 横屏：65/35 分栏（XML 固化）+ 标题公式 + 频谱 */
     private void layoutLandscapeImpl(int width, int height) {
-        layoutTopBarImpl(topBarL, btnBackL, btnEffectL, btnSpectrumL, btnOutfitL, btnLyricSearchL,
-                rightGroupL, width, height, true);
+        topBarViewL.applyGeometry(width, height, true, h.density, h.systemTopInset);
         controlL.applyGeometry(height, width, true);
         controlL.applyBottomMargin(Math.max(8, (int) (height * 0.01f)));
 
@@ -690,48 +662,6 @@ public class ImmersivePageV2 extends StagePage {
         applySpectrumVisibility();
         // 白天光晕：进横屏重申封面左缘淡出（皮肤态不变时 applyBackgroundState 不重跑）
         if (coverL != null) coverL.setLeftFade(auroraSkin && !night ? 0.04f : 0f);
-    }
-
-    /** 顶栏几何（公式同 StandardPageBase.layoutTopBar） */
-    private void layoutTopBarImpl(LinearLayout bar, ImageView back, ImageView effect,
-                                  ImageView spec, ImageView outfit, ImageView search,
-                                  View rightGrp, int width, int height, boolean landscape) {
-        int topMargin = h.systemTopInset + Math.max(4, (int) (height * 0.01f));
-        int sidePadding = (int) (h.density * 8);
-        FrameLayout.LayoutParams bp = (FrameLayout.LayoutParams) bar.getLayoutParams();
-        bp.topMargin = topMargin;
-        bar.setLayoutParams(bp);
-        bar.setPadding(sidePadding, 0, sidePadding, 0);
-
-        float rBack = (height < 700) ? 0.048f : (height <= 1200) ? 0.055f : 0.060f;
-        float rRight = (height < 700) ? 0.043f : (height <= 1200) ? 0.050f : 0.055f;
-        float rBackTop = landscape ? rBack + 0.005f : rBack;
-        float rRightTop = landscape ? rRight + 0.005f : rRight;
-        float aspectFactor = 1f + Math.max(0f, (width / (float) height - 1.78f) / 3f);
-        int topBtnSize = (int) (height * rBackTop * aspectFactor * 1.3f);
-        int topRightBtnSize = (int) (height * rRightTop * aspectFactor);
-
-        LinearLayout.LayoutParams backP = new LinearLayout.LayoutParams(topBtnSize, topBtnSize);
-        back.setLayoutParams(backP);
-        int backPadding = (int) (topBtnSize / 1.3f * 0.15f);
-        back.setPadding(backPadding, backPadding, backPadding, backPadding);
-
-        if (rightGrp != null) {
-            LinearLayout.LayoutParams rp = (LinearLayout.LayoutParams) rightGrp.getLayoutParams();
-            rp.width = (int) (width * 0.35f);
-            rp.height = topRightBtnSize;
-            rp.weight = 0;
-            rightGrp.setLayoutParams(rp);
-        }
-        int topRightPadding = landscape ? (int) (topRightBtnSize * 0.05f) : (int) (topRightBtnSize * 0.22f);
-        for (ImageView b : new ImageView[]{spec, outfit, search, effect}) {
-            if (b == null) continue;
-            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) b.getLayoutParams();
-            p.height = topRightBtnSize;
-            p.weight = 1;
-            b.setLayoutParams(p);
-            b.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
-        }
     }
 
     // ===== 歌词模式收敛（沉浸：双行↔多行，不进全屏） =====

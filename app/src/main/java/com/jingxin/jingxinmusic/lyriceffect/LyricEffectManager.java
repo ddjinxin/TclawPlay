@@ -32,25 +32,35 @@ public class LyricEffectManager {
         int getHighlightColor();
     }
 
+    /** 播放控制（封面流点击切歌/播放暂停；宿主注入，调用时自行检查绑定态） */
+    public interface PlayerController {
+        void playPrevious();
+        void togglePlayPause();
+        void playNext();
+    }
+
     private static final long FADE_MS = 240L;
 
     private final PlayerStateHub hub;
     private final ViewGroup host;            // 播放页 root_layout（FrameLayout）
     private final SongProvider songProvider;
     private final HighlightColorProvider colorProvider;
+    private final PlayerController playerController;
     private StarfieldEffectPage activePage;  // 当前效果页（效果本体）
     private boolean active = false;
 
     private PlayerStateHub.Observer stateObserver;
     private PlayerStateHub.ProgressObserver progressObserver;
     private PlayerStateHub.LyricObserver lyricObserver;
+    private PlayerStateHub.CoverColorObserver coverColorObserver;
 
     public LyricEffectManager(PlayerStateHub hub, ViewGroup host, SongProvider songProvider,
-                              HighlightColorProvider colorProvider) {
+                              HighlightColorProvider colorProvider, PlayerController playerController) {
         this.hub = hub;
         this.host = host;
         this.songProvider = songProvider;
         this.colorProvider = colorProvider;
+        this.playerController = playerController;
     }
 
     public boolean isActive() { return active; }
@@ -71,7 +81,7 @@ public class LyricEffectManager {
                     public int getCurrentIndex() {
                         return songProvider != null ? songProvider.getCurrentIndex() : -1;
                     }
-                });
+                }, playerController);
         activePage.setExitListener(v -> detach());
         activePage.build(LayoutInflater.from(host.getContext()), host);
         if (colorProvider != null) {
@@ -114,6 +124,8 @@ public class LyricEffectManager {
             StarfieldEffectPage p = activePage;
             if (p == null) return;
             p.onSongChanged(state.song);
+            // 歌/日夜/皮肤变化都可能改变播放页高亮色：重拉注入
+            applyCurrentHighlight();
         };
         hub.addObserver(stateObserver);
         progressObserver = (pos, dur) -> {
@@ -126,6 +138,23 @@ public class LyricEffectManager {
             if (p != null) p.onLyricLoaded(data);
         };
         hub.addLyricObserver(lyricObserver);
+        // 新封面取色完成（光晕皮肤高亮随封面变）：播放页 LyricView 同帧稍后会更新亮色，
+        // 此处 post 到下一帧再拉才能取到更新后的真值（直接拉会拿到旧色）
+        coverColorObserver = (top, bottom) -> applyCurrentHighlight();
+        hub.addCoverColorObserver(coverColorObserver);
+    }
+
+    /** 重拉播放页当前高亮色注入效果页（下一帧执行，等播放页同帧更新完成） */
+    private void applyCurrentHighlight() {
+        if (colorProvider == null) return;
+        StarfieldEffectPage p = activePage;
+        if (p == null) return;
+        p.post(() -> {
+            StarfieldEffectPage page = activePage;
+            if (page != null && colorProvider != null) {
+                page.applyHighlightColor(colorProvider.getHighlightColor());
+            }
+        });
     }
 
     private void unsubscribe() {
@@ -133,5 +162,6 @@ public class LyricEffectManager {
         if (stateObserver != null) { hub.removeObserver(stateObserver); stateObserver = null; }
         if (progressObserver != null) { hub.removeProgressObserver(progressObserver); progressObserver = null; }
         if (lyricObserver != null) { hub.removeLyricObserver(lyricObserver); lyricObserver = null; }
+        if (coverColorObserver != null) { hub.removeCoverColorObserver(coverColorObserver); coverColorObserver = null; }
     }
 }
