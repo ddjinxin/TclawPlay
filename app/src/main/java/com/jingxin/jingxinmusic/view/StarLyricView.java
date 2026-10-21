@@ -39,7 +39,7 @@ public class StarLyricView extends View {
     private int currentIndex = -1;
     private int currentWordIndex = -1; // 当前行内播放到哪个字（逐字卡拉OK）
     private long wordAnimStart = -1L;  // 当前字"拉长→还原"脉冲动画起点
-    private static final long WORD_ANIM_MS = 450L; // 每字拉长再还原总时长
+    private long wordPulseMs = 450L;   // 本字脉冲时长=唱这个字的时长（自适应，见 updateCurrentWord）
     private String titleText = ""; // 歌名+歌手（本视图自绘，与歌词同坐标系锚定零误差）
 
     // 换行动画（600ms）
@@ -101,9 +101,21 @@ public class StarLyricView extends View {
         }
         if (wi != currentWordIndex) {
             currentWordIndex = wi;
-            wordAnimStart = System.currentTimeMillis(); // 进入新字：触发拉长→还原脉冲
+            wordAnimStart = System.currentTimeMillis();
+            wordPulseMs = wordPulseDurationMs(line, wi); // 脉冲时长=本字演唱时长
             invalidate();
         }
+    }
+
+    /** 本字脉冲时长：唱到下一字开始（末字则本字时长×1.5+缓冲）——短字快弹、长字慢弹；
+     *  脉冲自然覆盖整段演唱期，与下一字无缝接力，字与字之间不再有静止段 */
+    private static long wordPulseDurationMs(KrcParser.LyricLine line, int wi) {
+        long start = line.words.get(wi).startTime;
+        long end = (wi + 1 < line.words.size())
+                ? line.words.get(wi + 1).startTime
+                : start + line.words.get(wi).duration * 3 / 2 + 200L;
+        long ms = Math.max(260L, Math.min(700L, end - start));
+        return ms > 0 ? ms : 450L;
     }
 
     private void onLineChanged(int newIndex) {
@@ -321,7 +333,7 @@ public class StarLyricView extends View {
                 // 仅播放到的字：先拉长到 2 倍再回弹还原（sin 半波 1→2→1）
                 float scaleY = 1f;
                 if (wordAnimStart > 0) {
-                    float t = (now - wordAnimStart) / (float) WORD_ANIM_MS;
+                    float t = (now - wordAnimStart) / (float) wordPulseMs;
                     if (t < 1f) {
                         scaleY = 1f + (float) Math.sin(t * Math.PI); // 峰值 2 再回 1
                         postInvalidateOnAnimation();
@@ -339,6 +351,20 @@ public class StarLyricView extends View {
             }
             x += cw;
         }
+    }
+
+    // ===== 换行弹簧 =====
+
+    /** 欠阻尼弹簧进度（闭式解）：落位后约 12% 过冲再回稳，ANIM_MS 内收敛（剩余<0.5%）；
+     *  ζ=0.55/ω=16 → 峰值过冲 ~0.24s，0.6s 收平（Framer Motion spring 手感，无帧率依赖） */
+    private static float springProgress(long elapsedMs) {
+        float t = elapsedMs / 1000f;
+        if (t <= 0f) return 0f;
+        if (t >= ANIM_MS / 1000f) return 1f;
+        double zeta = 0.55, omega = 16.0, wd = omega * Math.sqrt(1 - zeta * zeta);
+        double v = 1 - Math.exp(-zeta * omega * t)
+                * (Math.cos(wd * t) + (zeta * omega / wd) * Math.sin(wd * t));
+        return (float) Math.max(0, Math.min(1.13, v));
     }
 
     private void drawTransition(Canvas canvas, long now) {
@@ -362,20 +388,21 @@ public class StarLyricView extends View {
             }
         }
 
-        // 新句：从下一行位置（小字位）落入当前行位置，字号小→大（终点为自适应字号），透明→亮
+        // 新句：弹簧落入——从预唱位（小字）弹入中心，落位轻微过冲下探再回稳（有质量的落体）
         float startY = nextLineY(), endY = currentLineY();
         float endSize = animToText != null ? fitTextSize(animToText, textSizeCurrent) : textSizeCurrent;
         // 旧句淡出字号也走自适应（否则旧长句淡出时溢出屏）
         if (animFromText != null && fromSize <= 0) {
             fromSize = fitTextSize(animFromText, textSizeCurrent);
         }
-        float size = textSizeNext + (endSize - textSizeNext) * t;
+        float s = springProgress(now - animStart);
+        float size = textSizeNext + (endSize - textSizeNext) * s; // 字号随弹簧同步过冲
         textPaint.setTextSize(size);
-        int a = (int) (t * 255);
+        int a = (int) (Math.min(1f, t * 1.8f) * 255); // alpha 提前亮满：只对位置过冲，不闪透明度
         textPaint.setColor((a << 24) | (colorHighlight & 0xFFFFFF));
         textPaint.setShadowLayer(0, 0, 0, 0); // 光晕已取消
         if (animToText != null) {
-            canvas.drawText(animToText, layoutW / 2f, startY + (endY - startY) * t, textPaint);
+            canvas.drawText(animToText, layoutW / 2f, startY + (endY - startY) * s, textPaint);
         }
 
         // 转场期间下一行位置显示"再下一句"：从小到大缩放 + 淡入（颜色同高亮 90%）
