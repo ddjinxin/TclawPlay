@@ -21,7 +21,7 @@ import com.jingxin.jingxinmusic.view.PendoloClockworkView;
 public class LyricEffectManager {
 
     /** 效果枚举（将来胶片/森林/雨滴同法扩） */
-    public enum Effect { STARFIELD, GLOW, PENDELO, CADENZA }
+    public enum Effect { STARFIELD, GLOW, PENDELO, CADENZA, TILT }
 
     /** 低频能量提供者（时计摆轮驱动；无频谱环境返回 0，机芯恒速） */
     public interface BassEnergyProvider { float getBassEnergy(); }
@@ -105,6 +105,9 @@ public class LyricEffectManager {
             }
             case CADENZA:
                 activePage = new CadenzaEffectPage(host.getContext(), hub, coverProvider, playerController);
+                break;
+            case TILT:
+                activePage = new TiltEffectPage(host.getContext(), hub, coverProvider, playerController);
                 break;
             case STARFIELD:
             default:
