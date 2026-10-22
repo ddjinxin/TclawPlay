@@ -76,15 +76,6 @@ public class TiltEffectPage extends LyricEffectPage {
 
     @Override
     public void onSongChanged(Song song) {
-        String text;
-        if (song != null) {
-            String t = song.title != null ? song.title : "";
-            String a = song.artist != null ? song.artist : "";
-            text = a.isEmpty() ? t : t + " - " + a;
-        } else {
-            text = "";
-        }
-        if (lyric != null) lyric.setTitleText(text);
         if (coverFlow != null) coverFlow.notifySongChanged();
         if (hub != null && lyric != null) {
             lyric.setLyricData(hub.getLyricData());

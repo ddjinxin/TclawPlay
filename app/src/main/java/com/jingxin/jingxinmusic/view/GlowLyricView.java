@@ -49,7 +49,6 @@ public class GlowLyricView extends View {
 
     private List<KrcParser.LyricLine> lines = Collections.emptyList();
     private int currentIndex = -1;
-    private String titleText = "";
     private int colorHighlight = COLOR_CURRENT;
     private Intensity intensity = Intensity.NORMAL;
     private int positionMs;
@@ -120,11 +119,6 @@ public class GlowLyricView extends View {
 
     public void setHighlightColor(int color) {
         if (color != 0) this.colorHighlight = color;
-        invalidate();
-    }
-
-    public void setTitleText(String text) {
-        this.titleText = (text != null ? text : "");
         invalidate();
     }
 
@@ -308,10 +302,6 @@ public class GlowLyricView extends View {
 
     private boolean isPortrait() { return layoutH > layoutW; }
 
-    private float titleTopOffset(float density) {
-        return (float) Math.ceil(density * 16f) + (isPortrait() ? textSizeNext : 0f);
-    }
-
     /** 词中心线：垂直 42% 屏高（高于星空页 50%——下方留出封面流呼吸位） */
     private float currentLineY() {
         return layoutH * 0.42f;
@@ -333,8 +323,6 @@ public class GlowLyricView extends View {
         super.onDraw(canvas);
         if (layoutW <= 0) return;
         long now = System.currentTimeMillis();
-
-        drawTitle(canvas);
 
         // 旧行退场：定格参数外推——放大 1.1×、二次淡出、模糊（folia exit: scale1.1/blur20/0.3s）
         if (exitConfs != null) {
@@ -366,18 +354,6 @@ public class GlowLyricView extends View {
         }
 
         postInvalidateOnAnimation(); // 呼吸/辉光常驻
-    }
-
-    private void drawTitle(Canvas canvas) {
-        if (titleText.isEmpty()) return;
-        float density = getResources().getDisplayMetrics().density;
-        textPaint.setTextSize(textSizeNext);
-        textPaint.setColor(colorHighlight);
-        textPaint.setFakeBoldText(true);
-        clearGlow();
-        canvas.drawText(titleText, layoutW / 2f,
-                titleTopOffset(density) + textSizeNext * 0.85f, textPaint);
-        textPaint.setFakeBoldText(false);
     }
 
     private void drawLine(Canvas canvas, long now) {

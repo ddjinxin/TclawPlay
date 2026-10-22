@@ -48,14 +48,13 @@ public class PendoloLyricView extends View {
     private float springTarget;
     private static final float SPRING_K = 360f, SPRING_D = 20f, SPRING_M = 0.8f;
 
-    private String titleText = "";
     private int colorPrimary = Color.rgb(0xC9, 0xE4, 0xFF);
     private int colorAccent = Color.rgb(0x6E, 0xE8, 0xD8);
     private int positionMs;
 
     private int layoutW, layoutH;
     private float centerX, centerY, lyricRadius, availableTextWidth;
-    private float titleSize, lineSize, lineSizeSmall;
+    private float lineSize, lineSizeSmall;
 
     /** 机芯咬合回调（弹簧步进后推给机芯：轮角=+spring×步进） */
     public interface TickListener { void onTick(float springValue, float targetValue); }
@@ -125,11 +124,6 @@ public class PendoloLyricView extends View {
         invalidate();
     }
 
-    public void setTitleText(String text) {
-        this.titleText = (text != null ? text : "");
-        invalidate();
-    }
-
     // ===== 弹簧（RK4：帧率无关，质量对标 framer-motion useSpring） =====
 
     private void stepSpring(float dt) {
@@ -165,7 +159,6 @@ public class PendoloLyricView extends View {
         float ratio = w > h ? 0.034f : 0.055f;
         lineSize = Math.max(16f, w * ratio);
         lineSizeSmall = lineSize * 0.62f;
-        titleSize = lineSize * 0.6f;
         wrapCache.clear();
     }
 
@@ -250,7 +243,6 @@ public class PendoloLyricView extends View {
         super.onDraw(canvas);
         if (layoutW <= 0) return;
 
-        drawTitle(canvas);
         if (lines.isEmpty() || targetIndex < 0) return;
 
         int centerRef = Math.max(0, Math.min(lines.size() - 1, targetIndex));
@@ -441,18 +433,6 @@ public class PendoloLyricView extends View {
             }
         }
         return Math.min(fill, total);
-    }
-
-    private void drawTitle(Canvas canvas) {
-        if (titleText.isEmpty()) return;
-        textPaint.setTextSize(titleSize);
-        textPaint.setColor(colorPrimary);
-        textPaint.setShader(null);
-        textPaint.setShadowLayer(0, 0, 0, 0);
-        float density = getResources().getDisplayMetrics().density;
-        float y = (float) Math.ceil(density * 16f) + titleSize * 0.85f;
-        textPaint.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText(titleText, layoutW / 2f, y, textPaint);
     }
 
     private static float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }

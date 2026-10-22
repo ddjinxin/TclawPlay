@@ -19,7 +19,7 @@ import com.jingxin.jingxinmusic.view.GlowLyricView;
  * 歌词效果②：流光（移植 folia classic：逐词三态点亮 + 字素双光晕 + 行级散布/呼吸）
  *
  * 结构：深空渐变底 + 封面主色极暗上浮微尘（GlowAmbientView，空气感不抢词光） /
- *       顶部歌名 / 中央逐词点亮歌词（词随音弹入发光，唱过保持余韵缓转） /
+ *       中央逐词点亮歌词（词随音弹入发光，唱过保持余韵缓转） /
  *       底部封面流（同星空页交互）
  * 单击任意位置退出；无按键无控件。
  */
@@ -63,7 +63,7 @@ public class GlowEffectPage extends LyricEffectPage {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         addView(ambient, ap);
 
-        // 歌词（含顶部歌名自绘）
+        // 歌词
         lyric = new GlowLyricView(ctx);
         LayoutParams lp = new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
@@ -92,15 +92,6 @@ public class GlowEffectPage extends LyricEffectPage {
     @Override
     public void onSongChanged(Song song) {
         if (lyric == null) return;
-        String text;
-        if (song != null) {
-            String t = song.title != null ? song.title : "";
-            String a = song.artist != null ? song.artist : "";
-            text = a.isEmpty() ? t : t + " - " + a;
-        } else {
-            text = "";
-        }
-        lyric.setTitleText(text);
         if (coverFlow != null) coverFlow.notifySongChanged();
         if (hub != null) {
             lyric.setLyricData(hub.getLyricData());

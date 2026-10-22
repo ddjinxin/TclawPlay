@@ -42,12 +42,10 @@ public class TiltLyricView extends View {
     private List<KrcParser.LyricLine> lines = Collections.emptyList();
     private int targetIndex = -1;
     private int positionMs;
-    private String titleText = "";
     private int colorPrimary = Color.rgb(0xC9, 0xE4, 0xFF);
     private int colorAccent = Color.rgb(0x8E, 0xE8, 0xD8);
 
     private int layoutW, layoutH;
-    private float titleSize;
 
     // ===== 段（一行一次准备，行种子确定） =====
     private static final class Segment {
@@ -108,13 +106,10 @@ public class TiltLyricView extends View {
         invalidate();
     }
 
-    public void setTitleText(String t) { this.titleText = (t != null ? t : ""); invalidate(); }
-
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         layoutW = w; layoutH = h;
-        titleSize = Math.max(14f, w * 0.024f);
         lastLayoutLineStart = Long.MIN_VALUE; // 尺寸变化重排
         if (targetIndex >= 0 && targetIndex < lines.size()) prepareLine(targetIndex);
     }
@@ -585,7 +580,6 @@ public class TiltLyricView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (layoutW <= 0) return;
-        drawTitle(canvas);
         if (targetIndex < 0 || targetIndex >= lines.size() || segments.length == 0) return;
 
         float basePx = Math.max(layoutW * 0.06875f, 90f);
@@ -763,19 +757,6 @@ public class TiltLyricView extends View {
     private void applyTextStyle(boolean italic, boolean forDraw) {
         textPaint.setTextSkewX(italic ? -0.25f : 0f);
         textPaint.setFakeBoldText(!italic); // 正体 400 / 倾斜 300 视觉近似
-    }
-
-    private void drawTitle(Canvas canvas) {
-        if (titleText.isEmpty()) return;
-        textPaint.setTextSize(titleSize);
-        textPaint.setShadowLayer(0, 0, 0, 0);
-        textPaint.setColor(colorAccent);
-        textPaint.setFakeBoldText(true);
-        textPaint.setTextSkewX(0);
-        float density = getResources().getDisplayMetrics().density;
-        canvas.drawText(titleText, layoutW / 2f,
-                (float) Math.ceil(density * 16f) + titleSize * 0.85f, textPaint);
-        textPaint.setFakeBoldText(false);
     }
 
     private static float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }

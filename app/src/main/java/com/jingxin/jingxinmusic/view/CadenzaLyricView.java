@@ -51,13 +51,11 @@ public class CadenzaLyricView extends View {
     private List<KrcParser.LyricLine> lines = Collections.emptyList();
     private int targetIndex = -1;
     private int positionMs;
-    private String titleText = "";
     private int colorPrimary = Color.rgb(0xB9, 0xD7, 0xF2);   // 基色（passed/waiting）
     private int colorAccent = Color.rgb(0xC9, 0xE4, 0xFF);    // 高亮色
     private float energy;                                     // 0~1 音乐能量（audioPower 语义）
 
     private int layoutW, layoutH;
-    private float titleSize;
 
     // ===== 准备态（一行一次） =====
     private static final class Placement {
@@ -142,8 +140,6 @@ public class CadenzaLyricView extends View {
         if (accent != 0) colorAccent = accent;
         invalidate();
     }
-
-    public void setTitleText(String t) { this.titleText = (t != null ? t : ""); invalidate(); }
 
     /** 注入音乐能量 0~1（audioPower/255；无频谱时 0——词云静态呼吸） */
     public void setEnergy(float e) { this.energy = clamp01(e); }
@@ -364,7 +360,6 @@ public class CadenzaLyricView extends View {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         layoutW = w; layoutH = h;
-        titleSize = Math.max(14f, w * 0.024f);
         if (targetIndex >= 0 && targetIndex < lines.size()) prepareLine(targetIndex);
     }
 
@@ -393,7 +388,6 @@ public class CadenzaLyricView extends View {
         long now = System.currentTimeMillis();
         float t = positionMs / 1000f; // 歌曲时间轴(秒)
 
-        drawTitle(canvas);
         if (targetIndex < 0 || targetIndex >= lines.size() || placements.length == 0) return;
 
         KrcParser.LyricLine line = lines.get(targetIndex);
@@ -605,17 +599,6 @@ public class CadenzaLyricView extends View {
     }
 
     // ===== 工具 =====
-
-    private void drawTitle(Canvas canvas) {
-        if (titleText.isEmpty()) return;
-        textPaint.setTextSize(titleSize);
-        textPaint.setShadowLayer(0, 0, 0, 0);
-        textPaint.setColor(colorAccent);
-        textPaint.setFakeBoldText(true);
-        float density = getResources().getDisplayMetrics().density;
-        canvas.drawText(titleText, layoutW / 2f,
-                (float) Math.ceil(density * 16f) + titleSize * 0.85f, textPaint);
-    }
 
     private static boolean isCJK(String text) {
         if (text == null || text.isEmpty()) return false;
