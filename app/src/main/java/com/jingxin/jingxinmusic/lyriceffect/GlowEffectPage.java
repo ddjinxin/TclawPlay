@@ -12,17 +12,20 @@ import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.player.PlayerStateHub;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.view.CoverFlowView;
+import com.jingxin.jingxinmusic.view.GlowAmbientView;
 import com.jingxin.jingxinmusic.view.GlowLyricView;
 
 /**
- * 歌词效果②：流光（移植 folia classic：逐词三态点亮 + 字素双光晕 + 行级散布/呼吸/涟漪）
+ * 歌词效果②：流光（移植 folia classic：逐词三态点亮 + 字素双光晕 + 行级散布/呼吸）
  *
- * 结构：深空渐变底（垂直 近黑→深蓝黑，不抢词的光） / 顶部歌名 /
- *       中央逐词点亮歌词（词随音弹入发光，唱过保持余韵缓转） / 底部封面流（同星空页交互）
+ * 结构：深空渐变底 + 封面主色极暗上浮微尘（GlowAmbientView，空气感不抢词光） /
+ *       顶部歌名 / 中央逐词点亮歌词（词随音弹入发光，唱过保持余韵缓转） /
+ *       底部封面流（同星空页交互）
  * 单击任意位置退出；无按键无控件。
  */
 public class GlowEffectPage extends LyricEffectPage {
 
+    private GlowAmbientView ambient;
     private GlowLyricView lyric;
     private CoverFlowView coverFlow;
     private final CoverFlowView.SongProvider songProvider;
@@ -53,6 +56,12 @@ public class GlowEffectPage extends LyricEffectPage {
         GradientDrawable bg = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM, BG_COLORS);
         setBackground(bg);
+
+        // 封面主色氛围微尘（空气感：上浮光尘 + 屏底主色光雾）
+        ambient = new GlowAmbientView(ctx);
+        LayoutParams ap = new LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        addView(ambient, ap);
 
         // 歌词（含顶部歌名自绘）
         lyric = new GlowLyricView(ctx);
@@ -96,6 +105,7 @@ public class GlowEffectPage extends LyricEffectPage {
         if (hub != null) {
             lyric.setLyricData(hub.getLyricData());
             lyric.updatePosition(hub.getPositionMs());
+            if (ambient != null) ambient.setTintColors(hub.getCoverColorTop(), hub.getCoverColorBottom());
         }
     }
 
@@ -113,7 +123,13 @@ public class GlowEffectPage extends LyricEffectPage {
     }
 
     /** 应用播放页高亮歌词色（词点亮高亮色，随主题/封面取色变化） */
+    @Override
     public void applyHighlightColor(int color) {
         if (lyric != null) lyric.setHighlightColor(color);
+    }
+
+    /** 封面取色广播（Manager 转发）：氛围微尘同步换色 */
+    public void onCoverColorsChanged(int top, int bottom) {
+        if (ambient != null) ambient.setTintColors(top, bottom);
     }
 }

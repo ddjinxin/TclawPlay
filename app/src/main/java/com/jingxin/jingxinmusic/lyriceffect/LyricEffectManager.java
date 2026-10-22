@@ -150,7 +150,13 @@ public class LyricEffectManager {
         hub.addLyricObserver(lyricObserver);
         // 新封面取色完成（光晕皮肤高亮随封面变）：播放页 LyricView 同帧稍后会更新亮色，
         // 此处 post 到下一帧再拉才能取到更新后的真值（直接拉会拿到旧色）
-        coverColorObserver = (top, bottom) -> applyCurrentHighlight();
+        coverColorObserver = (top, bottom) -> {
+            // 高亮色走播放页真值通道（下一帧拉取）
+            applyCurrentHighlight();
+            // 流光氛围微尘直接吃封面双色（星空页无此通道则忽略）
+            LyricEffectPage p = activePage;
+            if (p instanceof GlowEffectPage) ((GlowEffectPage) p).onCoverColorsChanged(top, bottom);
+        };
         hub.addCoverColorObserver(coverColorObserver);
     }
 
