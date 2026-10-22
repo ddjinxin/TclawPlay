@@ -20,6 +20,7 @@ import com.jingxin.jingxinmusic.view.StarfieldView;
  * 结构：深空渐变底 + 氛围微尘（同流光页） / 左侧机芯（齿轮/游丝/秒轮随歌走，
  * 低频踩点时游丝摆动） / 右半圆弧形歌词轨（当前行 0° 扫字，唱过向上卷、
  * 未唱向下卷，换行棘轮步进+回摆） / 底部封面流。
+ * 副歌行（重复行≥2次）扫字染深+双层辉光+行背光（chorus presentation）。
  * 单击任意位置退出；无按键无控件。
  */
 public class PendoloEffectPage extends LyricEffectPage {

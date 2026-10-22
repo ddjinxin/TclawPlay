@@ -12,7 +12,6 @@ import android.view.View;
 
 import com.jingxin.jingxinmusic.util.KrcParser;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -27,7 +26,10 @@ import java.util.List;
  * 轨道补正=-(spring-target)×步进、文字再叠 65% 差速回摆（轮动字微滞）。
  * 扫字：基色 52% 打底 + 词时间推进亮色填充；软边走"离屏位图画一次 + Paint shader mask"
  * 两段式（像素级软边，等效 folia mask-image）；扫到即触发行辉光（shadowLayer）。
- * 长行自动断行（可用宽逐词折行，多行沿弧并列）；纯 LRC 按行时长整行扫。
+ * 长行不折行：超宽自动按比例缩字号放满可用宽（下限 45%），纯 LRC 按行时长整行扫。
+ *
+ * 副歌呈现（folia chorus presentation）：重复行检测标记副歌，当前行进入副歌时
+ * 扫字染深(accentMix 0.32→0.58)+双层辉光增强+行背光软光斑，0.42s easeOut 渐入。
  */
 public class PendoloLyricView extends View {
 
@@ -36,6 +38,14 @@ public class PendoloLyricView extends View {
     private static final float ANGLE_STEP_RAD =
             (float) (Math.toRadians(ARC_ANGLE_DEG) / (VISIBLE_WINDOW - 1));
     private static final float ACTIVE_SCALE = 1.25f;        // 当前行放大
+    // 非焦点行整体缩层（folia 原版 max(0.7,1-d×0.08)，主动偏离提焦点对比 1.36→1.60）
+    private static final float NEIGHBOR_SHRINK = 0.85f;
+    private static final float NEIGHBOR_FLOOR = 0.60f;
+
+    /** 非焦点行缩放：距离衰减 0.08/行 × 整体 0.85，地板 0.60 */
+    private static float neighborScale(int distance) {
+        return Math.max(NEIGHBOR_FLOOR, (1f - distance * 0.08f) * NEIGHBOR_SHRINK);
+    }
     private static final float LYRIC_RING_OFFSET_RATIO = 0.06f; // 歌词环外移（min(w,h) 比例）
     private static final float TEXT_ROTATION_CORRECTION = 0.65f; // 文字差速回摆比（folia -0.65×轮角）
 
@@ -51,6 +61,14 @@ public class PendoloLyricView extends View {
     private int colorPrimary = Color.rgb(0xC9, 0xE4, 0xFF);
     private int colorAccent = Color.rgb(0x6E, 0xE8, 0xD8);
     private int positionMs;
+
+    // 副歌标记（重复行≥2 次近似 isChorus；KRC 无副歌元数据）
+    private boolean[] chorusFlags = new boolean[0];
+    // 副歌呈现动画：normal 档 haloOpacity 0.34 / 时长 0.42s（folia resolvePendoloChorusPresentation）
+    private static final float CHORUS_HALO_OP = 0.34f;
+    private static final long CHORUS_TRANSITION_MS = 420L;
+    private boolean lastChorusOn = false;
+    private long chorusChangeAtMs = Long.MIN_VALUE;
 
     private int layoutW, layoutH;
     private float centerX, centerY, lyricRadius, availableTextWidth;
@@ -96,8 +114,29 @@ public class PendoloLyricView extends View {
         springPos = 0f;
         springVel = 0f;
         springTarget = 0f;
-        wrapCache.clear();
+        fitCache.clear();
+        detectChorus();
+        lastChorusOn = false;
+        chorusChangeAtMs = Long.MIN_VALUE;
         invalidate();
+    }
+
+    /** 副歌近似：行文本 normalize 后出现≥2 次即副歌行（空行/间奏排除） */
+    private void detectChorus() {
+        chorusFlags = new boolean[lines.size()];
+        if (lines.size() < 3) return;
+        java.util.HashMap<String, Integer> counts = new java.util.HashMap<>();
+        for (KrcParser.LyricLine line : lines) {
+            String t = line != null && line.text != null ? line.text.trim() : "";
+            if (t.isEmpty() || t.contains("间奏") || t.contains("纯音乐") || t.contains("独奏")) continue;
+            Integer c = counts.get(t);
+            counts.put(t, c != null ? c + 1 : 1);
+        }
+        for (int i = 0; i < lines.size(); i++) {
+            String t = lines.get(i).text != null ? lines.get(i).text.trim() : "";
+            Integer c = counts.get(t);
+            chorusFlags[i] = c != null && c >= 2;
+        }
     }
 
     public void updatePosition(int positionMs) {
@@ -154,12 +193,14 @@ public class PendoloLyricView extends View {
         float minDim = Math.min(w, h);
         // folia：主轮 0.42 min(w,h)，歌词环再外移 6%
         lyricRadius = minDim * 0.42f + minDim * LYRIC_RING_OFFSET_RATIO;
-        float maxItemX = centerX + lyricRadius + minDim * 0.42f * 0.1f;
-        availableTextWidth = Math.max(140f, Math.min(w * 0.46f, w - maxItemX - 48f));
+        // 单行宽上限 = 0° 行弧点为锚的几何极限：左到屏幕边 24px、右到横屏竖排封面链(220px)/竖屏边 24px
+        float rightReserve = (w > h) ? 220f : 24f;
+        availableTextWidth = Math.max(140f,
+                2f * Math.min(lyricRadius - 24f, w - lyricRadius - rightReserve));
         float ratio = w > h ? 0.034f : 0.055f;
         lineSize = Math.max(16f, w * ratio);
         lineSizeSmall = lineSize * 0.62f;
-        wrapCache.clear();
+        fitCache.clear();
     }
 
     @Override
@@ -177,63 +218,29 @@ public class PendoloLyricView extends View {
         Choreographer.getInstance().removeFrameCallback(frameCallback);
     }
 
-    // ===== 折行（长行多行铺排，等效 pretext 排版的基本行为） =====
+    // ===== 单行自适应缩字（永不折行：超宽按比例缩小字号放满可用宽） =====
 
-    private static final class WrapResult {
-        final String[] rows;      // 折行后的行数组
-        final float width;        // 最宽行宽
-        WrapResult(String[] rows, float width) { this.rows = rows; this.width = width; }
-    }
-    private final java.util.HashMap<String, WrapResult> wrapCache = new java.util.HashMap<>();
+    private final java.util.HashMap<String, Float> fitCache = new java.util.HashMap<>();
 
-    /** 按可用宽逐"块"折行（块=连续 ASCII 词 或 单个 CJK/标点字），折不满整块放下一行 */
-    private WrapResult wrap(String text, float size) {
-        String key = size + "|" + text;
-        WrapResult hit = wrapCache.get(key);
+    /** 缩字号至单行放下：两次测量校正；下限 45% 原字号 & 12px（超长行兜底） */
+    private float fitSize(String text, float size) {
+        String key = availableTextWidth + "|" + size + "|" + text;
+        Float hit = fitCache.get(key);
         if (hit != null) return hit;
+        float floor = Math.max(12f, size * 0.45f);
+        float fit = size;
         textPaint.setTextSize(size);
-        List<String> rows = new ArrayList<>();
-        StringBuilder cur = new StringBuilder();
-        // 先切块
-        List<String> chunks = new ArrayList<>();
-        for (int i = 0; i < text.length(); ) {
-            int cp = text.codePointAt(i);
-            int len = Character.charCount(cp);
-            boolean asciiWord = cp < 0x2E80;
-            if (asciiWord) {
-                int j = i;
-                while (j < text.length()) {
-                    int c2 = text.codePointAt(j);
-                    if (c2 >= 0x2E80 || c2 == ' ') break;
-                    j += Character.charCount(c2);
-                }
-                if (j == i) j = i + 1; // 空格/遇首字符即停：至少消费一字符，防 i 不前进死循环（OOM 元凶）
-                chunks.add(text.substring(i, j));
-                i = j;
-            } else {
-                chunks.add(text.substring(i, i + len));
-                i += len;
+        float w = textPaint.measureText(text);
+        if (w > availableTextWidth && w > 0f) {
+            fit = Math.max(floor, size * availableTextWidth / w);
+            textPaint.setTextSize(fit);
+            float w2 = textPaint.measureText(text);
+            if (w2 > availableTextWidth && w2 > 0f) {
+                fit = Math.max(floor, fit * availableTextWidth / w2);
             }
         }
-        float maxW = 0f;
-        for (String chunk : chunks) {
-            float cw = textPaint.measureText(chunk);
-            float curW = cur.length() == 0 ? 0 : textPaint.measureText(cur.toString());
-            if (cur.length() > 0 && curW + cw > availableTextWidth) {
-                rows.add(cur.toString());
-                maxW = Math.max(maxW, curW);
-                cur.setLength(0);
-            }
-            cur.append(chunk);
-        }
-        if (cur.length() > 0) {
-            float curW = textPaint.measureText(cur.toString());
-            rows.add(cur.toString());
-            maxW = Math.max(maxW, curW);
-        }
-        WrapResult r = new WrapResult(rows.toArray(new String[0]), maxW);
-        wrapCache.put(key, r);
-        return r;
+        fitCache.put(key, fit);
+        return fit;
     }
 
     // ===== 绘制 =====
@@ -245,22 +252,36 @@ public class PendoloLyricView extends View {
 
         if (lines.isEmpty() || targetIndex < 0) return;
 
+        // 副歌呈现动画进度（0~1，0.42s easeOut 双向）
+        boolean chorusNow = targetIndex < chorusFlags.length && chorusFlags[targetIndex];
+        if (chorusNow != lastChorusOn) {
+            lastChorusOn = chorusNow;
+            chorusChangeAtMs = android.os.SystemClock.uptimeMillis();
+        }
+        float chorusAnim = 0f;
+        if (chorusChangeAtMs != Long.MIN_VALUE) {
+            float t = Math.min(1f,
+                    (android.os.SystemClock.uptimeMillis() - chorusChangeAtMs) / (float) CHORUS_TRANSITION_MS);
+            chorusAnim = chorusNow ? 1f - (1f - t) * (1f - t) : (1f - t) * (1f - t);
+        }
+
         int centerRef = Math.max(0, Math.min(lines.size() - 1, targetIndex));
         int windowStart = Math.max(0, centerRef - 8);
         int windowEnd = Math.min(lines.size() - 1, centerRef + 8);
 
-        // 行高/宽度数组：字号含每行 scale（active 1.25×，邻行递减 0.08/行到 0.7 下限），
-        // 行间距与折行宽同步缩放（修正：小字行的行距间隙不再偏大）
+        // 行高/宽度数组：每行字号含 scale（active 1.25×，邻行递减 0.08/行到 0.7 下限），
+        // 超宽自动缩字（单行不折行）；行间距随缩后字号自适应
         int win = windowEnd - windowStart + 1;
         float[] heights = new float[win];
         float[] widths = new float[win];
         for (int i = windowStart; i <= windowEnd; i++) {
             int d0 = Math.abs(i - targetIndex);
-            float scale0 = (i != targetIndex) ? Math.max(0.7f, 1f - d0 * 0.08f) : ACTIVE_SCALE;
-            float size = lineSize * scale0;
-            WrapResult wr = wrap(lines.get(i).text, size);
-            widths[i - windowStart] = wr.width;
-            heights[i - windowStart] = wr.rows.length * size * 1.35f;
+            float scale0 = (i != targetIndex) ? neighborScale(d0) : ACTIVE_SCALE;
+            String text = lines.get(i).text;
+            float size = fitSize(text, lineSize * scale0);
+            textPaint.setTextSize(size);
+            widths[i - windowStart] = textPaint.measureText(text);
+            heights[i - windowStart] = size * 1.35f;
         }
 
         // 角度链：中心 0°，相邻按行高自适应
@@ -297,51 +318,52 @@ public class PendoloLyricView extends View {
 
             float alpha = Math.max(0.12f,
                     (float) Math.pow(Math.cos(rawAngle * 0.75), 2.5) * (1f - distance * 0.18f));
-            float scale = isActive ? ACTIVE_SCALE : Math.max(0.7f, 1f - distance * 0.08f);
+            float scale = isActive ? ACTIVE_SCALE : neighborScale(distance);
 
             drawArcLine(canvas, line, x, y,
                     rawAngle - trackOffset * (isActive ? TEXT_ROTATION_CORRECTION : 0f),
-                    isActive, alpha, scale);
+                    isActive, alpha, scale, isActive ? chorusAnim : 0f);
         }
     }
 
-    /** 弧上一行：文本沿切线旋转；多行折行时行块沿径向并列；当前行扫字+辉光 */
+    /** 弧上一行：文本沿切线旋转；超宽缩字单行铺排；当前行扫字+辉光；chorusAnim 副歌呈现进度 0~1 */
     private void drawArcLine(Canvas canvas, KrcParser.LyricLine line, float x, float y,
-                             float angle, boolean isActive, float alpha, float scale) {
-        float size = lineSize * scale; // scale 已含 active 1.25×（防双重放大）
+                             float angle, boolean isActive, float alpha, float scale, float chorusAnim) {
+        String text = line.text;
+        float size = fitSize(text, lineSize * scale); // scale 已含 active 1.25×（防双重放大）
         textPaint.setTextSize(size);
-        WrapResult wr = wrap(line.text, size);
 
         int sc = canvas.save();
         canvas.rotate((float) Math.toDegrees(angle), x, y);
 
         android.graphics.Paint.FontMetrics fm = textPaint.getFontMetrics();
         float lineH = size * 1.35f;
-        float blockH = wr.rows.length * lineH;
-        float topBaseline = y - blockH / 2f - (fm.ascent + fm.descent) * 0.5f - fm.ascent;
+        float baseline = y - (fm.ascent + fm.descent) * 0.5f; // 垂直居中于弧点
+        float total = textPaint.measureText(text);
 
         if (!isActive) {
-            int c = withAlpha(colorPrimary, alpha * 0.52f);
-            textPaint.setColor(c);
+            textPaint.setColor(withAlpha(colorPrimary, alpha * 0.52f));
             textPaint.setShader(null);
             textPaint.setShadowLayer(0, 0, 0, 0);
-            for (int r = 0; r < wr.rows.length; r++) {
-                canvas.drawText(wr.rows[r], x, topBaseline + r * lineH, textPaint);
-            }
+            canvas.drawText(text, x, baseline, textPaint);
             canvas.restoreToCount(sc);
             return;
         }
 
-        // 当前行：52% 基色打底（多行一样铺底）
+        // 当前行：52% 基色打底
         int cBase = withAlpha(colorPrimary, alpha * 0.52f);
         textPaint.setColor(cBase);
         textPaint.setShader(null);
         textPaint.setShadowLayer(0, 0, 0, 0);
-        for (int r = 0; r < wr.rows.length; r++) {
-            canvas.drawText(wr.rows[r], x, topBaseline + r * lineH, textPaint);
-        }
+        canvas.drawText(text, x, baseline, textPaint);
 
-        // 扫字亮色层：填充宽按词时间推进（跨折行行连续累计宽度）
+        // 副歌呈现：扫字染深 fill=mix(primary,accent,0.32+0.26×anim)+双层辉光+行背光（folia accentMix/chorus glow/halo）
+        int fillColor = lerpColor(colorPrimary, colorAccent, 0.32f + 0.26f * chorusAnim);
+
+        if (chorusAnim > 0.01f) {
+            drawChorusHalo(canvas, x, y, total, lineH, chorusAnim, alpha);
+        }
+        // 扫字亮色层：填充宽按词时间推进
         List<KrcParser.LyricWord> words = line.words;
         float fillWidth;
         long lineEnd = line.startTime + Math.max(line.duration, 1L);
@@ -349,65 +371,64 @@ public class PendoloLyricView extends View {
             fillWidth = computeFillWidth(words);
         } else {
             float t = (positionMs - line.startTime) / (float) (lineEnd - line.startTime);
-            fillWidth = widthsTotal(wr, size) * clamp01(t);
+            fillWidth = total * clamp01(t);
         }
         if (fillWidth > 0.5f) {
-            float total = widthsTotal(wr, size);
-            float startX = x - total / 2f; // 连续排：扫总宽跨折行
-            float remaining = fillWidth;
-            float rowBaseY = topBaseline;
-            float consumed = 0f;
-            for (int r = 0; r < wr.rows.length && remaining > 0.5f; r++) {
-                float rowW = textPaint.measureText(wr.rows[r]);
-                float rowFill = Math.min(remaining, rowW);
-                float rowStartX = startX + consumed;
-                float edge = Math.min(Math.max(size * 0.42f, 8f), 16f);
-                float textTop = rowBaseY + fm.ascent - 6f, textBottom = rowBaseY + fm.descent + 6f;
+            float startX = x - total / 2f;
+            float edge = Math.min(Math.max(size * 0.42f, 8f), 16f);
+            float fill = Math.min(fillWidth, total);
+            float textTop = baseline + fm.ascent - 6f, textBottom = baseline + fm.descent + 6f;
 
-                // 行辉光：扫过区域带 shadowLayer 辉光（等效 enableLineGlow 的 active 段）
+            // 行辉光：扫过区域带 shadowLayer 辉光；副歌时双层（外层 accent + 内层 fill，folia 双 drop-shadow）
+            boolean chorus = chorusAnim > 0.01f;
+            if (chorus) {
+                textPaint.setShadowLayer(size * (0.28f + 0.34f * chorusAnim), 0, 0,
+                        withAlpha(colorAccent, alpha * (0.6f + 0.15f * chorusAnim)));
+            } else {
                 textPaint.setShadowLayer(size * 0.28f, 0, 0, withAlpha(colorAccent, alpha * 0.85f));
-
-                // 已扫满段：硬边 + 满亮色
-                if (rowFill > edge) {
-                    int sc2 = canvas.save();
-                    android.graphics.Path solid = new android.graphics.Path();
-                    solid.addRect(rowStartX - 6f, textTop,
-                            rowStartX + rowFill - edge, textBottom, android.graphics.Path.Direction.CW);
-                    canvas.clipPath(solid);
-                    textPaint.setColor(withAlpha(colorAccent, alpha));
-                    canvas.drawText(wr.rows[r], x, rowBaseY, textPaint);
-                    canvas.restoreToCount(sc2);
-                }
-                // 前锋软边：edge 段满亮 → 透明的像素级渐隐（shader 直接作用于文字，等效 mask）
-                int sc3 = canvas.save();
-                android.graphics.Path soft = new android.graphics.Path();
-                soft.addRect(rowStartX + rowFill - edge, textTop,
-                        rowStartX + rowFill + edge, textBottom, android.graphics.Path.Direction.CW);
-                canvas.clipPath(soft);
-                textPaint.setShader(new LinearGradient(rowStartX + rowFill - edge, 0f,
-                        rowStartX + rowFill + edge, 0f,
-                        withAlpha(colorAccent, alpha), 0x00000000, Shader.TileMode.CLAMP));
-                textPaint.setColor(withAlpha(colorAccent, alpha));
-                canvas.drawText(wr.rows[r], x, rowBaseY, textPaint);
-                textPaint.setShader(null);
-                canvas.restoreToCount(sc3);
-
-                textPaint.setShadowLayer(0, 0, 0, 0);
-                remaining -= rowW;
-                consumed += rowW;
-                rowBaseY += lineH;
             }
+
+            // 已扫满段：硬边 + 满亮色（副歌扫字色=fillColor 染深）
+            if (fill > edge) {
+                int sc2 = canvas.save();
+                android.graphics.Path solid = new android.graphics.Path();
+                solid.addRect(startX - 6f, textTop,
+                        startX + fill - edge, textBottom, android.graphics.Path.Direction.CW);
+                canvas.clipPath(solid);
+                if (!chorus) {
+                    textPaint.setColor(withAlpha(colorAccent, alpha));
+                    canvas.drawText(text, x, baseline, textPaint);
+                } else {
+                    // 外层大辉光（fillColor 染色）
+                    textPaint.setShadowLayer(size * (0.3f + 0.32f * chorusAnim), 0, 0,
+                            withAlpha(fillColor, alpha * 0.72f));
+                    textPaint.setColor(withAlpha(fillColor, alpha));
+                    canvas.drawText(text, x, baseline, textPaint);
+                    // 内层核亮
+                    textPaint.setShadowLayer(size * 0.18f, 0, 0,
+                            withAlpha(fillColor, alpha * 0.42f));
+                    canvas.drawText(text, x, baseline, textPaint);
+                }
+                canvas.restoreToCount(sc2);
+            }
+            // 前锋软边：edge 段满亮 → 透明的像素级渐隐（shader 直接作用于文字，等效 mask）
+            int sc3 = canvas.save();
+            android.graphics.Path soft = new android.graphics.Path();
+            soft.addRect(startX + fill - edge, textTop,
+                    startX + fill + edge, textBottom, android.graphics.Path.Direction.CW);
+            canvas.clipPath(soft);
+            int sweepColor = chorus ? fillColor : colorAccent;
+            textPaint.setShader(new LinearGradient(startX + fill - edge, 0f,
+                    startX + fill + edge, 0f,
+                    withAlpha(sweepColor, alpha), 0x00000000, Shader.TileMode.CLAMP));
+            textPaint.setColor(withAlpha(sweepColor, alpha));
+            canvas.drawText(text, x, baseline, textPaint);
+            textPaint.setShader(null);
+            canvas.restoreToCount(sc3);
+
+            textPaint.setShadowLayer(0, 0, 0, 0);
         }
         canvas.restoreToCount(sc);
-    }
-
-    /** 折行总宽（各行之和；扫字累计基准） */
-    private float widthsTotal(WrapResult wr, float size) {
-        if (wr.rows.length <= 0) return 0f;
-        if (wr.rows.length == 1) return wr.width;
-        float t = 0f;
-        for (String row : wr.rows) t += textPaint.measureText(row);
-        return t;
     }
 
     /** 按词时间算已扫宽度（词内线性插值） */
@@ -433,6 +454,43 @@ public class PendoloLyricView extends View {
             }
         }
         return Math.min(fill, total);
+    }
+
+    /** 副歌行背光软光斑（folia chorus halo 直译：42% 处径向渐变，0.14/0.035 双 alpha 带→透明） */
+    private void drawChorusHalo(Canvas canvas, float x, float y, float totalW, float blockH,
+                                float anim, float alpha) {
+        if (totalW <= 0f) return;
+        float op = CHORUS_HALO_OP * anim * alpha;
+        if (op < 0.01f) return;
+        float gx = x - totalW / 2f + totalW * 0.42f;
+        float r = Math.max(totalW * 0.62f, sizeForHalo());
+        int c1 = withAlpha(colorAccent, 0.14f * op);
+        int c2 = withAlpha(colorAccent, 0.035f * op);
+        android.graphics.RadialGradient g = new android.graphics.RadialGradient(
+                0f, 0f, r,
+                new int[]{c1, c2, 0x00000000},
+                new float[]{0f, 0.55f, 0.82f},
+                Shader.TileMode.CLAMP);
+        Paint hp = new Paint(Paint.ANTI_ALIAS_FLAG);
+        hp.setShader(g);
+        hp.setStyle(Paint.Style.FILL);
+        int sc = canvas.save();
+        canvas.translate(gx, y);
+        // 椭圆：横拉伸铺满行宽，竖向收敛到块高（folia rounded-2xl inset -0.7em/-1.1em 的椭圆近似）
+        canvas.scale(1f, Math.max(0.42f, Math.min(1f, blockH / (r * 1.2f))));
+        canvas.drawCircle(0f, 0f, r, hp);
+        canvas.restoreToCount(sc);
+    }
+
+    private float sizeForHalo() { return lineSize * ACTIVE_SCALE; }
+
+    private static int lerpColor(int from, int to, float t) {
+        if (t <= 0f) return from;
+        if (t >= 1f) return to;
+        int r = Math.round(Color.red(from) + (Color.red(to) - Color.red(from)) * t);
+        int g = Math.round(Color.green(from) + (Color.green(to) - Color.green(from)) * t);
+        int b = Math.round(Color.blue(from) + (Color.blue(to) - Color.blue(from)) * t);
+        return Color.rgb(r, g, b);
     }
 
     private static float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
