@@ -21,7 +21,7 @@ import com.jingxin.jingxinmusic.view.PendoloClockworkView;
 public class LyricEffectManager {
 
     /** 效果枚举（将来胶片/森林/雨滴同法扩） */
-    public enum Effect { STARFIELD, GLOW, PENDELO }
+    public enum Effect { STARFIELD, GLOW, PENDELO, CADENZA }
 
     /** 低频能量提供者（时计摆轮驱动；无频谱环境返回 0，机芯恒速） */
     public interface BassEnergyProvider { float getBassEnergy(); }
@@ -103,6 +103,9 @@ public class LyricEffectManager {
                         playerController, bass);
                 break;
             }
+            case CADENZA:
+                activePage = new CadenzaEffectPage(host.getContext(), hub, coverProvider, playerController);
+                break;
             case STARFIELD:
             default:
                 activePage = new StarfieldEffectPage(host.getContext(), hub, coverProvider, playerController);
@@ -156,7 +159,11 @@ public class LyricEffectManager {
         hub.addObserver(stateObserver);
         progressObserver = (pos, dur) -> {
             LyricEffectPage p = activePage;
-            if (p != null) p.onProgress(pos, dur);
+            if (p != null) {
+                p.onProgress(pos, dur);
+                // 能量注入（心象等页用；无提供者时 0——效果页保底静态呼吸）
+                p.onEnergy(bassProvider != null ? bassProvider.getBassEnergy() : 0f);
+            }
         };
         hub.addProgressObserver(progressObserver);
         lyricObserver = data -> {

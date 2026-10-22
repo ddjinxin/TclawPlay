@@ -43,6 +43,9 @@ public abstract class LyricEffectPage extends FrameLayout {
     /** 播放进度 tick（换行判定用） */
     public abstract void onProgress(int positionMs, int durationMs);
 
+    /** 音乐能量 0~1 注入（audioPower 语义；频谱不可用时为 0，效果页自行保底） */
+    public void onEnergy(float energy) { }
+
     /** 播放页高亮色注入（Manager 在 attach 与主题/封面取色变化时调用） */
     public abstract void applyHighlightColor(int color);
 
