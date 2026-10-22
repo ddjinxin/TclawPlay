@@ -14,13 +14,13 @@ import com.jingxin.jingxinmusic.view.CoverFlowView;
  * 歌词效果管理器（效果注册/进退/Hub 订阅分发）
  *
  * 生命周期：attach = 挂宿主容器淡入 + 订阅 Hub 灌数据；detach = 淡出退订移除。
- * 效果注册：EFFECT 枚举；当前只有星空漫游 STARFIELD。
+ * 效果注册：EFFECT 枚举 + attach switch 分发；现有星空漫游 STARFIELD / 流光 GLOW。
  * 线程：全部主线程（Hub 回调即主线程）。
  */
 public class LyricEffectManager {
 
     /** 效果枚举（将来胶片/森林/雨滴同法扩） */
-    public enum Effect { STARFIELD }
+    public enum Effect { STARFIELD, GLOW }
 
     public interface SongProvider {
         java.util.List<Song> getPlaylist();
@@ -46,7 +46,7 @@ public class LyricEffectManager {
     private final SongProvider songProvider;
     private final HighlightColorProvider colorProvider;
     private final PlayerController playerController;
-    private StarfieldEffectPage activePage;  // 当前效果页（效果本体）
+    private LyricEffectPage activePage;      // 当前效果页（效果本体，STARFIELD/GLOW 多态）
     private boolean active = false;
 
     private PlayerStateHub.Observer stateObserver;
@@ -70,18 +70,28 @@ public class LyricEffectManager {
         if (active || host == null) return;
         active = true;
 
-        activePage = new StarfieldEffectPage(host.getContext(), hub,
-                new CoverFlowView.SongProvider() {
-                    @Override
-                    public java.util.List<Song> getPlaylist() {
-                        return songProvider != null ? songProvider.getPlaylist() : null;
-                    }
+        // 封面流数据源适配（两页共用）
+        CoverFlowView.SongProvider coverProvider = new CoverFlowView.SongProvider() {
+            @Override
+            public java.util.List<Song> getPlaylist() {
+                return songProvider != null ? songProvider.getPlaylist() : null;
+            }
 
-                    @Override
-                    public int getCurrentIndex() {
-                        return songProvider != null ? songProvider.getCurrentIndex() : -1;
-                    }
-                }, playerController);
+            @Override
+            public int getCurrentIndex() {
+                return songProvider != null ? songProvider.getCurrentIndex() : -1;
+            }
+        };
+
+        switch (effect) {
+            case GLOW:
+                activePage = new GlowEffectPage(host.getContext(), hub, coverProvider, playerController);
+                break;
+            case STARFIELD:
+            default:
+                activePage = new StarfieldEffectPage(host.getContext(), hub, coverProvider, playerController);
+                break;
+        }
         activePage.setExitListener(v -> detach());
         activePage.build(LayoutInflater.from(host.getContext()), host);
         if (colorProvider != null) {
@@ -106,7 +116,7 @@ public class LyricEffectManager {
     /** 退出效果页（淡出+退订+移除） */
     public void detach() {
         if (!active || activePage == null) return;
-        final StarfieldEffectPage page = activePage;
+        final LyricEffectPage page = activePage;
         active = false;
         activePage = null;
         unsubscribe();
@@ -121,7 +131,7 @@ public class LyricEffectManager {
     private void subscribe() {
         if (hub == null) return;
         stateObserver = state -> {
-            StarfieldEffectPage p = activePage;
+            LyricEffectPage p = activePage;
             if (p == null) return;
             p.onSongChanged(state.song);
             // 歌/日夜/皮肤变化都可能改变播放页高亮色：重拉注入
@@ -129,12 +139,12 @@ public class LyricEffectManager {
         };
         hub.addObserver(stateObserver);
         progressObserver = (pos, dur) -> {
-            StarfieldEffectPage p = activePage;
+            LyricEffectPage p = activePage;
             if (p != null) p.onProgress(pos, dur);
         };
         hub.addProgressObserver(progressObserver);
         lyricObserver = data -> {
-            StarfieldEffectPage p = activePage;
+            LyricEffectPage p = activePage;
             if (p != null) p.onLyricLoaded(data);
         };
         hub.addLyricObserver(lyricObserver);
@@ -147,10 +157,10 @@ public class LyricEffectManager {
     /** 重拉播放页当前高亮色注入效果页（下一帧执行，等播放页同帧更新完成） */
     private void applyCurrentHighlight() {
         if (colorProvider == null) return;
-        StarfieldEffectPage p = activePage;
+        LyricEffectPage p = activePage;
         if (p == null) return;
         p.post(() -> {
-            StarfieldEffectPage page = activePage;
+            LyricEffectPage page = activePage;
             if (page != null && colorProvider != null) {
                 page.applyHighlightColor(colorProvider.getHighlightColor());
             }

@@ -111,6 +111,7 @@ public class StarfieldEffectPage extends LyricEffectPage {
     }
 
     /** 应用播放页高亮歌词色（歌名/当前行统一使用；Manager attach 时注入，并随主题变化重注入） */
+    @Override
     public void applyHighlightColor(int color) {
         if (lyric != null) lyric.setHighlightColor(color);
     }

@@ -43,5 +43,8 @@ public abstract class LyricEffectPage extends FrameLayout {
     /** 播放进度 tick（换行判定用） */
     public abstract void onProgress(int positionMs, int durationMs);
 
+    /** 播放页高亮色注入（Manager 在 attach 与主题/封面取色变化时调用） */
+    public abstract void applyHighlightColor(int color);
+
     public void setExitListener(View.OnClickListener l) { this.exitListener = l; }
 }

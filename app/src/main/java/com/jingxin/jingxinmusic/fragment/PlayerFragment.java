@@ -95,6 +95,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private SpectrumView spectrumView;
     
     private android.widget.PopupWindow effectPickerPopup; // 音效选择浮窗
+    private android.widget.PopupWindow lyricEffectPickerPopup; // 歌词动效选择浮窗（星空漫游/流光）
+    private static final String KEY_LYRIC_EFFECT_MODE = "lyric_effect_mode"; // 0=星空漫游 1=流光
 
     // 封面缓存：切歌时保持旧封面，避免「默认封面→真实封面」闪烁
     private boolean hasCoverLoaded = false; // 是否已有封面加载过
@@ -744,6 +746,9 @@ public class PlayerFragment extends BaseFloatFragment {
         }
         if (effectPickerPopup != null && effectPickerPopup.isShowing()) {
             effectPickerPopup.dismiss();
+        }
+        if (lyricEffectPickerPopup != null && lyricEffectPickerPopup.isShowing()) {
+            lyricEffectPickerPopup.dismiss();
         }
         if (lyricSearchPopup != null && lyricSearchPopup.isShowing()) {
             lyricSearchPopup.dismiss();
@@ -1653,10 +1658,7 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override public void showEffectPickerPopup(View anchor) { PlayerFragment.this.showEffectPickerPopup(); }
             @Override public void showLyricSearchPopup(View anchor) { PlayerFragment.this.showLyricSearchPopup(); }
             @Override public void openLyricEffect() {
-                if (lyricEffectManager != null && !lyricEffectManager.isActive()) {
-                    lyricEffectManager.attach(
-                            com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD);
-                }
+                PlayerFragment.this.showLyricEffectPicker();
             }
             @Override public boolean isFavorite() { return PlayerFragment.this.isFavorite; }
             @Override public boolean isBiliSong() { return song != null && song.sourceType == Song.SOURCE_BILI; }
@@ -1985,6 +1987,103 @@ public class PlayerFragment extends BaseFloatFragment {
         if (mRootView != null) {
             effectPickerPopup.showAtLocation(mRootView, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
                     0, 0);
+        }
+    }
+
+    /**
+     * 弹出歌词动效选择浮窗：星空漫游 / 流光（样式与音效弹窗一致：贴左垂直居中、青色发光选中）
+     */
+    private void showLyricEffectPicker() {
+        if (lyricEffectPickerPopup != null && lyricEffectPickerPopup.isShowing()) {
+            lyricEffectPickerPopup.dismiss();
+            return;
+        }
+        if (lyricEffectManager == null || lyricEffectManager.isActive()) return;
+
+        String[] names = {"星空漫游", "流光"};
+        final com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect[] effects = {
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.GLOW,
+        };
+
+        Context ctx = requireContext();
+        int current = ctx.getSharedPreferences(SettingsFragment.PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(KEY_LYRIC_EFFECT_MODE, 0);
+        if (current < 0 || current >= names.length) current = 0;
+
+        float density = getResources().getDisplayMetrics().density;
+        int viewH = getAvailableScreenHeight();
+        if (viewH <= 0) viewH = getResources().getDisplayMetrics().heightPixels;
+        float basePx = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+        boolean landscape = getLayoutWidth() > viewH * 1.2f;
+        float sf = Math.max(1f, viewH * (landscape ? 0.03f : 0.0188f) / basePx);
+
+        // 容器（与音效弹窗同规格：左直角右圆角 20% 黑）
+        android.widget.LinearLayout container = new android.widget.LinearLayout(ctx);
+        container.setOrientation(android.widget.LinearLayout.VERTICAL);
+        container.setPadding(
+                (int)(10 * density * sf), (int)(10 * density * sf),
+                (int)(10 * density * sf), (int)(10 * density * sf));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        float r = 16 * density * sf;
+        bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
+        bg.setColor(Color.argb(51, 30, 30, 30));
+        container.setBackground(bg);
+
+        android.widget.TextView title = new android.widget.TextView(ctx);
+        title.setText("歌词动效");
+        title.setTextColor(ThemeColors.sparkColor(isNightMode));
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 18 * density * sf);
+        title.setGravity(android.view.Gravity.CENTER);
+        title.setPadding(0, 0, 0, (int)(12 * density * sf));
+        container.addView(title);
+
+        for (int i = 0; i < names.length; i++) {
+            final int pick = i;
+            android.widget.TextView item = new android.widget.TextView(ctx);
+            item.setText(names[i]);
+            item.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 16 * density * sf);
+            item.setGravity(android.view.Gravity.CENTER);
+            item.setPadding(
+                    (int)(20 * density * sf), (int)(14 * density * sf),
+                    (int)(20 * density * sf), (int)(14 * density * sf));
+            item.setFocusable(true);
+            CompatUtil.setForegroundCompat(item, ctx.getResources().getDrawable(R.drawable.tv_focus_popup_item));
+            if (i == current) { // 当前选中：青色发光（与音效弹窗一致）
+                item.setTextColor(ThemeColors.SPECTRUM_POPUP_SELECTED_TEXT);
+                item.setBackgroundColor(Color.argb(153, 0, 230, 180));
+            } else {
+                item.setTextColor(ThemeColors.SPECTRUM_POPUP_NORMAL_TEXT);
+                item.setBackgroundColor(Color.argb(153, 68, 68, 68));
+            }
+            android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+                    (int)(140 * density * sf), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.setMargins((int)(6 * density * sf), (int)(4 * density * sf),
+                    (int)(6 * density * sf), (int)(4 * density * sf));
+            item.setLayoutParams(lp);
+            item.setOnClickListener(v -> {
+                lyricEffectPickerPopup.dismiss();
+                if (lyricEffectManager != null && !lyricEffectManager.isActive()) {
+                    ctx.getSharedPreferences(SettingsFragment.PREFS_NAME, Context.MODE_PRIVATE)
+                            .edit().putInt(KEY_LYRIC_EFFECT_MODE, pick).apply();
+                    lyricEffectManager.attach(effects[pick]);
+                }
+            });
+            container.addView(item);
+        }
+
+        lyricEffectPickerPopup = new android.widget.PopupWindow(container,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, true);
+        lyricEffectPickerPopup.setOutsideTouchable(true);
+        if (Build.VERSION.SDK_INT <= 22) {
+            lyricEffectPickerPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        }
+        lyricEffectPickerPopup.setElevation(8 * density * sf);
+        if (mRootView != null) {
+            lyricEffectPickerPopup.showAtLocation(mRootView,
+                    android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL, 0, 0);
         }
     }
 
