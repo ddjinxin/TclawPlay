@@ -9,6 +9,7 @@ import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.player.PlayerStateHub;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.view.CoverFlowView;
+import com.jingxin.jingxinmusic.view.PendoloClockworkView;
 
 /**
  * 歌词效果管理器（效果注册/进退/Hub 订阅分发）
@@ -20,7 +21,12 @@ import com.jingxin.jingxinmusic.view.CoverFlowView;
 public class LyricEffectManager {
 
     /** 效果枚举（将来胶片/森林/雨滴同法扩） */
-    public enum Effect { STARFIELD, GLOW }
+    public enum Effect { STARFIELD, GLOW, PENDELO }
+
+    /** 低频能量提供者（时计摆轮驱动；无频谱环境返回 0，机芯恒速） */
+    public interface BassEnergyProvider { float getBassEnergy(); }
+
+    private BassEnergyProvider bassProvider;
 
     public interface SongProvider {
         java.util.List<Song> getPlaylist();
@@ -65,6 +71,9 @@ public class LyricEffectManager {
 
     public boolean isActive() { return active; }
 
+    /** 注入低频能量源（时计用；可随时换置/null） */
+    public void setBassEnergyProvider(BassEnergyProvider p) { this.bassProvider = p; }
+
     /** 进入效果页（已激活则忽略） */
     public void attach(Effect effect) {
         if (active || host == null) return;
@@ -87,6 +96,13 @@ public class LyricEffectManager {
             case GLOW:
                 activePage = new GlowEffectPage(host.getContext(), hub, coverProvider, playerController);
                 break;
+            case PENDELO: {
+                PendoloClockworkView.BassProvider bass = (bassProvider != null)
+                        ? bassProvider::getBassEnergy : null;
+                activePage = new PendoloEffectPage(host.getContext(), hub, coverProvider,
+                        playerController, bass);
+                break;
+            }
             case STARFIELD:
             default:
                 activePage = new StarfieldEffectPage(host.getContext(), hub, coverProvider, playerController);
@@ -153,9 +169,9 @@ public class LyricEffectManager {
         coverColorObserver = (top, bottom) -> {
             // 高亮色走播放页真值通道（下一帧拉取）
             applyCurrentHighlight();
-            // 流光氛围微尘直接吃封面双色（星空页无此通道则忽略）
-            LyricEffectPage p = activePage;
-            if (p instanceof GlowEffectPage) ((GlowEffectPage) p).onCoverColorsChanged(top, bottom);
+            // 氛围微尘直接吃封面双色（星空页无此需求则忽略）
+            if (activePage instanceof GlowEffectPage) ((GlowEffectPage) activePage).onCoverColorsChanged(top, bottom);
+            if (activePage instanceof PendoloEffectPage) ((PendoloEffectPage) activePage).onCoverColorsChanged(top, bottom);
         };
         hub.addCoverColorObserver(coverColorObserver);
     }

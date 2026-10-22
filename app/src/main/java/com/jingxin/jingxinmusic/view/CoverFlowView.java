@@ -28,6 +28,11 @@ import java.util.concurrent.Executors;
  * - 卡片仅探出屏幕底部约 1/3（方形卡，下半沉入屏幕底）
  * - 底部向上黑色渐隐遮罩：卡片"沉入"星空下方
  * - 喂图：Song 列表 → CoverLoader 异步加载（缓存目录命中快）
+ *
+ * 竖排链模式（setVerticalChainMode，时计页横屏专用）：
+ * - 卡片改为右缘竖排、逆时针 90°（卡顶朝左、链垂直展开）
+ * - 链总高占 70% 屏高（卡尺寸 = h*0.7/3.8），重叠 30% 同横排公式
+ * - 垂直中位，链顶/底自然落在弧轨开口递减区
  */
 public class CoverFlowView extends View {
 
@@ -38,7 +43,18 @@ public class CoverFlowView extends View {
 
     /** 封面卡点击（offset：-2/-1=左侧两卡，0=中心卡，+1/+2=右侧两卡） */
     public interface OnCoverTapListener { void onCoverTap(int offset); }
+
     private OnCoverTapListener tapListener;
+
+    /** 竖排链模式：横屏时封面流贴右缘竖排、逆时针 90°、链占 70% 屏高（时计页专用；竖屏忽略此模式） */
+    private boolean verticalChainMode = false;
+
+    public void setVerticalChainMode(boolean enabled) {
+        if (this.verticalChainMode != enabled) {
+            this.verticalChainMode = enabled;
+            invalidate();
+        }
+    }
     private int pressIdx = -1;
 
     public void setOnCoverTapListener(OnCoverTapListener l) { this.tapListener = l; }
@@ -234,6 +250,7 @@ public class CoverFlowView extends View {
     private int hitCardIndex(float x, float y) {
         if (w <= 0 || h <= 0) return -1;
         boolean portrait = h > w;
+        if (verticalChainMode && !portrait) return hitCardVertical(x, y);
         float flowW = w * (portrait ? 0.90f : 0.50f);
         float cardSize = Math.min(flowW / 3.8f, h * 0.30f);
         float step = cardSize * (1f - 0.30f);
@@ -249,16 +266,39 @@ public class CoverFlowView extends View {
         return -1;
     }
 
+    /** 竖排链命中：阳弧下沉后卡带是斜列，仍按卡中心（含右沉偏移）±size/2 方形域判断 */
+    private int hitCardVertical(float x, float y) {
+        float cardSize = h * 0.70f / 3.8f;
+        float step = cardSize * (1f - 0.30f);
+        float dropPerStep = cardSize * 0.20f;
+        float density = getResources().getDisplayMetrics().density;
+        float cx = w - cardSize / 2f - 6f * density;
+        float cy = h / 2f;
+        for (int idx : new int[]{2, 1, 3, 0, 4}) {
+            int off = idx - 2;
+            float size = cardSize * Math.max(0.92f, 1f + 0.06f * Math.max(0f, 1f - Math.abs(off)));
+            float py = cy + off * step;
+            float px = cx + Math.abs(off) * dropPerStep;
+            if (Math.abs(x - px) <= size / 2f && Math.abs(y - py) <= size / 2f) return idx;
+        }
+        return -1;
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (w <= 0 || h <= 0) return;
 
         float density = getResources().getDisplayMetrics().density;
+        boolean portrait = h > w;
+        if (verticalChainMode && !portrait) {
+            drawVerticalChain(canvas, density);
+            return;
+        }
+
         // 整体宽：横屏 50% 屏宽（参考图）；竖屏 90%（窄屏放大补偿），重叠 30%：
         // 总宽 = 卡宽 + 4×卡宽×(1-0.30) => 卡宽 = 整体宽 / (1 + 4×0.70) = W / 3.8
         // 垂直位置受屏高约束防溢出
-        boolean portrait = h > w;
         float flowW = w * (portrait ? 0.90f : 0.50f);
         float cardSize = Math.min(flowW / 3.8f, h * 0.30f);
         float overlap = cardSize * 0.30f;      // 水平重叠量
@@ -324,6 +364,73 @@ public class CoverFlowView extends View {
             maskPaint.setShader(new LinearGradient(0, maskTop, 0, h,
                     Color.argb(0, 2, 4, 10), Color.argb(235, 2, 4, 10), Shader.TileMode.CLAMP));
             canvas.drawRect(0, maskTop, w, h, maskPaint);
+        }
+    }
+
+    /**
+     * 竖排链（时计页横屏专用）：右贴 6dp、逆时针 90°（卡顶朝左），链垂直展开占 70% 屏高；
+     * 上下侧卡依次向页面右边下沉（阳弧：|offset| 越大越靠右，像链尾沉入侧壁）+ 角度归环
+     * （全部顺时针递增 ∓5/∓10：上尾逆摆、下尾顺摆，卷向一致）；垂直居中；右缘渐隐遮罩。
+     */
+    private void drawVerticalChain(Canvas canvas, float density) {
+        // 链总高 = h×70%：卡宽 + 4×卡宽×(1-0.30) = h*0.7 => 卡宽 = h*0.7/3.8
+        float cardSize = h * 0.70f / 3.8f;
+        float overlap = cardSize * 0.30f;
+        float step = cardSize - overlap;
+        float cx = w - cardSize / 2f - 6f * density;
+        float cy = h / 2f;
+
+        long nowMs = System.currentTimeMillis();
+        boolean rolling = rollAnimStart >= 0;
+        if (rolling && nowMs - rollAnimStart > rollTotalMs()) {
+            rolling = false;
+            rollAnimStart = -1L;
+        }
+        int[] drawOrder = new int[]{0, 4, 1, 3, 2};
+        for (int idx : drawOrder) {
+            int offset = idx - 2;
+            boolean isCenter = offset == 0;
+            float visualOffset = offset;
+            if (rolling) {
+                float t = rollProgress(idx, nowMs);
+                float eased = t * t * (3f - 2f * t);
+                visualOffset = (offset - rollFromOffset) + rollFromOffset * eased;
+                if (t < 1f) postInvalidateOnAnimation();
+            }
+            Bitmap src = rolling ? rollOldBitmaps[idx] : coverBitmaps[idx];
+            float scale = Math.max(0.92f, 1f + 0.06f * Math.max(0f, 1f - Math.abs(visualOffset)));
+            float size = cardSize * scale;
+            float py = cy + visualOffset * step;
+            // 阳弧下沉：侧卡依次向页面右边沉（横排 dropPerStep 的竖排等价：上/下两侧同向右沉）
+            float dropPerStep = cardSize * 0.20f;
+            float px = cx + Math.abs(visualOffset) * dropPerStep;
+            // 角度归环：全部顺时针递增（上尾 -90°∓5/∓10 微逆、下尾 -90°±微顺，卷向一致不乱）
+            float rotMag = Math.abs(visualOffset) <= 1f ? Math.abs(visualOffset) * 5f
+                    : 5f + (Math.abs(visualOffset) - 1f) * 5f;
+            float rotation = -90f + Math.signum(visualOffset) * rotMag;
+            if (!rolling && Math.abs(visualOffset) < 0.02f) {
+                rotation += centerSwayRotation(nowMs);
+                postInvalidateOnAnimation();
+            }
+            // 竖排：先按竖直链位画正立卡（锚点=卡底边；水平位含阳弧右沉），
+            // 再绕卡中心整体旋转（-90° 基础 + 微转）
+            float cardBottom = py + size / 2f; // 旋转前卡底边（竖直方向）
+            if (rotation != 0f) {
+                int sc = canvas.save();
+                canvas.rotate(rotation, px, py); // 卡中心 = (px, py)
+                drawCardInner(canvas, src, px, cardBottom, size, isCenter && !rolling, density);
+                canvas.restoreToCount(sc);
+            } else {
+                drawCardInner(canvas, src, px, cardBottom, size, isCenter && !rolling, density);
+            }
+        }
+
+        // 右缘向左渐隐遮罩（链沉入右侧）：仅盖外侧两卡右条带
+        float maskLeft = w - cardSize * 0.34f;
+        if (w - maskLeft > 2f) {
+            maskPaint.setShader(new LinearGradient(w, 0, maskLeft, 0,
+                    Color.argb(180, 2, 4, 10), Color.argb(0, 2, 4, 10), Shader.TileMode.CLAMP));
+            canvas.drawRect(maskLeft, 0, w, h, maskPaint);
         }
     }
 

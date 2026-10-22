@@ -95,8 +95,13 @@ public class PlayerFragment extends BaseFloatFragment {
     private SpectrumView spectrumView;
     
     private android.widget.PopupWindow effectPickerPopup; // 音效选择浮窗
-    private android.widget.PopupWindow lyricEffectPickerPopup; // 歌词动效选择浮窗（星空漫游/流光）
-    private static final String KEY_LYRIC_EFFECT_MODE = "lyric_effect_mode"; // 0=星空漫游 1=流光
+    private android.widget.PopupWindow lyricEffectPickerPopup; // 歌词动效选择浮窗（星空漫游/流光/时计）
+    private static final String KEY_LYRIC_EFFECT_MODE = "lyric_effect_mode"; // 0=星空漫游 1=流光 2=时计
+
+    // 低频能量包络（时计摆轮驱动；FFT 回调里累积，主线程读取）
+    private volatile float bassEnergySmoothed;
+    private long bassLastUpdateMs;
+    private static final long BASS_STALE_MS = 600L; // 停更后衰减到 0
 
     // 封面缓存：切歌时保持旧封面，避免「默认封面→真实封面」闪烁
     private boolean hasCoverLoaded = false; // 是否已有封面加载过
@@ -575,6 +580,11 @@ public class PlayerFragment extends BaseFloatFragment {
                     @Override public void togglePlayPause() { PlayerFragment.this.togglePlayPause(); }
                     @Override public void playNext() { PlayerFragment.this.playNext(); }
                 });
+        // 低频能量源（时计摆轮；无频谱时返 0，机芯恒速）
+        lyricEffectManager.setBassEnergyProvider(() -> {
+            if (System.currentTimeMillis() - bassLastUpdateMs > BASS_STALE_MS) return 0f;
+            return bassEnergySmoothed;
+        });
 
         if (rootFrameLayout != null) {
             rootFrameLayout.addOnLayoutChangeListener(
@@ -2000,10 +2010,11 @@ public class PlayerFragment extends BaseFloatFragment {
         }
         if (lyricEffectManager == null || lyricEffectManager.isActive()) return;
 
-        String[] names = {"星空漫游", "流光"};
+        String[] names = {"星空漫游", "流光", "时计"};
         final com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect[] effects = {
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD,
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.GLOW,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.PENDELO,
         };
 
         Context ctx = requireContext();
@@ -2471,6 +2482,27 @@ public class PlayerFragment extends BaseFloatFragment {
 
                         @Override
                         public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
+                            // 低频包络（时计摆轮）：前 4 个频段（低频）幅值均值，不依赖频谱开关
+                            float bassSum = 0;
+                            int bassN = 0;
+                            for (int i = 0; i < 4; i++) {
+                                int idx = (i + 1) * 2;
+                                if (idx + 1 < fft.length) {
+                                    byte real = fft[idx];
+                                    byte imaginary = fft[idx + 1];
+                                    bassSum += (float) Math.sqrt(real * real + imaginary * imaginary);
+                                    bassN++;
+                                }
+                            }
+                            if (bassN > 0) {
+                                // 归一到 0~1（byte 幅度上限 ~127*sqrt2≈180，取 /60 软钳）
+                                float b = Math.min(1f, (bassSum / bassN) / 60f);
+                                float prev = bassEnergySmoothed;
+                                // 快起慢落包络（attack 0.35 / release 0.15 每 20ms 采样近似）
+                                bassEnergySmoothed = b > prev ? prev + (b - prev) * 0.45f : prev + (b - prev) * 0.18f;
+                                bassLastUpdateMs = System.currentTimeMillis();
+                            }
+
                             if (!spectrumRunning || spectrumView == null) return;
 
                             // BD 方式：FFT 1:1 取幅度，竖条模式只取半数频段（会镜像展开）
