@@ -16,14 +16,13 @@ import com.jingxin.jingxinmusic.view.PendoloClockworkView;
  *
  * 生命周期：attach = 挂宿主容器淡入 + 订阅 Hub 灌数据；detach = 淡出退订移除。
  * 效果注册：EFFECT 枚举 + attach switch 分发；现有星空漫游 STARFIELD / 流光 GLOW /
- * 时计 PENDELO / 心象 CADENZA / 倾诉 TILT / 云阶 PARTITA / 回环 CLADDAGH /
- * 浮名 FUME。
+ * 时计 PENDELO / 心象 CADENZA / 倾诉 TILT / 云阶 PARTITA / 浮名 FUME。
  * 线程：全部主线程（Hub 回调即主线程）。
  */
 public class LyricEffectManager {
 
     /** 效果枚举（将来胶片/森林/雨滴同法扩） */
-    public enum Effect { STARFIELD, GLOW, PENDELO, CADENZA, TILT, PARTITA, CLADDAGH, FUME }
+    public enum Effect { STARFIELD, GLOW, PENDELO, CADENZA, TILT, PARTITA, FUME }
 
     /** 低频能量提供者（时计摆轮驱动；无频谱环境返回 0，机芯恒速） */
     public interface BassEnergyProvider { float getBassEnergy(); }
@@ -114,9 +113,6 @@ public class LyricEffectManager {
             case PARTITA:
                 activePage = new PartitaEffectPage(host.getContext(), hub, coverProvider, playerController);
                 break;
-            case CLADDAGH:
-                activePage = new CladdaghEffectPage(host.getContext(), hub, coverProvider, playerController);
-                break;
             case FUME:
                 activePage = new FumeEffectPage(host.getContext(), hub, coverProvider, playerController);
                 break;
@@ -193,7 +189,6 @@ public class LyricEffectManager {
             // 氛围微尘直接吃封面双色（星空页无此需求则忽略）
             if (activePage instanceof GlowEffectPage) ((GlowEffectPage) activePage).onCoverColorsChanged(top, bottom);
             if (activePage instanceof PendoloEffectPage) ((PendoloEffectPage) activePage).onCoverColorsChanged(top, bottom);
-            if (activePage instanceof CladdaghEffectPage) ((CladdaghEffectPage) activePage).onCoverColorsChanged(top, bottom);
         };
         hub.addCoverColorObserver(coverColorObserver);
     }
