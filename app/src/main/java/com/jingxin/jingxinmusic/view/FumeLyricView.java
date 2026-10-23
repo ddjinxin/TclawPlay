@@ -141,6 +141,8 @@ public class FumeLyricView extends View {
     }
 
     // ===== 相机状态（fumeCameraStep 直译）=====
+    private boolean overviewNow;
+    private Block currentFocusBlock;   // 本帧焦点块（onDraw 中非焦点块整体淡化）
     private static final class Camera {
         float x, y, velX, velY, focusX, focusY, scale = 1f, velScale, focusScale = 1f;
     }
@@ -318,6 +320,7 @@ public class FumeLyricView extends View {
         article = a;
         layoutDirty = false;
         camInitialized = false;
+        currentFocusBlock = null; // 布局重建后旧块引用失效，等 step 重算
     }
 
     private static float gapOf(float paperWidth, int columns) {
@@ -732,6 +735,8 @@ public class FumeLyricView extends View {
         float cameraSpeed = 1f;
 
         if (showOverview) {
+            overviewNow = true;
+            currentFocusBlock = null; // 全景时取消淡化：整篇均匀呈现（原版 overviewTextRestore）
             float[] ov = resolveOverviewCamera();
             targetX = ov[0]; targetY = ov[1]; targetScale = ov[2];
             if (ret.sourceLineIndex != OVERVIEW_SOURCE) {
@@ -743,7 +748,9 @@ public class FumeLyricView extends View {
                 didRetarget = true;
             }
         } else {
+            overviewNow = false;
             Block focus = resolveFocusBlock(lineIdx, time);
+            currentFocusBlock = focus;
             if (focus != null) {
                 // 焦点：smooth=打印进度小数偏移行内点（跨行混合）/ stepped=整数字素宽度步进
                 float[] fp = cameraTrackingMode == 1
@@ -1146,13 +1153,16 @@ public class FumeLyricView extends View {
             float sBottom = sTop + block.height * screenScale;
             if (sRight < -180f || sLeft > w + 180f || sBottom < -180f || sTop > h + 180f) continue;
 
-            drawBlock(canvas, block, time, activeGlowBoost, passedGlowBase);
+            drawBlock(canvas, block, time, activeGlowBoost, passedGlowBase,
+                    block == currentFocusBlock);
         }
         canvas.restoreToCount(sc);
     }
 
-    /** 单块渲染（fumeBlockFrame + fumeCanvasText 直译：同态段合批 + 每字素印章 + cutoff 快进） */
-    private void drawBlock(Canvas canvas, Block block, float time, float activeGlowBoost, float passedGlowBase) {
+    /** 单块渲染（fumeBlockFrame + fumeCanvasText 直译：同态段合批 + 每字素印章 + cutoff 快进）；
+     *  非焦点块整体乘淡化系数（确定性随机 20%~50%，当前句满亮突出） */
+    private void drawBlock(Canvas canvas, Block block, float time, float activeGlowBoost, float passedGlowBase,
+                           boolean isFocus) {
         KrcParser.LyricLine line = block.line;
         LineMeasures m = block.measures;
         int li = block.sourceLineIndex;
@@ -1164,10 +1174,16 @@ public class FumeLyricView extends View {
         float lineDuration = Math.max(lineEnd - start, 0.18f);
         float colorTrailDuration = clamp(lineDuration * (block.hero ? 0.42f : 0.52f), 0.45f, 1.45f);
 
-        float waitingOpacity = block.hero ? 0.06f : 0.035f;
-        float activeOpacity = block.hero ? 0.985f : 0.92f;
+        // 非焦点块整体淡化：seeded(文本:行号) 确定性随机 20%~50%（同款文章每次同亮度）
+        float dim = isFocus ? 1f
+                : 0.20f + seeded((line.text != null ? line.text : "") + ":" + li) * 0.30f;
+
+        float waitingOpacity = (block.hero ? 0.06f : 0.035f) * dim;
+        float activeOpacity = (block.hero ? 0.985f : 0.92f) * dim;
         // passed 样式（textHoldRatio=1 → standard）
-        float passedOpacity = block.hero ? 0.74f : 0.58f;
+        float passedOpacity = (block.hero ? 0.74f : 0.58f) * dim;
+        activeGlowBoost *= dim;
+        passedGlowBase *= dim;
 
         boolean isLineActive = time >= start && time <= passCutoff;
         boolean hasRevealCompleted = time >= lineEnd;
@@ -1204,7 +1220,7 @@ public class FumeLyricView extends View {
         if (isLineActive) {
             float lineProgress = clamp((time - start) / Math.max(passCutoff - start, 0.18f), 0f, 1f);
             float envelope = delayedGlowEnvelope(lineProgress, 0.8f);
-            float glowAlpha = (block.hero ? 0.16f : 0.12f) + envelope * (block.hero ? 0.26f : 0.2f);
+            float glowAlpha = ((block.hero ? 0.16f : 0.12f) + envelope * (block.hero ? 0.26f : 0.2f)) * dim;
             float glowBlur = (block.hero ? 12f : 8f) + envelope * block.fontPx * (block.hero ? 0.7f : 0.52f);
             textPaint.setShadowLayer(glowBlur, 0, 0, withAlpha(colorAccent, glowAlpha));
             textPaint.setColor(withAlpha(colorAccent, glowAlpha));

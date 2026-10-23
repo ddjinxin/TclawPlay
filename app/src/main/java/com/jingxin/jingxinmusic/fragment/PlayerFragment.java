@@ -2034,7 +2034,7 @@ public class PlayerFragment extends BaseFloatFragment {
         boolean landscape = getLayoutWidth() > viewH * 1.2f;
         float sf = Math.max(1f, viewH * (landscape ? 0.03f : 0.0188f) / basePx);
 
-        // 容器（与音效弹窗同规格：左直角右圆角 20% 黑）
+        // 容器（与音效弹窗同规格：左直角右圆角 20% 黑）：标题固定 + 选项区可滚
         android.widget.LinearLayout container = new android.widget.LinearLayout(ctx);
         container.setOrientation(android.widget.LinearLayout.VERTICAL);
         container.setPadding(
@@ -2053,6 +2053,10 @@ public class PlayerFragment extends BaseFloatFragment {
         title.setGravity(android.view.Gravity.CENTER);
         title.setPadding(0, 0, 0, (int)(12 * density * sf));
         container.addView(title);
+
+        // 选项列表（独立 LinearLayout：仅此区可滚动，标题钉在顶部）
+        android.widget.LinearLayout list = new android.widget.LinearLayout(ctx);
+        list.setOrientation(android.widget.LinearLayout.VERTICAL);
 
         for (int i = 0; i < names.length; i++) {
             final int pick = i;
@@ -2085,7 +2089,29 @@ public class PlayerFragment extends BaseFloatFragment {
                     lyricEffectManager.attach(effects[pick]);
                 }
             });
-            container.addView(item);
+            list.addView(item);
+        }
+
+        // 选项滚动区（仅列表）：高度上限 = 页面可用高 80% - 标题占用，超出内部滚动
+        int maxListH = (int) (viewH * 0.80f);
+        android.widget.ScrollView scroller = new android.widget.ScrollView(ctx);
+        scroller.setFillViewport(false);
+        scroller.setOverScrollMode(android.view.View.OVER_SCROLL_NEVER);
+        scroller.addView(list, new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT));
+        container.addView(scroller, new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+        // 提前量列表内容高：超出上限则把 ScrollView 裁到余量（标题不滚，弹窗 80% 上限内整体居中）
+        list.measure(android.view.View.MeasureSpec.UNSPECIFIED, android.view.View.MeasureSpec.UNSPECIFIED);
+        int contentH = list.getMeasuredHeight();
+        int maxScrollH = maxListH - titleBottomSpace(density * sf);
+        if (contentH > maxScrollH) {
+            android.widget.LinearLayout.LayoutParams sLp =
+                    (android.widget.LinearLayout.LayoutParams) scroller.getLayoutParams();
+            sLp.height = maxScrollH;
+            scroller.setLayoutParams(sLp);
         }
 
         lyricEffectPickerPopup = new android.widget.PopupWindow(container,
@@ -2105,6 +2131,11 @@ public class PlayerFragment extends BaseFloatFragment {
     /**
      * 弹出歌词搜索浮窗：加载状态 → 候选列表 → 点击下载
      */
+    private int titleBottomSpace(float scaledDensityPx) {
+        // 标题行高 + 标题底 padding + 容器上下 padding（列表区可用高扣除项）
+        return (int) ((18 * 1.6f + 12 + 20) * scaledDensityPx);
+    }
+
     private void showLyricSearchPopup() {
         if (lyricSearchPopup != null && lyricSearchPopup.isShowing()) {
             lyricSearchPopup.dismiss();
