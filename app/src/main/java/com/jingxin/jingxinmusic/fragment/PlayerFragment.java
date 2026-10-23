@@ -2010,7 +2010,7 @@ public class PlayerFragment extends BaseFloatFragment {
         }
         if (lyricEffectManager == null || lyricEffectManager.isActive()) return;
 
-        String[] names = {"星空漫游", "流光", "时计", "心象", "倾诉", "云阶"};
+        String[] names = {"星空漫游", "流光", "时计", "心象", "倾诉", "云阶", "回环"};
         final com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect[] effects = {
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD,
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.GLOW,
@@ -2018,6 +2018,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.CADENZA,
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.TILT,
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.PARTITA,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.CLADDAGH,
         };
 
         Context ctx = requireContext();
