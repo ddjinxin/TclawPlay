@@ -78,6 +78,9 @@ public class CoverFlowView extends View {
     // 右侧依次跟上；动画结束帧无缝切到新位图集（双缓冲不闪占位卡）
     private static final long ROLL_MS = 5200L;    // 单卡滑动时长（再放慢一倍）
     private static final long ROLL_STAGGER_MS = 1280L; // 相邻卡顺次延迟（接力波浪拉开）
+    /** Android 9 以下关闭切歌轮转动画：老设备直接落位（掩码渐隐+软件层每帧
+     *  重绘 5 张带旋转缩放的卡开销偏高，瀑布图易掉帧） */
+    private static final boolean ROLL_ANIM_ENABLED = android.os.Build.VERSION.SDK_INT >= 28;
     private long rollAnimStart = -1L;
     private int rollFromOffset = 0;  // 动画起点：+1=新队列从右侧来（全队左移），-1=反向
     private final Bitmap[] rollOldBitmaps = new Bitmap[CARD_COUNT]; // 动画帧用的旧队列位图
@@ -124,7 +127,7 @@ public class CoverFlowView extends View {
         // 首次进入/大跳/列表顺序变化=不动画直接落位。
         // 位图双缓冲：动画帧用旧位图（不闪占位卡）；新位图静默加载存槽、动画结束生效
         boolean rolling = false;
-        if (lastCenter >= -1 && lastCenter < list.size() && center != lastCenter) {
+        if (ROLL_ANIM_ENABLED && lastCenter >= -1 && lastCenter < list.size() && center != lastCenter) {
             int delta = center - lastCenter;
             if (delta == 1 || delta == -1) {
                 rollFromOffset = delta;
