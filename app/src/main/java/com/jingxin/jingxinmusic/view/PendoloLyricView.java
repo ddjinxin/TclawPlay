@@ -3,7 +3,6 @@ package com.jingxin.jingxinmusic.view;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Shader;
 import android.util.AttributeSet;
@@ -50,6 +49,11 @@ public class PendoloLyricView extends View {
     private static final float TEXT_ROTATION_CORRECTION = 0.65f; // 文字差速回摆比（folia -0.65×轮角）
 
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    // 扫字段零分配复用（车机 8.1 老驱动每帧 new Path 会累积 GPU 资源）；
+    // 软边不再用 LinearGradient（LinearGradient 位置是构造参数，
+    // 帧帧位置变化无法复用实例），改 edge 段三档透明度阶梯叠画
+    private final android.graphics.Path clipPath = new android.graphics.Path();
 
     private List<KrcParser.LyricLine> lines = Collections.emptyList();
     private int targetIndex = -1;       // 目标行（进度判定）
@@ -391,10 +395,10 @@ public class PendoloLyricView extends View {
             // 已扫满段：硬边 + 满亮色（副歌扫字色=fillColor 染深）
             if (fill > edge) {
                 int sc2 = canvas.save();
-                android.graphics.Path solid = new android.graphics.Path();
-                solid.addRect(startX - 6f, textTop,
+                clipPath.reset();
+                clipPath.addRect(startX - 6f, textTop,
                         startX + fill - edge, textBottom, android.graphics.Path.Direction.CW);
-                canvas.clipPath(solid);
+                canvas.clipPath(clipPath);
                 if (!chorus) {
                     textPaint.setColor(withAlpha(colorAccent, alpha));
                     canvas.drawText(text, x, baseline, textPaint);
@@ -411,19 +415,27 @@ public class PendoloLyricView extends View {
                 }
                 canvas.restoreToCount(sc2);
             }
-            // 前锋软边：edge 段满亮 → 透明的像素级渐隐（shader 直接作用于文字，等效 mask）
+            // 前锋软边：edge 段三档透明度阶梯叠画近似像素级渐隐（零分配，无 shader）
             int sc3 = canvas.save();
-            android.graphics.Path soft = new android.graphics.Path();
-            soft.addRect(startX + fill - edge, textTop,
+            clipPath.reset();
+            clipPath.addRect(startX + fill - edge, textTop,
                     startX + fill + edge, textBottom, android.graphics.Path.Direction.CW);
-            canvas.clipPath(soft);
+            canvas.clipPath(clipPath);
             int sweepColor = chorus ? fillColor : colorAccent;
-            textPaint.setShader(new LinearGradient(startX + fill - edge, 0f,
-                    startX + fill + edge, 0f,
-                    withAlpha(sweepColor, alpha), 0x00000000, Shader.TileMode.CLAMP));
-            textPaint.setColor(withAlpha(sweepColor, alpha));
-            canvas.drawText(text, x, baseline, textPaint);
-            textPaint.setShader(null);
+            textPaint.setShadowLayer(0, 0, 0, 0);
+            // 3 级阶梯：0~edge/3 展不透明，逐级递减 → 连续渐隐观感（edge≤16px 细粒度）
+            for (int k = 0; k < 3; k++) {
+                int sc4 = canvas.save();
+                clipPath.reset();
+                float kx = startX + fill - edge + edge * (k + 1) / 3f;
+                clipPath.addRect(startX + fill - edge, textTop, kx, textBottom,
+                        android.graphics.Path.Direction.CW);
+                canvas.clipPath(clipPath);
+                float kAlpha = alpha * (1f - k / 3f); // 1.0 / 0.67 / 0.33 递减
+                textPaint.setColor(withAlpha(sweepColor, kAlpha));
+                canvas.drawText(text, x, baseline, textPaint);
+                canvas.restoreToCount(sc4);
+            }
             canvas.restoreToCount(sc3);
 
             textPaint.setShadowLayer(0, 0, 0, 0);

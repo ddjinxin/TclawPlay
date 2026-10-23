@@ -70,6 +70,9 @@ public class PendoloClockworkView extends View {
     private void init() {
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeCap(Paint.Cap.ROUND);
+        // 软件绘制：纯线框 stroke 软绘无 tessellate，规避 8.1 车机 HWUI/驱动退化
+        // （现象：硬绘下长跑后逐步丢弃绘制 op，机芯只剩最先画的两个齿轮）
+        setLayerType(LAYER_TYPE_SOFTWARE, null);
     }
 
     // ===== 对外接口 =====
@@ -201,8 +204,8 @@ public class PendoloClockworkView extends View {
                 -escapementAngle * 2.5f, aA72, null);
         drawJewel(canvas, centerX, centerY, 4.5f, 2.5f);
 
-        // 4. 行星轮 ×3（轨道 0.52R，反转 3× + 相位差）
-        float orbitR = baseRadius * 0.52f, planetR = baseRadius * 0.13f;
+        // 4. 行星轮 ×3（轨道 0.52R，反转 3× + 相位差；folia planetR=0.16R）
+        float orbitR = baseRadius * 0.52f, planetR = baseRadius * 0.16f;
         float orbitBase = escapementAngle * 0.4f;
         for (int i = 0; i < 3; i++) {
             float pa = orbitBase + (i * (float) (Math.PI * 2)) / 3f;
@@ -213,9 +216,9 @@ public class PendoloClockworkView extends View {
             drawJewel(canvas, px, py, 3.5f, 1.8f);
         }
 
-        // 5. 摆轮（左上，0.28R，慢速常转）+ 游丝（低频摆动）+ 宝石
+        // 5. 摆轮（folia anchors：+0.20R/−0.75R，慢速常转）+ 游丝（低频摆动）+ 宝石
         float bR = baseRadius * 0.28f;
-        float bCx = centerX + baseRadius * 0.30f - bR * 1.05f, bCy = centerY - baseRadius * 0.62f;
+        float bCx = centerX + baseRadius * 0.20f, bCy = centerY - baseRadius * 0.75f;
         float balanceAngle = phase * 0.1f;
         paint.setStrokeWidth(2.1f);
         drawGear(canvas, bCx, bCy, bR, 20, 7f, balanceAngle, aA72, withAlpha(accentColor, 0.10f * m));
@@ -226,9 +229,9 @@ public class PendoloClockworkView extends View {
                 bass * 0.6f + balanceAngle * 0.3f, withAlpha(accentColor, 0.30f * m));
         drawJewel(canvas, bCx, bCy, 3.5f, 1.8f);
 
-        // 6. 传动轮（左下 0.34R，-1.4×）+ 辐条 + 日内瓦条纹
+        // 6. 传动轮（folia anchors：+0.32R/+0.78R，-1.4×）+ 辐条 + 日内瓦条纹
         float tR = baseRadius * 0.34f;
-        float tCx = centerX + baseRadius * 0.14f, tCy = centerY + baseRadius * 0.72f;
+        float tCx = centerX + baseRadius * 0.32f, tCy = centerY + baseRadius * 0.78f;
         float transAngle = -escapementAngle * 1.4f;
         paint.setStrokeWidth(1.8f);
         drawGear(canvas, tCx, tCy, tR, 24, 7f, transAngle, pA42, null);
@@ -236,19 +239,20 @@ public class PendoloClockworkView extends View {
         drawGenevaStripes(canvas, tCx, tCy, tR, transAngle, pA10, withAlpha(primaryColor, 0.06f * m));
         drawJewel(canvas, tCx, tCy, 3.5f, 1.8f);
 
-        // 7. 秒轮（每播放秒走一齿）+ 辐条
+        // 7. 秒轮（folia anchors：+0.68R/+0.76R，每播放秒走一齿）+ 辐条
         long sec = positionMs > 0 ? positionMs / 1000L : 0L;
         float sR = baseRadius * 0.16f;
-        float sCx = centerX + baseRadius * 0.62f, sCy = centerY + baseRadius * 0.46f;
+        float sCx = centerX + baseRadius * 0.68f, sCy = centerY + baseRadius * 0.76f;
         float secondAngle = (sec % 15) * ((float) (Math.PI * 2) / 15f); // 15 齿轮，秒走一齿
         paint.setStrokeWidth(1.8f);
         drawGear(canvas, sCx, sCy, sR, 15, 5f, secondAngle, aA58, withAlpha(accentColor, 0.06f * m));
         drawSpokedWheel(canvas, sCx, sCy, sR * 0.28f, sR * 0.76f, 4, -secondAngle, pA32);
         drawJewel(canvas, sCx, sCy, 2.8f, 1.5f);
 
-        // 8. 介轮（0.08R，2.2× 快转）
+        // 8. 介轮（folia：传动/秒轮中点 +0.04R/−0.02R，0.08R，2.2× 快转）
         float iR = baseRadius * 0.08f;
-        float iCx = centerX + baseRadius * 0.42f, iCy = centerY + baseRadius * 0.66f;
+        float iCx = (tCx + sCx) * 0.5f + baseRadius * 0.04f;
+        float iCy = (tCy + sCy) * 0.5f - baseRadius * 0.02f;
         paint.setStrokeWidth(1.3f);
         drawGear(canvas, iCx, iCy, iR, 10, 3.5f, escapementAngle * 2.2f, pA28, null);
         paint.setColor(pA18);
