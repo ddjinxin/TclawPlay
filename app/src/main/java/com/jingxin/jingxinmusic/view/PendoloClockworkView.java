@@ -40,9 +40,8 @@ public class PendoloClockworkView extends View {
     private float springTarget;
     private static final float SPRING_K = 360f, SPRING_D = 20f, SPRING_M = 0.8f;
 
-    // 摆轮相位（慢速常转用）
+    // 帧时钟（dt 累计用）
     private long lastFrameNs = -1L;
-    private float phase;
     private boolean running = false;
 
     // 进度（秒轮）
@@ -54,7 +53,7 @@ public class PendoloClockworkView extends View {
             if (!running) return;
             long deltaNs = lastFrameNs < 0 ? 0 : frameTimeNanos - lastFrameNs;
             lastFrameNs = frameTimeNanos;
-            float dt = Math.min(0.064f, deltaNs / 1_000_000_000f);
+            float dt = Math.min(0.032f, deltaNs / 1_000_000_000f); // 同歌词端：RK4 小步长稳定域内
             step(dt);
             invalidate();
             Choreographer.getInstance().postFrameCallback(this);
@@ -96,11 +95,27 @@ public class PendoloClockworkView extends View {
     // ===== 弹簧步进 =====
 
     private void step(float dt) {
-        // 半隐式欧拉：欠阻尼弹簧追目标（角步进由文本端换算，这里只出弹簧值）
-        float f = -SPRING_K * (springPos - springTarget) - SPRING_D * springVel;
-        springVel += (f / SPRING_M) * dt;
-        springPos += springVel * dt;
-        phase += dt;
+        // RK4（与 PendoloLyricView 同款）：原半隐式欧拉在 dt 钳满 0.064 时
+        // 离散特征值 |λ|≈1.48>1（车机进入期帧间隔 83~583ms 全部钳满），
+        // 每帧放大 1.48 倍 → springPos 爆到 10^16+（日志实锤）→ float 溢出 NaN
+        // → onDraw 早退 → 整个机芯消失且永不自愈。RK4 在同参数下收敛无发散。
+        float x = springPos, v = springVel;
+        float h = dt / 2f;
+        float k1x = v, k1v = accel(x, v);
+        float k2x = v + h * k1v, k2v = accel(x + h * k1x, v + h * k1v);
+        float k3x = v + h * k2v, k3v = accel(x + h * k2x, v + h * k2v);
+        float k4x = v + dt * k3v, k4v = accel(x + dt * k3x, v + dt * k3v);
+        springPos = x + (dt / 6f) * (k1x + 2f * k2x + 2f * k3x + k4x);
+        springVel = v + (dt / 6f) * (k1v + 2f * k2v + 2f * k3v + k4v);
+        // 非有限值兑底自愈：就算未来再遇到极端环境，机芯也不会永久消失
+        if (springPos != springPos || springVel != springVel || Math.abs(springPos) > 10000f) {
+            springPos = springTarget;
+            springVel = 0f;
+        }
+    }
+
+    private float accel(float x, float v) {
+        return (-SPRING_K * (x - springTarget) - SPRING_D * v) / SPRING_M;
     }
 
     /** 当前棘轮弹簧值（LyricView 布局用同一值保持轮与轨道咬合） */
@@ -138,7 +153,7 @@ public class PendoloClockworkView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (baseRadius <= 0) return;
+        if (baseRadius <= 0 || springPos != springPos) return;
 
         float m = 1f; // subtle 档装饰透明度乘子（folia subtle≈0.55，full=1；保持 subtle）
         int pA10 = withAlpha(primaryColor, 0.10f * m), pA15 = withAlpha(primaryColor, 0.15f * m);
