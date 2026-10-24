@@ -418,14 +418,23 @@ public class UpdateHelper {
                 return true;
             }
             Log.w(TAG, "Gitee 下载失败，尝试 GitHub 镜像");
-            // Gitee 失败，转 GitHub
-            String githubUrl = downloadUrl.contains("gitee.com") ?
-                    "https://github.com/" + REPO_OWNER + "/" + REPO_NAME +
-                    "/releases/download/" + extractVersionFromUrl(downloadUrl) + "/app-release.apk" : null;
-            if (githubUrl != null) {
-                return downloadFromGithubMirrors(githubUrl);
+            // Gitee 失败，转 GitHub。文件名从原 URL 提取（Gitee 与 GitHub 附件名一致时直接命中，
+            // 不一致时回退 GitHub latest API 拿真实资产名，避免硬编码旧文件名 404）
+            String fileName = extractFileNameFromUrl(downloadUrl);
+            String githubUrl = "https://github.com/" + REPO_OWNER + "/" + REPO_NAME +
+                    "/releases/download/" + extractVersionFromUrl(downloadUrl) + "/" + fileName;
+            if (tryDownload(githubUrl, getUpdateFile().getAbsolutePath(), 20000)) {
+                Log.i(TAG, "GitHub 直接下载成功");
+                return true;
             }
-            return false;
+            // 直链未命中（两平台文件名不同），查 GitHub latest API 取真实附件名重试
+            ReleaseInfo latest = fetchFromApi(GITHUB_API_URL, false);
+            if (latest != null && latest.downloadUrl != null
+                    && tryDownload(latest.downloadUrl, getUpdateFile().getAbsolutePath(), 20000)) {
+                Log.i(TAG, "GitHub API 附件下载成功");
+                return true;
+            }
+            return downloadFromGithubMirrors(githubUrl);
         }
 
         // GitHub 下载：走镜像测速
@@ -470,6 +479,17 @@ public class UpdateHelper {
         int end = url.indexOf("/", start);
         if (end < 0) return "";
         return url.substring(start, end);
+    }
+
+    /** 从下载 URL 中提取文件名（最后一个 / 之后的部分，URL 解码） */
+    private String extractFileNameFromUrl(String url) {
+        int idx = url.lastIndexOf('/');
+        String name = idx >= 0 ? url.substring(idx + 1) : "app-release.apk";
+        if (name.isEmpty()) name = "app-release.apk";
+        try {
+            name = java.net.URLDecoder.decode(name, "UTF-8");
+        } catch (Exception ignored) {}
+        return name;
     }
 
     /** 构造镜像 URL */
