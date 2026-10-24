@@ -9,6 +9,7 @@ import android.content.IntentFilter;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 
 import android.os.Environment;
@@ -121,7 +122,9 @@ public class App extends Application {
                         isForeground = false;
                         return;
                     }
-                    // 延迟300ms确认是否真的进后台，避免Activity切换时序问题导致误判
+                    // 延迟2秒确认是否真的进后台。去抖必须长于分屏/窗口重排的stop→start
+                    // 间隙（乐酷调分屏实测1~2秒），否则误判进后台触发悬浮窗启停风暴；
+                    // 真进后台时仅晚1.7秒出悬浮窗，无感
                     pendingStartFloat = () -> {
                         if (activityCount <= 0 && isForeground) {
                             isForeground = false;
@@ -129,7 +132,7 @@ public class App extends Application {
                         }
                         pendingStartFloat = null;
                     };
-                    handler.postDelayed(pendingStartFloat, 300);
+                    handler.postDelayed(pendingStartFloat, 2000);
                 }
             }
 
@@ -141,7 +144,17 @@ public class App extends Application {
         });
     }
 
+    // 悬浮窗启动节流窗口：防止分屏连续调整时启停交错（避免stopSelf销毁延迟窗口内
+    // 再次startForegroundService，旧版无onStartCommand兜底时会5秒超时杀进程）
+    private static final long FLOAT_START_THROTTLE_MS = 2000;
+    private long lastFloatStartAt = 0L;
+
     private void startFloatService(Context context) {
+        // 启动节流：距上次启动不足2秒跳过，与后台判定去抖同窗口
+        if (SystemClock.uptimeMillis() - lastFloatStartAt < FLOAT_START_THROTTLE_MS) {
+            return;
+        }
+        lastFloatStartAt = SystemClock.uptimeMillis();
         // 检查悬浮窗开关
         if (!com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(context)) {
             return;

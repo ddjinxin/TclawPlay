@@ -260,6 +260,10 @@ public class MiniFloatService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // 兜底：Service 实例已存在时（如 closeFloat 的 stopSelf 延迟窗口期内被再次
+        // startForegroundService），系统只投递 onStartCommand 不走 onCreate，
+        // 若不在此补调 startForeground，5 秒后必抛 RemoteServiceException 杀进程
+        CompatUtil.safeStartForeground(this, NOTIFICATION_ID, buildNotification());
         return START_NOT_STICKY;
     }
 
