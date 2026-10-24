@@ -28,7 +28,36 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.8.2)
+## 📢 最新版本 (v1.0.9.0)
+
+### v1.0.9.0 (2026-10)
+#### 大改点（对照 v1.0.8.2）
+
+**① 歌词动效体系：2 种 → 8 种（移植 folia visualizer 全家桶）**
+
+以 folia 开源项目为蓝本全保真移植，八种逐字动效统一驱动引擎（KRC 逐字时间驱动，无逐字歌词时优雅降级）。
+
+- **流光（Glow）** — folia classic 逐词三态点亮机（waiting/active/passed），含由远及近景深光尘氛围底
+- **时计（Pendolo）** — 左侧机械机芯擒纵轮系+宝石轴承，右侧弧形歌词轨；副歌扫字染深/双层辉光/行背光，超宽缩字不折行
+- **心象（Cadenza）** — 词云爆发+主角词碰撞散布，歌词变成一颗颗飞散的心象记忆
+- **倾诉（Tilt）** — 斜体独白风，逐段揭示+字级余晖衰减
+- **云阶（Partita）** — 语义单元切分+多列阶梯排布+L 形引导线，块内逐词点亮
+- **浮名（Fume）** — 整曲排成一篇竖排文章，相机运镜扫读
+- **镜台（Diorama）** — 越野式蜿蜒走廊逐句推进，13 种电影运镜，切歌 3.2s 飞行过渡，尘埃粒子+深度雾
+
+统一交互：长按歌词进入/单击退出，动效页统一封面流控制（左二上一曲/中心暂停/右二下一曲）、高亮色随封面双色刷新、日夜模式自动适配、动效页统一星空背景。
+
+**② 播放页风格架构整合**
+
+经典/沉浸/唱机/轮播四风格从"各写各的"整合为平等继承 StandardPageBase 基座，顶栏括件化为 PlayerTopBar，StagePage 协议统一分发（ensurePage 工厂+activePage 多态），频谱跨风格适配升级：不支持环类频谱样式时自动归位竖条并持久化。架构整体减重构近 800 行，而四种风格视觉效果不变。
+
+**③ 修复与体验优化**
+
+- **乐酷分屏崩溃根治** — 乐酷桌面分屏内调整分屏大小时，静心音乐进程被 RemoteServiceException 杀死黑屏；三层修复：后台判定去抖 300ms→2000ms（不再把分屏重排误判为进后台）、悬浮窗启停 2 秒节流、MiniFloatService onStartCommand 兑底 startForeground（前台服务标准写法），乐酷上切其他应用时独立悬浮窗照常出现
+- **时计车机 8.1 渲染稳定性** — 机芯弹簧积分器在车机低帧率下发散致机芯逐渐消失（pos 爆炸→NaN→view 不再绘制）；换 RK4 积分器（同手感）+NaN 自愈兑底
+- **当前行逐字脉冲/新句落入动效** — 逐字脉冲时长取本字真实演唱段（260~700ms）、新句落入改欠阻尼弹簧（落位 12% 过冲回弹）
+- **动效选择弹窗滚动** — 仅选项区可滚、标题钉顶、80% 屏高上限，修复车机横屏末尾选项不可选
+- **移除回环动效** — 实践发现与倾听场景不搭，弹窗回到 7 项
 
 ### v1.0.8.2 (2026-10)
 #### 优化
@@ -221,7 +250,36 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.8.2)
+## 📢 Latest Version (v1.0.9.0)
+
+### v1.0.9.0 (2026-10)
+#### Major Changes (vs v1.0.8.2)
+
+**① Lyric Effects: 2 → 8 (full folia visualizer family port)**
+
+Faithful port of the folia open-source project — eight per-word lyric effects (Starfield included), driven by KRC per-char timing with graceful fallback.
+
+- **Glow** — folia classic per-word three-state engine (waiting/active/passed) with depth-of-field ambient dust
+- **Pendolo** — mechanical escapement gear core + arc lyric track; chorus word-sweep deepening, dual-layer glow, row backlight, no-wrap autoshrink for long lines
+- **Cadenza** — word-cloud burst with protagonist-word collision scatter
+- **Tilt** — italic monologue style, per-paragraph reveal + char-level afterglow decay
+- **Partita** — semantic-unit splitting, multi-column stairway, L-shaped guide lines, per-word in-chunk highlight
+- **Fume** — whole song set as a vertical article with camera dolly reading
+- **Diorama** — winding corridor advancing line by line, 13 cinematic shot types, 3.2s flight transition on song change, dust particles + depth fog
+
+Unified interaction: long-press lyrics to enter, single-tap to exit; cover-flow control (left two = prev / center = play-pause / right two = next), highlight color adapts to album cover dual colors, day/night auto theme, starfield background on all effect pages.
+
+**② Player Page Style Architecture Consolidation**
+
+Classic / Immersive / Turntable / Carousel styles unified into StandardPageBase equal inheritance; top bar componentized as PlayerTopBar; StagePage protocol with ensurePage factory + activePage polymorphic dispatch; spectrum cross-style adaptation: ring-style fallback to bars with persistence. Nearly 800 lines removed with visual parity.
+
+**③ Fixes & Polish**
+
+- **Leco split-screen crash fixed** — App process killed by RemoteServiceException when resizing split-screen in Leco launcher, black screen; three-layer fix: background-detection debounce 300ms→2000ms (no longer misjudging split-screen reflow as background), float-window start/stop 2s throttle, MiniFloatService onStartCommand startForeground safety net — independent float window still appears correctly when switching to other apps on Leco
+- **Pendolo on Android 8.1 car stability** — spring integrator diverged at low frame rates (pos explosion → NaN → view stops drawing); switched to RK4 integrator with identical feel + NaN self-healing fallback
+- **Per-char pulse / new-line drop animation** — pulse length from real sung duration (260~700ms), under-damped spring drop with 12% overshoot rebound
+- **Effect picker scrolling** — options-only scroll with pinned title, 80% screen-height cap, fixes unreachable bottom options on car landscape
+- **Removed Claddagh effect** — didn't fit listening scenarios, picker back to 7 items
 
 ### v1.0.8.2 (2026-10)
 #### Improvements
@@ -881,7 +939,36 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.8.2)
+## 📢 Latest Version (v1.0.9.0)
+
+### v1.0.9.0 (2026-10)
+#### Major Changes (vs v1.0.8.2)
+
+**① Lyric Effects: 2 → 8 (full folia visualizer family port)**
+
+Faithful port of the folia open-source project — eight per-word lyric effects (Starfield included), driven by KRC per-char timing with graceful fallback.
+
+- **Glow** — folia classic per-word three-state engine (waiting/active/passed) with depth-of-field ambient dust
+- **Pendolo** — mechanical escapement gear core + arc lyric track; chorus word-sweep deepening, dual-layer glow, row backlight, no-wrap autoshrink for long lines
+- **Cadenza** — word-cloud burst with protagonist-word collision scatter
+- **Tilt** — italic monologue style, per-paragraph reveal + char-level afterglow decay
+- **Partita** — semantic-unit splitting, multi-column stairway, L-shaped guide lines, per-word in-chunk highlight
+- **Fume** — whole song set as a vertical article with camera dolly reading
+- **Diorama** — winding corridor advancing line by line, 13 cinematic shot types, 3.2s flight transition on song change, dust particles + depth fog
+
+Unified interaction: long-press lyrics to enter, single-tap to exit; cover-flow control (left two = prev / center = play-pause / right two = next), highlight color adapts to album cover dual colors, day/night auto theme, starfield background on all effect pages.
+
+**② Player Page Style Architecture Consolidation**
+
+Classic / Immersive / Turntable / Carousel styles unified into StandardPageBase equal inheritance; top bar componentized as PlayerTopBar; StagePage protocol with ensurePage factory + activePage polymorphic dispatch; spectrum cross-style adaptation: ring-style fallback to bars with persistence. Nearly 800 lines removed with visual parity.
+
+**③ Fixes & Polish**
+
+- **Leco split-screen crash fixed** — App process killed by RemoteServiceException when resizing split-screen in Leco launcher, black screen; three-layer fix: background-detection debounce 300ms→2000ms (no longer misjudging split-screen reflow as background), float-window start/stop 2s throttle, MiniFloatService onStartCommand startForeground safety net — independent float window still appears correctly when switching to other apps on Leco
+- **Pendolo on Android 8.1 car stability** — spring integrator diverged at low frame rates (pos explosion → NaN → view stops drawing); switched to RK4 integrator with identical feel + NaN self-healing fallback
+- **Per-char pulse / new-line drop animation** — pulse length from real sung duration (260~700ms), under-damped spring drop with 12% overshoot rebound
+- **Effect picker scrolling** — options-only scroll with pinned title, 80% screen-height cap, fixes unreachable bottom options on car landscape
+- **Removed Claddagh effect** — didn't fit listening scenarios, picker back to 7 items
 
 ### v1.0.8.2 (2026-10)
 #### Improvements
