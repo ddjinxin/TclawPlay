@@ -28,7 +28,12 @@ AIGC:
 
 ---
 
-## 📢 最新版本 (v1.0.9.0)
+## 📢 最新版本 (v1.0.9.1)
+
+### v1.0.9.1 (2026-10)
+#### 全新应用图标
+
+- 全新视觉设计：整图 48~192 全密度 + 自适应图标（108~432 前景/背景分层），Android 8.0+ 圆形/圆角遮罩自适应，手机/车机/电视统一换装
 
 ### v1.0.9.0 (2026-10)
 #### 大改点（对照 v1.0.8.2）
@@ -250,7 +255,12 @@ AIGC:
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.9.0)
+## 📢 Latest Version (v1.0.9.1)
+
+### v1.0.9.1 (2026-10)
+#### Brand-new App Icon
+
+- Complete visual redesign: full-density legacy icons (48–192) + adaptive icon layers (108–432 foreground/background) for Android 8.0+ masks — consistent across phone, car head unit and TV
 
 ### v1.0.9.0 (2026-10)
 #### Major Changes (vs v1.0.8.2)
@@ -939,7 +949,12 @@ MIT License
 
 ---
 
-## 📢 Latest Version (v1.0.9.0)
+## 📢 Latest Version (v1.0.9.1)
+
+### v1.0.9.1 (2026-10)
+#### Brand-new App Icon
+
+- Complete visual redesign: full-density legacy icons (48–192) + adaptive icon layers (108–432 foreground/background) for Android 8.0+ masks — consistent across phone, car head unit and TV
 
 ### v1.0.9.0 (2026-10)
 #### Major Changes (vs v1.0.8.2)
