@@ -50,7 +50,7 @@ public class PendoloEffectPage extends LyricEffectPage {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         // 星空底（复用 StarfieldEffectPage 同款：星点独立闪烁+深空渐变+星云，自带底色）
-        StarfieldView starfield = new StarfieldView(ctx);
+        starfield = new StarfieldView(ctx);
         LayoutParams sp = new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         addView(starfield, sp);
@@ -90,6 +90,12 @@ public class PendoloEffectPage extends LyricEffectPage {
         setOnClickListener(v -> {
             if (exitListener != null) exitListener.onClick(v);
         });
+    }
+
+    /** 壁纸模式：隐藏星空底自绘背景（壁纸层已垫底；GONE 停刷省性能） */
+    @Override
+    public void onWallpaperModeChanged(boolean wallpaper) {
+        if (starfield != null) starfield.setVisibility(wallpaper ? View.GONE : View.VISIBLE);
     }
 
     @Override

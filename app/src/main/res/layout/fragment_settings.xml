@@ -444,6 +444,77 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- 歌词动效背景（默认/壁纸两态 + 壁纸文件选择） -->
+        <LinearLayout
+            android:id="@+id/item_effect_wallpaper"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingVertical="12dp">
+
+            <TextView
+                android:id="@+id/tv_effect_wallpaper_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="歌词动效背景"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/tv_effect_wallpaper_desc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="歌词动效页的背景样式"
+                android:textSize="12sp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:id="@+id/effect_wallpaper_mode_selector"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:orientation="horizontal"
+                android:weightSum="2">
+
+                <TextView
+                    android:id="@+id/effect_wallpaper_tab_default"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="默认背景"
+                    android:textSize="12sp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless" />
+
+                <TextView
+                    android:id="@+id/effect_wallpaper_tab_wallpaper"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="壁纸"
+                    android:textSize="12sp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackgroundBorderless" />
+
+            </LinearLayout>
+
+            <!-- 壁纸文件选择行 -->
+            <TextView
+                android:id="@+id/row_pick_wallpaper"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="选择壁纸文件"
+                android:textSize="14sp"
+                android:paddingVertical="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"

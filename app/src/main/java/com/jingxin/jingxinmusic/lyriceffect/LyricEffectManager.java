@@ -7,8 +7,10 @@ import android.widget.FrameLayout;
 
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.player.PlayerStateHub;
+import com.jingxin.jingxinmusic.util.EffectWallpaperStore;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.view.CoverFlowView;
+import com.jingxin.jingxinmusic.view.EffectWallpaperView;
 import com.jingxin.jingxinmusic.view.PendoloClockworkView;
 
 /**
@@ -126,6 +128,12 @@ public class LyricEffectManager {
         }
         activePage.setExitListener(v -> detach());
         activePage.build(LayoutInflater.from(host.getContext()), host);
+
+        // 壁纸模式：壁纸层垫底插入（盖住页面背景色/渐变/星空），失败回退默认背景
+        if (injectWallpaper()) {
+            activePage.onWallpaperModeChanged(true);
+        }
+
         if (colorProvider != null) {
             activePage.applyHighlightColor(colorProvider.getHighlightColor());
         }
@@ -155,9 +163,34 @@ public class LyricEffectManager {
 
         // 淡出后移除（ViewPropertyAnimator 终点 alpha=0，结束回调移除视图）
         page.animate().alpha(0f).setDuration(FADE_MS).withEndAction(() -> {
+            // 壁纸层随页释放（图片 recycle / 视频 stop+release）
+            if (page.getWallpaperView() != null) page.getWallpaperView().release();
             if (page.getParent() == host) host.removeView(page);
         }).start();
         page.setOnClickListener(null);
+    }
+
+    /** 壁纸模式注入：设置开启且壁纸文件存在 → 垫底插入渲染层，成功与否均返回是否处于壁纸模式 */
+    private boolean injectWallpaper() {
+        if (host == null || activePage == null) return false;
+        if (!EffectWallpaperStore.isWallpaperMode(host.getContext())) return false;
+        java.io.File file = EffectWallpaperStore.findWallpaperFile(host.getContext());
+        if (file == null) return false;   // 未设壁纸：回退默认背景（不黑屏）
+        EffectWallpaperView wallpaper = new EffectWallpaperView(host.getContext());
+        // 异步失败兜底（视频 error 等）：恢复默认背景并移除壁纸层，绝不透出播放页
+        wallpaper.setOnWallpaperErrorListener(() -> {
+            LyricEffectPage page = activePage;
+            if (page == null || wallpaper.getParent() != page) return; // 页已退出/已换
+            page.removeView(wallpaper);
+            page.onWallpaperModeChanged(false);
+        });
+        if (!wallpaper.load(file)) {
+            wallpaper.release();         // 解码/打开失败：回退默认背景
+            return false;
+        }
+        activePage.addView(wallpaper, 0);
+        activePage.setWallpaperView(wallpaper);
+        return true;
     }
 
     private void subscribe() {

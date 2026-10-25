@@ -83,6 +83,11 @@ public class SettingsFragment extends BaseFloatFragment {
     private TextView tvAutoHideControlsTitle, tvAutoHideControlsDesc;
     private TextView[] bgSkinTabs = new TextView[2];
     private int currentBgSkinIndex = 0;
+
+    // 歌词动效壁纸
+    private TextView tvEffectWallpaperTitle, tvEffectWallpaperDesc, rowPickWallpaper;
+    private TextView[] wallpaperModeTabs = new TextView[2];
+    private boolean currentWallpaperMode = false;
     private TextView tvDayStartLabel, tvDayStartValue, tvNightStartLabel, tvNightStartValue, tvTimeSeparator;
     private View timeSelectorRow;
     private TextView btnDayReset, btnNightReset;
@@ -193,6 +198,7 @@ public class SettingsFragment extends BaseFloatFragment {
         setupAutoTheme(view);
         setupStyleSelector(view);
         setupBgSkinSelector(view);
+        setupEffectWallpaperSelector(view);
         setupFloatWindowSwitch(view);
         setupSpectrumSwitch(view);
         setupLocalCoverSwitch(view);
@@ -274,6 +280,10 @@ public class SettingsFragment extends BaseFloatFragment {
         styleTabs[3] = view.findViewById(R.id.style_tab_3);
         bgSkinTabs[0] = view.findViewById(R.id.bg_skin_tab_0);
         bgSkinTabs[1] = view.findViewById(R.id.bg_skin_tab_1);
+        // 歌词动效壁纸控件
+        wallpaperModeTabs[0] = view.findViewById(R.id.effect_wallpaper_tab_default);
+        wallpaperModeTabs[1] = view.findViewById(R.id.effect_wallpaper_tab_wallpaper);
+        rowPickWallpaper = view.findViewById(R.id.row_pick_wallpaper);
         // 时间选择行的 TextView 提前到 initViews 初始化，确保 applyTheme 能覆盖颜色
         tvDayStartLabel = view.findViewById(R.id.tv_day_start_label);
         tvDayStartValue = view.findViewById(R.id.tv_day_start_value);
@@ -301,12 +311,12 @@ public class SettingsFragment extends BaseFloatFragment {
                 ? (isNightMode ? 0xFF2A2A2E : 0xFFE0E0E0)
                 : (isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider());
         tvTitle.setTextColor(tc);
-        // 刷新所有标题
-        TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle,
-                tvLyricTitle, tvScanTitle, btnScan, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle};
+        // 刷新所有标题（含壁纸选择行：可操作项，与扫描按钮同用标题色）
+        TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvBgSkinTitle, tvEffectWallpaperTitle, rowPickWallpaper, tvFloatTitle, tvSpectrumTitle,
+                tvLyricTitle, tvScanTitle, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle};
         for (TextView t : titles) if (t != null) t.setTextColor(tc);
         // 刷新所有描述
-        TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc,
+        TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvBgSkinDesc, tvEffectWallpaperDesc, tvFloatDesc, tvSpectrumDesc,
                 tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc};
         for (TextView d : descs) if (d != null) d.setTextColor(ts);
         // 时间选择行文字
@@ -316,6 +326,9 @@ public class SettingsFragment extends BaseFloatFragment {
         updateStyleTabColors();
         // 背景皮肤 tab 颜色
         updateBgSkinTabColors();
+        // 歌词动效壁纸 tab 颜色与状态文案
+        updateWallpaperTabColors();
+        updateWallpaperStatusText();
         View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7, dividerMid8};
         for (View d : dividers) d.setBackgroundColor(divColor);
         if (dynamicBgEnabled) {
@@ -399,6 +412,13 @@ public class SettingsFragment extends BaseFloatFragment {
         // 从系统授权页返回后刷新按钮状态
         if (btnStoragePerm != null) {
             updateStoragePermissionUI();
+        }
+        // 从壁纸选择器返回后刷新状态文案与 tab（选中即已复制生效）
+        if (tvEffectWallpaperDesc != null) {
+            currentWallpaperMode = com.jingxin.jingxinmusic.util.EffectWallpaperStore.isWallpaperMode(requireContext())
+                    && com.jingxin.jingxinmusic.util.EffectWallpaperStore.hasWallpaper(requireContext());
+            updateWallpaperTabColors();
+            updateWallpaperStatusText();
         }
     }
 
@@ -628,10 +648,77 @@ public class SettingsFragment extends BaseFloatFragment {
         if (tvBgSkinTitle == null) return;
         int activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
         int inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
+
         for (int i = 0; i < 2; i++) {
             boolean selected = (i == currentBgSkinIndex);
             bgSkinTabs[i].setTextColor(selected ? activeColor : inactiveColor);
             bgSkinTabs[i].setTypeface(null, selected ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        }
+    }
+
+    // ==================== 歌词动效壁纸 ====================
+
+    private void setupEffectWallpaperSelector(View view) {
+        tvEffectWallpaperTitle = view.findViewById(R.id.tv_effect_wallpaper_title);
+        tvEffectWallpaperDesc = view.findViewById(R.id.tv_effect_wallpaper_desc);
+        rowPickWallpaper = view.findViewById(R.id.row_pick_wallpaper);
+        applyItemTheme(tvEffectWallpaperTitle, tvEffectWallpaperDesc);
+        rowPickWallpaper.setTextColor(titleColor()); // 日夜主题初始化（后续 applyTheme 统一刷）
+
+        // tab 展示与实际生效模式一致：壁纸模式但未设壁纸时效果页回退默认背景，tab 按默认显示
+        currentWallpaperMode = com.jingxin.jingxinmusic.util.EffectWallpaperStore.isWallpaperMode(requireContext())
+                && com.jingxin.jingxinmusic.util.EffectWallpaperStore.hasWallpaper(requireContext());
+
+        for (int i = 0; i < 2; i++) {
+            final boolean wallpaper = (i == 1);
+            wallpaperModeTabs[i].setOnClickListener(v -> selectWallpaperMode(wallpaper));
+        }
+        rowPickWallpaper.setOnClickListener(v -> {
+            Intent intent = new Intent(requireContext(), com.jingxin.jingxinmusic.FilePickerActivity.class);
+            startActivity(intent);
+        });
+
+        updateWallpaperTabColors();
+        updateWallpaperStatusText();
+    }
+
+    private void selectWallpaperMode(boolean wallpaper) {
+        if (wallpaper == currentWallpaperMode) return;
+        if (wallpaper && !com.jingxin.jingxinmusic.util.EffectWallpaperStore.hasWallpaper(requireContext())) {
+            Toast.makeText(requireContext(), "请先选择壁纸文件", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        com.jingxin.jingxinmusic.util.EffectWallpaperStore.setMode(requireContext(), wallpaper);
+        currentWallpaperMode = wallpaper;
+        updateWallpaperTabColors();
+        updateWallpaperStatusText();
+        Toast.makeText(requireContext(), wallpaper ? "已切换为壁纸模式" : "已切换为默认背景", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateWallpaperTabColors() {
+        if (tvEffectWallpaperTitle == null) return;
+        int activeColor = isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive();
+        int inactiveColor = isNightMode ? ThemeColors.nightTabInactive() : ThemeColors.dayTabInactive();
+        for (int i = 0; i < 2; i++) {
+            if (wallpaperModeTabs[i] == null) continue;
+            boolean selected = ((i == 1) == currentWallpaperMode);
+            wallpaperModeTabs[i].setTextColor(selected ? activeColor : inactiveColor);
+            wallpaperModeTabs[i].setTypeface(null, selected ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        }
+    }
+
+    /** 壁纸状态：FilePicker 返回后 onResume 重刷（选中即复制完成） */
+    private void updateWallpaperStatusText() {
+        if (tvEffectWallpaperDesc == null) return;
+        java.io.File f = com.jingxin.jingxinmusic.util.EffectWallpaperStore.findWallpaperFile(requireContext());
+        boolean mode = com.jingxin.jingxinmusic.util.EffectWallpaperStore.isWallpaperMode(requireContext());
+        if (f == null) {
+            tvEffectWallpaperDesc.setText("尚未设置壁纸，当前使用默认背景");
+            if (rowPickWallpaper != null) rowPickWallpaper.setText("选择壁纸文件");
+        } else {
+            String name = f.getName();
+            tvEffectWallpaperDesc.setText(mode ? "壁纸模式 · " + name : "当前默认背景 · 已设壁纸 " + name);
+            if (rowPickWallpaper != null) rowPickWallpaper.setText("重新选择壁纸（当前 " + name + "）");
         }
     }
 
@@ -1035,6 +1122,15 @@ public class SettingsFragment extends BaseFloatFragment {
             bgSkinSelector.setLayoutParams(bslp);
         }
         for (TextView tab : bgSkinTabs) if (tab != null) tab.setTextSize(TypedValue.COMPLEX_UNIT_PX, tabSize);
+        // 歌词动效壁纸选择条
+        LinearLayout wpSelector = mRootView.findViewById(R.id.effect_wallpaper_mode_selector);
+        if (wpSelector != null) {
+            LinearLayout.LayoutParams wslp = (LinearLayout.LayoutParams) wpSelector.getLayoutParams();
+            wslp.height = dpScaled(36);
+            wpSelector.setLayoutParams(wslp);
+        }
+        for (TextView tab : wallpaperModeTabs) if (tab != null) tab.setTextSize(TypedValue.COMPLEX_UNIT_PX, tabSize);
+        if (rowPickWallpaper != null) rowPickWallpaper.setTextSize(TypedValue.COMPLEX_UNIT_PX, tabSize);
         for (int id : new int[]{R.id.day_color_bar, R.id.night_color_bar}) {
             View bar = mRootView.findViewById(id);
             LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) bar.getLayoutParams();

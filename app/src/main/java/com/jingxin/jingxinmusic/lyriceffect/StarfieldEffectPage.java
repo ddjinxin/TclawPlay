@@ -78,6 +78,12 @@ public class StarfieldEffectPage extends LyricEffectPage {
         });
     }
 
+    /** 壁纸模式：隐藏星空底自绘背景（壁纸层已垫底；GONE 停刷省性能） */
+    @Override
+    public void onWallpaperModeChanged(boolean wallpaper) {
+        if (starfield != null) starfield.setVisibility(wallpaper ? View.GONE : View.VISIBLE);
+    }
+
     @Override
     public void onSongChanged(Song song) {
         if (lyric == null) return;

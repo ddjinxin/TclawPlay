@@ -26,6 +26,14 @@ public abstract class LyricEffectPage extends FrameLayout {
     /** 整页单击退出回调（Manager 注入，子类 build 内挂根视图） */
     protected View.OnClickListener exitListener;
 
+    /** 壁纸层（Manager 注入垫底；默认 null） */
+    private com.jingxin.jingxinmusic.view.EffectWallpaperView wallpaperView;
+
+    public com.jingxin.jingxinmusic.view.EffectWallpaperView getWallpaperView() { return wallpaperView; }
+
+    /** Manager 专用：记录注入的壁纸层 */
+    void setWallpaperView(com.jingxin.jingxinmusic.view.EffectWallpaperView v) { this.wallpaperView = v; }
+
     protected LyricEffectPage(Context context, PlayerStateHub hub) {
         super(context);
         this.hub = hub;
@@ -48,6 +56,13 @@ public abstract class LyricEffectPage extends FrameLayout {
 
     /** 播放页高亮色注入（Manager 在 attach 与主题/封面取色变化时调用） */
     public abstract void applyHighlightColor(int color);
+
+    /**
+     * 壁纸模式注入（Manager attach 时调用一次）：
+     * true = 壁纸层已垫底（index 0），自绘背景（starfield 等）应隐藏停刷省性能；
+     * false = 默认背景（现状）。子类按需覆盖。
+     */
+    public void onWallpaperModeChanged(boolean wallpaper) { }
 
     public void setExitListener(View.OnClickListener l) { this.exitListener = l; }
 }

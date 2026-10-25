@@ -55,7 +55,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
+
+        <!-- 歌词动效壁纸选择器（应用内文件浏览器，移植乐酷驾驶） -->
+        <activity
+            android:name=".FilePickerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.JingxinMusic" />
+
         <!-- 播放服务 -->
         <service
             android:name=".service.MusicPlayerService"

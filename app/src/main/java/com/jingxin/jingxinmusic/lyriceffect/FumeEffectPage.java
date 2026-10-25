@@ -1,6 +1,7 @@
 package com.jingxin.jingxinmusic.lyriceffect;
 
 import android.content.Context;
+import android.view.View;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -78,6 +79,12 @@ public class FumeEffectPage extends LyricEffectPage {
         setOnClickListener(v -> {
             if (exitListener != null) exitListener.onClick(v);
         });
+    }
+
+    /** 壁纸模式：隐藏星空底自绘背景（壁纸层已垫底；GONE 停刷省性能） */
+    @Override
+    public void onWallpaperModeChanged(boolean wallpaper) {
+        if (starfield != null) starfield.setVisibility(wallpaper ? View.GONE : View.VISIBLE);
     }
 
     @Override

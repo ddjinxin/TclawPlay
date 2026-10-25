@@ -100,6 +100,12 @@ public class GlowEffectPage extends LyricEffectPage {
         }
     }
 
+    /** 壁纸模式：隐藏氛围微尘粒子动画（壁纸打底，只留歌词/封面流）；GONE 停刷省性能 */
+    @Override
+    public void onWallpaperModeChanged(boolean wallpaper) {
+        if (ambient != null) ambient.setVisibility(wallpaper ? View.GONE : View.VISIBLE);
+    }
+
     @Override
     public void onLyricLoaded(KrcParser.LyricData data) {
         if (lyric != null) {

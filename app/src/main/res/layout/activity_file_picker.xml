@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF1A1A2E"
+    android:orientation="vertical">
+
+    <!-- Title Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <ImageButton
+            android:id="@+id/btn_back"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent" />
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:text="选择动效壁纸"
+            android:textColor="#FF00D4E8"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:layout_marginLeft="8dp"
+            android:layout_marginRight="8dp" />
+
+        <View
+            android:layout_width="wrap_content"
+            android:layout_height="44dp" />
+
+    </LinearLayout>
+
+    <!-- Current Path -->
+    <TextView
+        android:id="@+id/tv_path"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#FF888888"
+        android:textSize="12sp"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:paddingBottom="8dp"
+        android:singleLine="true"
+        android:ellipsize="start" />
+
+    <!-- File Grid -->
+    <GridView
+        android:id="@+id/grid_files"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:numColumns="auto_fit"
+        android:columnWidth="60dp"
+        android:padding="4dp"
+        android:verticalSpacing="6dp"
+        android:horizontalSpacing="6dp" />
+
+</LinearLayout>
