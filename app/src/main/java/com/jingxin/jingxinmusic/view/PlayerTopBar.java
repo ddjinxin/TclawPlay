@@ -3,6 +3,7 @@ package com.jingxin.jingxinmusic.view;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.PorterDuff;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.View;
@@ -74,7 +75,11 @@ public class PlayerTopBar extends LinearLayout {
         for (ImageView b : buttons()) {
             b.setClickable(true);
             b.setFocusable(true);
-            b.setForeground(getContext().getDrawable(R.drawable.tv_focus_round));
+            // setForeground 是 API 23+ 方法，Android 5.1（API 22）不存在会 NoSuchMethodError；
+            // TV 焦点高亮仅大屏 TV 场景需要，低版本跳过
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                b.setForeground(getContext().getDrawable(R.drawable.tv_focus_round));
+            }
             if (rippleBg != 0) b.setBackgroundResource(rippleBg);
             b.setScaleType(ImageView.ScaleType.FIT_CENTER);
         }

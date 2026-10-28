@@ -226,6 +226,15 @@ public class CoverFlowView extends View {
     protected void onSizeChanged(int width, int height, int oldw, int oldh) {
         super.onSizeChanged(width, height, oldw, oldh);
         w = width; h = height;
+        // 自愈：分屏/悬浮窗口 resize 经历零尺寸中间态后恢复时，若封面从未加载
+        //（attach 首帧时数据竞态为 null，或零尺寸期间绘制被跳过），此处重拉一次
+        if (width > 0 && height > 0 && (oldw <= 0 || oldh <= 0) && provider != null) {
+            boolean empty = true;
+            for (Bitmap b : coverBitmaps) {
+                if (b != null) { empty = false; break; }
+            }
+            if (empty) notifySongChanged();
+        }
     }
 
     /** 卡点击：命中序号卡才消费（动作交 tapListener）；不命中时 DOWN 即不消费，事件落到下层（整页退出） */

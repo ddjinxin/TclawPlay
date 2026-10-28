@@ -186,6 +186,26 @@ public class AuroraGradientView extends View {
         }
     }
 
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        if (visibility == VISIBLE) {
+            startAnimation();
+        } else {
+            stopAnimation();
+        }
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        // 自愈：尺寸回归（分屏/悬浮窗口 resize）时确保动画链活着。
+        // 乐酷 reparent 时 detach/attach 回调可能乱序，stopAnimation 在 startAnimation
+        // 之后到达会把自续帧链掐死（View 可见但永不再画→黑屏）；startAnimation 幂等，
+        // 正常路径零影响，死链（animating=false）时在此复活
+        if (w > 0 && h > 0) startAnimation();
+    }
+
     private void startAnimation() {
         if (animating) return;
         // View 构造期间（super 触发 onVisibilityChanged）handler 尚未初始化，
@@ -206,6 +226,17 @@ public class AuroraGradientView extends View {
         if (!animating) return;
 
         long frameStart = System.currentTimeMillis();
+
+        // 链断自检：View 在窗口中且可见但尺寸就绪却停链（reparent 乱序残留），
+        // invalidate 已无后续帧驱动——此处主动补偿一帧 keep-alive 不能停，
+        // 检测方式即本方法被调用（startAnimation post 过来的）说明链已重接
+        if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE || getVisibility() != VISIBLE) {
+            // 不可见态不推进动画（省电），链保留在 startAnimation 复活路径
+            if (!isAttachedToWindow()) {
+                animating = false; // 已脱离窗口，等 re-attach
+                return;
+            }
+        }
 
         // 时间步进（对应 LightEffectShader.D()）
         if (shaderTime >= DURATION) {

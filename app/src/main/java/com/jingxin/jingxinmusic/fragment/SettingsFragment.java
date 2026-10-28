@@ -88,6 +88,7 @@ public class SettingsFragment extends BaseFloatFragment {
     private TextView tvEffectWallpaperTitle, tvEffectWallpaperDesc, rowPickWallpaper;
     private TextView[] wallpaperModeTabs = new TextView[2];
     private boolean currentWallpaperMode = false;
+    private com.jingxin.jingxinmusic.view.FilePickerView activePicker; // 壁纸文件选择叠层（乐酷同款 View 方案）
     private TextView tvDayStartLabel, tvDayStartValue, tvNightStartLabel, tvNightStartValue, tvTimeSeparator;
     private View timeSelectorRow;
     private TextView btnDayReset, btnNightReset;
@@ -248,6 +249,11 @@ public class SettingsFragment extends BaseFloatFragment {
     public void onDestroyView() {
         super.onDestroyView();
         unregisterThemeReceiver();
+        // 壁纸选择叠层随视图销毁释放（停缩略图线程池）
+        if (activePicker != null) {
+            activePicker.close();
+            activePicker = null;
+        }
     }
 
     private void initViews(View view) {
@@ -413,12 +419,9 @@ public class SettingsFragment extends BaseFloatFragment {
         if (btnStoragePerm != null) {
             updateStoragePermissionUI();
         }
-        // 从壁纸选择器返回后刷新状态文案与 tab（选中即已复制生效）
-        if (tvEffectWallpaperDesc != null) {
-            currentWallpaperMode = com.jingxin.jingxinmusic.util.EffectWallpaperStore.isWallpaperMode(requireContext())
-                    && com.jingxin.jingxinmusic.util.EffectWallpaperStore.hasWallpaper(requireContext());
-            updateWallpaperTabColors();
-            updateWallpaperStatusText();
+        // 壁纸选择已改为 View 叠层 + 回调即时刷新，无需 onResume 逻辑
+        if (activePicker != null && activePicker.getParent() == null) {
+            activePicker = null; // 已被关闭/移除，清理引用
         }
     }
 
@@ -674,8 +677,23 @@ public class SettingsFragment extends BaseFloatFragment {
             wallpaperModeTabs[i].setOnClickListener(v -> selectWallpaperMode(wallpaper));
         }
         rowPickWallpaper.setOnClickListener(v -> {
-            Intent intent = new Intent(requireContext(), com.jingxin.jingxinmusic.FilePickerActivity.class);
-            startActivity(intent);
+            // View 叠层方案（同乐酷驾驶 FilePickerView）：乐酷悬浮模式下应用内容在
+            // APPLICATION_OVERLAY 窗口显示，Activity 窗口隐藏——Activity/Dialog 均不可见，
+            // 只有叠进当前可见视图树的普通 View 能显示
+            if (activePicker != null) return; // 已打开
+            activePicker = new com.jingxin.jingxinmusic.view.FilePickerView(requireContext(), fileName -> {
+                // 选中即已复制+启用壁纸模式，同步 tab 与文案（回调即时刷新）
+                currentWallpaperMode = com.jingxin.jingxinmusic.util.EffectWallpaperStore.isWallpaperMode(requireContext())
+                        && com.jingxin.jingxinmusic.util.EffectWallpaperStore.hasWallpaper(requireContext());
+                updateWallpaperTabColors();
+                updateWallpaperStatusText();
+            });
+            activePicker.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+            // 叠在设置页根布局最上层（同乐酷 gv.addOverlay）
+            ((android.view.ViewGroup) mRootView).addView(activePicker);
+            activePicker.bringToFront();
         });
 
         updateWallpaperTabColors();
@@ -716,7 +734,9 @@ public class SettingsFragment extends BaseFloatFragment {
             tvEffectWallpaperDesc.setText("尚未设置壁纸，当前使用默认背景");
             if (rowPickWallpaper != null) rowPickWallpaper.setText("选择壁纸文件");
         } else {
-            String name = f.getName();
+            // 显示源文件名（用户所选原始名）；老数据无记录时兜底显示存储名
+            String name = com.jingxin.jingxinmusic.util.EffectWallpaperStore.getSourceName(requireContext());
+            if (name == null) name = f.getName();
             tvEffectWallpaperDesc.setText(mode ? "壁纸模式 · " + name : "当前默认背景 · 已设壁纸 " + name);
             if (rowPickWallpaper != null) rowPickWallpaper.setText("重新选择壁纸（当前 " + name + "）");
         }

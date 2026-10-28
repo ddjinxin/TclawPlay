@@ -18,6 +18,8 @@ public final class EffectWallpaperStore {
 
     public static final String PREFS_NAME = "lyric_effect";
     public static final String KEY_MODE = "lyric_effect_bg_mode";
+    /** 源文件名（用户选的原始名，区别于存储名 wallpaper.ext，设置页显示用） */
+    public static final String KEY_SRC_NAME = "lyric_effect_bg_src_name";
     public static final String MODE_DEFAULT = "default";
     public static final String MODE_WALLPAPER = "wallpaper";
 
@@ -76,6 +78,13 @@ public final class EffectWallpaperStore {
         return findWallpaperFile(ctx) != null;
     }
 
+    /** 当前壁纸源文件名（用户所选原始名；未设置返回 null） */
+    public static String getSourceName(Context ctx) {
+        if (findWallpaperFile(ctx) == null) return null;
+        return ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_SRC_NAME, null);
+    }
+
     /** 壁纸是否为视频（渲染层分派用；文件不存在返回 false） */
     public static boolean isVideoWallpaper(Context ctx) {
         File f = findWallpaperFile(ctx);
@@ -113,6 +122,9 @@ public final class EffectWallpaperStore {
         }
 
         File target = new File(dir, FILE_PREFIX + ext);
+        // 记录源文件名（显示用；存储文件统一名 wallpaper.ext，直接展示会误导用户）
+        ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                .putString(KEY_SRC_NAME, src.getName()).apply();
         try (FileInputStream is = new FileInputStream(src);
              FileOutputStream os = new FileOutputStream(target)) {
             byte[] buf = new byte[8192];

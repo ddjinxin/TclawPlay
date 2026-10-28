@@ -42,6 +42,8 @@ public class EffectWallpaperView extends FrameLayout {
     // ==================== 视频模式 ====================
     private TextureView videoView;
     private MediaPlayer mediaPlayer;
+    /** 冻结帧层：reparent 视频重建窗口期（~100ms）定格上一帧，消除黑闪 */
+    private android.widget.ImageView freezeFrame;
     private boolean videoPrepared = false;
     private boolean wantPlaying = true;     // 视图可见+页面激活期间期望播放
 
@@ -104,6 +106,7 @@ public class EffectWallpaperView extends FrameLayout {
     // ==================== 视频模式实现 ====================
 
     private boolean setupVideo() {
+        android.util.Log.d("EWV", "setupVideo");
         wantPlaying = true;
         videoView = new TextureView(getContext());
         videoView.setLayoutParams(new LayoutParams(
@@ -113,18 +116,26 @@ public class EffectWallpaperView extends FrameLayout {
         videoView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                android.util.Log.d("EWV", "onSurfaceTextureAvailable");
                 startVideo(surface);
             }
 
             @Override
             public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+                android.util.Log.d("EWV", "onSurfaceTextureSizeChanged " + width + "x" + height);
                 updateVideoLayout();
             }
 
             @Override
             public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-                stopVideo();
-                return true;
+                // ★ reparent 断流根治：返回 false 保留底层 SurfaceTexture——
+                // 乐酷悬浮/分屏切换是 View reparent（纹理属于 app 进程 GL 资源，跨窗口有效），
+                // 播放器持续解码渲染到纹理，重挂后无缝继续，无黑窗期。
+                // 缺点：真释放（退效果页）需在 release() 手动 release 纹理。
+                // 返回 true 的旧行为=每次 reparent 摧毁重建播放链，中间必黑一截
+                android.util.Log.d("EWV", "onSurfaceTextureDestroyed -> keep texture");
+                captureFreezeFrame();
+                return false;
             }
 
             @Override
@@ -135,24 +146,37 @@ public class EffectWallpaperView extends FrameLayout {
     }
 
     private void startVideo(SurfaceTexture surface) {
+        android.util.Log.d("EWV", "startVideo surface=" + (surface != null));
         if (wallpaperPath == null) return;
         stopVideo();
         try {
             mediaPlayer = new MediaPlayer();
+            // 音轨分轨防御：壁纸视频不能占用媒体通道——车机 8.1 NXP 音频系统上，
+            // 与主播放器（ExoPlayer/MediaPlayer 兜底）同走 USAGE_MEDIA 会触发混音/路由竞争
+            //（多声道切换静音坑）。归入 UI 提示音通道，setVolume(0) 再双保险。
+            android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE)
+                    .build();
+            mediaPlayer.setAudioAttributes(attrs);
             mediaPlayer.setSurface(new android.view.Surface(surface));
             mediaPlayer.setDataSource(wallpaperPath);
             mediaPlayer.setLooping(true);
             mediaPlayer.setVolume(0f, 0f); // 静音，不干扰音乐
             mediaPlayer.setOnPreparedListener(mp -> {
                 videoPrepared = true;
-                if (wantPlaying && getVisibility() == VISIBLE && getWindowVisibility() == VISIBLE) {
-                    mp.start();
-                } else {
-                    wantPlaying = false;
-                }
+                // 无条件 start：壁画视频静音循环，无暂停语义——不依赖窗口可见性判断
+                //（reparent 中间态窗口可见性不可靠，曾致 prepared 后不 start → 永久黑）
+                mp.start();
+                android.util.Log.d("EWV", "onPrepared -> start " + mp.getVideoWidth() + "x" + mp.getVideoHeight());
                 if (videoView != null) videoView.post(this::updateVideoLayout);
+                // 新视频出画后揭掉末帧定格（延迟两帧确保首帧已渲染上屏）
+                if (videoView != null) {
+                    videoView.post(() -> videoView.post(this::clearFreezeFrame));
+                }
             });
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                android.util.Log.d("EWV", "onError what=" + what + " extra=" + extra);
                 notifyError();
                 return true;
             });
@@ -168,7 +192,34 @@ public class EffectWallpaperView extends FrameLayout {
         if (errorListener != null) errorListener.onWallpaperError();
     }
 
+    /** 末帧定格：纹理销毁瞬间截取当前画面盖上，视频重建窗口期无黑闪 */
+    private void captureFreezeFrame() {
+        if (videoView == null || mediaPlayer == null || !videoPrepared) return;
+        try {
+            Bitmap frame = videoView.getBitmap();
+            if (frame == null) return;
+            android.util.Log.d("EWV", "freezeFrame captured " + frame.getWidth() + "x" + frame.getHeight());
+            if (freezeFrame == null) {
+                freezeFrame = new android.widget.ImageView(getContext());
+                freezeFrame.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+                addView(freezeFrame, new LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            }
+            freezeFrame.setImageBitmap(frame);
+            freezeFrame.setVisibility(VISIBLE);
+        } catch (Exception ignored) {}
+    }
+
+    /** 揭掉末帧定格（保留 View 复用，GONE 即可） */
+    private void clearFreezeFrame() {
+        if (freezeFrame != null && freezeFrame.getVisibility() == VISIBLE) {
+            freezeFrame.setVisibility(GONE);
+            android.util.Log.d("EWV", "freezeFrame cleared");
+        }
+    }
+
     private void stopVideo() {
+        android.util.Log.d("EWV", "stopVideo player=" + (mediaPlayer != null));
         if (mediaPlayer != null) {
             try { mediaPlayer.stop(); } catch (Exception ignored) {}
             try { mediaPlayer.release(); } catch (Exception ignored) {}
@@ -188,6 +239,8 @@ public class EffectWallpaperView extends FrameLayout {
         int videoH = mediaPlayer.getVideoHeight();
         if (videoW <= 0 || videoH <= 0) return;
 
+        android.util.Log.d("EWV", "updateVideoLayout parent=" + parentW + "x" + parentH + " video=" + videoW + "x" + videoH);
+
         float scale = Math.max((float) parentW / videoW, (float) parentH / videoH);
         int scaledW = (int) (videoW * scale);
         int scaledH = (int) (videoH * scale);
@@ -205,6 +258,7 @@ public class EffectWallpaperView extends FrameLayout {
     @Override
     protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
+        android.util.Log.d("EWV", "onWindowVisibilityChanged " + visibility);
         if (visibility == VISIBLE) {
             resumeVideo();
         } else {
@@ -215,6 +269,7 @@ public class EffectWallpaperView extends FrameLayout {
     @Override
     protected void onVisibilityChanged(View changedView, int visibility) {
         super.onVisibilityChanged(changedView, visibility);
+        android.util.Log.d("EWV", "onVisibilityChanged " + visibility);
         if (visibility == VISIBLE) {
             resumeVideo();
         } else {
@@ -223,6 +278,7 @@ public class EffectWallpaperView extends FrameLayout {
     }
 
     private void pauseVideo() {
+        android.util.Log.d("EWV", "pauseVideo player=" + (mediaPlayer != null) + " prepared=" + videoPrepared);
         wantPlaying = false;
         if (mediaPlayer != null && mediaPlayer.isPlaying()) {
             try { mediaPlayer.pause(); } catch (Exception ignored) {}
@@ -230,6 +286,7 @@ public class EffectWallpaperView extends FrameLayout {
     }
 
     private void resumeVideo() {
+        android.util.Log.d("EWV", "resumeVideo player=" + (mediaPlayer != null) + " prepared=" + videoPrepared);
         if (mediaPlayer != null && videoPrepared) {
             wantPlaying = true;
             try {
@@ -240,8 +297,14 @@ public class EffectWallpaperView extends FrameLayout {
 
     // ==================== 释放 ====================
 
-    /** 全量释放（Manager detach 或换壁纸时调用） */
+    /** 全量释放（仅 Manager detach 显式调用；reparent 不得走此路径） */
     public void release() {
+        // 冻结帧
+        if (freezeFrame != null) {
+            freezeFrame.setImageDrawable(null);
+            removeView(freezeFrame);
+            freezeFrame = null;
+        }
         // 图片（先解引用再 recycle，防绘制 recycled bitmap 崩溃）
         if (imageView != null) {
             imageView.setImageDrawable(null);
@@ -255,6 +318,11 @@ public class EffectWallpaperView extends FrameLayout {
         // 视频
         stopVideo();
         if (videoView != null) {
+            // return false 保留策略的代价补偿：系统不再自动释放纹理，退场时手动释放
+            try {
+                SurfaceTexture st = videoView.getSurfaceTexture();
+                if (st != null) st.release();
+            } catch (Exception ignored) {}
             removeView(videoView);
             videoView = null;
         }
@@ -263,9 +331,47 @@ public class EffectWallpaperView extends FrameLayout {
     }
 
     @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        android.util.Log.d("EWV", "onAttached path=" + (wallpaperPath != null) + " img=" + (imageView != null) + " vid=" + (videoView != null) + " avail=" + (videoView != null && videoView.isAvailable()) + " player=" + (mediaPlayer != null) + " prepared=" + videoPrepared);
+        // 自愈：reparent 重挂后若壁纸层已失效（防御），按扩展名重建渲染层
+        if (wallpaperPath == null) return;
+        boolean imageDead = imageView != null
+                && (wallpaperBitmap == null || wallpaperBitmap.isRecycled());
+        boolean layerGone = imageView == null && videoView == null;
+        if (imageDead || layerGone) {
+            String name = wallpaperPath.toLowerCase();
+            boolean isVideo = false;
+            for (String ext : EffectWallpaperStore.VIDEO_EXTS) {
+                if (name.endsWith(ext)) { isVideo = true; break; }
+            }
+            if (imageDead && imageView != null) {
+                removeView(imageView);
+                imageView = null;
+            }
+            if (isVideo) setupVideo();
+            else setupImage();
+            return; // 新建层自带启动链路
+        }
+        // ★ 视频复活：reparent 后 TextureView 缓存重用旧 SurfaceTexture 时不回调
+        // onSurfaceTextureAvailable（仅首建回调），视频停在暂停黑屏——用 isAvailable
+        // 判定纹理已就绪而播放器不在，直接重拉起
+        if (videoView != null && videoView.isAvailable() && (mediaPlayer == null || !videoPrepared)) {
+            wantPlaying = true;
+            startVideo(videoView.getSurfaceTexture());
+        } else if (videoView != null) {
+            resumeVideo();
+        }
+    }
+
+    @Override
     protected void onDetachedFromWindow() {
-        // 兜底：效果页快速退出时确保 MediaPlayer 释放
-        release();
+        // ★ reparent 关键修复：乐酷分屏/悬浮调整大小时 View 树被剥离重挂，
+        // detach/attach 是正常流程——绝不能在此销毁资源（旧版 release 致 bitmap 被回收、
+        // videoView 被移除，重挂后图片画不出/视频层缺失 → 壁纸变黑或透出播放页）。
+        // 只轻量暂停；真正释放仅由 Manager detach 显式调用 release()
+        android.util.Log.d("EWV", "onDetached");
+        pauseVideo();
         super.onDetachedFromWindow();
     }
 }

@@ -49,6 +49,7 @@ public class LyricEffectManager {
     }
 
     private static final long FADE_MS = 240L;
+    private static final String TAG_PAGE = "lyric_effect_page"; // 效果页标识（残留清扫用）
 
     private final PlayerStateHub hub;
     private final ViewGroup host;            // 播放页 root_layout（FrameLayout）
@@ -80,6 +81,9 @@ public class LyricEffectManager {
     /** 进入效果页（已激活则忽略） */
     public void attach(Effect effect) {
         if (active || host == null) return;
+        // 残留旧页清理：上一次淡出的 withEndAction 可能在 reparent 时被取消（View detach
+        // 中断 ViewPropertyAnimator），旧页/其壁纸层滞留树上——按 tag 清扫，防叠层与泄漏
+        cleanOrphanPages();
         active = true;
 
         // 封面流数据源适配（两页共用）
@@ -128,6 +132,10 @@ public class LyricEffectManager {
         }
         activePage.setExitListener(v -> detach());
         activePage.build(LayoutInflater.from(host.getContext()), host);
+        activePage.setTag(TAG_PAGE);
+        // 防透底：效果页自身无背景（星空/壁纸负责铺底），页面渲染层异常时
+        //（壁纸死链/未加载完成）会透出底下播放页——垫层纯黑底色，保证效果页永远不透明
+        activePage.setBackgroundColor(android.graphics.Color.BLACK);
 
         // 壁纸模式：壁纸层垫底插入（盖住页面背景色/渐变/星空），失败回退默认背景
         if (injectWallpaper()) {
@@ -150,7 +158,44 @@ public class LyricEffectManager {
         activePage.onProgress(hub != null ? hub.getPositionMs() : 0,
                 hub != null ? hub.getDurationMs() : 0);
 
+        // 数据就绪重试（最多4次×200ms）：乐酷分屏切换时 Fragment 重建后 bindService
+        // 尚未回调（bound=false），歌曲列表返回 null → 封面流永不加载（Hub 仅值变化才推）。
+        // 此处轮询补灌，兜掉竞态窗口；列表就绪即止
+        retryInitialData(0);
+
         subscribe();
+    }
+
+    /** 清扫树上残留的旧效果页（tag 识别，与当前页不同才移除） */
+    private void cleanOrphanPages() {
+        if (host == null) return;
+        for (int i = host.getChildCount() - 1; i >= 0; i--) {
+            android.view.View child = host.getChildAt(i);
+            if (child instanceof LyricEffectPage && child != activePage
+                    && TAG_PAGE.equals(child.getTag())) {
+                child.animate().cancel();
+                child.setAlpha(1f);
+                if (((LyricEffectPage) child).getWallpaperView() != null) {
+                    ((LyricEffectPage) child).getWallpaperView().release();
+                }
+                host.removeView(child);
+            }
+        }
+    }
+
+    /** 分屏重建/bindService 竞态兜底：歌曲未就绪时延迟重试补灌首帧数据 */
+    private void retryInitialData(int attempt) {
+        if (!active || activePage == null) return; // 效果页已退出
+        if (hub == null || hub.getSong() != null) return; // 数据已就绪
+        if (attempt >= 4) return;
+        final LyricEffectPage page = activePage;
+        host.postDelayed(() -> {
+            if (!active || page != activePage) return; // 已换页/退出
+            if (hub.getSong() == null) {
+                page.onSongChanged(hub.getSong());
+                retryInitialData(attempt + 1);
+            }
+        }, 200L);
     }
 
     /** 退出效果页（淡出+退订+移除） */

@@ -607,6 +607,15 @@ public class StandardPageBase extends StagePage {
         } else if (landscapeRoot.getVisibility() == View.VISIBLE && !landscape) {
             landscapeRoot.setVisibility(View.GONE);
             portraitRoot.setVisibility(View.VISIBLE);
+        } else if (portraitRoot.getVisibility() != View.VISIBLE
+                && landscapeRoot.getVisibility() != View.VISIBLE) {
+            // 兑底：两 root 均不可见（分屏 resize 与场景重入交错时可现的中间态），
+            // 按当前方向恢复一个——否则页面停在宿主黑底，等下次横竖翻转才自愈
+            if (landscape) {
+                landscapeRoot.setVisibility(View.VISIBLE);
+            } else {
+                portraitRoot.setVisibility(View.VISIBLE);
+            }
         }
         if (landscape) layoutLandscapeImpl(width, height);
         else layoutPortraitImpl(width, height);
