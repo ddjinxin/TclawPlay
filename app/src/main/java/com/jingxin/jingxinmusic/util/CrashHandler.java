@@ -47,14 +47,6 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
         // 1. 写入本地崩溃日志
         writeCrashFile(t, e);
 
-        // 1.5 诊断日志：崩溃摘要入文件 + 同步冲刷（保住崩溃前的埋点现场）
-        try {
-            DiagLog.d(TAG, "!!! 崩溃 线程=" + (t != null ? t.getName() : "unknown")
-                    + " 异常=" + e.getClass().getName() + ": " + e.getMessage()
-                    + "\n堆栈:\n" + getStackTraceString(e));
-            DiagLog.flushSync();
-        } catch (Throwable ignored) {}
-
         // 2. 系统框架级可恢复异常：记录日志并重启进程
         if (isRecoverableSystemException(e)) {
             Log.w(TAG, "系统框架异常已拦截，重启进程: " + e.getClass().getSimpleName());

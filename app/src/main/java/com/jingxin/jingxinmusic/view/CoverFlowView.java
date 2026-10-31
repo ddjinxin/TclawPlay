@@ -36,10 +36,6 @@ import java.util.concurrent.Executors;
  */
 public class CoverFlowView extends View {
 
-    private static final java.util.concurrent.atomic.AtomicInteger INSTANCES =
-            new java.util.concurrent.atomic.AtomicInteger(0);
-    private final int instanceId = INSTANCES.incrementAndGet();
-    private static final String TAG = "CoverFlowView";
 
     public interface SongProvider {
         List<com.jingxin.jingxinmusic.model.Song> getPlaylist();
@@ -138,15 +134,10 @@ public class CoverFlowView extends View {
     /** 切歌/数据到达：重拉列表居中位并异步加载封面；center 变化时启动轮转动画 */
     public void notifySongChanged() {
         if (provider == null) {
-            com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " notifySongChanged provider=null");
             return;
         }
         List<com.jingxin.jingxinmusic.model.Song> list = provider.getPlaylist();
         int center = provider.getCurrentIndex();
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " notifySongChanged 列表="
-                + (list == null ? "null（binder未就绪=封面丢失嫌疑）" : list.size() + "首")
-                + " center=" + center + " 上次center=" + lastCenter
-                + " 尺寸=" + w + "x" + h + " 已有图=" + slotSummary());
         if (list == null || list.isEmpty() || center < 0 || center >= list.size()) {
             invalidate();
             return;
@@ -214,17 +205,11 @@ public class CoverFlowView extends View {
                             // 共享缓存位图禁止 recycle：槽位替换只解引用
                             coverBitmaps[slot] = coverBitmap;
                             if (coverBitmap != null) COVER_CACHE.put(cacheKey(song), coverBitmap);
-                            com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId
-                                    + " 封面加载成功 slot=" + slot + " 尺寸="
-                                    + (coverBitmap != null ? coverBitmap.getWidth() + "x" + coverBitmap.getHeight() : "null")
-                                    + " 帧尺寸=" + w + "x" + h);
                             postInvalidate();
                         }
 
                         @Override
                         public void onCoverFailed() {
-                            com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId
-                                    + " 封面加载失败 slot=" + slot + "（歌=" + song.title + "）");
                         }
                     });
                 });
@@ -264,24 +249,18 @@ public class CoverFlowView extends View {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " onDetached 已有图=" + slotSummary());
         // 不 shutdown 线程池：见字段注释（淡入淡出动画的 attach/detach 循环曾致池死→封面消失）
     }
 
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " onAttached 尺寸="
-                + getWidth() + "x" + getHeight() + " 已有图=" + slotSummary());
     }
 
     @Override
     protected void onSizeChanged(int width, int height, int oldw, int oldh) {
         super.onSizeChanged(width, height, oldw, oldh);
         w = width; h = height;
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " onSizeChanged "
-                + oldw + "x" + oldh + " → " + width + "x" + height
-                + "（零尺寸中间态=" + (oldw <= 0 || oldh <= 0) + "）已有图=" + slotSummary());
         // 自愈：分屏/悬浮窗口 resize 经历零尺寸中间态后恢复时，若封面从未加载
         //（attach 首帧时数据竞态为 null，或零尺寸期间绘制被跳过），此处重拉一次
         if (width > 0 && height > 0 && (oldw <= 0 || oldh <= 0) && provider != null) {
@@ -289,17 +268,8 @@ public class CoverFlowView extends View {
             for (Bitmap b : coverBitmaps) {
                 if (b != null) { empty = false; break; }
             }
-            com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId
-                    + " 零尺寸恢复自愈触发 重拉=" + empty);
             if (empty) notifySongChanged();
         }
-    }
-
-    /** 槽位图快照（日志用） */
-    private String slotSummary() {
-        int n = 0;
-        for (Bitmap b : coverBitmaps) if (b != null) n++;
-        return n + "/" + CARD_COUNT;
     }
 
     /** 卡点击：命中序号卡才消费（动作交 tapListener）；不命中时 DOWN 即不消费，事件落到下层（整页退出） */

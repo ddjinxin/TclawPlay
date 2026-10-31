@@ -45,7 +45,6 @@ import com.jingxin.jingxinmusic.view.SpectrumView;
  */
 public class StandardPageBase extends StagePage {
 
-    private static final String TAG = "StandardPageBase";
     protected Actions actions;
 
     // ===== 双 XML 根与视图 =====
@@ -277,8 +276,6 @@ public class StandardPageBase extends StagePage {
     @Override
     public void enter() {
         if (!installed) return;
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "enter 皮肤=" + (hubRef().getBgSkinMode() == 1 ? "光晕" : "默认")
-                + " 横屏=" + h.isLandscapeMode);
         boolean landscape = h.isLandscapeMode;
         portraitRoot.setVisibility(landscape ? View.GONE : View.VISIBLE);
         landscapeRoot.setVisibility(landscape ? View.VISIBLE : View.GONE);
@@ -392,7 +389,6 @@ public class StandardPageBase extends StagePage {
     @Override
     public void exit() {
         if (!installed) return;
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "exit");
         unsubscribeHub();
         // 解绑组件 Hub（防止后台仍刷新不可见实例）
         control.detachHub(); controlL.detachHub();
@@ -501,11 +497,6 @@ public class StandardPageBase extends StagePage {
     // ===== 四态背景（公式镜像 DefaultBackgroundSkin/AuroraBackgroundSkin 非沉浸分支）=====
 
     private void applyBackgroundState() {
-        com.jingxin.jingxinmusic.util.DiagLog.t("spb_bg", 1000, TAG,
-                "applyBackgroundState 皮肤=" + (auroraSkin ? "光晕" : "默认")
-                        + " 竖aurora=" + visibilityName(aurora.getVisibility())
-                        + " 横aurora=" + visibilityName(auroraL.getVisibility())
-                        + " 夜间=" + night);
         ImageView[] blurs = {blurBg, blurBgL};
         if (auroraSkin) {
             // 光晕非沉浸：光晕带底色全屏作为页面背景；模糊/遮罩全藏（AuroraBackgroundSkin:76-84）
@@ -607,11 +598,6 @@ public class StandardPageBase extends StagePage {
     @Override
     public void layout(int width, int height) {
         if (!installed) return;
-        com.jingxin.jingxinmusic.util.DiagLog.t("spb_layout", 500, TAG,
-                "layout " + width + "x" + height + " 横屏=" + h.isLandscapeMode
-                        + " 竖root=" + visibilityName(portraitRoot.getVisibility())
-                        + " 横root=" + visibilityName(landscapeRoot.getVisibility())
-                        + " 皮肤=" + (auroraSkin ? "光晕" : "默认"));
         lastWidth = width;
         lastHeight = height;
         boolean landscape = h.isLandscapeMode;
@@ -625,8 +611,6 @@ public class StandardPageBase extends StagePage {
                 && landscapeRoot.getVisibility() != View.VISIBLE) {
             // 兑底：两 root 均不可见（分屏 resize 与场景重入交错时可现的中间态），
             // 按当前方向恢复一个——否则页面停在宿主黑底，等下次横竖翻转才自愈
-            com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "layout 双GONE兑底触发！按方向恢复"
-                    + (landscape ? "横root" : "竖root") + "（黑屏直接证据）");
             if (landscape) {
                 landscapeRoot.setVisibility(View.VISIBLE);
             } else {
@@ -637,10 +621,6 @@ public class StandardPageBase extends StagePage {
         else layoutPortraitImpl(width, height);
         // 布局完成：尺寸就绪，补一次染色（首次 enter 时 lastHeight=0 跳过了进度条圆球/字号，导致首进黄色）
         applyThemeColors();
-    }
-
-    private static String visibilityName(int v) {
-        return v == View.VISIBLE ? "VISIBLE" : v == View.INVISIBLE ? "INVISIBLE" : "GONE";
     }
 
     /** 竖屏：公式同旧 ClassicPage.layoutPortrait */

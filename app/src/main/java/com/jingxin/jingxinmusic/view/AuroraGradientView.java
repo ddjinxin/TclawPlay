@@ -27,12 +27,6 @@ import android.view.View;
  */
 public class AuroraGradientView extends View {
 
-    private static final String TAG = "AuroraGradientView";
-    private static final java.util.concurrent.atomic.AtomicInteger INSTANCES =
-            new java.util.concurrent.atomic.AtomicInteger(0);
-    /** 实例序号（日志定位竖/横双实例用） */
-    private final int instanceId = INSTANCES.incrementAndGet();
-    private long frameCount = 0L;
 
     // === shader 常量 ===
     private static final float PI = (float) Math.PI;
@@ -187,26 +181,18 @@ public class AuroraGradientView extends View {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " onAttached 尺寸="
-                + getWidth() + "x" + getHeight());
         startAnimation();
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " onDetached（动画链="
-                + animating + "）");
         stopAnimation();
     }
 
     @Override
     protected void onVisibilityChanged(View changedView, int visibility) {
         super.onVisibilityChanged(changedView, visibility);
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " onVisibilityChanged "
-                + (visibility == VISIBLE ? "VISIBLE" : visibility == INVISIBLE ? "INVISIBLE" : "GONE")
-                + " 来源=" + changedView.getClass().getSimpleName()
-                + " 动画链=" + animating);
         if (visibility == VISIBLE) {
             startAnimation();
         } else {
@@ -217,8 +203,6 @@ public class AuroraGradientView extends View {
     @Override
     protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " onWindowVisibilityChanged "
-                + (visibility == VISIBLE ? "VISIBLE" : "GONE") + "（resize 窗口重建常见）");
         if (visibility == VISIBLE) {
             startAnimation();
         } else {
@@ -229,8 +213,6 @@ public class AuroraGradientView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " onSizeChanged "
-                + oldw + "x" + oldh + " → " + w + "x" + h + "（零尺寸中间态=" + (oldw <= 0 || oldh <= 0) + "）");
         // 自愈：尺寸回归（分屏/悬浮窗口 resize）时确保动画链活着。
         // 乐酷 reparent 时 detach/attach 回调可能乱序，stopAnimation 在 startAnimation
         // 之后到达会把自续帧链掐死（View 可见但永不再画→黑屏）；startAnimation 幂等，
@@ -244,14 +226,12 @@ public class AuroraGradientView extends View {
         // 此时不启动动画，待 onAttachedToWindow 时 handler 已就绪再正常启动
         if (handler == null) return;
         animating = true;
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " 动画链启动（复活）");
         handler.post(frameRunnable);
     }
 
     private void stopAnimation() {
         if (!animating) return;
         animating = false;
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " 动画链停止");
         // View 构造期间 handler 尚未初始化，判空保护
         if (handler != null) handler.removeCallbacks(frameRunnable);
     }
@@ -260,24 +240,14 @@ public class AuroraGradientView extends View {
         if (!animating) return;
 
         long frameStart = System.currentTimeMillis();
-        frameCount++;
-        // 心跳：每 5 秒一条（链活着/尺寸/可见性快照，死链时此日志消失即可定位断链时刻）
-        com.jingxin.jingxinmusic.util.DiagLog.t("aurora_beat_" + instanceId, 5000, TAG,
-                "#" + instanceId + " 心跳 帧数=" + frameCount + " 尺寸=" + getWidth() + "x" + getHeight()
-                        + " 动画中=" + animating);
 
         // 链断自检：View 在窗口中且可见但尺寸就绪却停链（reparent 乱序残留），
         // invalidate 已无后续帧驱动——此处主动补偿一帧 keep-alive 不能停，
         // 检测方式即本方法被调用（startAnimation post 过来的）说明链已重接
         if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE || getVisibility() != VISIBLE) {
             // 不可见态不推进动画（省电），链保留在 startAnimation 复活路径
-            com.jingxin.jingxinmusic.util.DiagLog.t("aurora_invisible_" + instanceId, 2000, TAG,
-                    "#" + instanceId + " 帧驱动暂停（不可见态）：attached=" + isAttachedToWindow()
-                            + " winVis=" + getWindowVisibility() + " vis=" + getVisibility()
-                            + "（若长时间停留此态而页面应可见=黑屏嫌疑）");
             if (!isAttachedToWindow()) {
                 animating = false; // 已脱离窗口，等 re-attach
-                com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "#" + instanceId + " 已脱离窗口，链断（等 re-attach 复活）");
                 return;
             }
         }
@@ -288,9 +258,6 @@ public class AuroraGradientView extends View {
         // 祖先不可见或零尺寸时挂起帧驱动，双保险等 onSizeChanged/onVisibilityChanged 复活
         if (getWidth() <= 0 || getHeight() <= 0 || !isShown()) {
             animating = false; // 挂起：保留 animating=false 让 startAnimation 复活路径接管
-            com.jingxin.jingxinmusic.util.DiagLog.t("aurora_idle_" + instanceId, 3000, TAG,
-                    "#" + instanceId + " 帧驱动挂起（空转止损）：尺寸=" + getWidth() + "x" + getHeight()
-                            + " isShown=" + isShown() + "（等尺寸/可见性恢复后自愈复活）");
             return;
         }
 

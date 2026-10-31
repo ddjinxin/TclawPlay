@@ -19,7 +19,6 @@ import android.widget.FrameLayout;
 
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.util.CompatUtil;
-import com.jingxin.jingxinmusic.util.DiagLog;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -118,16 +117,12 @@ public class LecoFloatManager {
                 // 读取乐酷新增的圆角参数 r（px），默认 0 即直角
                 float r = intent.getFloatExtra("r", 0f);
                 floatCornerRadius = r;
-                DiagLog.d(TAG, "乐酷广播 showmap 区域=左" + x + " 上" + y + " 宽" + w + " 高" + h
-                        + " 圆角" + r + " 悬浮中=" + isFloating.get() + " 目标Activity="
-                        + (currentResumedActivity != null ? currentResumedActivity.getClass().getSimpleName() : "null"));
 
                 if (w > 0 && h > 0) {
                     floatRect = new Rect(x, y, x + w, y + h);
                     canFloat.set(true);
                     if (isFloating.get()) {
                         // 已在悬浮：只更新窗口尺寸
-                        DiagLog.d(TAG, "悬浮中收到 resize → updateFloatWindowSize");
                         updateFloatWindowSize();
                     } else {
                         // 首次进入悬浮：找当前 resumed 的 Activity
@@ -140,7 +135,6 @@ public class LecoFloatManager {
                 }
             } else if (ACTION_CLOSE_MAP.equals(action)) {
                 boolean wasFloating = isFloating.get();
-                DiagLog.d(TAG, "乐酷广播 closemap 之前悬浮=" + wasFloating);
                 canFloat.set(false);
                 lecoFloatExit = true;
                 restoreCurrentActivity();
@@ -173,9 +167,6 @@ public class LecoFloatManager {
         @Override
         public void onActivityResumed(Activity activity) {
             currentResumedActivity = activity;
-            DiagLog.t("lfm_resumed", 1000, TAG,
-                    "Activity onResume: " + activity.getClass().getSimpleName()
-                            + " canFloat=" + canFloat.get() + " isFloating=" + isFloating.get());
             if (canFloat.get() && !isFloating.get()) {
                 floatActivity(activity);
             } else if (isFloating.get()) {
@@ -192,9 +183,6 @@ public class LecoFloatManager {
         @Override public void onActivitySaveInstanceState(Activity a, android.os.Bundle b) {}
         @Override
         public void onActivityDestroyed(Activity activity) {
-            DiagLog.d(TAG, "Activity onDestroy: " + activity.getClass().getSimpleName()
-                    + " 是悬浮宿主=" + (activity == currentFloatingActivity)
-                    + " canFloat=" + canFloat.get());
             if (activity == currentResumedActivity) {
                 currentResumedActivity = null;
             }
@@ -246,9 +234,6 @@ public class LecoFloatManager {
                 && windowContainer.getWindowToken() != null && floatRect != null) {
             int newW = floatRect.width() - floatRect.left;
             int newH = floatRect.height() - floatRect.top;
-            DiagLog.d(TAG, "resize 窗口 旧=" + windowParams.width + "x" + windowParams.height
-                    + " 新=" + newW + "x" + newH + "（宽变化=" + (newW != windowParams.width)
-                    + " 高变化=" + (newH != windowParams.height) + "）");
             windowParams.x = floatRect.left;
             windowParams.y = floatRect.top;
             windowParams.width = newW;
@@ -302,8 +287,6 @@ public class LecoFloatManager {
 
             int floatW = floatRect.width() - floatRect.left;
             int floatH = floatRect.height() - floatRect.top;
-            DiagLog.d(TAG, "首次悬浮 floatActivity 剥离 fragment_container 尺寸=" + floatW + "x" + floatH
-                    + " Activity=" + activity.getClass().getSimpleName());
 
             windowContainer.removeAllViews();
             windowContainer.addView(fragmentContainer, new FrameLayout.LayoutParams(floatW, floatH));
@@ -372,7 +355,6 @@ public class LecoFloatManager {
     }
 
     private void restoreCurrentActivity() {
-        DiagLog.d(TAG, "restoreCurrentActivity 还原 fragment_container 到原窗口");
         try {
             if (currentContentView != null && originalParent != null) {
                 if (windowContainer != null) {
@@ -406,7 +388,6 @@ public class LecoFloatManager {
     }
 
     private void removeFloatWindow() {
-        DiagLog.d(TAG, "removeFloatWindow 移除覆盖窗口");
         try {
             if (windowContainer != null && windowContainer.getWindowToken() != null) {
                 windowManager.removeViewImmediate(windowContainer);

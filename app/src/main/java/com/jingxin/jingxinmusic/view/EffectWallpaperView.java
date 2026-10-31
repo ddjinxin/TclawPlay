@@ -106,7 +106,6 @@ public class EffectWallpaperView extends FrameLayout {
     // ==================== 视频模式实现 ====================
 
     private boolean setupVideo() {
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "setupVideo");
         wantPlaying = true;
         videoView = new TextureView(getContext());
         videoView.setLayoutParams(new LayoutParams(
@@ -116,13 +115,11 @@ public class EffectWallpaperView extends FrameLayout {
         videoView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-                com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "onSurfaceTextureAvailable");
                 startVideo(surface);
             }
 
             @Override
             public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-                com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "onSurfaceTextureSizeChanged " + width + "x" + height);
                 updateVideoLayout();
             }
 
@@ -133,7 +130,6 @@ public class EffectWallpaperView extends FrameLayout {
                 // 播放器持续解码渲染到纹理，重挂后无缝继续，无黑窗期。
                 // 缺点：真释放（退效果页）需在 release() 手动 release 纹理。
                 // 返回 true 的旧行为=每次 reparent 摧毁重建播放链，中间必黑一截
-                com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "onSurfaceTextureDestroyed -> keep texture");
                 captureFreezeFrame();
                 return false;
             }
@@ -146,7 +142,6 @@ public class EffectWallpaperView extends FrameLayout {
     }
 
     private void startVideo(SurfaceTexture surface) {
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "startVideo surface=" + (surface != null));
         if (wallpaperPath == null) return;
         stopVideo();
         try {
@@ -168,7 +163,6 @@ public class EffectWallpaperView extends FrameLayout {
                 // 无条件 start：壁画视频静音循环，无暂停语义——不依赖窗口可见性判断
                 //（reparent 中间态窗口可见性不可靠，曾致 prepared 后不 start → 永久黑）
                 mp.start();
-                com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "onPrepared -> start " + mp.getVideoWidth() + "x" + mp.getVideoHeight());
                 if (videoView != null) videoView.post(this::updateVideoLayout);
                 // 新视频出画后揭掉末帧定格（延迟两帧确保首帧已渲染上屏）
                 if (videoView != null) {
@@ -176,7 +170,6 @@ public class EffectWallpaperView extends FrameLayout {
                 }
             });
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "onError what=" + what + " extra=" + extra);
                 notifyError();
                 return true;
             });
@@ -198,7 +191,6 @@ public class EffectWallpaperView extends FrameLayout {
         try {
             Bitmap frame = videoView.getBitmap();
             if (frame == null) return;
-            com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "freezeFrame captured " + frame.getWidth() + "x" + frame.getHeight());
             if (freezeFrame == null) {
                 freezeFrame = new android.widget.ImageView(getContext());
                 freezeFrame.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
@@ -214,12 +206,10 @@ public class EffectWallpaperView extends FrameLayout {
     private void clearFreezeFrame() {
         if (freezeFrame != null && freezeFrame.getVisibility() == VISIBLE) {
             freezeFrame.setVisibility(GONE);
-            com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "freezeFrame cleared");
         }
     }
 
     private void stopVideo() {
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "stopVideo player=" + (mediaPlayer != null));
         if (mediaPlayer != null) {
             try { mediaPlayer.stop(); } catch (Exception ignored) {}
             try { mediaPlayer.release(); } catch (Exception ignored) {}
@@ -239,8 +229,6 @@ public class EffectWallpaperView extends FrameLayout {
         int videoH = mediaPlayer.getVideoHeight();
         if (videoW <= 0 || videoH <= 0) return;
 
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "updateVideoLayout parent=" + parentW + "x" + parentH + " video=" + videoW + "x" + videoH);
-
         float scale = Math.max((float) parentW / videoW, (float) parentH / videoH);
         int scaledW = (int) (videoW * scale);
         int scaledH = (int) (videoH * scale);
@@ -258,7 +246,6 @@ public class EffectWallpaperView extends FrameLayout {
     @Override
     protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "onWindowVisibilityChanged " + visibility);
         if (visibility == VISIBLE) {
             resumeVideo();
         } else {
@@ -269,7 +256,6 @@ public class EffectWallpaperView extends FrameLayout {
     @Override
     protected void onVisibilityChanged(View changedView, int visibility) {
         super.onVisibilityChanged(changedView, visibility);
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "onVisibilityChanged " + visibility);
         if (visibility == VISIBLE) {
             resumeVideo();
         } else {
@@ -278,7 +264,6 @@ public class EffectWallpaperView extends FrameLayout {
     }
 
     private void pauseVideo() {
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "pauseVideo player=" + (mediaPlayer != null) + " prepared=" + videoPrepared);
         wantPlaying = false;
         if (mediaPlayer != null && mediaPlayer.isPlaying()) {
             try { mediaPlayer.pause(); } catch (Exception ignored) {}
@@ -286,7 +271,6 @@ public class EffectWallpaperView extends FrameLayout {
     }
 
     private void resumeVideo() {
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "resumeVideo player=" + (mediaPlayer != null) + " prepared=" + videoPrepared);
         if (mediaPlayer != null && videoPrepared) {
             wantPlaying = true;
             try {
@@ -333,7 +317,6 @@ public class EffectWallpaperView extends FrameLayout {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "onAttached path=" + (wallpaperPath != null) + " img=" + (imageView != null) + " vid=" + (videoView != null) + " avail=" + (videoView != null && videoView.isAvailable()) + " player=" + (mediaPlayer != null) + " prepared=" + videoPrepared);
         // 自愈：reparent 重挂后若壁纸层已失效（防御），按扩展名重建渲染层
         if (wallpaperPath == null) return;
         boolean imageDead = imageView != null
@@ -370,7 +353,6 @@ public class EffectWallpaperView extends FrameLayout {
         // detach/attach 是正常流程——绝不能在此销毁资源（旧版 release 致 bitmap 被回收、
         // videoView 被移除，重挂后图片画不出/视频层缺失 → 壁纸变黑或透出播放页）。
         // 只轻量暂停；真正释放仅由 Manager detach 显式调用 release()
-        com.jingxin.jingxinmusic.util.DiagLog.d("EWV", "onDetached");
         pauseVideo();
         super.onDetachedFromWindow();
     }

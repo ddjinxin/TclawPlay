@@ -49,7 +49,6 @@ public class LyricEffectManager {
     }
 
     private static final long FADE_MS = 240L;
-    private static final String TAG = "LyricEffectManager";
     private static final String TAG_PAGE = "lyric_effect_page"; // 效果页标识（残留清扫用）
 
     private final PlayerStateHub hub;
@@ -82,9 +81,6 @@ public class LyricEffectManager {
     /** 进入效果页（已激活则忽略） */
     public void attach(Effect effect) {
         if (active || host == null) return;
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "attach 效果页=" + effect
-                + " host子数=" + host.getChildCount()
-                + " hub歌=" + (hub != null && hub.getSong() != null ? hub.getSong().title : "null"));
         // 残留旧页清理：上一次淡出的 withEndAction 可能在 reparent 时被取消（View detach
         // 中断 ViewPropertyAnimator），旧页/其壁纸层滞留树上——按 tag 清扫，防叠层与泄漏
         cleanOrphanPages();
@@ -173,7 +169,6 @@ public class LyricEffectManager {
     /** 清扫树上残留的旧效果页（tag 识别，与当前页不同才移除） */
     private void cleanOrphanPages() {
         if (host == null) return;
-        int removed = 0;
         for (int i = host.getChildCount() - 1; i >= 0; i--) {
             android.view.View child = host.getChildAt(i);
             if (child instanceof LyricEffectPage && child != activePage
@@ -184,11 +179,7 @@ public class LyricEffectManager {
                     ((LyricEffectPage) child).getWallpaperView().release();
                 }
                 host.removeView(child);
-                removed++;
             }
-        }
-        if (removed > 0) {
-            com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "cleanOrphanPages 清扫残留旧页 " + removed + " 张");
         }
     }
 
@@ -210,7 +201,6 @@ public class LyricEffectManager {
     /** 退出效果页（淡出+退订+移除） */
     public void detach() {
         if (!active || activePage == null) return;
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "detach 效果页退出（淡出240ms）");
         final LyricEffectPage page = activePage;
         active = false;
         activePage = null;
@@ -241,12 +231,10 @@ public class LyricEffectManager {
         });
         if (!wallpaper.load(file)) {
             wallpaper.release();         // 解码/打开失败：回退默认背景
-            com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "injectWallpaper 壁纸加载失败回退默认背景");
             return false;
         }
         activePage.addView(wallpaper, 0);
         activePage.setWallpaperView(wallpaper);
-        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "injectWallpaper 壁纸层垫底注入成功");
         return true;
     }
 
