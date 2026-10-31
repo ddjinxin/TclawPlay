@@ -37,6 +37,8 @@ import com.jingxin.jingxinmusic.view.SpectrumView;
  */
 public class ImmersivePageV2 extends StagePage {
 
+    private static final String TAG = "ImmersiveV2";
+
     // 动作桥走基接口 StagePage.Actions（沉降至基接口后，本页零依赖具体风格页）
     private StagePage.Actions actions;
 
@@ -222,6 +224,8 @@ public class ImmersivePageV2 extends StagePage {
     @Override
     public void enter() {
         if (!installed) return;
+        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "enter 皮肤=" + (hubRef().getBgSkinMode() == 1 ? "光晕" : "默认")
+                + " 横屏=" + h.isLandscapeMode);
         boolean landscape = h.isLandscapeMode;
         portraitRoot.setVisibility(landscape ? View.GONE : View.VISIBLE);
         landscapeRoot.setVisibility(landscape ? View.VISIBLE : View.GONE);
@@ -264,6 +268,7 @@ public class ImmersivePageV2 extends StagePage {
     @Override
     public void exit() {
         if (!installed) return;
+        com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "exit");
         unsubscribeHub();
         control.detachHub(); controlL.detachHub();
         progress.detachHub(); progressL.detachHub();
@@ -405,6 +410,11 @@ public class ImmersivePageV2 extends StagePage {
     }
 
     private void applyBackgroundState() {
+        com.jingxin.jingxinmusic.util.DiagLog.t("iv2_bg", 1000, TAG,
+                "applyBackgroundState 皮肤=" + (auroraSkin ? "光晕" : "默认")
+                        + " 竖aurora=" + visName(aurora.getVisibility())
+                        + " 横aurora=" + visName(auroraL.getVisibility())
+                        + " 夜间=" + night);
         if (auroraSkin) {
             // 光晕沉浸：横竖两套（镜像 AuroraBackgroundSkin 沉浸分支）
             int auroraBg = night ? AuroraGradientView.BG_NIGHT : AuroraGradientView.BG_DAY;
@@ -585,6 +595,11 @@ public class ImmersivePageV2 extends StagePage {
     @Override
     public void layout(int width, int height) {
         if (!installed) return;
+        com.jingxin.jingxinmusic.util.DiagLog.t("iv2_layout", 500, TAG,
+                "layout " + width + "x" + height + " 横屏=" + h.isLandscapeMode
+                        + " 竖root=" + visName(portraitRoot.getVisibility())
+                        + " 横root=" + visName(landscapeRoot.getVisibility())
+                        + " 皮肤=" + (auroraSkin ? "光晕" : "默认"));
         lastWidth = width; lastHeight = height;
         boolean landscape = h.isLandscapeMode;
         if (portraitRoot.getVisibility() == View.VISIBLE && landscape) {
@@ -597,6 +612,8 @@ public class ImmersivePageV2 extends StagePage {
                 && landscapeRoot.getVisibility() != View.VISIBLE) {
             // 兑底：两 root 均不可见（分屏 resize 与场景重入交错时可现的中间态），
             // 按当前方向恢复一个——否则页面停在宿主黑底，等下次横竖翻转才自愈
+            com.jingxin.jingxinmusic.util.DiagLog.d(TAG, "layout 双GONE兑底触发！按方向恢复"
+                    + (landscape ? "横root" : "竖root") + "（黑屏直接证据）");
             if (landscape) {
                 landscapeRoot.setVisibility(View.VISIBLE);
             } else {
@@ -606,6 +623,10 @@ public class ImmersivePageV2 extends StagePage {
         if (landscape) layoutLandscapeImpl(width, height);
         else layoutPortraitImpl(width, height);
         applyThemeColors(); // 尺寸就绪补染色（首进轨道/字号）
+    }
+
+    private static String visName(int v) {
+        return v == View.VISIBLE ? "VISIBLE" : v == View.INVISIBLE ? "INVISIBLE" : "GONE";
     }
 
     /** 竖屏：43% 封面层 + 标题推至遮罩分界（公式对齐旧 updateImmersiveLyricMargin） */
@@ -737,5 +758,11 @@ public class ImmersivePageV2 extends StagePage {
         if (p != null) p.removeView(portraitRoot);
         ViewGroup pl = (ViewGroup) landscapeRoot.getParent();
         if (pl != null) pl.removeView(landscapeRoot);
+    }
+
+    @Override
+    public void setHostResumed(boolean resumed) {
+        if (aurora != null) aurora.setHostResumed(resumed);
+        if (auroraL != null) auroraL.setHostResumed(resumed);
     }
 }

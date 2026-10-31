@@ -48,6 +48,13 @@ public class CadenzaLyricView extends View {
 
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
+    // ===== 低版本渲染降级（BYD Android 5.1 车机 native 崩溃实锤：见诊断日志 2026-10-31）=====
+    // 词云逐字母 setShadowLayer(40f) 柔和辉光在 5.1 弱 GPU 软 RIP 管线上是致命负载，
+    // 单帧几十次大半径阴影调用直接把渲染库打崩（进程无声死亡，Java 无异常）。
+    // API<23 降级：辉光半径 40→10、关闭逐字母循环（整词一次性辉光），成本降一个量级。
+    private static final boolean LIGHT_GLOW = android.os.Build.VERSION.SDK_INT < 23;
+    private static final float GLOW_RADIUS = LIGHT_GLOW ? 10f : 40f;
+
     private List<KrcParser.LyricLine> lines = Collections.emptyList();
     private int targetIndex = -1;
     private int positionMs;
@@ -512,10 +519,10 @@ public class CadenzaLyricView extends View {
         android.graphics.Paint.FontMetrics fm = textPaint.getFontMetrics();
         float baseline = -(fm.ascent + fm.descent) * 0.5f - fm.descent;
 
-        if (p.cjk || p.text.length() <= 1) {
-            // 整词辉光 + 正文
+        if (p.cjk || p.text.length() <= 1 || LIGHT_GLOW) {
+            // 整词辉光 + 正文（低版本降级：非 CJK 短词也走整词路径，跳过逐字母循环）
             if (glowI > 0.02f) {
-                textPaint.setShadowLayer(40f * glowI, 0, 0, (int)(glowI * 0.92f * 255) << 24 | (colorAccent & 0xFFFFFF));
+                textPaint.setShadowLayer(GLOW_RADIUS * glowI, 0, 0, (int)(glowI * 0.92f * 255) << 24 | (colorAccent & 0xFFFFFF));
             } else {
                 textPaint.setShadowLayer(0, 0, 0, 0);
             }
@@ -536,7 +543,7 @@ public class CadenzaLyricView extends View {
                 float gEnv = keyframedGlow(clamp01(gProg));
                 float giAlpha = gEnv * glowI;
                 if (giAlpha > 0.02f) {
-                    textPaint.setShadowLayer(40f * giAlpha, 0, 0,
+                    textPaint.setShadowLayer(GLOW_RADIUS * giAlpha, 0, 0,
                             (int)(giAlpha * 0.92f * 255) << 24 | (colorAccent & 0xFFFFFF));
                 } else {
                     textPaint.setShadowLayer(0, 0, 0, 0);

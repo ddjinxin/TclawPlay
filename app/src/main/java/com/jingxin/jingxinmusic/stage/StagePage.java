@@ -72,6 +72,9 @@ public abstract class StagePage {
     /** 页面销毁：清理子视图（宿主容器不动的共享组件除外） */
     public void destroy() {}
 
+    /** 宿主（Fragment）前后台闸门：车机 ROM 退后台不下发窗口隐藏，帧链动画需宿主生命周期兜底（无动画背景页空桩） */
+    public void setHostResumed(boolean resumed) {}
+
     // ===== 旧 Scene 接口兼容映射（双轨期 Fragment 统一调度用） =====
 
     public boolean shouldShowSpectrumButton(int spectrumStyle) { return true; }

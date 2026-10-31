@@ -75,6 +75,15 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private final Set<String> loadingCovers = new HashSet<>();
 
+    /** 进程级封面内存缓存：重建视图/滚动重绑时秒开封面，避免"默认→异步"闪烁 */
+    private static final android.util.LruCache<String, Bitmap> coverCache =
+            new android.util.LruCache<String, Bitmap>(32 * 1024 * 1024) {
+                @Override
+                protected int sizeOf(String key, Bitmap value) {
+                    return value.getAllocationByteCount();
+                }
+            };
+
     public interface OnItemClickListener {
         void onItemClick(BrowseItem item, int position);
     }
@@ -177,16 +186,25 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
     }
 
     private void loadCover(ViewHolder holder, BrowseItem item) {
-        // 默认封面：耳机图标，背景渐变跟随主题
-        holder.ivCover.setImageResource(R.drawable.ic_music_icon);
-        holder.ivCover.setBackground(ThemeColors.cardGradient(isNightMode));
-
         if (context == null) return;
 
         String songTitle = item.song != null ? item.song.title :
                 WebDavScanner.nameWithoutExtension(item.name);
-
         String coverKey = songTitle;
+
+        // 命中进程内封面缓存：直接显示，避免重建视图/重绑时"默认→异步"闪烁
+        Bitmap cached = coverCache.get(coverKey);
+        if (cached != null) {
+            holder.ivCover.setImageBitmap(cached);
+            holder.ivCover.setBackground(null);
+            holder.ivCover.setColorFilter(0);
+            return;
+        }
+
+        // 默认封面：耳机图标，背景渐变跟随主题
+        holder.ivCover.setImageResource(R.drawable.ic_music_icon);
+        holder.ivCover.setBackground(ThemeColors.cardGradient(isNightMode));
+
         synchronized (loadingCovers) {
             if (loadingCovers.contains(coverKey)) return;
             loadingCovers.add(coverKey);
@@ -244,6 +262,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
 
             if (coverBitmap != null) {
                 Bitmap finalBitmap = coverBitmap;
+                coverCache.put(coverKey, finalBitmap);
                 synchronized (loadingCovers) { loadingCovers.remove(coverKey); }
                 uiHandler.post(() -> {
                     if (holder.getAdapterPosition() == pos) {
@@ -278,6 +297,7 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
                     } catch (Exception e) {
                     }
                     synchronized (loadingCovers) { loadingCovers.remove(coverKey); }
+                    coverCache.put(coverKey, coverBitmap);
                     uiHandler.post(() -> {
                         if (holder.getAdapterPosition() == pos) {
                             holder.ivCover.setBackground(null);

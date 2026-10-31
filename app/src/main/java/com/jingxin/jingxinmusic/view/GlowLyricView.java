@@ -47,6 +47,12 @@ public class GlowLyricView extends View {
 
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
+    // ===== 低版本渲染降级（BYD Android 5.1 车机 native 崩溃实锤：见诊断日志 2026-10-31）=====
+    // setShadowLayer 大半径柔和阴影在 5.1 弱 GPU 的软 RIP 管线上是致命负载，流光页 attach 后
+    // 0.4s 内进程即被击杀（SurfaceFlinger/libRIP 层，Java 无异常）。API<23 降级：
+    // 字素双层辉光 → 单圈减半半径；行级光晕半径减半；视觉保留主体、成本降一个量级。
+    private static final boolean LIGHT_GLOW = android.os.Build.VERSION.SDK_INT < 23;
+
     private List<KrcParser.LyricLine> lines = Collections.emptyList();
     private int currentIndex = -1;
     private int colorHighlight = COLOR_CURRENT;
@@ -499,8 +505,12 @@ public class GlowLyricView extends View {
         if (a <= 2) { c.lastAlpha = 0f; return; }
         textPaint.setColor((a << 24) | (color & 0xFFFFFF));
         clearGlow();
-        if (glow > 0.02f) textPaint.setShadowLayer(lineTextSize * 0.4f * glow, 0, 0,
-                ((int) (glow * 200) << 24) | (color & 0xFFFFFF));
+        if (glow > 0.02f) {
+            float glowRadius = LIGHT_GLOW ? lineTextSize * 0.2f * glow
+                    : lineTextSize * 0.4f * glow; // 低版本半径减半
+            textPaint.setShadowLayer(glowRadius, 0, 0,
+                    ((int) (glow * 200) << 24) | (color & 0xFFFFFF));
+        }
         int sc = canvas.save();
         if (rotate != 0f) canvas.rotate(rotate, c.cx, c.cy);
         if (scale != 1f) canvas.scale(scale, scale, c.cx, c.cy);
@@ -535,8 +545,10 @@ public class GlowLyricView extends View {
 
         if (activeEl >= 0 && charCount > 0) {
             // 辉光两遍：内圈（α0.7）/外圈（α1）——每个字独立的正弦 ramp
-            for (int pass = 0; pass < 2; pass++) {
-                float radius = pass == 0 ? rInner : rOuter;
+            // 低版本（LIGHT_GLOW）降级：两遍合一、半径减半——单帧阴影层调用次数减半再减半
+            int glowPasses = LIGHT_GLOW ? 1 : 2;
+            for (int pass = 0; pass < glowPasses; pass++) {
+                float radius = pass == 0 ? (LIGHT_GLOW ? rOuter * 0.5f : rInner) : rOuter;
                 float glowAlphaScale = pass == 0 ? 0.7f : 1f;
                 float x = -textPaint.measureText(c.text) / 2f;
                 for (int i = 0; i < charCount; i++) {

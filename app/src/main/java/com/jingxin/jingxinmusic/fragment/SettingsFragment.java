@@ -441,12 +441,15 @@ public class SettingsFragment extends BaseFloatFragment {
             scanProgress.setVisibility(View.VISIBLE);
 
             MusicScanner.manualScan(requireContext(), songs -> {
-                requireActivity().runOnUiThread(() -> {
+                // 扫描在后台线程耗时10s+，回调时页面可能已销毁，detach 后禁止触碰UI
+                if (!isAdded()) return;
+                getActivity().runOnUiThread(() -> {
+                    if (!isAdded()) return; // post回主线程时再查一次
                     isScanning = false;
                     btnScan.setText("扫描");
                     btnScan.setEnabled(true);
                     scanProgress.setVisibility(View.GONE);
-                    Toast.makeText(requireContext(),
+                    Toast.makeText(getActivity(),
                             "扫描完成，共 " + (songs != null ? songs.size() : 0) + " 首",
                             Toast.LENGTH_SHORT).show();
                 });

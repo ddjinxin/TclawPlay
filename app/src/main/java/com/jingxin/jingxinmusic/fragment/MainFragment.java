@@ -136,6 +136,9 @@ public class MainFragment extends BaseFloatFragment {
     // Browse adapter
     private BrowseAdapter browseAdapter;
 
+    /** browseAdapter 当前已加载内容的 B站URL（null 表示非B站内容）；用于从播放页返回时复用，避免网格封面闪烁 */
+    private String lastLoadedBiliUrl = null;
+
     // Local browse state
     private List<Song> allSongs = new ArrayList<>();
     private Stack<String> localNavStack = new Stack<>();
@@ -473,8 +476,10 @@ public class MainFragment extends BaseFloatFragment {
         songAdapter.setOnSongClickListener(this::onFavoriteSongClick);
         rvList.setAdapter(songAdapter);
 
-        // 浏览 RecyclerView
-        browseAdapter = new BrowseAdapter();
+        // 浏览 RecyclerView（复用实例：从播放页返回时保留已加载items与封面，避免重建闪烁）
+        if (browseAdapter == null) {
+            browseAdapter = new BrowseAdapter();
+        }
         int spanCount = calcSpanCount();
         rvBrowse.setLayoutManager(new GridLayoutManager(ctx, spanCount));
         rvBrowse.setAdapter(browseAdapter);
@@ -977,6 +982,7 @@ public class MainFragment extends BaseFloatFragment {
             items.add(BrowseItem.localSong(song));
         }
         browseAdapter.setItems(items);
+        lastLoadedBiliUrl = null;
     }
 
     private void filterFavoriteBrowseItems(String query) {
@@ -990,6 +996,7 @@ public class MainFragment extends BaseFloatFragment {
             }
         }
         browseAdapter.setItems(items);
+        lastLoadedBiliUrl = null;
     }
 
     private void loadLocalItems() {
@@ -1004,6 +1011,7 @@ public class MainFragment extends BaseFloatFragment {
 
         List<BrowseItem> items = LocalDirectoryScanner.buildLevel(allSongs, dirPath);
         browseAdapter.setItems(items);
+        lastLoadedBiliUrl = null;
 
         if (dirPath == null) {
             pathBar.setVisibility(View.GONE);
@@ -1090,6 +1098,7 @@ public class MainFragment extends BaseFloatFragment {
                 browseLoading.setVisibility(View.GONE);
                 rvBrowse.setVisibility(View.VISIBLE);
                 browseAdapter.setItems(browseItems);
+                lastLoadedBiliUrl = null;
                 updateCountText();
             });
         });
@@ -1139,6 +1148,23 @@ public class MainFragment extends BaseFloatFragment {
     }
 
     private void navigateBiliTo(String url) {
+        // 从播放页返回（popBackStack 同实例重建视图）或重复进入且内容未变时：
+        // 直接复用已加载的 items 显示，避免整块列表 GONE→loading→重建造成的封面闪烁
+        if (lastLoadedBiliUrl != null && lastLoadedBiliUrl.equals(url)
+                && browseAdapter.getItems() != null && !browseAdapter.getItems().isEmpty()) {
+            pathBar.setVisibility(View.VISIBLE);
+            btnWebDavSettings.setVisibility(View.GONE);
+            btnBiliSettings.setVisibility(View.VISIBLE);
+            if (url == null) {
+                tvBrowsePath.setText("/ B站收藏夹");
+            } else {
+                tvBrowsePath.setText("/ " + extractBiliDisplayPath(url));
+            }
+            webdavSetupArea.setVisibility(View.GONE);
+            browseLoading.setVisibility(View.GONE);
+            rvBrowse.setVisibility(View.VISIBLE);
+            return;
+        }
         if (url != null && biliCurrentUrl != null && !url.equals(biliCurrentUrl)) {
             biliNavStack.push(biliCurrentUrl);
         }
@@ -1226,6 +1252,7 @@ public class MainFragment extends BaseFloatFragment {
                 browseLoading.setVisibility(View.GONE);
                 rvBrowse.setVisibility(View.VISIBLE);
                 browseAdapter.setItems(finalItems);
+                lastLoadedBiliUrl = url;
                 updateCountText();
             });
         });

@@ -38,6 +38,7 @@ import androidx.core.content.ContextCompat;
 import androidx.lifecycle.Lifecycle;
 
 import com.jingxin.jingxinmusic.R;
+import com.jingxin.jingxinmusic.util.DiagLog;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
 import com.jingxin.jingxinmusic.util.CompatUtil;
@@ -266,10 +267,14 @@ public class PlayerFragment extends BaseFloatFragment {
             } else if ("com.jingxin.jingxinmusic.FLOAT_LAYOUT_REFRESH".equals(action)) {
                 // 乐酷悬浮进入：按悬浮区域尺寸刷新布局
                 if (!isActivityGone()) {
-                    detectAndApplyLandscapeMode();
-                    applyLayoutMode();
                     int w = getLayoutWidth();
                     int h = getAvailableScreenHeight();
+                    DiagLog.d(TAG, "收到 FLOAT_LAYOUT_REFRESH 布局刷新广播 w=" + w + " h=" + h
+                            + " 横屏=" + isLandscapeMode + " 场景="
+                            + (currentScene != null ? currentScene.getClass().getSimpleName() : "null")
+                            + " bound=" + bound);
+                    detectAndApplyLandscapeMode();
+                    applyLayoutMode();
                     sceneLayout(w, h);
                     updateThemeUI();
                     updateLayoutForMode(lyricView.getDisplayMode());
@@ -294,6 +299,8 @@ public class PlayerFragment extends BaseFloatFragment {
         public void onServiceConnected(ComponentName name, IBinder service) {
             playerBinder = (MusicPlayerBinder) service;
             bound = true;
+            DiagLog.d(TAG, "服务已绑定 bound=true（歌单"
+                    + (playerBinder.getPlaylist() != null ? playerBinder.getPlaylist().size() + "首" : "null"));
 
             // 读缓存或扫描歌曲列表（不触发 triggerMediaScan）
             executor.execute(() -> {
@@ -406,6 +413,7 @@ public class PlayerFragment extends BaseFloatFragment {
         public void onServiceDisconnected(ComponentName name) {
             playerBinder = null;
             bound = false;
+            DiagLog.d(TAG, "服务已断连 bound=false");
         }
     };
 
@@ -523,6 +531,7 @@ public class PlayerFragment extends BaseFloatFragment {
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.activity_player, container, false);
         mRootView = view;
+        DiagLog.d(TAG, "onCreateView 播放页视图创建");
 
         // 初始化视图
           // 歌名+歌手组件
@@ -592,7 +601,16 @@ public class PlayerFragment extends BaseFloatFragment {
                      int oldLeft, int oldTop, int oldRight, int oldBottom) -> {
                         if (isActivityGone()) return;
                         int newWidth = right - left;
+                        int newHeight = bottom - top;
                         int oldWidth = oldRight - oldLeft;
+                        int oldHeight = oldBottom - oldTop;
+                        // 全尺寸变化都记（高度变化不重排——乐酷 resize 高度变化时页面不重新布局，重点观察）
+                        DiagLog.t("pf_layout", 300, TAG,
+                                "root_layout 尺寸变化 " + oldWidth + "x" + oldHeight
+                                        + " → " + newWidth + "x" + newHeight
+                                        + "（宽变=" + (newWidth != oldWidth)
+                                        + " 高变=" + (newHeight != oldHeight)
+                                        + " 触发重排=" + (newWidth > 0 && newWidth != oldWidth) + "）");
                         if (newWidth > 0 && newWidth != oldWidth) {
                             // 横竖屏切换时关闭频谱选择弹窗
                             if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
@@ -692,6 +710,7 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onResume() {
         super.onResume();
+        DiagLog.d(TAG, "onResume 播放页可见");
         // 从设置页返回时重读背景皮肤和封面风格，切换即时生效
         int savedBgSkin = SettingsFragment.getBgSkin(requireContext());
         int savedCoverStyle = normalizeCoverStyle(requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC));
@@ -737,14 +756,34 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onPause() {
         super.onPause();
+        DiagLog.d(TAG, "onPause 播放页暂停（分屏/车机系统频繁循环属正常）");
         // 不在 onPause 停频谱：分屏/车机系统会频繁触发 onPause/onResume 循环
     }
 
     @Override
     public void onStop() {
         super.onStop();
+        DiagLog.d(TAG, "onStop 播放页停止（分屏/车机系统频繁循环属正常）");
         // 不在 onStop 停频谱：车机系统会疯狂循环 onResume/onStop（间隔 20-50ms），每次停掉重建导致频谱闪一下就消失
         // 频谱只由以下场景停止：ACTION_SERVICE_CLAIM（悬浮窗抢占）、切歌重建、用户关开关、onDestroyView
+        // 但 aurora 帧链必须挂起：车机 ROM 退后台不下发窗口隐藏，isShown 仍 true，止损不触发，
+        // 后台空转 28Hz（MEK-MX8Q 日志实锤）；闸门幂等且无视觉副作用，快速循环无害
+        setStagePagesHostResumed(false);
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        setStagePagesHostResumed(true);
+    }
+
+    /** 前后台闸门分发给四场景页（页内转发给 aurora 竖/横双实例，未装页空桩） */
+    private void setStagePagesHostResumed(boolean resumed) {
+        com.jingxin.jingxinmusic.stage.StagePage[] pages =
+                {classicV2Page, immersiveV2Page, recordV2Page, carouselV2Page};
+        for (com.jingxin.jingxinmusic.stage.StagePage p : pages) {
+            if (p != null) p.setHostResumed(resumed);
+        }
     }
 
     @Override
@@ -866,10 +905,15 @@ public class PlayerFragment extends BaseFloatFragment {
      * 不重入则页面停留在旧方向形态：沉浸横→竖封面不重铺/渐变层残留等）
      */
     private void sceneLayout(int width, int height) {
+        DiagLog.t("pf_sceneLayout", 500, TAG, "sceneLayout " + width + "x" + height
+                + " 场景=" + (currentScene != null ? currentScene.getClass().getSimpleName() : "null")
+                + " 横屏=" + isLandscapeMode
+                + "（翻转重进出=" + (currentScene != null && enteredAsLandscape != isLandscapeMode) + "）");
         if (currentScene != null && enteredAsLandscape != isLandscapeMode) {
             currentScene.exit();
             enteredAsLandscape = isLandscapeMode;
             currentScene.enter();
+            DiagLog.d(TAG, "场景横竖翻转 exit→enter 已执行");
         }
         if (currentScene != null) currentScene.layout(width, height);
     }
@@ -1250,6 +1294,10 @@ public class PlayerFragment extends BaseFloatFragment {
         int width = getLayoutWidth();
         int height = getAvailableScreenHeight();
         boolean newLandscape = (width > height * 1.1f);
+        if (newLandscape != isLandscapeMode) {
+            DiagLog.d(TAG, "横竖屏判定翻转：" + isLandscapeMode + " → " + newLandscape
+                    + "（w=" + width + " h=" + height + "）");
+        }
         isLandscapeMode = newLandscape;
     }
 
@@ -2798,6 +2846,7 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        DiagLog.d(TAG, "onDestroyView 播放页视图销毁（若出现在 resize 时说明 Activity 被重建）");
         stopSpectrum();
         stopControlsHideTimer();
         uiHandler.removeCallbacks(progressRunnable);
@@ -2809,6 +2858,14 @@ public class PlayerFragment extends BaseFloatFragment {
             requireContext().unbindService(serviceConnection);
             bound = false;
         }
+        // 场景页/效果页 Hub 观察者注销：原缺此步，旧页（含 aurora 引用）滞留
+        // PlayerStateHub 观察者列表，封面颜色广播将已销毁实例反复唤醒——幽灵复活，
+        // 乐酷 resize 连续重建下多代页面对象累积泄漏（cx 日志 13:58:13 六连复活实锤）。
+        // 仅注销不置 null：卸载态调用点（setCover 等）无判空，stale 安全、null 会 NPE
+        com.jingxin.jingxinmusic.stage.StagePage[] pages =
+                {classicV2Page, immersiveV2Page, recordV2Page, carouselV2Page};
+        for (com.jingxin.jingxinmusic.stage.StagePage p : pages) if (p != null) p.exit();
+        if (lyricEffectManager != null) lyricEffectManager.detach();
     }
 
     @Override

@@ -73,10 +73,15 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
 
+        // 诊断日志（乐酷悬浮 resize 黑屏/封面流丢失排查：写 Download/静心音乐_诊断日志.txt）
+        com.jingxin.jingxinmusic.util.DiagLog.init(this);
+
+        // 抓上次 native 死亡现场：SIGSEGV/SIGKILL 不走 Java CrashHandler（日志无声终止），
+        // logcat crash 缓冲区应用可读（4.1+ 免权限），新会话开头记下 tombstone 摘要即实锤
+        dumpLastNativeCrash();
+
         // 安装崩溃捕获（本地落盘崩溃日志）
         CrashHandler.install(this);
-
-        // 临时调试日志初始化（排查返回键问题，用完删除）
 
         // 按时间规则自动判断日夜主题（优先级低于高德导航广播）
         ThemeHelper.applyAutoTheme(this);
@@ -95,6 +100,9 @@ public class App extends Application {
             @Override
             public void onActivityStarted(Activity activity) {
                 activityCount++;
+                com.jingxin.jingxinmusic.util.DiagLog.t("app_started", 1000, TAG,
+                        "Activity onStart: " + activity.getClass().getSimpleName()
+                                + " 前台计数=" + activityCount);
                 // 有新Activity启动，取消待执行的悬浮窗启动
                 if (pendingStartFloat != null) {
                     handler.removeCallbacks(pendingStartFloat);
@@ -110,6 +118,9 @@ public class App extends Application {
             @Override
             public void onActivityStopped(Activity activity) {
                 activityCount--;
+                com.jingxin.jingxinmusic.util.DiagLog.t("app_stopped", 1000, TAG,
+                        "Activity onStop: " + activity.getClass().getSimpleName()
+                                + " 前台计数=" + activityCount);
                 if (isForeground && activityCount <= 0) {
                     // 乐酷悬浮模式：应用通过覆盖窗口在悬浮区域内显示，不启动独立悬浮窗
                     if (LecoFloatManager.getInstance().isFloating()) {
@@ -202,5 +213,37 @@ public class App extends Application {
         } catch (Exception e) {
             Log.e(TAG, "创建公共歌词目录失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 抓取上次 native 崩溃现场（黑匣子增强）
+     * SIGSEGV 等 native 死亡不经过 Java UncaughtExceptionHandler，表现为进程无声消失。
+     * logcat -b crash 缓冲区应用自身可读（Android 4.1+ 免权限），启动时回捞最近 200 行，
+     * 若含本包名进程的 tombstone 摘要则写入诊断日志——拿到信号与调用栈即实锤闪退根因。
+     */
+    private void dumpLastNativeCrash() {
+        final String pkg = getPackageName();
+        new Thread(() -> {
+            java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+            try {
+                Process p = new ProcessBuilder("logcat", "-d", "-b", "crash", "-t", "200")
+                        .redirectErrorStream(true).start();
+                java.io.InputStream in = p.getInputStream();
+                byte[] b = new byte[4096];
+                int n;
+                while ((n = in.read(b)) > 0) buf.write(b, 0, n);
+                p.waitFor();
+            } catch (Throwable ignored) {
+                return; // 设备禁用 logcat 等场景：静默放弃，不影响启动
+            }
+            String crashLog = buf.toString();
+            // 只关心本应用相关的记录（build fingerprint / >>> com.jingxin.jingxinmusic <<<）
+            int idx = crashLog.indexOf(">>> " + pkg);
+            if (idx < 0) return;
+            String excerpt = crashLog.substring(Math.max(0, idx - 600), Math.min(crashLog.length(), idx + 2600));
+            com.jingxin.jingxinmusic.util.DiagLog.d(TAG,
+                    "!!! 上次 native 崩溃现场（logcat crash 缓冲区，含进程死亡信号/栈）：\n" + excerpt);
+            com.jingxin.jingxinmusic.util.DiagLog.flushSync();
+        }, "NativeCrashDigger").start();
     }
 }

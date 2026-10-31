@@ -110,18 +110,37 @@ public class ProgressPanel extends LinearLayout {
 
     // ===== 状态更新（语义化接口） =====
 
+    /**
+     * 时间文本定宽：wrap_content 的 setText 每次都 requestLayout 冒泡到根布局全树重排
+     * （诊断日志实锤：进度 200ms 刷新期间 root_layout 重排刷屏、帧率 19→12fps）；
+     * 固定 LayoutParams.width 后 setText 走 invalidate-only 路径零重排。
+     * 宽度=测量文本与 "00:00" 基准取大（超长电台如 123:45 按需扩宽，一次性重排）
+     */
+    private void lockTimeTextWidth(TextView tv) {
+        float need = tv.getPaint().measureText(tv.getText().toString());
+        float base = tv.getPaint().measureText("00:00");
+        int w = (int) (Math.max(need, base) + 0.5f);
+        LayoutParams lp = (LayoutParams) tv.getLayoutParams();
+        if (lp.width != w) {
+            lp.width = w;
+            tv.setLayoutParams(lp);
+        }
+    }
+
     /** 播放器当前进度（非用户操作源，不触发拖动回调） */
     public void setPosition(int positionMs) {
         bindingSeek = true;
         seekBar.setProgress(positionMs);
         tvCurrentTime.setText(Song.formatDuration(positionMs));
         bindingSeek = false;
+        lockTimeTextWidth(tvCurrentTime);
     }
 
     /** 总时长（含 SeekBar max 同步），duration<=0 时归零 */
     public void setDuration(long durationMs) {
         seekBar.setMax((int) Math.max(0, durationMs));
         tvTotalTime.setText(Song.formatDuration(durationMs));
+        lockTimeTextWidth(tvTotalTime);
     }
 
     /** 换歌重置（00:00 + max 归零） */
@@ -185,6 +204,9 @@ public class ProgressPanel extends LinearLayout {
         float timeTextSize = actHeight * 0.02f * aspectFactor;
         tvCurrentTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
         tvTotalTime.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, timeTextSize);
+        // 字号变化后重锁定宽（测量值随字号变）
+        lockTimeTextWidth(tvCurrentTime);
+        lockTimeTextWidth(tvTotalTime);
     }
 
     // ===== 兼容访问（Scene 布局手术 / 主题滤镜） =====
