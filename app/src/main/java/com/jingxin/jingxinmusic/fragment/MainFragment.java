@@ -706,8 +706,10 @@ public class MainFragment extends BaseFloatFragment {
             mediaStoreObserver = null;
         }
 
-        // 检查更新
-        UpdateHelper.getInstance(ctx).checkOnLaunch(requireActivity());
+        // 检查更新（设置关闭推送更新时跳过，帮助页手动检查不受影响）
+        if (SettingsFragment.isUpdatePushEnabled(ctx)) {
+            UpdateHelper.getInstance(ctx).checkOnLaunch(requireActivity());
+        }
 
         return view;
     }
@@ -1971,8 +1973,9 @@ public class MainFragment extends BaseFloatFragment {
             return false;
         }
 
-        // 检查是否开启启动直达播放
-        if (!SettingsFragment.isAutoResumeEnabled(requireContext())) {
+        // 检查是否开启启动直达（播放或歌词动效，后者互斥优先）
+        boolean resumeLyricEffect = SettingsFragment.isAutoResumeLyricEffectEnabled(requireContext());
+        if (!resumeLyricEffect && !SettingsFragment.isAutoResumeEnabled(requireContext())) {
             return false;
         }
 
@@ -2011,6 +2014,11 @@ public class MainFragment extends BaseFloatFragment {
             if (pathSet != null && !pathSet.isEmpty()) {
                 args.putStringArrayList("folder_song_paths", new ArrayList<>(pathSet));
             }
+        }
+
+        // 直达歌词动效：标记后由 PlayerFragment 在歌单就绪时自动进入上次记忆的效果
+        if (resumeLyricEffect) {
+            args.putBoolean("auto_enter_lyric_effect", true);
         }
 
         hasAutoResumed = true;

@@ -42,6 +42,8 @@ public class SettingsFragment extends BaseFloatFragment {
     public static final String KEY_LOCAL_COVER_PRIORITY = "local_cover_priority";
     public static final String KEY_LOCAL_LYRIC_PRIORITY = "local_lyric_priority";
     public static final String KEY_AUTO_RESUME = "auto_resume";
+    public static final String KEY_AUTO_RESUME_LYRIC_EFFECT = "auto_resume_lyric_effect";
+    public static final String KEY_UPDATE_PUSH = "update_push";
     public static final String KEY_BG_SKIN = "bg_skin";
     public static final String KEY_AUDIO_EFFECT_PRESET = "audio_effect_preset";
     public static final String KEY_VOLUME_NORMALIZE = "volume_normalize";
@@ -76,9 +78,9 @@ public class SettingsFragment extends BaseFloatFragment {
     private ImageView btnHelp;
     private TextView[] styleTabs = new TextView[4];
     private int currentStyleIndex = 0;
-    private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoTheme, switchVolumeNormalize, switchBootAutoStart;
-    private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoThemeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle;
-    private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoThemeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc;
+    private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoResumeLyricEffect, switchUpdatePush, switchAutoTheme, switchVolumeNormalize, switchBootAutoStart;
+    private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle, tvAutoThemeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle;
+    private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc, tvAutoThemeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc;
     private android.widget.Spinner spinnerAutoHideControls;
     private TextView tvAutoHideControlsTitle, tvAutoHideControlsDesc;
     private TextView[] bgSkinTabs = new TextView[2];
@@ -151,10 +153,23 @@ public class SettingsFragment extends BaseFloatFragment {
                 .getInt(KEY_BG_SKIN, BG_SKIN_AURORA);
     }
 
-    /** 读取启动直达播放开关状态（默认开启） */
+    /** 读取启动直达播放开关状态（默认开启）；直达歌词动效开启时本项视为关闭（互斥） */
     public static boolean isAutoResumeEnabled(Context context) {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(KEY_AUTO_RESUME, true);
+                .getBoolean(KEY_AUTO_RESUME, true)
+                && !isAutoResumeLyricEffectEnabled(context);
+    }
+
+    /** 读取直达歌词动效开关状态（默认关闭） */
+    public static boolean isAutoResumeLyricEffectEnabled(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_AUTO_RESUME_LYRIC_EFFECT, false);
+    }
+
+    /** 读取推送更新开关状态（默认开启）：关闭后启动时不自动检查/下载/弹窗新版本 */
+    public static boolean isUpdatePushEnabled(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_UPDATE_PUSH, true);
     }
 
     /** 读取开机自启开关状态（默认关闭） */
@@ -209,6 +224,7 @@ public class SettingsFragment extends BaseFloatFragment {
         setupBootAutoStartSwitch(view);
         setupAutoHideControls(view);
         setupLyricColorSelector(view);
+        setupUpdatePushSwitch(view);
 
         applyTopInset(rootScroll);
 
@@ -319,11 +335,11 @@ public class SettingsFragment extends BaseFloatFragment {
         tvTitle.setTextColor(tc);
         // 刷新所有标题（含壁纸选择行：可操作项，与扫描按钮同用标题色）
         TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvBgSkinTitle, tvEffectWallpaperTitle, rowPickWallpaper, tvFloatTitle, tvSpectrumTitle,
-                tvLyricTitle, tvScanTitle, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle};
+                tvLyricTitle, tvScanTitle, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle};
         for (TextView t : titles) if (t != null) t.setTextColor(tc);
         // 刷新所有描述
         TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvBgSkinDesc, tvEffectWallpaperDesc, tvFloatDesc, tvSpectrumDesc,
-                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc};
+                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc};
         for (TextView d : descs) if (d != null) d.setTextColor(ts);
         // 时间选择行文字
         TextView[] timeTexts = {tvDayStartLabel, tvDayStartValue, tvTimeSeparator, tvNightStartLabel, tvNightStartValue};
@@ -577,7 +593,7 @@ public class SettingsFragment extends BaseFloatFragment {
     /** 全部设置开关集合（初始化前为 null，调用方需判空） */
     private SwitchCompat[] allSwitches() {
         return new SwitchCompat[]{switchNight, switchAutoTheme, switchFloat, switchSpectrum,
-                switchLocalCover, switchLocalLyric, switchAutoResume, switchVolumeNormalize, switchBootAutoStart};
+                switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoResumeLyricEffect, switchUpdatePush, switchVolumeNormalize, switchBootAutoStart};
     }
 
     /** 按当前日夜模式刷新全部开关颜色 */
@@ -830,6 +846,8 @@ public class SettingsFragment extends BaseFloatFragment {
         tvAutoResumeDesc = view.findViewById(R.id.tv_auto_resume_desc);
         applyItemTheme(tvAutoResumeTitle, tvAutoResumeDesc);
 
+        setupAutoResumeLyricEffectSwitch(view);
+
         SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         boolean enabled = prefs.getBoolean(KEY_AUTO_RESUME, true);
         switchAutoResume.setChecked(enabled);
@@ -837,7 +855,51 @@ public class SettingsFragment extends BaseFloatFragment {
 
         switchAutoResume.setOnCheckedChangeListener((buttonView, isChecked) -> {
             prefs.edit().putBoolean(KEY_AUTO_RESUME, isChecked).apply();
+            // 互斥：开启本项时关掉直达歌词动效（setChecked 触发对方 listener 完成写库+提示）
+            if (isChecked && switchAutoResumeLyricEffect.isChecked()) {
+                switchAutoResumeLyricEffect.setChecked(false);
+            }
             Toast.makeText(requireContext(), isChecked ? "已开启启动直达播放" : "已关闭启动直达播放", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    /** 直达歌词动效开关：与启动直达播放互斥（双开关联动式，UI 同步复用 setChecked 回调） */
+    private void setupAutoResumeLyricEffectSwitch(View view) {
+        switchAutoResumeLyricEffect = view.findViewById(R.id.switch_auto_resume_lyric_effect);
+        tvAutoResumeLyricEffectTitle = view.findViewById(R.id.tv_auto_resume_lyric_effect_title);
+        tvAutoResumeLyricEffectDesc = view.findViewById(R.id.tv_auto_resume_lyric_effect_desc);
+        applyItemTheme(tvAutoResumeLyricEffectTitle, tvAutoResumeLyricEffectDesc);
+
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean enabled = prefs.getBoolean(KEY_AUTO_RESUME_LYRIC_EFFECT, false);
+        switchAutoResumeLyricEffect.setChecked(enabled);
+        applySwitchTint(switchAutoResumeLyricEffect);
+
+        switchAutoResumeLyricEffect.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean(KEY_AUTO_RESUME_LYRIC_EFFECT, isChecked).apply();
+            // 互斥：开启本项时关掉启动直达播放
+            if (isChecked && switchAutoResume.isChecked()) {
+                switchAutoResume.setChecked(false);
+            }
+            Toast.makeText(requireContext(), isChecked ? "已开启直达歌词动效" : "已关闭直达歌词动效", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    /** 推送更新开关（默认开启）：关闭后启动时不检查/下载/弹窗新版本 */
+    private void setupUpdatePushSwitch(View view) {
+        switchUpdatePush = view.findViewById(R.id.switch_update_push);
+        tvUpdatePushTitle = view.findViewById(R.id.tv_update_push_title);
+        tvUpdatePushDesc = view.findViewById(R.id.tv_update_push_desc);
+        applyItemTheme(tvUpdatePushTitle, tvUpdatePushDesc);
+
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean enabled = prefs.getBoolean(KEY_UPDATE_PUSH, true);
+        switchUpdatePush.setChecked(enabled);
+        applySwitchTint(switchUpdatePush);
+
+        switchUpdatePush.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean(KEY_UPDATE_PUSH, isChecked).apply();
+            Toast.makeText(requireContext(), isChecked ? "已开启推送更新" : "已关闭推送更新，有新版本也不再提示", Toast.LENGTH_SHORT).show();
         });
     }
 

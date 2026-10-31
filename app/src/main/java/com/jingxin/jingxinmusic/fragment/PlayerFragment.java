@@ -167,6 +167,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private boolean bound = false;
     /** 歌词效果页管理器（顶栏歌词动效键进入·单击退出，星空漫游等纯展示效果层） */
     private com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager lyricEffectManager;
+    /** 启动直达歌词动效标记（args 只消费一次）：歌单就绪后自动进入上次记忆的效果 */
+    private boolean pendingAutoEnterLyricEffect = false;
     private final Handler uiHandler = new Handler();
     private boolean userSeeking = false;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -397,6 +399,11 @@ public class PlayerFragment extends BaseFloatFragment {
                         if (cp2 instanceof com.jingxin.jingxinmusic.stage.CarouselPageV2) {
                             ((com.jingxin.jingxinmusic.stage.CarouselPageV2) cp2).syncPlaylistPosition();
                         }
+                        // 启动直达歌词动效：歌单就绪后进入上次记忆的效果（仅冷启动首次，消费即失效）
+                        if (pendingAutoEnterLyricEffect) {
+                            pendingAutoEnterLyricEffect = false;
+                            enterRememberedLyricEffect();
+                        }
                     }
                 });
             });
@@ -515,6 +522,7 @@ public class PlayerFragment extends BaseFloatFragment {
             if (playlistMode == null) playlistMode = "all";
             resumePlay = args.getBoolean("resume_play", false);
             resumePosition = args.getLong("resume_position", 0L);
+            pendingAutoEnterLyricEffect = args.getBoolean("auto_enter_lyric_effect", false);
         }
     }
 
@@ -2018,6 +2026,28 @@ public class PlayerFragment extends BaseFloatFragment {
             effectPickerPopup.showAtLocation(mRootView, android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL,
                     0, 0);
         }
+    }
+
+    /**
+     * 启动直达歌词动效：读取上次记忆的效果索引（lyric_effect_mode）直接进入。
+     * 仅歌单就绪后调用一次；已在效果页（isActive）防御跳过。
+     */
+    private void enterRememberedLyricEffect() {
+        if (lyricEffectManager == null || lyricEffectManager.isActive()) return;
+        com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect[] effects = {
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.GLOW,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.PENDELO,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.CADENZA,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.TILT,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.PARTITA,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.FUME,
+                com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.DIORAMA,
+        };
+        int idx = requireContext().getSharedPreferences(SettingsFragment.PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(KEY_LYRIC_EFFECT_MODE, 0);
+        if (idx < 0 || idx >= effects.length) idx = 0;
+        lyricEffectManager.attach(effects[idx]);
     }
 
     /**

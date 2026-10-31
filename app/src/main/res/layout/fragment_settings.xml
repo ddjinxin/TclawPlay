@@ -687,6 +687,43 @@
                 android:layout_height="wrap_content" />
         </LinearLayout>
 
+        <!-- 直达歌词动效开关（与启动直达播放互斥） -->
+        <LinearLayout
+            android:id="@+id/item_auto_resume_lyric_effect"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingVertical="12dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_auto_resume_lyric_effect_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="直达歌词动效"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tv_auto_resume_lyric_effect_desc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="打开应用时直接进入上次记忆的歌词动效播放，与直达播放互斥"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_auto_resume_lyric_effect"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
         <!-- 开机自启开关 -->
         <LinearLayout
             android:id="@+id/item_boot_auto_start"
@@ -947,6 +984,43 @@
                     android:background="?attr/selectableItemBackgroundBorderless" />
             </LinearLayout>
 
+        </LinearLayout>
+
+        <!-- 推送更新开关 -->
+        <LinearLayout
+            android:id="@+id/item_update_push"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingVertical="12dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_update_push_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="推送更新"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tv_update_push_desc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="关闭后启动时不再检查新版本（帮助页手动检查不受影响）"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_update_push"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
         </LinearLayout>
 
     </LinearLayout>
