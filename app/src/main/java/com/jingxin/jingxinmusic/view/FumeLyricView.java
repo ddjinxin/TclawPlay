@@ -180,7 +180,9 @@ public class FumeLyricView extends View {
     }
 
     private void init() {
-        setLayerType(LAYER_TYPE_SOFTWARE, null);
+        // 默认硬件加速：UNISOC uis7862a 车机软层位图合成路径失效，浮名歌词整层不显示
+        // （同页星空/封面流硬加速层正常，2026-11 用户实测）；文字 setShadowLayer 辉光
+        // 硬加速原生支持，无其他软层专属依赖，去软层零视觉差
     }
 
     // ===== 对外接口 =====

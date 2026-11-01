@@ -440,11 +440,10 @@ public class SpectrumView extends View {
             waveColumnPaint.setShader(null);
             waveColumnShaderColors = null;
         }
-        if (currentStyle == STYLE_AIVOICE) {
-            setLayerType(LAYER_TYPE_SOFTWARE, null);
-        } else {
-            setLayerType(LAYER_TYPE_NONE, null);
-        }
+        // 全样式统一硬件加速：原 AiVoice 样式挂软层（LIGHTEN 混合），但该模式硬件加速
+        // 原生支持；UNISOC uis7862a 车机软层合成路径失效（2026-11 用户实测浮名/镜台
+        // 同病灶——软层歌词整层不显示），软层在该机型是显示雷区
+        setLayerType(LAYER_TYPE_NONE, null);
         requestLayout();
         postInvalidate();
     }

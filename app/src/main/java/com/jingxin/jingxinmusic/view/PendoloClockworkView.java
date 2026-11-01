@@ -69,9 +69,11 @@ public class PendoloClockworkView extends View {
     private void init() {
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeCap(Paint.Cap.ROUND);
-        // 软件绘制：纯线框 stroke 软绘无 tessellate，规避 8.1 车机 HWUI/驱动退化
-        // （现象：硬绘下长跑后逐步丢弃绘制 op，机芯只剩最先画的两个齿轮）
-        setLayerType(LAYER_TYPE_SOFTWARE, null);
+        // 默认硬件加速。历史注释记的是 NXP 8.1 车机"硬绘长跑丢 op"才用软层；
+        // UNISOC uis7862a 则相反——软层合成路径失效整层不显示（2026-11 用户实测
+        // 浮名/镜台同病灶）。软层在部分车机是雷、在部分车机是药，无法两全，
+        // 取硬加速主干道（全系统主路径，兼容面最大），两种机型回归各自验证
+        setLayerType(LAYER_TYPE_NONE, null);
     }
 
     // ===== 对外接口 =====
