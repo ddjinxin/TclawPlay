@@ -704,6 +704,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 | `androidx.recyclerview:recyclerview` | 列表展示 |
 | `com.android.tools:desugar_jdk_libs` | Java 8+ API 降级支持 |
 
+**频谱部分样式**（柱状/酷狗柱状/AI语音/波形柱/扩散圆环/波浪圆环及频段归一化算法）移植自开源项目
+[SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid)（作者 michael007js，
+无明确许可声明，仅作技术学习用途移植，特此注明出处并致谢）。竖条/圆点/波浪线/网易圆环为自实现。
+
 **拼贴播放风格**与**歌词动效体系**（除星空外）移植自开源项目
 [FOLIA](https://github.com/chthollyphile/folia-major)（AGPL-3.0）：
 - 拼贴风格：`view/lattice/`、`stage/LatticePageV2`，源自 Lattice 封面墙
@@ -1372,6 +1376,12 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 | `com.github.thegrizzlylabs:sardine-android` | WebDAV client |
 | `androidx.recyclerview:recyclerview` | List display |
 | `com.android.tools:desugar_jdk_libs` | Java 8+ API desugaring |
+
+**Some spectrum styles** (Columnar / Kugou / AI Voice / Wave Column / Diffusion Ring / Wave Ring,
+plus the band normalization algorithm) are ported from the open-source project
+[SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid) (by michael007js,
+which carries no explicit license notice; ported for technical learning purposes with
+attribution and thanks). Bar / Dot / Wave / NetEase Ring styles are original implementations.
 
 The **Lattice playback style** and the **lyric effect suite** (except Starfield) are ported from
 the open-source project [FOLIA](https://github.com/chthollyphile/folia-major) (AGPL-3.0):
