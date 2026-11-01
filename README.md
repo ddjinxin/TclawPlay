@@ -50,7 +50,7 @@ AIGC:
 
 **① 歌词动效体系：2 种 → 8 种（移植 folia visualizer 全家桶）**
 
-以 folia 开源项目为蓝本全保真移植，八种逐字动效统一驱动引擎（KRC 逐字时间驱动，无逐字歌词时优雅降级）。
+以 folia 开源项目为蓝本全保真移植其中七种逐字动效（KRC 逐字时间驱动，无逐字歌词时优雅降级），另有自研「星空」效果。
 
 - **流光（Glow）** — folia classic 逐词三态点亮机（waiting/active/passed），含由远及近景深光尘氛围底
 - **时计（Pendolo）** — 左侧机械机芯擒纵轮系+宝石轴承，右侧弧形歌词轨；副歌扫字染深/双层辉光/行背光，超宽缩字不折行
@@ -275,9 +275,9 @@ AIGC:
 ### v1.0.9.0 (2026-10)
 #### Major Changes (vs v1.0.8.2)
 
-**① Lyric Effects: 2 → 8 (full folia visualizer family port)**
+**① Lyric Effects: 2 → 8 (folia visualizer family port + in-house Starfield)**
 
-Faithful port of the folia open-source project — eight per-word lyric effects (Starfield included), driven by KRC per-char timing with graceful fallback.
+Faithful port of the folia open-source project — seven per-word lyric effects, driven by KRC per-char timing with graceful fallback; plus an in-house Starfield effect.
 
 - **Glow** — folia classic per-word three-state engine (waiting/active/passed) with depth-of-field ambient dust
 - **Pendolo** — mechanical escapement gear core + arc lyric track; chorus word-sweep deepening, dual-layer glow, row backlight, no-wrap autoshrink for long lines
@@ -704,7 +704,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 | `androidx.recyclerview:recyclerview` | 列表展示 |
 | `com.android.tools:desugar_jdk_libs` | Java 8+ API 降级支持 |
 
-**拼贴播放风格**与**歌词动效体系**（除星空漫游外）移植自开源项目
+**拼贴播放风格**与**歌词动效体系**（除星空外）移植自开源项目
 [FOLIA](https://github.com/chthollyphile/folia-major)（AGPL-3.0）：
 - 拼贴风格：`view/lattice/`、`stage/LatticePageV2`，源自 Lattice 封面墙
 - 歌词动效：`view/GlowLyricView`、`PendoloLyricView`、`PendoloClockworkView`、
@@ -713,7 +713,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
   classic / pendolo / cadenza / tilt / partita / fume / diorama 效果
 
 按其许可要求，上述模块同样适用 AGPL-3.0（见下方许可证说明）。
-星空漫游参考自 QQ 音乐 Pad 截图规格，不属 FOLIA 衖生。
+星空效果为独立自研视觉，不属 FOLIA 衖生。
 
 ---
 
@@ -962,7 +962,7 @@ MIT License（除下列模块外）
 > 必须对相应源代码以 AGPL-3.0 同样开放，并保留本声明与 FOLIA 的版权信息。
 > 完整许可证见仓库内 `LICENSE-AGPL-LATTICE.txt` 或
 > <https://www.gnu.org/licenses/agpl-3.0.html>，原项目地址
-> <https://github.com/chthollyphile/folia-major>。星空漫游不属 FOLIA 衖生。
+> <https://github.com/chthollyphile/folia-major>。星空不属 FOLIA 衖生。
 
 ---
 
@@ -993,9 +993,9 @@ MIT License（除下列模块外）
 ### v1.0.9.0 (2026-10)
 #### Major Changes (vs v1.0.8.2)
 
-**① Lyric Effects: 2 → 8 (full folia visualizer family port)**
+**① Lyric Effects: 2 → 8 (folia visualizer family port + in-house Starfield)**
 
-Faithful port of the folia open-source project — eight per-word lyric effects (Starfield included), driven by KRC per-char timing with graceful fallback.
+Faithful port of the folia open-source project — seven per-word lyric effects, driven by KRC per-char timing with graceful fallback; plus an in-house Starfield effect.
 
 - **Glow** — folia classic per-word three-state engine (waiting/active/passed) with depth-of-field ambient dust
 - **Pendolo** — mechanical escapement gear core + arc lyric track; chorus word-sweep deepening, dual-layer glow, row backlight, no-wrap autoshrink for long lines
@@ -1382,7 +1382,7 @@ the open-source project [FOLIA](https://github.com/chthollyphile/folia-major) (A
   cadenza / tilt / partita / fume / diorama effects respectively
 
 These modules are therefore licensed under AGPL-3.0 as well (see License section below).
-The Starfield effect follows QQ Music Pad visuals and is not derived from FOLIA.
+The Starfield effect is an in-house visual and is not derived from FOLIA.
 
 ---
 

@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 底部封面流（星空漫游效果：播放列表封面从底部涌现的堆叠卡片）
+ * 底部封面流（星空效果：播放列表封面从底部涌现的堆叠卡片）
  *
  * 视觉规格（对齐截图）：
  * - 5 张封面横排：当前居中放大，两侧缩小+轻微上移错落

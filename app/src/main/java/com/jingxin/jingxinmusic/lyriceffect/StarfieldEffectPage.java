@@ -14,7 +14,7 @@ import com.jingxin.jingxinmusic.view.StarLyricView;
 import com.jingxin.jingxinmusic.view.StarfieldView;
 
 /**
- * 歌词效果①：星空漫游（对齐 QQ 音乐 Pad 沉浸歌词·星空漫游截图）
+ * 歌词效果①：星空（自研沉浸歌词视觉）
  *
  * 结构：全屏星空底（星点独立闪烁+深空渐变+星云） / 顶部歌名 /
  *       中上双行歌词（下一句小字灰蓝 + 当前行大字浅冰蓝柔光，换行星尘浮现） /

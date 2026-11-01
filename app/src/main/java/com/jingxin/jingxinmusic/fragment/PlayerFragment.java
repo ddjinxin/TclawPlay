@@ -95,8 +95,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private SpectrumView spectrumView;
     
     private android.widget.PopupWindow effectPickerPopup; // 音效选择浮窗
-    private android.widget.PopupWindow lyricEffectPickerPopup; // 歌词动效选择浮窗（星空漫游/流光/时计）
-    private static final String KEY_LYRIC_EFFECT_MODE = "lyric_effect_mode"; // 0=星空漫游 1=流光 2=时计
+    private android.widget.PopupWindow lyricEffectPickerPopup; // 歌词动效选择浮窗（星空/流光/时计）
+    private static final String KEY_LYRIC_EFFECT_MODE = "lyric_effect_mode"; // 0=星空 1=流光 2=时计
 
     // 低频能量包络（时计摆轮驱动；FFT 回调里累积，主线程读取）
     private volatile float bassEnergySmoothed;
@@ -167,7 +167,7 @@ public class PlayerFragment extends BaseFloatFragment {
     // 播放服务
     private MusicPlayerBinder playerBinder;
     private boolean bound = false;
-    /** 歌词效果页管理器（顶栏歌词动效键进入·单击退出，星空漫游等纯展示效果层） */
+    /** 歌词效果页管理器（顶栏歌词动效键进入·单击退出，星空等纯展示效果层） */
     private com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager lyricEffectManager;
     /** 启动直达歌词动效标记（args 只消费一次）：歌单就绪后自动进入上次记忆的效果 */
     private boolean pendingAutoEnterLyricEffect = false;
@@ -2106,7 +2106,7 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
         /**
-     * 弹出歌词动效选择浮窗：星空漫游 / 流光（样式与音效弹窗一致：贴左垂直居中、青色发光选中）
+     * 弹出歌词动效选择浮窗：星空 / 流光（样式与音效弹窗一致：贴左垂直居中、青色发光选中）
      */
     private void showLyricEffectPicker() {
         if (lyricEffectPickerPopup != null && lyricEffectPickerPopup.isShowing()) {
@@ -2115,7 +2115,7 @@ public class PlayerFragment extends BaseFloatFragment {
         }
         if (lyricEffectManager == null || lyricEffectManager.isActive()) return;
 
-        String[] names = {"星空漫游", "流光", "时计", "心象", "倾诉", "云阶", "浮名", "镜台"};
+        String[] names = {"星空", "流光", "时计", "心象", "倾诉", "云阶", "浮名", "镜台"};
         final com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect[] effects = {
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD,
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.GLOW,

@@ -16,7 +16,7 @@ import com.jingxin.jingxinmusic.view.StarfieldView;
 /**
  * 歌词效果⑧：浮名（移植 folia fume：整曲排成文章 + 相机运镜）
  *
- * 结构：星空底（同星空漫游：深空径向渐变+星云+星点闪烁，页面级兑底不透原播放页）/
+ * 结构：星空底（同星空：深空径向渐变+星云+星点闪烁，页面级兑底不透原播放页）/
  * 整首歌词排成多列"报纸文章"（hero 副歌大字块跨列、正文块填最矮列），
  * 相机在文章世界坐标里随唱句运镜——smooth 焦点跟打印进度逐字推进、
  * 换块 direct/overview 贝塞尔飞桥 + 弹簧追踪 + 7s 正弦漂浮，
@@ -50,7 +50,7 @@ public class FumeEffectPage extends LyricEffectPage {
         // 页面级兑底不透明底色（星空缓存建立前的首帧也不透出播放页）
         setBackgroundColor(android.graphics.Color.rgb(2, 4, 10));
 
-        // 星空底（同星空漫游：星点独立闪烁+深空渐变+星云，零数据依赖）
+        // 星空底（同星空：星点独立闪烁+深空渐变+星云，零数据依赖）
         starfield = new StarfieldView(ctx);
         LayoutParams sp = new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);

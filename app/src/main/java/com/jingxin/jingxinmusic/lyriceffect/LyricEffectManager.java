@@ -17,7 +17,7 @@ import com.jingxin.jingxinmusic.view.PendoloClockworkView;
  * 歌词效果管理器（效果注册/进退/Hub 订阅分发）
  *
  * 生命周期：attach = 挂宿主容器淡入 + 订阅 Hub 灌数据；detach = 淡出退订移除。
- * 效果注册：EFFECT 枚举 + attach switch 分发；现有星空漫游 STARFIELD / 流光 GLOW /
+ * 效果注册：EFFECT 枚举 + attach switch 分发；现有星空 STARFIELD / 流光 GLOW /
  * 时计 PENDELO / 心象 CADENZA / 倾诉 TILT / 云阶 PARTITA / 浮名 FUME / 镜台 DIORAMA。
  * 线程：全部主线程（Hub 回调即主线程）。
  */

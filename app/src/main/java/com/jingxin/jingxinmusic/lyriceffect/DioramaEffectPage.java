@@ -53,7 +53,7 @@ public class DioramaEffectPage extends LyricEffectPage {
         // 页面级兜底不透明底色（星空缓存建立前的首帧也不透出播放页）
         setBackgroundColor(android.graphics.Color.rgb(2, 4, 10));
 
-        // 星空底（同星空漫游：星点独立闪烁+深空渐变+星云，零数据依赖）
+        // 星空底（同星空：星点独立闪烁+深空渐变+星云，零数据依赖）
         starfield = new StarfieldView(ctx);
         LayoutParams sp = new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
