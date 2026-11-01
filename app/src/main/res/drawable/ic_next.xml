@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- QQ音乐HD 下一曲（skin_icon_player_next 1:1移植，圆角三角+圆角竖条，白色基底兼容日夜染色） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="52"
+    android:viewportHeight="52">
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M8,5 L8,19 L19,12 Z M20,5 L20,19 L22,19 L22,5 Z" />
+        android:fillType="evenOdd"
+        android:pathData="M31.287,28.676C33.264,27.441 33.264,24.562 31.287,23.327L18.525,15.351C16.424,14.038 13.7,15.548 13.7,18.025V33.978C13.7,36.455 16.424,37.965 18.525,36.652L31.287,28.676Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38.301,12.332l-2.05,0l-0,27.333l2.05,0z" />
 </vector>

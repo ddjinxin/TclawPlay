@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 播放键玻璃底·亮档：QQ音乐HD icon_player_play_transparent_bg_light 原图（66x60 LA模式
+     白28%磨砂玻璃），QQ原版layer-list结构（drawable直引+上下2dp让位），白天配浓玻璃 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/icon_player_play_transparent_bg_light"
+        android:top="2dp" android:bottom="2dp" />
+</layer-list>

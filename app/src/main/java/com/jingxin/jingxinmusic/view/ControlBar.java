@@ -31,7 +31,9 @@ public class ControlBar extends LinearLayout {
         void onDownload();
     }
 
-    private ImageView btnPlayPause;
+    private android.widget.FrameLayout btnPlayPause;   // 播放键容器（玻璃子View+图标子View）
+    private ImageView btnPlayPauseIcon;                // 播放/暂停图标
+    private View btnPlayPauseGlass;                    // 玻璃底（固定尺寸不随容器拉伸）
     private ImageView btnPrevious;
     private ImageView btnNext;
     private ImageView btnHistory;
@@ -69,6 +71,9 @@ public class ControlBar extends LinearLayout {
      * @param landscape 是否横屏
      */
     public void applyGeometry(int actHeight, int actWidth, boolean landscape) {
+        // 图标放大 30%（仅图标，布局占位/玻璃胶囊不变）：三档系数 ×1.3，
+        // 布局高度与玻璃锁定原始值——图标在原尺寸容器内超界居中绘制
+        float iconScale = 1.3f;
         float rBack, rPlay;
         float rPrevNext;
         float rPlayBig;
@@ -86,20 +91,65 @@ public class ControlBar extends LinearLayout {
             rPlayBig = 0.075f * 1.5f;
         }
         float aspectFactor = 1f + Math.max(0f, (actWidth / (float) actHeight - 1.78f) / 3f);
+        // 布局占位：原始尺寸（容器高度不变，底部区域不被撑高）
         int bottomBtnSize = (int) (actHeight * rBack * aspectFactor);
         int prevNextBtnSize = (int) (actHeight * rPrevNext * aspectFactor);
         int playBtnSize = (int) (actHeight * rPlayBig * aspectFactor);
+        // 玻璃胶囊尺寸不动：QQ 44x40 比例，原始键高
+        int glassW = (int) (playBtnSize * 44f / 40f);
+        int glassH = playBtnSize;
+        btnPlayPauseGlass.post(() -> {
+            android.widget.FrameLayout.LayoutParams g =
+                    (android.widget.FrameLayout.LayoutParams) btnPlayPauseGlass.getLayoutParams();
+            g.width = glassW;
+            g.height = glassH;
+            btnPlayPauseGlass.setLayoutParams(g);
+        });
+        // 图标放大 30%：padding 按原图标内边距等比缩小，图标突破容器超界绘制
+        setClipChildren(false);
+        setClipToPadding(false);
+        if (getParent() instanceof android.view.ViewGroup) {
+            ((android.view.ViewGroup) getParent()).setClipChildren(false);
+            ((android.view.ViewGroup) getParent()).setClipToPadding(false);
+        }
+        // 图标区域尺寸 = 原始尺寸 × 1.3（padding 同步 ×1.3，视觉等比放大）
+        int iconPad6 = (int) (bottomBtnSize * 0.15f * iconScale);
+        int iconPad8 = (int) (bottomBtnSize * 0.20f * iconScale);
+        int iconSizeBack = (int) (bottomBtnSize * iconScale);
+        int iconSizePrevNext = (int) (prevNextBtnSize * iconScale);
+        // 播放键图标独立尺寸（原match_parent跟随容器改明确值，容器锁原值保玻璃，图标×1.3居中超界）
+        int playIconSize = playBtnSize;  // 基准=原始播放键高
+        {
+            android.widget.FrameLayout.LayoutParams ip =
+                    (android.widget.FrameLayout.LayoutParams) btnPlayPauseIcon.getLayoutParams();
+            ip.width = (int) (playIconSize * iconScale);
+            ip.height = (int) (playIconSize * iconScale);
+            btnPlayPauseIcon.setLayoutParams(ip);
+            int playPadding = (int) (bottomBtnSize * 0.15f * iconScale);
+            btnPlayPauseIcon.setPadding(playPadding, playPadding, playPadding, playPadding);
+        }
 
-        int bottomPadding6 = (int) (bottomBtnSize * 0.15f);
-        int bottomPadding8 = (int) (bottomBtnSize * 0.20f);
         float prevNextWeight = landscape ? 1f : 1.5f;
-        resizeButton(R.id.previous_button, prevNextBtnSize, bottomPadding6, prevNextWeight);
-        resizeButton(R.id.play_pause_button, playBtnSize, bottomPadding6, landscape ? 1f : 2f);
-        resizeButton(R.id.next_button, prevNextBtnSize, bottomPadding6, prevNextWeight);
-        resizeButton(R.id.play_order_button, bottomBtnSize, bottomPadding6);
-        resizeButton(R.id.history_button, bottomBtnSize, bottomPadding8);
-        resizeButton(R.id.mode_button, bottomBtnSize, bottomPadding8);
-        resizeButton(R.id.download_button, bottomBtnSize, bottomPadding8);
+        // 布局占位用原始尺寸 + padding/resizeButton 不再重复设置图标尺寸——
+        // 图标放大通过 padding 反推：ImageView 高度锁容器原始值，图标 src 超出 padding 区绘制
+        // 简化实现：直接把按钮高度设为图标放大值，但容器（本 LinearLayout）高度保持 wrap 原始，
+        // 靠 Gravity.CENTER 的超界绘制达成"占位不变、绘制放大"
+        int layoutPlay = playBtnSize;
+        resizeButton(R.id.previous_button, iconSizePrevNext, iconPad6, prevNextWeight);
+        resizeButton(R.id.play_pause_button, layoutPlay, 0, landscape ? 1f : 2f);
+        resizeButton(R.id.next_button, iconSizePrevNext, iconPad6, prevNextWeight);
+        resizeButton(R.id.play_order_button, iconSizeBack, iconPad6);
+        resizeButton(R.id.history_button, iconSizeBack, iconPad8);
+        resizeButton(R.id.mode_button, iconSizeBack, iconPad8);
+        resizeButton(R.id.download_button, iconSizeBack, iconPad8);
+        // ControlBar 自身高度锁定为原始 wrap 基准（最大占位=播放键原高度），按钮超界不撑高
+        post(() -> {
+            if (getHeight() > layoutPlay) {
+                android.view.ViewGroup.LayoutParams sp = getLayoutParams();
+                sp.height = layoutPlay;
+                setLayoutParams(sp);
+            }
+        });
     }
 
     /** 底边距设置（本组件直接父容器为 FrameLayout 槽或 LinearLayout 流，均 MarginLayoutParams 安全） */
@@ -117,14 +167,14 @@ public class ControlBar extends LinearLayout {
     }
 
     private void resizeButton(int viewId, int size, int padding, float weight) {
-        ImageView btn = findViewById(viewId);
+        View btn = findViewById(viewId);
         if (btn != null) {
             android.widget.LinearLayout.LayoutParams p =
                     (android.widget.LinearLayout.LayoutParams) btn.getLayoutParams();
             p.height = size;
             p.weight = weight;
             btn.setLayoutParams(p);
-            btn.setPadding(padding, padding, padding, padding);
+            if (padding > 0) btn.setPadding(padding, padding, padding, padding);
         }
     }
 
@@ -157,6 +207,10 @@ public class ControlBar extends LinearLayout {
         setGravity(android.view.Gravity.CENTER); // 同旧 control_buttons：子按钮在行高内垂直居中（动态缩放后小键不悬空）
         LayoutInflater.from(context).inflate(R.layout.view_control_bar, this, true);
         btnPlayPause = findViewById(R.id.play_pause_button);
+        btnPlayPauseIcon = findViewById(R.id.play_pause_icon);
+        btnPlayPauseGlass = findViewById(R.id.play_pause_glass);
+        btnPlayPauseIcon = findViewById(R.id.play_pause_icon);
+        btnPlayPauseGlass = findViewById(R.id.play_pause_glass);
         btnPrevious = findViewById(R.id.previous_button);
         btnNext = findViewById(R.id.next_button);
         btnHistory = findViewById(R.id.history_button);
@@ -182,7 +236,7 @@ public class ControlBar extends LinearLayout {
 
     /** 播放/暂停图标切换 */
     public void setPlaying(boolean playing) {
-        btnPlayPause.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play);
+        btnPlayPauseIcon.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play);
     }
 
     /** 播放模式图标：0=顺序 1=随机 2=单曲循环（与 MusicPlayerService 常量一致） */
@@ -218,7 +272,12 @@ public class ControlBar extends LinearLayout {
      * （图标资源由 setFavorite/setPlayOrder 管理，此处只管滤镜）
      */
     public void applyTheme(boolean isNight, boolean isFavorite, int dayButtonColor, int favoriteRed) {
-        ImageView[] buttons = {btnPlayPause, btnPrevious, btnNext,
+        // 播放键玻璃底日夜分档（QQ音乐HD双档玻璃）：白天浓玻璃(28%)，夜间淡玻璃(6.7%)。
+        // 玻璃在独立子View上（applyGeometry 设固定尺寸不随放大拉伸）；染色只针对图标
+        btnPlayPauseGlass.setBackgroundResource(isNight
+                ? R.drawable.ic_play_bg_glass_dark
+                : R.drawable.ic_play_bg_glass_light);
+        ImageView[] buttons = {btnPlayPauseIcon, btnPrevious, btnNext,
                 btnHistory, btnPlayOrder, btnDownload};
         if (isNight) {
             for (ImageView btn : buttons) btn.clearColorFilter();
@@ -240,7 +299,8 @@ public class ControlBar extends LinearLayout {
     // ===== 兼容访问（Scene 布局手术 / 历史弹窗锚点） =====
 
     /** 供 Scene 层布局手术与弹窗锚点访问内部按钮（过渡期兼容） */
-    public ImageView accessButton(int buttonId) {
+    /** 供 Scene 层布局手术与弹窗锚点访问内部按钮（播放键已改容器结构，返回外层FrameLayout） */
+    public View accessButton(int buttonId) {
         if (buttonId == R.id.play_pause_button) return btnPlayPause;
         if (buttonId == R.id.previous_button) return btnPrevious;
         if (buttonId == R.id.next_button) return btnNext;

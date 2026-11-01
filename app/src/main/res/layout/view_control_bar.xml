@@ -16,16 +16,36 @@
         android:background="@drawable/ripple_control_button"
         android:src="@drawable/ic_previous" />
 
-    <ImageView
+    <!-- 播放键：FrameLayout 包装（merge 内需layout_width/height），玻璃底独立子View固定尺寸
+         （按钮整体放大时玻璃保持原始大小居中，不随容器拉伸），图标压在玻璃上 -->
+    <FrameLayout
         android:id="@+id/play_pause_button"
         android:layout_width="0dp"
         android:layout_height="48dp"
         android:layout_weight="1"
-        android:padding="6dp"
         android:clickable="true"
         android:focusable="true"
-        android:background="@drawable/ripple_control_button"
-        android:src="@drawable/ic_play" />
+        android:foreground="@drawable/ripple_control_button">
+
+        <View
+            android:id="@+id/play_pause_glass"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:background="@drawable/ic_play_bg_glass_light"
+            android:duplicateParentState="false"
+            android:clickable="false" />
+
+        <ImageView
+            android:id="@+id/play_pause_icon"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:clickable="false"
+            android:src="@drawable/ic_play" />
+    </FrameLayout>
 
     <ImageView
         android:id="@+id/next_button"

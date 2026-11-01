@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- QQ音乐HD 暂停（skin_icon_player_pause 1:1移植，圆端双柱，白色基底兼容日夜染色） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="36dp"
     android:height="36dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="140"
+    android:viewportHeight="140">
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M6,19h4V5H6v14zm8,-14v14h4V5h-4z" />
+        android:pathData="M53.46,50L62.54,50A2.46,2.46 0,0 1,65 52.46L65,87.54A2.46,2.46 0,0 1,62.54 90L53.46,90A2.46,2.46 0,0 1,51 87.54L51,52.46A2.46,2.46 0,0 1,53.46 50z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M77.46,50L86.54,50A2.46,2.46 0,0 1,89 52.46L89,87.54A2.46,2.46 0,0 1,86.54 90L77.46,90A2.46,2.46 0,0 1,75 87.54L75,52.46A2.46,2.46 0,0 1,77.46 50z" />
 </vector>

@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- QQ音乐HD 播放三角（skin_icon_player_play 1:1移植，白色基底兼容日夜染色） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="36dp"
     android:height="36dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="140"
+    android:viewportHeight="140">
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M8,5v14l11,-7z" />
+        android:fillType="evenOdd"
+        android:pathData="M92.51,73.4C95.03,71.84 95.03,68.16 92.51,66.6L62.11,47.78C59.44,46.13 56,48.05 56,51.18V88.82C56,91.95 59.44,93.87 62.11,92.22L92.51,73.4Z" />
 </vector>
