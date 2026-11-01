@@ -205,6 +205,7 @@ public class LyricEffectManager {
         active = false;
         activePage = null;
         unsubscribe();
+        if (onDetachListener != null) onDetachListener.run(); // 效果页释放回调（拼贴页恢复卡内频谱）
 
         // 淡出后移除（ViewPropertyAnimator 终点 alpha=0，结束回调移除视图）
         page.animate().alpha(0f).setDuration(FADE_MS).withEndAction(() -> {
@@ -213,6 +214,13 @@ public class LyricEffectManager {
             if (page.getParent() == host) host.removeView(page);
         }).start();
         page.setOnClickListener(null);
+    }
+
+    /** 效果页退出回调（detach 时刻；拼贴页用它恢复卡内频谱） */
+    private Runnable onDetachListener;
+
+    public void setOnDetachListener(Runnable listener) {
+        this.onDetachListener = listener;
     }
 
     /** 壁纸模式注入：设置开启且壁纸文件存在 → 垫底插入渲染层，成功与否均返回是否处于壁纸模式 */

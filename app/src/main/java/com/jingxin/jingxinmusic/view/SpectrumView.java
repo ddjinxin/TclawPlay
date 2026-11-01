@@ -428,6 +428,7 @@ public class SpectrumView extends View {
 
     private void setStyleInternal(int style) {
         currentStyle = style;
+        currentStyleStatic = style; // 静态镜像（无实例处判环类用）
         initStyleParams(style);
         rebuildArrays();
         float totalSpacing = barSpacing * (currentCount - 1);
@@ -599,6 +600,24 @@ public class SpectrumView extends View {
         return tintColors != null ? tintColors[idx] : Color.WHITE;
     }
     
+    /**
+     * 取当前动态跟随色（拼贴墙进度线与频谱同色用）。
+     * @return top/bottom 双色；未注入 tint 时返回 null（调用方回落频谱默认色）
+     */
+    public int[] getTintColors() {
+        return tintColors;
+    }
+
+    /**
+     * 静态读当前记忆样式镜像（实例 setStyle 时同步；无实例处判定环类用：拼贴墙频谱带）
+     */
+    public static int getCurrentStyleStatic() {
+        return currentStyleStatic;
+    }
+
+    /** 样式真值镜像（实例 setStyle 时同步，供无实例侧判环类） */
+    private static int currentStyleStatic = STYLE_BAR;
+
     // 是否显示频谱
     private boolean visible = true;
     

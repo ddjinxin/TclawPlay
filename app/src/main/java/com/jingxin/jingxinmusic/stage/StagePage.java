@@ -103,8 +103,12 @@ public abstract class StagePage {
         void openLyricEffect(); // 歌词动效键：进入歌词动效页（星空漫游等）
         boolean isFavorite();
         boolean isBiliSong();
-        void exitPlayerPage(); // 返回键：退出播放页（与旧页语义一致）；装扮键切换走 outfit 循环
-        void switchOutfitStyle(); // 装扮键：outfit 循环切换风格（第5风格进出循环）
+    void exitPlayerPage(); // 返回键：退出播放页（与旧页语义一致）；装扮键切换走 outfit 循环
+    void switchOutfitStyle(); // 装扮键：outfit 循环切换风格（第5风格进出循环）
+    /** 绝对定位播放（队列索引）：拼贴墙点卡切歌用，默认空实现（旧风格页不走） */
+    default void playSongAtPosition(int queueIndex) {}
+    /** 直达歌词动效页（读上次记忆，无记忆用第一个）：拼贴墙点大封面进入，默认空实现 */
+    default void openLyricEffectRemembered() {}
         // 进度条拖动（旧页 onSeek* 三回调：start暂停自动隐藏/to执行seek/stop恢复计时）
         void onSeekStart();
         void onSeekTo(int positionMs);

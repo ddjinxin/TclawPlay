@@ -129,13 +129,14 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int COVER_STYLE_IMMERSIVE_V2 = 5; // 第6风格：沉浸 V2（自持实例页）
     private static final int COVER_STYLE_RECORD_V2 = 6; // 第7风格：唱片机 V2（自持实例页）
     private static final int COVER_STYLE_CAROUSEL_V2 = 7; // 第8风格：轮播 V2（自持实例页）
+    private static final int COVER_STYLE_LATTICE_V2 = 8; // 第9风格：拼贴 V2（FOLIA Lattice 封面墙移植）
 
     /**
-     * 风格值规范化：旧 prefs 值 0~3 映射到 V2 新风格（4~7），越界回落新经典（幂等）。
+     * 风格值规范化：旧 prefs 值 0~3 映射到 V2 新风格（4~8），越界回落新经典（幂等）。
      */
     private static int normalizeCoverStyle(int style) {
         if (style < COVER_STYLE_CLASSIC_V2) return style + COVER_STYLE_CLASSIC_V2;
-        return style > COVER_STYLE_CAROUSEL_V2 ? COVER_STYLE_CLASSIC_V2 : style;
+        return style > COVER_STYLE_LATTICE_V2 ? COVER_STYLE_CLASSIC_V2 : style;
     }
     private int coverStyle = COVER_STYLE_CLASSIC;
     private int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
@@ -158,6 +159,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private com.jingxin.jingxinmusic.stage.ImmersivePageV2 immersiveV2Page; // 沉浸
     private com.jingxin.jingxinmusic.stage.RecordPageV2 recordV2Page; // 唱机
     private com.jingxin.jingxinmusic.stage.CarouselPageV2 carouselV2Page; // 轮播
+    private com.jingxin.jingxinmusic.stage.LatticePageV2 latticeV2Page; // 拼贴
     private com.jingxin.jingxinmusic.stage.StagePage currentScene;
     /** currentScene 本次进入时的方向形态（横竖切换时 layout 前需 exit→enter 重建，等价旧架构两 Scene 实例） */
     private boolean enteredAsLandscape = false;
@@ -211,10 +213,12 @@ public class PlayerFragment extends BaseFloatFragment {
                 checkFavoriteStatus();
                 updateDownloadButtonVisibility();
                 saveLastPlayed();
-            // CarouselV2 切歌后卡片位置同步（activePage 已建则同步，未建则待 enter 时拉取）
+            // CarouselV2/LatticeV2 切歌后列表同步（activePage 已建则同步，未建则待 enter 时拉取）
             com.jingxin.jingxinmusic.stage.StagePage cp = activePage();
             if (cp instanceof com.jingxin.jingxinmusic.stage.CarouselPageV2) {
                 ((com.jingxin.jingxinmusic.stage.CarouselPageV2) cp).syncPlaylistPosition();
+            } else if (cp instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
+                ((com.jingxin.jingxinmusic.stage.LatticePageV2) cp).syncQueueData();
             }
                 // 切歌时重置自动隐藏计时（新歌重新计算5秒窗口）
                 if (controlsHideEnabled) {
@@ -394,10 +398,12 @@ public class PlayerFragment extends BaseFloatFragment {
                             playerBinder.setPlaylist(allSongs);
                             playSong();
                         }
-                        // 列表就绪后：若当前为轮播页，全量灌入轮播封面
+                        // 列表就绪后：若当前为轮播/拼贴页，全量灌入
                         com.jingxin.jingxinmusic.stage.StagePage cp2 = activePage();
                         if (cp2 instanceof com.jingxin.jingxinmusic.stage.CarouselPageV2) {
                             ((com.jingxin.jingxinmusic.stage.CarouselPageV2) cp2).syncPlaylistPosition();
+                        } else if (cp2 instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
+                            ((com.jingxin.jingxinmusic.stage.LatticePageV2) cp2).syncQueueData();
                         }
                         // 启动直达歌词动效：歌单就绪后进入上次记忆的效果（仅冷启动首次，消费即失效）
                         if (pendingAutoEnterLyricEffect) {
@@ -588,6 +594,13 @@ public class PlayerFragment extends BaseFloatFragment {
                     @Override public void togglePlayPause() { PlayerFragment.this.togglePlayPause(); }
                     @Override public void playNext() { PlayerFragment.this.playNext(); }
                 });
+        // 效果页退出回调：拼贴页恢复卡内频谱（detach 时刻）
+        lyricEffectManager.setOnDetachListener(() -> {
+            com.jingxin.jingxinmusic.stage.StagePage cp = activePage();
+            if (cp instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
+                ((com.jingxin.jingxinmusic.stage.LatticePageV2) cp).setEffectPageActive(false);
+            }
+        });
         // 低频能量源（时计摆轮；无频谱时返 0，机芯恒速）
         lyricEffectManager.setBassEnergyProvider(() -> {
             if (System.currentTimeMillis() - bassLastUpdateMs > BASS_STALE_MS) return 0f;
@@ -883,6 +896,22 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
+     * 拼贴墙点卡绝对定位播放（队列真实索引）
+     * 不直接 binder.playSongAtPosition：走 playSongAt 同链路（allSongs position 同步/频谱/歌词/收藏全刷新）
+     */
+    private void playSongAtPosition(int queueIndex) {
+        if (bound && playerBinder != null) {
+            java.util.List<Song> pl = playerBinder.getPlaylist();
+            if (pl != null && queueIndex >= 0 && queueIndex < pl.size()) {
+                playSongAt(queueIndex - playerBinder.getCurrentIndex());
+                // 乐观置播放态：服务 prepare→onIsPlayingChanged→广播回 Hub 有半拍延迟，
+                // 点卡瞬间墙上就该亮起播放图形（广播到达后自然校正）
+                stateHub.setPlaying(true);
+            }
+        }
+    }
+
+    /**
      * 初始 currentScene 持有者：新经典 V2 adapter，并立即 enter 保证 install
      * （首个 onLayoutChange 前页面必须就绪，否则页面字段全 null）。
      */
@@ -936,10 +965,11 @@ public class PlayerFragment extends BaseFloatFragment {
      * currentScene 仍是经典页，此时不应喂新风格页。
      */
     private com.jingxin.jingxinmusic.stage.StagePage activePage() {
-       switch (coverStyle) {
+        switch (coverStyle) {
             case COVER_STYLE_IMMERSIVE_V2:  return immersiveV2Page;
             case COVER_STYLE_RECORD_V2:     return recordV2Page;
             case COVER_STYLE_CAROUSEL_V2:   return carouselV2Page;
+            case COVER_STYLE_LATTICE_V2:    return latticeV2Page;
             case COVER_STYLE_CLASSIC_V2:
             default:                        return classicV2Page;
         }
@@ -1215,6 +1245,15 @@ public class PlayerFragment extends BaseFloatFragment {
                     installV2Page(p);
                 }
                 return carouselV2Page;
+            case COVER_STYLE_LATTICE_V2:
+                if (latticeV2Page == null) {
+                    com.jingxin.jingxinmusic.stage.LatticePageV2 p =
+                            new com.jingxin.jingxinmusic.stage.LatticePageV2(sceneHelper);
+                    p.setActions(buildCarouselV2Actions()); // 拼贴复用轮播 actions（列表桥同构）
+                    latticeV2Page = p;
+                    installV2Page(p);
+                }
+                return latticeV2Page;
             case COVER_STYLE_CLASSIC_V2:
             default: // 异常 prefs 值也回落新经典（旧四风格已下线）
                 if (classicV2Page == null) {
@@ -1674,6 +1713,8 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override public void onSeekStop() { base.onSeekStop(); }
             @Override public boolean isControlsHidden() { return base.isControlsHidden(); }
             @Override public void onV2ControlsTouched() { base.onV2ControlsTouched(); }
+            @Override public void playSongAtPosition(int queueIndex) { base.playSongAtPosition(queueIndex); }
+            @Override public void openLyricEffectRemembered() { base.openLyricEffectRemembered(); }
             @Override public java.util.List<Song> getPlaylist() {
                 return (bound && playerBinder != null) ? playerBinder.getPlaylist() : null;
             }
@@ -1700,6 +1741,9 @@ public class PlayerFragment extends BaseFloatFragment {
             @Override public void openLyricEffect() {
                 PlayerFragment.this.showLyricEffectPicker();
             }
+            @Override public void openLyricEffectRemembered() {
+                PlayerFragment.this.enterRememberedLyricEffect();
+            }
             @Override public boolean isFavorite() { return PlayerFragment.this.isFavorite; }
             @Override public boolean isBiliSong() { return song != null && song.sourceType == Song.SOURCE_BILI; }
             @Override public boolean isBiliDownloadEnabled() { return biliDownloadEnabled; }
@@ -1708,6 +1752,10 @@ public class PlayerFragment extends BaseFloatFragment {
                 requireActivity().onBackPressed();
             }
             @Override public void switchOutfitStyle() { PlayerFragment.this.toggleImmersiveMode(); }
+            @Override public void playSongAtPosition(int queueIndex) {
+                // 拼贴墙点卡绝对定位播放：内部换 delta 走 playSongAt 链（列表桥/spectrum/歌词/收藏全刷新）
+                PlayerFragment.this.playSongAtPosition(queueIndex);
+            }
             @Override public void onSeekStart() {
                 stopControlsHideTimer(); // 拖动中暂停自动隐藏
                 userSeeking = true;
@@ -1742,7 +1790,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void toggleImmersiveMode() {
         // 装扮循环只在 V2 新风格间切换（收口入口；若内存值为旧风格异常态则先归位）
-        coverStyle = COVER_STYLE_CLASSIC_V2 + ((Math.max(coverStyle, COVER_STYLE_CLASSIC_V2) + 1 - COVER_STYLE_CLASSIC_V2) % 4);
+        coverStyle = COVER_STYLE_CLASSIC_V2 + ((Math.max(coverStyle, COVER_STYLE_CLASSIC_V2) + 1 - COVER_STYLE_CLASSIC_V2) % 5);
         requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
         // 目标风格不适配环类频谱时（轮播无圆形封面可挂）：真值直接归位第一个频谱（竖条）。
@@ -1773,7 +1821,7 @@ public class PlayerFragment extends BaseFloatFragment {
         // 重新加载封面
         loadCover();
 
-        String[] styleNames = {"经典", "沉浸", "唱机", "轮播"}; // 与 V2 风格值（4~7）对齐
+        String[] styleNames = {"经典", "沉浸", "唱机", "轮播", "拼贴"}; // 与 V2 风格值（4~8）对齐
         android.widget.Toast.makeText(requireContext(), styleNames[coverStyle - COVER_STYLE_CLASSIC_V2],
                 android.widget.Toast.LENGTH_SHORT).show();
     }
@@ -2036,6 +2084,11 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private void enterRememberedLyricEffect() {
         if (lyricEffectManager == null || lyricEffectManager.isActive()) return;
+        // 拼贴页：动效页全屏沉浸，卡内频谱隐藏
+        com.jingxin.jingxinmusic.stage.StagePage cp = activePage();
+        if (cp instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
+            ((com.jingxin.jingxinmusic.stage.LatticePageV2) cp).setEffectPageActive(true);
+        }
         com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect[] effects = {
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD,
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.GLOW,
@@ -2052,7 +2105,7 @@ public class PlayerFragment extends BaseFloatFragment {
         lyricEffectManager.attach(effects[idx]);
     }
 
-    /**
+        /**
      * 弹出歌词动效选择浮窗：星空漫游 / 流光（样式与音效弹窗一致：贴左垂直居中、青色发光选中）
      */
     private void showLyricEffectPicker() {
@@ -2139,6 +2192,11 @@ public class PlayerFragment extends BaseFloatFragment {
                 if (lyricEffectManager != null && !lyricEffectManager.isActive()) {
                     ctx.getSharedPreferences(SettingsFragment.PREFS_NAME, Context.MODE_PRIVATE)
                             .edit().putInt(KEY_LYRIC_EFFECT_MODE, pick).apply();
+                    // 拼贴页：动效页全屏沉浸，卡内频谱隐藏
+                    com.jingxin.jingxinmusic.stage.StagePage cpk = activePage();
+                    if (cpk instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
+                        ((com.jingxin.jingxinmusic.stage.LatticePageV2) cpk).setEffectPageActive(true);
+                    }
                     lyricEffectManager.attach(effects[pick]);
                 }
             });

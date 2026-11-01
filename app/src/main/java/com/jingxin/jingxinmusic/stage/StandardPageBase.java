@@ -250,7 +250,7 @@ public class StandardPageBase extends StagePage {
         });
     }
 
-    private PlayerStateHub hubRef() {
+    protected PlayerStateHub hubRef() {
         if (hub == null) hub = PlayerStateHub.get();
         return hub;
     }
