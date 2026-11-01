@@ -47,7 +47,27 @@ michael007js，无明确许可声明，特此注明出处并致谢）。
 
 ---
 
-## 📢 最新版本 (v1.0.9.2)
+## 📢 最新版本 (v1.0.9.3)
+
+### v1.0.9.3 (2026-11)
+#### 新功能
+
+- **第 9 播放风格「拼贴」** — 无限封面墙：封面无尽延展的拼贴世界，拖拽惯性浏览；点任意卡展开 6×6 大卡并切歌，大卡集成传输三键/卡顶进度线/卡底频谱/歌名歌手；长按呼出顶栏，点大卡直达歌词动效页
+- **展开卡流光描边** — 播放时彗星光沿大卡边框流转（9 秒一圈），暂停转为呼吸灯；颜色与频谱/进度线同源，跟随封面取色
+- **装扮键风格选择弹窗** — 顶栏装扮键由循环切换改为弹出风格列表（经典/沉浸/唱机/轮播/拼贴，当前风格高亮），与音效/动效弹窗同格式
+- **前景配色跟随封面** — 播放页与沉浸页前景配色统一封面取色，新增高亮色跟随封面开关
+- **控制条图标全组升级** — 玻璃胶囊播放键图标放大 30%，其余控制键图标同步换装
+
+#### 稳定性与性能
+
+- 全项目撞除软层合成（LAYER_TYPE_SOFTWARE），浮名/镜台/时计/AI语音频谱等动效回归硬件加速，低配车机更流畅
+- 乐酷画中画窗口 resize 黑屏修复，默认背景皮肤链路定型
+- 顶栏右五键内边距横竖屏统一，拼贴页频谱复位修复
+
+#### 版权与合规
+
+- 项目整体许可统一为 AGPL-3.0；README 声明 FOLIA（拼贴风格 + 七种歌词动效）与 SpectrumForAndroid（部分频谱样式）衍生来源并致谢
+- 「星空漫游」更名为「星空」
 
 ### v1.0.9.2 (2026-10)
 #### 新功能
@@ -284,7 +304,33 @@ michael007js，无明确许可声明，特此注明出处并致谢）。
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.9.1)
+## 📢 Latest Version (v1.0.9.3)
+
+### v1.0.9.3 (2026-11)
+#### New Features
+
+- **Ninth player style "Lattice"** — an infinite cover wall: an endless mosaic world of covers with drag/fling browsing; tap any tile to expand it into a 6×6 card and switch songs — the expanded card integrates transport keys, top progress line, bottom spectrum band and title/artist; long-press anywhere for the top bar, tap the big cover to jump into the lyric-effect page
+- **Expanded-card border light** — a comet streak travels along the expanded card's border while playing (9 s per lap) and turns into a breathing glow when paused; color shared with spectrum/progress line, following the album cover
+- **Style picker popup** — the outfit button now opens a style list (Classic / Immersive / Turntable / Carousel / Lattice, current highlighted) instead of cycling, matching the effect/lyric-effect popups
+- **Foreground colors follow album cover** — player and immersive pages tint foreground from the cover; new highlight-follows-cover toggle
+- **Control bar icon overhaul** — glass-capsule play button icon enlarged 30%, all other control icons restyled
+
+#### Stability & Performance
+
+- Removed all software-layer compositing project-wide — Fume / Diorama / Pendolo / AI-voice spectrum back to hardware acceleration, smoother on low-end car head units
+- Fixed Leco PiP resize black screen; default background skin pipeline finalized
+- Unified top-bar right five-button padding across orientations; lattice spectrum re-seat fix
+
+#### License & Compliance
+
+- Project license unified under AGPL-3.0; derivation notices for FOLIA (Lattice style + seven lyric effects) and SpectrumForAndroid (some spectrum styles)
+- "Starfield Roam" renamed to "Starfield"
+
+### v1.0.9.2 (2026-10)
+
+- **Direct-to-lyric-effect** — new settings toggle: launch straight into the last-remembered lyric effect playback; mutually exclusive with direct-to-player
+- **Update-push toggle** — new settings switch (default on): disable automatic update checks at launch; manual check in Help unaffected
+- Stability hardening: home cover grid, background animation load, progress refresh and more
 
 ### v1.0.9.1 (2026-10)
 #### Brand-new App Icon
@@ -1009,7 +1055,33 @@ Wave Ring) are ported from
 
 ---
 
-## 📢 Latest Version (v1.0.9.1)
+## 📢 Latest Version (v1.0.9.3)
+
+### v1.0.9.3 (2026-11)
+#### New Features
+
+- **Ninth player style "Lattice"** — an infinite cover wall: an endless mosaic world of covers with drag/fling browsing; tap any tile to expand it into a 6×6 card and switch songs — the expanded card integrates transport keys, top progress line, bottom spectrum band and title/artist; long-press anywhere for the top bar, tap the big cover to jump into the lyric-effect page
+- **Expanded-card border light** — a comet streak travels along the expanded card's border while playing (9 s per lap) and turns into a breathing glow when paused; color shared with spectrum/progress line, following the album cover
+- **Style picker popup** — the outfit button now opens a style list (Classic / Immersive / Turntable / Carousel / Lattice, current highlighted) instead of cycling, matching the effect/lyric-effect popups
+- **Foreground colors follow album cover** — player and immersive pages tint foreground from the cover; new highlight-follows-cover toggle
+- **Control bar icon overhaul** — glass-capsule play button icon enlarged 30%, all other control icons restyled
+
+#### Stability & Performance
+
+- Removed all software-layer compositing project-wide — Fume / Diorama / Pendolo / AI-voice spectrum back to hardware acceleration, smoother on low-end car head units
+- Fixed Leco PiP resize black screen; default background skin pipeline finalized
+- Unified top-bar right five-button padding across orientations; lattice spectrum re-seat fix
+
+#### License & Compliance
+
+- Project license unified under AGPL-3.0; derivation notices for FOLIA (Lattice style + seven lyric effects) and SpectrumForAndroid (some spectrum styles)
+- "Starfield Roam" renamed to "Starfield"
+
+### v1.0.9.2 (2026-10)
+
+- **Direct-to-lyric-effect** — new settings toggle: launch straight into the last-remembered lyric effect playback; mutually exclusive with direct-to-player
+- **Update-push toggle** — new settings switch (default on): disable automatic update checks at launch; manual check in Help unaffected
+- Stability hardening: home cover grid, background animation load, progress refresh and more
 
 ### v1.0.9.1 (2026-10)
 #### Brand-new App Icon
