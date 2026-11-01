@@ -158,8 +158,8 @@ michael007js，无明确许可声明，特此注明出处并致谢）。
 
 ### v1.0.7.6 (2026-09)
 #### 新功能
-- **双色光晕背景皮肤** — 设置页新增背景皮肤选项：默认/双色光晕，1:1 还原 QQ 音乐 Hu.glsl 光晕效果，128×128 LUT 精确移植椭圆深度函数，10×10 降采样+非均匀 8 色相桶取色，双光晕白天提亮 20%、夜间调暗 15%，仅经典/唱机/轮播模式生效（沉浸模式除外）
-- **首页动态背景体系** — 1:1 还原 QQ 音乐动态背景：底色+左下角蒙版染色+右上角渐变三层自绘架构，蒙版像素取自封面主色，8 桶 HSV 取色+10 档色相查表；首页 Tab 栏双行文字+滑动指示器+流光线，图标颜色随封面取色联动，列表项动态模式透明背景；帮助/设置/WebDAV/B站设置页同步接入
+- **双色光晕背景皮肤** — 设置页新增背景皮肤选项：默认/双色光晕，自研自绘极光光晕效果，128×128 LUT 精确椭圆深度函数，10×10 降采样+非均匀 8 色相桶取色，双光晕白天提亮 20%、夜间调暗 15%，仅经典/唱机/轮播模式生效（沉浸模式除外）
+- **首页动态背景体系** — 底色+左下角蒙版染色+右上角渐变三层自绘架构，蒙版像素取自封面主色，8 桶 HSV 取色+10 档色相查表；首页 Tab 栏双行文字+滑动指示器+流光线，图标颜色随封面取色联动，列表项动态模式透明背景；帮助/设置/WebDAV/B站设置页同步接入
 - **内嵌歌词读取** — 歌词加载顺序新增内嵌歌词最优先（开关开启时），支持 MP3 USLT/SYLT、M4A ©lyr、FLAC LYRICS 标签
 - **频谱颜色跟随封面** — 竖条/圆点/波浪线/波形柱/网易圆环/扩散圆环频谱在双色光晕模式下颜色跟随封面双色（白天跟随、夜间白色，非光晕模式保持原色）
 - **歌词高亮色随封面联动** — 双色光晕+经典模式下歌词高亮颜色跟随封面主色
@@ -411,8 +411,8 @@ Classic / Immersive / Turntable / Carousel styles unified into StandardPageBase 
 
 ### v1.0.7.6 (2026-09)
 #### New Features
-- **Dual-color aurora background skin** — New background skin option in settings: Default/Dual-color Aurora, 1:1 recreation of QQ Music's Hu.glsl aurora effect, 128×128 LUT with precise elliptical depth function port, 10×10 downsampling + non-uniform 8 hue-bucket color extraction; aurora brightened 20% in day, dimmed 15% at night; applies to Classic/Record/Carousel modes only (not Immersive)
-- **Home dynamic background system** — 1:1 recreation of QQ Music's dynamic background: three-layer self-drawn architecture (base color + bottom-left mask tint + top-right gradient), mask pixels from cover dominant color, 8-bucket HSV extraction + 10-tier hue lookup; home tab bar with two-line text + sliding indicator + light stream, icon colors linked to cover extraction, transparent list items in dynamic mode; Help/Settings/WebDAV/Bilibili pages integrated
+- **Dual-color aurora background skin** — New background skin option in settings: Default/Dual-color Aurora, self-drawn aurora effect with 128×128 LUT and precise elliptical depth function, 10×10 downsampling + non-uniform 8 hue-bucket color extraction; aurora brightened 20% in day, dimmed 15% at night; applies to Classic/Record/Carousel modes only (not Immersive)
+- **Home dynamic background system** — three-layer self-drawn architecture (base color + bottom-left mask tint + top-right gradient), mask pixels from cover dominant color, 8-bucket HSV extraction + 10-tier hue lookup; home tab bar with two-line text + sliding indicator + light stream, icon colors linked to cover extraction, transparent list items in dynamic mode; Help/Settings/WebDAV/Bilibili pages integrated
 - **Embedded lyrics reading** — Embedded lyrics now highest priority in load order (when toggle enabled), supporting MP3 USLT/SYLT, M4A ©lyr, FLAC LYRICS tags
 - **Spectrum colors follow cover** — Bar/dot/wave/NetEase ring/diffusion ring spectrums follow cover dual colors in aurora mode (day: follow, night: white; non-aurora keeps original colors)
 - **Lyrics highlight color follows cover** — In aurora + classic mode, lyrics highlight color follows cover dominant color
@@ -832,8 +832,8 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ### v1.0.7.6 (2026-09)
 #### 新功能
-- **双色光晕背景皮肤** — 设置页新增背景皮肤选项（默认/双色光晕），1:1 还原 QQ 音乐 Hu.glsl 光晕效果，128×128 LUT 精确移植，10×10 降采样+8 色相桶取色，白天提亮 20%、夜间调暗 15%，经典/唱机/轮播模式生效
-- **首页动态背景体系** — 1:1 还原 QQ 音乐动态背景：底色+左下蒙版染色+右上渐变三层自绘，蒙版像素取自封面主色；首页 Tab 栏双行文字+滑动指示器+流光线，图标颜色随封面取色联动；帮助/设置/WebDAV/B站页同步接入
+- **双色光晕背景皮肤** — 设置页新增背景皮肤选项（默认/双色光晕），自研自绘极光光晕效果，128×128 LUT 精确移植，10×10 降采样+8 色相桶取色，白天提亮 20%、夜间调暗 15%，经典/唱机/轮播模式生效
+- **首页动态背景体系** — 底色+左下蒙版染色+右上渐变三层自绘，蒙版像素取自封面主色；首页 Tab 栏双行文字+滑动指示器+流光线，图标颜色随封面取色联动；帮助/设置/WebDAV/B站页同步接入
 - **内嵌歌词读取** — 加载顺序新增内嵌歌词最优先（开关开启时），支持 MP3 USLT/SYLT、M4A ©lyr、FLAC LYRICS
 - **频谱颜色跟随封面** — 竖条/圆点/波浪线/波形柱/网易圆环/扩散圆环在光晕模式下跟随封面双色（白天跟随、夜间白色）
 - **歌词高亮色随封面联动** — 双色光晕+经典模式下歌词高亮色跟随封面主色
@@ -1157,8 +1157,8 @@ Classic / Immersive / Turntable / Carousel styles unified into StandardPageBase 
 
 ### v1.0.7.6 (2026-09)
 #### New Features
-- **Dual-color aurora background skin** — New background skin option in settings: Default/Dual-color Aurora, 1:1 recreation of QQ Music's Hu.glsl aurora effect, 128×128 LUT with precise elliptical depth function port, 10×10 downsampling + non-uniform 8 hue-bucket color extraction; aurora brightened 20% in day, dimmed 15% at night; applies to Classic/Record/Carousel modes only (not Immersive)
-- **Home dynamic background system** — 1:1 recreation of QQ Music's dynamic background: three-layer self-drawn architecture (base color + bottom-left mask tint + top-right gradient), mask pixels from cover dominant color, 8-bucket HSV extraction + 10-tier hue lookup; home tab bar with two-line text + sliding indicator + light stream, icon colors linked to cover extraction, transparent list items in dynamic mode; Help/Settings/WebDAV/Bilibili pages integrated
+- **Dual-color aurora background skin** — New background skin option in settings: Default/Dual-color Aurora, self-drawn aurora effect with 128×128 LUT and precise elliptical depth function, 10×10 downsampling + non-uniform 8 hue-bucket color extraction; aurora brightened 20% in day, dimmed 15% at night; applies to Classic/Record/Carousel modes only (not Immersive)
+- **Home dynamic background system** — three-layer self-drawn architecture (base color + bottom-left mask tint + top-right gradient), mask pixels from cover dominant color, 8-bucket HSV extraction + 10-tier hue lookup; home tab bar with two-line text + sliding indicator + light stream, icon colors linked to cover extraction, transparent list items in dynamic mode; Help/Settings/WebDAV/Bilibili pages integrated
 - **Embedded lyrics reading** — Embedded lyrics now highest priority in load order (when toggle enabled), supporting MP3 USLT/SYLT, M4A ©lyr, FLAC LYRICS tags
 - **Spectrum colors follow cover** — Bar/dot/wave/NetEase ring/diffusion ring spectrums follow cover dual colors in aurora mode (day: follow, night: white; non-aurora keeps original colors)
 - **Lyrics highlight color follows cover** — In aurora + classic mode, lyrics highlight color follows cover dominant color
@@ -1503,8 +1503,8 @@ The upstream project is AGPL-3.0, consistent with this project's overall license
 
 ### v1.0.7.6 (2026-09)
 #### New Features
-- **Dual-color aurora background skin** — Settings page adds background skin option (Default/Dual-color Aurora), 1:1 recreation of QQ Music's Hu.glsl aurora effect, 128×128 LUT port, 10×10 downsampling + 8 hue-bucket extraction, 20% brighter in day, 15% dimmer at night; Classic/Record/Carousel modes
-- **Home dynamic background system** — 1:1 recreation of QQ Music's dynamic background: three-layer (base + bottom-left mask tint + top-right gradient), mask pixels from cover dominant color; tab bar two-line text + sliding indicator + light stream, icon colors linked to cover; Help/Settings/WebDAV/Bilibili pages integrated
+- **Dual-color aurora background skin** — Settings page adds background skin option (Default/Dual-color Aurora), self-drawn aurora effect, 128×128 LUT, 10×10 downsampling + 8 hue-bucket extraction, 20% brighter in day, 15% dimmed at night; Classic/Record/Carousel modes
+- **Home dynamic background system** — three-layer self-drawn background (base + bottom-left mask tint + top-right gradient), mask pixels from cover dominant color; tab bar two-line text + sliding indicator + light stream, icon colors linked to cover; Help/Settings/WebDAV/Bilibili pages integrated
 - **Embedded lyrics reading** — Embedded lyrics highest priority in load order (when enabled), supporting MP3 USLT/SYLT, M4A ©lyr, FLAC LYRICS
 - **Spectrum colors follow cover** — Bar/dot/wave/NetEase ring/diffusion ring follow cover dual colors in aurora mode (day: follow, night: white)
 - **Lyrics highlight color follows cover** — Auroras + classic mode lyrics highlight follows cover dominant color
