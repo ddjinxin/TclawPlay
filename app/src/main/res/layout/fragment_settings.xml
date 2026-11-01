@@ -891,6 +891,49 @@
             android:layout_marginVertical="4dp"
             android:id="@+id/divider_mid6" />
 
+        <!-- 歌词高亮跟随封面 -->
+        <LinearLayout
+            android:id="@+id/item_lyric_follow_cover"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingVertical="12dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_lyric_follow_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="高亮色跟随封面"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/tv_lyric_follow_desc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="高亮歌词颜色跟随封面自动变化，关闭后使用自定义颜色"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_lyric_follow_cover"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="4dp"
+            android:id="@+id/divider_mid6b" />
+
         <!-- 歌词高亮颜色 -->
         <LinearLayout
             android:id="@+id/item_lyric_color"

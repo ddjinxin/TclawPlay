@@ -63,6 +63,8 @@ public class SettingsFragment extends BaseFloatFragment {
     // 歌词高亮颜色 preferences 存在 "theme" SharedPreferences 中
     public static final String KEY_DAY_LYRIC_COLOR = "day_lyric_color";
     public static final String KEY_NIGHT_LYRIC_COLOR = "night_lyric_color";
+    /** 高亮色跟封面取色（双皮肤统一；关=用自定义高亮色） */
+    public static final String KEY_LYRIC_FOLLOW_COVER = "lyric_follow_cover";
     public static final int DEFAULT_DAY_LYRIC_COLOR = 0xFFE53935;   // 默认白天高亮红色
     public static final int DEFAULT_NIGHT_LYRIC_COLOR = 0xFFFFEB3B; // 默认夜间高亮黄色
 
@@ -78,9 +80,9 @@ public class SettingsFragment extends BaseFloatFragment {
     private ImageView btnHelp;
     private TextView[] styleTabs = new TextView[4];
     private int currentStyleIndex = 0;
-    private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoResumeLyricEffect, switchUpdatePush, switchAutoTheme, switchVolumeNormalize, switchBootAutoStart;
-    private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle, tvAutoThemeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle;
-    private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc, tvAutoThemeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc;
+    private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoResumeLyricEffect, switchUpdatePush, switchAutoTheme, switchVolumeNormalize, switchBootAutoStart, switchLyricFollowCover;
+    private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle, tvAutoThemeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvLyricFollowTitle;
+    private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc, tvAutoThemeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvLyricFollowDesc;
     private android.widget.Spinner spinnerAutoHideControls;
     private TextView tvAutoHideControlsTitle, tvAutoHideControlsDesc;
     private TextView[] bgSkinTabs = new TextView[2];
@@ -196,6 +198,12 @@ public class SettingsFragment extends BaseFloatFragment {
                 .getInt(KEY_NIGHT_LYRIC_COLOR, DEFAULT_NIGHT_LYRIC_COLOR);
     }
 
+    /** 高亮色是否跟随封面取色（默认开：与双皮肤统一的封面取色主线一致） */
+    public static boolean isLyricFollowCover(Context context) {
+        return context.getSharedPreferences("theme", Context.MODE_PRIVATE)
+                .getBoolean(KEY_LYRIC_FOLLOW_COVER, true);
+    }
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
@@ -224,6 +232,7 @@ public class SettingsFragment extends BaseFloatFragment {
         setupBootAutoStartSwitch(view);
         setupAutoHideControls(view);
         setupLyricColorSelector(view);
+        setupLyricFollowCoverSwitch(view);
         setupUpdatePushSwitch(view);
 
         applyTopInset(rootScroll);
@@ -335,11 +344,11 @@ public class SettingsFragment extends BaseFloatFragment {
         tvTitle.setTextColor(tc);
         // 刷新所有标题（含壁纸选择行：可操作项，与扫描按钮同用标题色）
         TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvBgSkinTitle, tvEffectWallpaperTitle, rowPickWallpaper, tvFloatTitle, tvSpectrumTitle,
-                tvLyricTitle, tvScanTitle, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle};
+                tvLyricTitle, tvScanTitle, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle, tvLyricFollowTitle};
         for (TextView t : titles) if (t != null) t.setTextColor(tc);
         // 刷新所有描述
         TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvBgSkinDesc, tvEffectWallpaperDesc, tvFloatDesc, tvSpectrumDesc,
-                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc};
+                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc, tvLyricFollowDesc};
         for (TextView d : descs) if (d != null) d.setTextColor(ts);
         // 时间选择行文字
         TextView[] timeTexts = {tvDayStartLabel, tvDayStartValue, tvTimeSeparator, tvNightStartLabel, tvNightStartValue};
@@ -593,7 +602,7 @@ public class SettingsFragment extends BaseFloatFragment {
     /** 全部设置开关集合（初始化前为 null，调用方需判空） */
     private SwitchCompat[] allSwitches() {
         return new SwitchCompat[]{switchNight, switchAutoTheme, switchFloat, switchSpectrum,
-                switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoResumeLyricEffect, switchUpdatePush, switchVolumeNormalize, switchBootAutoStart};
+                switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoResumeLyricEffect, switchUpdatePush, switchVolumeNormalize, switchBootAutoStart, switchLyricFollowCover};
     }
 
     /** 按当前日夜模式刷新全部开关颜色 */
@@ -1030,6 +1039,7 @@ public class SettingsFragment extends BaseFloatFragment {
     // ========== 歌词高亮颜色选择 ==========
 
     private void setupLyricColorSelector(View view) {
+
         tvLyricTitle = view.findViewById(R.id.tv_lyric_color_title);
         tvLyricDesc = view.findViewById(R.id.tv_lyric_color_desc);
         LyricColorBar dayBar = view.findViewById(R.id.day_color_bar);
@@ -1072,6 +1082,25 @@ public class SettingsFragment extends BaseFloatFragment {
             themePrefs.edit().putInt(KEY_NIGHT_LYRIC_COLOR, DEFAULT_NIGHT_LYRIC_COLOR).apply();
             nightBar.setColor(DEFAULT_NIGHT_LYRIC_COLOR);
             tvNightLabel.setTextColor(DEFAULT_NIGHT_LYRIC_COLOR);
+        });
+    }
+
+    /** 高亮色跟随封面开关：开=封面取色主线（双皮肤统一），关=自定义高亮色 */
+    private void setupLyricFollowCoverSwitch(View view) {
+        switchLyricFollowCover = view.findViewById(R.id.switch_lyric_follow_cover);
+        tvLyricFollowTitle = view.findViewById(R.id.tv_lyric_follow_title);
+        tvLyricFollowDesc = view.findViewById(R.id.tv_lyric_follow_desc);
+        applyItemTheme(tvLyricFollowTitle, tvLyricFollowDesc);
+
+        SharedPreferences themePrefs = requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE);
+        switchLyricFollowCover.setChecked(themePrefs.getBoolean(KEY_LYRIC_FOLLOW_COVER, true));
+        applySwitchTint(switchLyricFollowCover);
+
+        switchLyricFollowCover.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            themePrefs.edit().putBoolean(KEY_LYRIC_FOLLOW_COVER, isChecked).apply();
+            Toast.makeText(requireContext(),
+                    isChecked ? "高亮配色已跟随封面" : "已使用自定义高亮颜色",
+                    Toast.LENGTH_SHORT).show();
         });
     }
 

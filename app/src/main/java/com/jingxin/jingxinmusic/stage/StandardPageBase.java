@@ -476,23 +476,24 @@ public class StandardPageBase extends StagePage {
     private void onColorsArrived(int top, int bottom) {
         coverColorsTop = top;
         coverColorsBottom = bottom;
-        aurora.setColors(top, bottom);
-        auroraL.setColors(top, bottom);
-        if (auroraSkin) {
+        // 统一到光晕模式：前景配色不分皮肤，一律封面取色。
+        // 频谱恒双色 tint（与开关无关）；歌词高亮受“跟随封面”开关分流：
+        // 开=封面副色映射，关=自定义高亮色（设置项回归本位，restore 重读自定义色）
+        boolean follow = com.jingxin.jingxinmusic.fragment.SettingsFragment
+                .isLyricFollowCover(lyric.getContext());
+        if (follow && bottom != 0) {
             int lyricColor = CoverColorExtractor.getLyricHighlightColor(bottom, false);
             lyric.setHighlightColor(lyricColor);
             lyricL.setHighlightColor(lyricColor);
-            for (SpectrumView s : new SpectrumView[]{spectrum, spectrumL, spectrumRing, spectrumRingL}) {
-                s.setTint(top, bottom);
-            }
         } else {
-            // 非光晕：频谱/歌词恢复默认配色（镜像旧退出光晕清理逻辑）
-            for (SpectrumView s : new SpectrumView[]{spectrum, spectrumL, spectrumRing, spectrumRingL}) {
-                s.clearTint();
-            }
             lyric.restoreHighlightColor();
             lyricL.restoreHighlightColor();
         }
+        for (SpectrumView s : new SpectrumView[]{spectrum, spectrumL, spectrumRing, spectrumRingL}) {
+            s.setTint(top, bottom);
+        }
+        aurora.setColors(top, bottom);
+        auroraL.setColors(top, bottom);
     }
 
     // ===== 四态背景（公式镜像 DefaultBackgroundSkin/AuroraBackgroundSkin 非沉浸分支）=====
@@ -581,16 +582,19 @@ public class StandardPageBase extends StagePage {
         // 顶栏 6 键：夜间清滤镜，白天染深色（PlayerTopBar 统一实现）
         topBar.applyTheme(night, ThemeColors.dayTextPrimary());
         topBarL.applyTheme(night, ThemeColors.dayTextPrimary());
-        // 进度时间文字 + 进度条圆球/轨道/已进度段（旧 applySeekBarTheme + applyProgressScaling 同源公式）
+        // 进度时间文字（日夜文字色，与标题同源）
         progress.setTimeTextColor(name);
         progressL.setTimeTextColor(name);
+        // 进度条圆球/已进度段：恒光晕配色（白夜均文字色），与开关无关
         if (lastWidth > 0 && lastHeight > 0) {
-            progress.applyTrackTheme(lastHeight, lastWidth, night, auroraSkin);
-            progressL.applyTrackTheme(lastHeight, lastWidth, night, auroraSkin);
+            progress.applyTrackTheme(lastHeight, lastWidth, night, true);
+            progressL.applyTrackTheme(lastHeight, lastWidth, night, true);
         }
-        // 光晕高亮收敛（旧 updateThemeUI 尾部同款）：setThemeMode 会把高亮色重置为自定义色，
-        // 光晕皮肤必须在其后重新覆盖为封面副色映射色，否则被洗掉
-        if (auroraSkin && coverColorsBottom != 0) {
+        // 歌词高亮收敛：setThemeMode 会把高亮色重置为自定义色，
+        // 跟随封面开时必须在其后重新覆盖为封面副色映射色；关时保持自定义色不动
+        boolean followCover = com.jingxin.jingxinmusic.fragment.SettingsFragment
+                .isLyricFollowCover(lyric.getContext());
+        if (followCover && coverColorsBottom != 0) {
             int lyricColor = CoverColorExtractor.getLyricHighlightColor(coverColorsBottom, false);
             lyric.setHighlightColor(lyricColor);
             lyricL.setHighlightColor(lyricColor);
