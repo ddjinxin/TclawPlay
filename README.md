@@ -704,9 +704,16 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 | `androidx.recyclerview:recyclerview` | 列表展示 |
 | `com.android.tools:desugar_jdk_libs` | Java 8+ API 降级支持 |
 
-**拼贴播放风格**（`view/lattice/`、`stage/LatticePageV2`）移植自开源项目
-[FOLIA](https://github.com/chthollyphile/folia-major)（AGPL-3.0）的 Lattice 封面墙，
-按其许可要求该模块同样适用 AGPL-3.0（见下方许可证说明）。
+**拼贴播放风格**与**歌词动效体系**（除星空漫游外）移植自开源项目
+[FOLIA](https://github.com/chthollyphile/folia-major)（AGPL-3.0）：
+- 拼贴风格：`view/lattice/`、`stage/LatticePageV2`，源自 Lattice 封面墙
+- 歌词动效：`view/GlowLyricView`、`PendoloLyricView`、`PendoloClockworkView`、
+  `CadenzaLyricView`、`TiltLyricView`、`PartitaLyricView`、`FumeLyricView`、
+  `DioramaLyricView` 及对应 `lyriceffect/` 页面，分别源自 folia 的
+  classic / pendolo / cadenza / tilt / partita / fume / diorama 效果
+
+按其许可要求，上述模块同样适用 AGPL-3.0（见下方许可证说明）。
+星空漫游参考自 QQ 音乐 Pad 截图规格，不属 FOLIA 衖生。
 
 ---
 
@@ -942,16 +949,20 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 许可证
 
-MIT License（除拼贴风格模块外）
+MIT License（除下列模块外）
 
-**拼贴风格模块**（`view/lattice/`、`stage/LatticePageV2`）移植自
-[FOLIA](https://github.com/chthollyphile/folia-major)，遵循 **AGPL-3.0**：
+**拼贴风格与歌词动效模块**移植自 [FOLIA](https://github.com/chthollyphile/folia-major)，
+遵循 **AGPL-3.0**：
 
-> 本应用包含源自 FOLIA（folia-major，作者 chthollyphile）的拼贴封面墙实现。
-> 该模块按 GNU Affero General Public License v3.0 授权；任何包含或基于该模块的
-> 分发版本，必须对相应源代码以 AGPL-3.0 同样开放，并保留本声明与 FOLIA 的
-> 版权信息。完整许可证见 <https://www.gnu.org/licenses/agpl-3.0.html>，
-> 原项目地址 <https://github.com/chthollyphile/folia-major>。
+> 本应用的拼贴封面墙（`view/lattice/`、`stage/LatticePageV2`）与歌词动效
+> （流光/时计/心象/倾诉/云阶/浮名/镜台：`view/*LyricView.java`、
+> `view/PendoloClockworkView` 及对应 `lyriceffect/` 页面）源自 FOLIA
+> （folia-major，作者 chthollyphile）的对应实现。上述模块按 GNU Affero
+> General Public License v3.0 授权；任何包含或基于这些模块的分发版本，
+> 必须对相应源代码以 AGPL-3.0 同样开放，并保留本声明与 FOLIA 的版权信息。
+> 完整许可证见仓库内 `LICENSE-AGPL-LATTICE.txt` 或
+> <https://www.gnu.org/licenses/agpl-3.0.html>，原项目地址
+> <https://github.com/chthollyphile/folia-major>。星空漫游不属 FOLIA 衖生。
 
 ---
 
@@ -1362,9 +1373,16 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 | `androidx.recyclerview:recyclerview` | List display |
 | `com.android.tools:desugar_jdk_libs` | Java 8+ API desugaring |
 
-The **Lattice playback style** (`view/lattice/`, `stage/LatticePageV2`) is ported from
-the open-source project [FOLIA](https://github.com/chthollyphile/folia-major) (AGPL-3.0)
-and is therefore licensed under AGPL-3.0 as well (see License section below).
+The **Lattice playback style** and the **lyric effect suite** (except Starfield) are ported from
+the open-source project [FOLIA](https://github.com/chthollyphile/folia-major) (AGPL-3.0):
+- Lattice style: `view/lattice/`, `stage/LatticePageV2`, from FOLIA's Lattice cover wall
+- Lyric effects: `view/GlowLyricView`, `PendoloLyricView`, `PendoloClockworkView`,
+  `CadenzaLyricView`, `TiltLyricView`, `PartitaLyricView`, `FumeLyricView`,
+  `DioramaLyricView` and their `lyriceffect/` pages, from folia's classic / pendolo /
+  cadenza / tilt / partita / fume / diorama effects respectively
+
+These modules are therefore licensed under AGPL-3.0 as well (see License section below).
+The Starfield effect follows QQ Music Pad visuals and is not derived from FOLIA.
 
 ---
 
@@ -1573,16 +1591,21 @@ Jingxin — Built with TeleClaw
 
 ## License
 
-MIT License (except the Lattice style module)
+MIT License (except the modules below)
 
-The **Lattice style module** (`view/lattice/`, `stage/LatticePageV2`) is ported from
+The **Lattice style and lyric effect modules** are ported from
 [FOLIA](https://github.com/chthollyphile/folia-major) and licensed under **AGPL-3.0**:
 
-> This application contains an implementation of the collage cover wall derived from
-> FOLIA (folia-major, by chthollyphile). That module is licensed under the GNU Affero
-> General Public License v3.0; any distribution containing or based on it must make
-> the corresponding source code available under AGPL-3.0 and retain this notice along
-> with FOLIA's copyright information. Full license: <https://www.gnu.org/licenses/agpl-3.0.html>,
-> upstream: <https://github.com/chthollyphile/folia-major>.
+> The collage cover wall (`view/lattice/`, `stage/LatticePageV2`) and the lyric effects
+> (Glow / Pendolo / Cadenza / Tilt / Partita / Fume / Diorama: `view/*LyricView.java`,
+> `view/PendoloClockworkView` and their `lyriceffect/` pages) are derived from the
+> corresponding implementations in FOLIA (folia-major, by chthollyphile). These modules
+> are licensed under the GNU Affero General Public License v3.0; any distribution
+> containing or based on them must make the corresponding source code available under
+> AGPL-3.0 and retain this notice along with FOLIA's copyright information. Full license:
+> `LICENSE-AGPL-LATTICE.txt` in this repository or
+> <https://www.gnu.org/licenses/agpl-3.0.html>; upstream:
+> <https://github.com/chthollyphile/folia-major>. The Starfield effect is not derived
+> from FOLIA.
 
 > AI生成
