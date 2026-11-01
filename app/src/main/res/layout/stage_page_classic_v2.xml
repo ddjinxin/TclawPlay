@@ -23,14 +23,6 @@
         android:alpha="0"
         android:visibility="gone" />
 
-    <!-- 白天白遮罩（默认皮肤日间，对应旧 whiteOverlay 0.7） -->
-    <View
-        android:id="@+id/v2_light_mask"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#FFFFFF"
-        android:alpha="0.7"
-        android:visibility="gone" />
 
     <!-- 夜间黑遮罩（默认皮肤夜间/夜间兜底） -->
     <View

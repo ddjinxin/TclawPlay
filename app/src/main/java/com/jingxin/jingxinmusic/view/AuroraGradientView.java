@@ -115,9 +115,13 @@ public class AuroraGradientView extends View {
     }
 
     private void init() {
-        // 不使用硬件层：硬件层创建离屏纹理，可能引入色彩空间/gamma差异导致颜色偏深
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-        // 开启抗锯齿+dither提升色彩精度
+        // 默认硬件加速（与全页普通视图同主干道渲染）。
+        // 不设 SOFTWARE 软件层：UNISOC uis7862a 车机乐酷画中画窗口 resize 时（VirtualDisplay
+        // surface 拆装），软层位图"进程内绘制→HWUI纹理上传→合成"路径不重协商，画面全黑，
+        // 尺寸复原/重建才恢复（2026-11 uis7862a 用户实测：单分屏调宽/高必黑、双分屏不黑）。
+        // 硬件加速视图（StarfieldView/blurBg 等）同场景从未复现——drawColor/drawBitmap
+        // 全是硬加速标准操作，改道零视觉差异。
+        // 注：历史注释曾混淆 LAYER_TYPE_HARDWARE（离屏纹理缓存，确有色偏）与硬件加速，两者不是一回事
         paint.setAntiAlias(true);
         paint.setDither(true);
     }

@@ -1,6 +1,9 @@
 package com.jingxin.jingxinmusic.stage;
 
 import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.PorterDuffColorFilter;
+import android.graphics.PorterDuff;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
@@ -53,7 +56,7 @@ public class StandardPageBase extends StagePage {
 
     // 竖屏视图
     private AuroraGradientView aurora; private ImageView blurBg;
-    private View lightMask, darkMask, hideTouchLayer;
+    private View darkMask, hideTouchLayer;
     protected View coverPlaceholder; // 子类（轮播V2）按旧轮播占位公式重设高度
     protected FrameLayout coverArea;
     protected RotatingCoverView cover;
@@ -66,7 +69,7 @@ public class StandardPageBase extends StagePage {
 
     // 横屏视图（_land 后缀 XML，独立实例）
     private AuroraGradientView auroraL; private ImageView blurBgL;
-    private View lightMaskL, darkMaskL, hideTouchLayerL;
+    private View darkMaskL, hideTouchLayerL;
     protected FrameLayout coverCol;
     protected RotatingCoverView coverL;
     protected SpectrumView spectrumRingL;
@@ -129,7 +132,6 @@ public class StandardPageBase extends StagePage {
     private void bindPortrait(android.content.Context ctx) {
         aurora = portraitRoot.findViewById(R.id.v2_aurora);
         blurBg = portraitRoot.findViewById(R.id.v2_blur);
-        lightMask = portraitRoot.findViewById(R.id.v2_light_mask);
         darkMask = portraitRoot.findViewById(R.id.v2_dark_mask);
         hideTouchLayer = portraitRoot.findViewById(R.id.v2_hide_touch_layer);
         coverArea = portraitRoot.findViewById(R.id.v2_cover_area);
@@ -149,7 +151,6 @@ public class StandardPageBase extends StagePage {
     private void bindLandscape(android.content.Context ctx) {
         auroraL = landscapeRoot.findViewById(R.id.v2_aurora_land);
         blurBgL = landscapeRoot.findViewById(R.id.v2_blur_land);
-        lightMaskL = landscapeRoot.findViewById(R.id.v2_light_mask_land);
         darkMaskL = landscapeRoot.findViewById(R.id.v2_dark_mask_land);
         hideTouchLayerL = landscapeRoot.findViewById(R.id.v2_hide_touch_layer_land);
         coverCol = landscapeRoot.findViewById(R.id.v2_cover_col_land);
@@ -458,7 +459,7 @@ public class StandardPageBase extends StagePage {
         // 模糊背景：异步生成后由 applyBackgroundState 决定可见性/透明度（线程池借 Fragment executor）
         if (h.executor != null) {
             h.executor.execute(() -> {
-                Bitmap blurred = BlurUtil.blur(portraitRoot.getContext(), bitmap, 10f);
+                Bitmap blurred = BlurUtil.blur(portraitRoot.getContext(), bitmap, 4f);
                 if (blurred != null) {
                     new Handler(Looper.getMainLooper()).post(() -> {
                         blurBg.setImageBitmap(blurred);
@@ -511,9 +512,9 @@ public class StandardPageBase extends StagePage {
                 auroraL.setColors(coverColorsTop, coverColorsBottom);
             }
             for (ImageView b : blurs) b.setVisibility(View.GONE);
-            setMasks(View.GONE, View.GONE);
+            setNightMask(View.GONE);
         } else {
-            // 默认皮肤非沉浸：白天=模糊0.5+白遮罩0.7；夜间=模糊0.6+nightOverlay 遮罩（DefaultBackgroundSkin:56-70）
+            // 默认皮肤非沉浸：白天=模糊0.5+日间白色提亮滤镜；夜间=模糊0.6+nightOverlay 遮罩
             for (AuroraGradientView a : new AuroraGradientView[]{aurora, auroraL}) {
                 a.setVisibility(View.GONE);
             }
@@ -522,21 +523,24 @@ public class StandardPageBase extends StagePage {
             for (ImageView b : blurs) {
                 b.setAlpha(blurAlpha);
                 b.setVisibility(blurVis);
+                // 白天模式模糊图提亮：白色 70% SRC_OVER 叠加（夜间/光晕皮肤不受影响）
+                b.setColorFilter(night ? null
+                        : new PorterDuffColorFilter(
+                                Color.argb(178, 255, 255, 255),
+                                PorterDuff.Mode.SRC_OVER));
             }
             if (night) {
                 darkMask.setBackgroundColor(ThemeColors.nightOverlay());
                 darkMaskL.setBackgroundColor(ThemeColors.nightOverlay());
-                setMasks(View.GONE, View.VISIBLE);
+                setNightMask(View.VISIBLE);
             } else {
-                setMasks(View.VISIBLE, View.GONE);
+                setNightMask(View.GONE);
             }
         }
     }
 
-    /** lightMask/darkMask 双方向可见性（轻遮罩为白底0.7，XML 固定；暗遮罩色由日夜决定） */
-    private void setMasks(int lightVis, int darkVis) {
-        lightMask.setVisibility(lightVis);
-        lightMaskL.setVisibility(lightVis);
+    /** 日间遮罩已废除：白天由 blur 上的白色 SRC_OVER 滤镜担纲提亮；darkMask 遮罩色由日夜决定 */
+    private void setNightMask(int darkVis) {
         darkMask.setVisibility(darkVis);
         darkMaskL.setVisibility(darkVis);
     }

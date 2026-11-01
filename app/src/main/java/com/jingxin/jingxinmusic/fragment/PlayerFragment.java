@@ -603,7 +603,9 @@ public class PlayerFragment extends BaseFloatFragment {
                         int newHeight = bottom - top;
                         int oldWidth = oldRight - oldLeft;
                         int oldHeight = oldBottom - oldTop;
-                        if (newWidth > 0 && newWidth != oldWidth) {
+                        // 宽或高任一变化都重排（原条件只看宽：乐酷画中画纯调高度时
+                        // 全部程序化布局公式按旧高度跑，封面顶距/控制条底距/字号全错位）
+                        if (newWidth > 0 && (newWidth != oldWidth || newHeight != oldHeight)) {
                             // 横竖屏切换时关闭频谱选择弹窗
                             if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
                                 spectrumPickerPopup.dismiss();

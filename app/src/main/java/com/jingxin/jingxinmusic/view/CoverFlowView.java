@@ -81,6 +81,9 @@ public class CoverFlowView extends View {
     private final SongProvider provider;
     private final Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint maskPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // 手绘软影画笔/矩形（成员复用零分配；替代 setShadowLayer 的硬件加速安全实现）
+    private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF shadowRect = new RectF();
     private int w, h;
     /** 封面加载线程池（独立组件自持；拒绝 shutdown 周期性杀池——淡出动画期间 detach/attach
      * 循环会永久关死线程池，后续加载全部 RejectedExecutionException 静默失败（封面"消失"真凶）。
@@ -128,7 +131,10 @@ public class CoverFlowView extends View {
     public CoverFlowView(Context context, SongProvider provider) {
         super(context);
         this.provider = provider;
-        setLayerType(LAYER_TYPE_SOFTWARE, null); // mask 渐隐需要
+        // 默认硬件加速（mask 渐隐是 LinearGradient，硬加速原生支持，无需软件层）。
+        // 不设 SOFTWARE：UNISOC uis7862a 车机乐酷画中画（VirtualDisplay 窗口）resize 时
+        // 软层位图合成路径不重协商，画面全黑（2026-11 实测）；真依赖 setShadowLayer
+        // 在硬加速下对非文本绘制静默忽略，故改手绘软影，此两处同时解决
     }
 
     /** 切歌/数据到达：重拉列表居中位并异步加载封面；center 变化时启动轮转动画 */
@@ -499,13 +505,21 @@ public class CoverFlowView extends View {
     private void drawCardInner(Canvas canvas, Bitmap bmp, float px, float py, float size,
                                boolean isCenter, float density) {
         float left = px - size / 2f, top = py - size;
-        // 层叠阴影
-        Paint shadow = new Paint(Paint.ANTI_ALIAS_FLAG);
-        shadow.setColor(Color.argb(isCenter ? 120 : 64, 0, 0, 0));
-        shadow.setShadowLayer(isCenter ? 12f * density : 6f * density, 0f, 4f * density,
-                Color.argb(isCenter ? 150 : 80, 0, 0, 0));
-        canvas.drawRoundRect(new RectF(left, top, left + size, top + size),
-                size * 0.08f, size * 0.08f, shadow);
+        // 层叠阴影（手绘软影）：原 setShadowLayer 依赖软件层（硬加速下非文本阴影被
+        // 静默忽略），改 3 层递减透明度、逐层下移外扩的圆角矩形近似原 12dp/6dp 辉散
+        float rad = size * 0.08f;
+        shadowPaint.setColor(Color.argb(isCenter ? 120 : 64, 0, 0, 0));
+        shadowRect.set(left, top, left + size, top + size);
+        canvas.drawRoundRect(shadowRect, rad, rad, shadowPaint);
+        shadowPaint.setColor(Color.argb(isCenter ? 55 : 30, 0, 0, 0));
+        float dy = 4f * density;
+        float spread = (isCenter ? 12f : 6f) * density;
+        for (int i = 3; i >= 1; i--) {
+            float t = i / 3f;
+            shadowRect.set(left - spread * t * 0.6f, top - spread * t * 0.3f,
+                    left + size + spread * t * 0.6f, top + size + spread * t * 0.6f + dy * t);
+            canvas.drawRoundRect(shadowRect, rad + spread * t * 0.5f, rad + spread * t * 0.5f, shadowPaint);
+        }
 
         Path clip = new Path();
         RectF r = new RectF(left, top, left + size, top + size);
