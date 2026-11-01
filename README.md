@@ -67,7 +67,6 @@ michael007js，无明确许可声明，特此注明出处并致谢）。
 #### 版权与合规
 
 - 项目整体许可统一为 AGPL-3.0；README 声明 FOLIA（拼贴风格 + 七种歌词动效）与 SpectrumForAndroid（部分频谱样式）衍生来源并致谢
-- 「星空漫游」更名为「星空」
 
 ### v1.0.9.2 (2026-10)
 #### 新功能
@@ -324,7 +323,6 @@ michael007js，无明确许可声明，特此注明出处并致谢）。
 #### License & Compliance
 
 - Project license unified under AGPL-3.0; derivation notices for FOLIA (Lattice style + seven lyric effects) and SpectrumForAndroid (some spectrum styles)
-- "Starfield Roam" renamed to "Starfield"
 
 ### v1.0.9.2 (2026-10)
 
@@ -1075,7 +1073,6 @@ Wave Ring) are ported from
 #### License & Compliance
 
 - Project license unified under AGPL-3.0; derivation notices for FOLIA (Lattice style + seven lyric effects) and SpectrumForAndroid (some spectrum styles)
-- "Starfield Roam" renamed to "Starfield"
 
 ### v1.0.9.2 (2026-10)
 
