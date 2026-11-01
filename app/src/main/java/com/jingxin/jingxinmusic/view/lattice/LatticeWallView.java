@@ -17,6 +17,7 @@ import android.text.TextUtils;
 import android.text.Layout;
 import android.graphics.Typeface;
 import android.graphics.Path;
+import android.graphics.PathMeasure;
 import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.util.LongSparseArray;
@@ -42,7 +43,8 @@ import java.util.concurrent.ExecutorService;
  *   世界几何恒定 unit=128/gap=8；拖/惯性速度按 1/scale 折算世界单位
  * - 展开让位：单进度弹簧 0→1，块内 12 卡矩形在基础模板与让位表间插值
  *   （线性系统：单弹簧驱动插值 ≡ FOLIA 每卡同参弹簧的轨迹，位移不超块宽时帧差 <0.5 单位）
- * - 相机弹簧 + OverScroller 惯性；动效运行期才挂 Choreographer，静止即停帧
+ * - 相机弹簧 + OverScroller 惯性；动效运行期才挂 Choreographer，静止即停帧（展开稳后由流光/呼吸保活）
+ * - 展开卡流光描边：暂停整圈呼吸 / 播放彗星跑圈，分层描边模拟辉光（无 shadowLayer），稳态脏区失效只重绘环带
  * - 触摸：拖动平移 / 点击展开；点已展开卡=播放语义（当前曲暂停续播，他曲切歌）
  *
  * 性能红线（车机）：
@@ -139,7 +141,12 @@ public class LatticeWallView extends View {
             float dt = lastFrameNs == 0 ? 0.016f : Math.min(0.033f, (timeNs - lastFrameNs) / 1e9f);
             lastFrameNs = timeNs;
             boolean more = step(dt);
-            invalidate();
+            // 稳态流光只重绘边框环带（脏区），有其他动效时整屏失效
+            if (more && !flinging && !camSpringActive && !expActive && expanded != null) {
+                invalidateBorderBand();
+            } else {
+                invalidate();
+            }
             if (more) choreographer.postFrameCallback(this);
             else frameRunning = false;
         }
@@ -181,6 +188,20 @@ public class LatticeWallView extends View {
     private final Path glyphPath = new Path();
     private final Paint glyphPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF zoneRect = new RectF();
+
+    // ===== 展开卡流光描边（颜色与卡顶进度线同源；暂停呼吸 / 播放跑圈）=====
+    private static final float BORDER_LAP_S = 9f;     // 彗星跑一圈时长（秒）
+    private static final float BORDER_TAIL = 0.22f;   // 拖尾长占周长比例
+    private static final int BORDER_SLICES = 8;       // 拖尾阶梯段数
+    private float borderPhase = 0f;                   // 光头位置 0..1
+    private float borderBreath = 0f;                  // 呼吸相位（秒）
+    private float cometMix = 0f;                      // 彗星明暗（1=播放全亮，0=暂停熄灭）
+    private float borderPerimeter = 0f;
+    private float borderRectX, borderRectY, borderRectW, borderRectH;
+    private final Path borderPath = new Path();
+    private final PathMeasure borderMeasure = new PathMeasure();
+    private final Path borderSeg = new Path();
+    private final Rect borderDirty = new Rect();
 
     // 频谱动态跟随色（进度线与频谱同色；未注入时进度线用频谱竖条默认色计算）
     private int tintTop = 0, tintBottom = 0;
@@ -524,6 +545,13 @@ public class LatticeWallView extends View {
                 more = true;
             }
         }
+        // 展开稳后流光自驱动：保活帧链（相位推进 + 彗星淡入淡出）
+        if (expanded != null && expandProgress >= 0.92f) {
+            if (playing) borderPhase = (borderPhase + dt / BORDER_LAP_S) % 1f;
+            borderBreath += dt;
+            cometMix += ((playing ? 1f : 0f) - cometMix) * Math.min(1f, dt * 6f);
+            more = true;
+        }
         return more;
     }
 
@@ -664,6 +692,7 @@ public class LatticeWallView extends View {
         // 展开卡文字
         if (expanded != null && expandProgress > 0.55f && expandedQueueIndex < playlist.size()) {
             drawExpandedText(canvas, expandProgress);
+            drawBorderLight(canvas, expandProgress);
         }
 
         canvas.restore();
@@ -723,6 +752,95 @@ public class LatticeWallView extends View {
         if (tintTop != 0) return tintTop;
         // 默认态与 SpectrumView 竖条静态色同源：昼=金色渐变近低端、夜=首色
         return night ? 0xFF00E5CC : 0xFFF2C14E;
+    }
+
+    /** 展开卡流光描边：底轨 + 彗星光头沿周长跑圈（暂停=整圈呼吸）；颜色与进度线同源，分层描边模拟辉光 */
+    private void drawBorderLight(Canvas canvas, float t) {
+        int idx = indexOfDrawn(expanded);
+        if (idx < 0) return;
+        float x = drawnRects[idx * 4], y = drawnRects[idx * 4 + 1];
+        float cw = drawnRects[idx * 4 + 2], ch = drawnRects[idx * 4 + 3];
+        float fade = Math.min(1f, (t - 0.9f) / 0.1f);
+        if (fade <= 0f) return;
+
+        // 周长路径（矩形变了才重建，onDraw 零分配）
+        if (borderPerimeter <= 0f || x != borderRectX || y != borderRectY
+                || cw != borderRectW || ch != borderRectH) {
+            borderRectX = x; borderRectY = y; borderRectW = cw; borderRectH = ch;
+            borderPath.reset();
+            borderPath.addRect(x, y, x + cw, y + ch, Path.Direction.CCW);
+            borderMeasure.setPath(borderPath, false);
+            borderPerimeter = borderMeasure.getLength();
+        }
+
+        int rgb = progressLineTint() & 0x00FFFFFF;
+        int hot = mixRgb(rgb, 0x00FFFFFF, 0.35f); // 光头混白提亮
+
+        paint.setStyle(Paint.Style.STROKE);
+        // 底轨：播放常亮；暂停渐入呼吸 0.16→0.45（包络=彗星熄灭进度，无跳变）
+        float breath = 0.5f + 0.5f * (float) Math.sin(borderBreath * 2f * (float) Math.PI / 3.2f);
+        float baseA = playing ? 0.16f : 0.16f + 0.29f * breath * (1f - cometMix);
+        paint.setStrokeWidth(Math.max(1.2f, ch * 0.003f));
+        paint.setColor((Math.round(baseA * fade * 255f) << 24) | rgb);
+        canvas.drawPath(borderPath, paint);
+
+        // 彗星：宽淡辉光 + 细亮核心两层，拖尾 8 段平方衰减，尾暗头亮
+        if (cometMix > 0.01f && borderPerimeter > 0f) {
+            float tailLen = borderPerimeter * BORDER_TAIL;
+            float head = borderPhase * borderPerimeter;
+            float coreW = Math.max(2f, ch * 0.006f);
+            for (int pass = 0; pass < 2; pass++) {
+                boolean halo = pass == 0;
+                paint.setStrokeWidth(halo ? coreW * 2.2f : coreW);
+                float gain = halo ? 0.22f : 0.85f;
+                for (int i = BORDER_SLICES - 1; i >= 0; i--) {
+                    float f = 1f - i / (float) BORDER_SLICES; // 尾 0 → 头 1
+                    float a = f * f * cometMix * fade * gain;
+                    if (a < 0.004f) continue;
+                    int c = i >= BORDER_SLICES * 3 / 4 ? hot : rgb;
+                    paint.setColor((Math.round(a * 255f) << 24) | c);
+                    drawPerimeterSegment(canvas,
+                            head - tailLen * (i + 1) / BORDER_SLICES,
+                            head - tailLen * i / BORDER_SLICES);
+                }
+            }
+        }
+        paint.setStyle(Paint.Style.FILL);
+        paint.setStrokeWidth(0);
+    }
+
+    /** 周长段绘制（自动跨周长起点拆两段；负距离自动环绕） */
+    private void drawPerimeterSegment(Canvas canvas, float start, float stop) {
+        if (borderPerimeter <= 0f || stop <= start) return;
+        borderSeg.reset();
+        if (start >= 0f) {
+            borderMeasure.getSegment(start, stop, borderSeg, true);
+            canvas.drawPath(borderSeg, paint);
+            return;
+        }
+        borderMeasure.getSegment(0f, stop, borderSeg, true);
+        canvas.drawPath(borderSeg, paint);
+        borderSeg.reset();
+        borderMeasure.getSegment(borderPerimeter + start, borderPerimeter, borderSeg, true);
+        canvas.drawPath(borderSeg, paint);
+    }
+
+    /** 稳态流光脏区失效：展开卡矩形外扩辉光半宽（世界→屏幕），弱 GPU 只重绘环带 */
+    private void invalidateBorderBand() {
+        grownRectOf(expanded, expandedTmp);
+        float pad = expandedTmp[3] * 0.014f + 6f; // 辉光半宽 + 抗锯齿余量（世界单位）
+        borderDirty.set((int) Math.floor(worldToScreenX(expandedTmp[0] - pad)),
+                (int) Math.floor(worldToScreenY(expandedTmp[1] - pad)),
+                (int) Math.ceil(worldToScreenX(expandedTmp[0] + expandedTmp[2] + pad)),
+                (int) Math.ceil(worldToScreenY(expandedTmp[1] + expandedTmp[3] + pad)));
+        invalidate(borderDirty);
+    }
+
+    private static int mixRgb(int c1, int c2, float f) {
+        int r = Math.round(lerp((c1 >> 16) & 0xFF, (c2 >> 16) & 0xFF, f));
+        int g = Math.round(lerp((c1 >> 8) & 0xFF, (c2 >> 8) & 0xFF, f));
+        int b = Math.round(lerp(c1 & 0xFF, c2 & 0xFF, f));
+        return (r << 16) | (g << 8) | b;
     }
 
     /** 展开进度（1=展开到位；文字层淡入用） */

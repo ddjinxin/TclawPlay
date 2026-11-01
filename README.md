@@ -28,6 +28,25 @@ AIGC:
 
 ---
 
+## 许可证
+
+**AGPL-3.0**（GNU Affero General Public License v3.0），完整许可证见仓库内 `LICENSE`
+或 <https://www.gnu.org/licenses/agpl-3.0.html>。
+
+任何人可以自由使用、修改与分发本应用，但分发或提供网络服务时必须以 AGPL-3.0
+同样开放相应源代码。
+
+**衍生声明**：拼贴风格（`view/lattice/`、`stage/LatticePageV2`，源自
+[FOLIA](https://github.com/chthollyphile/folia-major) 的 Lattice 封面墙）与七种歌词
+动效（流光/时计/心象/倾诉/云阶/浮名/镜台，分别源自 folia 的 classic/pendolo/
+cadenza/tilt/partita/fume/diorama）为 FOLIA 衍生实现（作者 chthollyphile），
+分发时须保留本声明及其版权信息。
+频谱部分样式（柱状/酷狗/AI语音/波形柱/扩散圆环/波浪圆环）移植自
+[SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid)（作者
+michael007js，无明确许可声明，特此注明出处并致谢）。
+
+---
+
 ## 📢 最新版本 (v1.0.9.2)
 
 ### v1.0.9.2 (2026-10)
@@ -950,23 +969,6 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 - 网址：https://lecoauto.com
 - 交流群：651547480
 
-## 许可证
-
-**AGPL-3.0**（GNU Affero General Public License v3.0），完整许可证见仓库内 `LICENSE`
-或 <https://www.gnu.org/licenses/agpl-3.0.html>。
-
-任何人可以自由使用、修改与分发本应用，但分发或提供网络服务时必须以 AGPL-3.0
-同样开放相应源代码。
-
-**衍生声明**：拼贴风格（`view/lattice/`、`stage/LatticePageV2`，源自
-[FOLIA](https://github.com/chthollyphile/folia-major) 的 Lattice 封面墙）与七种歌词
-动效（流光/时计/心象/倾诉/云阶/浮名/镜台，分别源自 folia 的 classic/pendolo/
-cadenza/tilt/partita/fume/diorama）为 FOLIA 衍生实现（作者 chthollyphile），
-分发时须保留本声明及其版权信息。
-频谱部分样式（柱状/酷狗/AI语音/波形柱/扩散圆环/波浪圆环）移植自
-[SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid)（作者
-michael007js，无明确许可声明，特此注明出处并致谢）。
-
 ---
 
 <a id="english"></a>
@@ -983,6 +985,27 @@ michael007js，无明确许可声明，特此注明出处并致谢）。
 <p align="center">
   Entirely generated through AI conversations. The author never reads the code, only converses with AI.
 </p>
+
+---
+
+## License
+
+**AGPL-3.0** (GNU Affero General Public License v3.0). Full license text: `LICENSE`
+in this repository or <https://www.gnu.org/licenses/agpl-3.0.html>.
+
+Everyone is free to use, modify and distribute this application, provided that any
+distribution or network service makes the corresponding source code available under
+AGPL-3.0 as well.
+
+**Derivation notice**: the Lattice style (`view/lattice/`, `stage/LatticePageV2`, from
+FOLIA's Lattice cover wall) and seven lyric effects (Glow / Pendolo / Cadenza / Tilt /
+Partita / Fume / Diorama, from folia's classic / pendolo / cadenza / tilt / partita /
+fume / diorama) are derived from [FOLIA](https://github.com/chthollyphile/folia-major)
+(by chthollyphile); distributions must retain this notice and its copyright information.
+Some spectrum styles (Columnar / Kugou / AI Voice / Wave Column / Diffusion Ring /
+Wave Ring) are ported from
+[SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid)
+(by michael007js, no explicit license notice; attributed here with thanks).
 
 ---
 
@@ -1597,24 +1620,5 @@ Jingxin — Built with TeleClaw
 
 - Website: https://lecoauto.com
 - Group: 651547480
-
-## License
-
-**AGPL-3.0** (GNU Affero General Public License v3.0). Full license text: `LICENSE`
-in this repository or <https://www.gnu.org/licenses/agpl-3.0.html>.
-
-Everyone is free to use, modify and distribute this application, provided that any
-distribution or network service makes the corresponding source code available under
-AGPL-3.0 as well.
-
-**Derivation notice**: the Lattice style (`view/lattice/`, `stage/LatticePageV2`, from
-FOLIA's Lattice cover wall) and seven lyric effects (Glow / Pendolo / Cadenza / Tilt /
-Partita / Fume / Diorama, from folia's classic / pendolo / cadenza / tilt / partita /
-fume / diorama) are derived from [FOLIA](https://github.com/chthollyphile/folia-major)
-(by chthollyphile); distributions must retain this notice and its copyright information.
-Some spectrum styles (Columnar / Kugou / AI Voice / Wave Column / Diffusion Ring /
-Wave Ring) are ported from
-[SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid)
-(by michael007js, no explicit license notice; attributed here with thanks).
 
 > AI生成

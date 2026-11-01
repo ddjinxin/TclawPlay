@@ -95,6 +95,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private SpectrumView spectrumView;
     
     private android.widget.PopupWindow effectPickerPopup; // 音效选择浮窗
+    private android.widget.PopupWindow stylePickerPopup; // 播放风格选择浮窗（装扮键）
     private android.widget.PopupWindow lyricEffectPickerPopup; // 歌词动效选择浮窗（星空/流光/时计）
     private static final String KEY_LYRIC_EFFECT_MODE = "lyric_effect_mode"; // 0=星空 1=流光 2=时计
 
@@ -130,6 +131,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int COVER_STYLE_RECORD_V2 = 6; // 第7风格：唱片机 V2（自持实例页）
     private static final int COVER_STYLE_CAROUSEL_V2 = 7; // 第8风格：轮播 V2（自持实例页）
     private static final int COVER_STYLE_LATTICE_V2 = 8; // 第9风格：拼贴 V2（FOLIA Lattice 封面墙移植）
+    /** V2 风格名（下标=风格值-4，供风格弹窗与切换 Toast 共用） */
+    private static final String[] STYLE_V2_NAMES = {"经典", "沉浸", "唱机", "轮播", "拼贴"};
 
     /**
      * 风格值规范化：旧 prefs 值 0~3 映射到 V2 新风格（4~8），越界回落新经典（幂等）。
@@ -626,6 +629,9 @@ public class PlayerFragment extends BaseFloatFragment {
                             if (effectPickerPopup != null && effectPickerPopup.isShowing()) {
                                 effectPickerPopup.dismiss();
                             }
+                            if (stylePickerPopup != null && stylePickerPopup.isShowing()) {
+                                stylePickerPopup.dismiss();
+                            }
                             // 重新检测横竖屏并应用完整布局
                             detectAndApplyLandscapeMode();
                             applyLayoutMode();
@@ -799,6 +805,9 @@ public class PlayerFragment extends BaseFloatFragment {
         }
         if (effectPickerPopup != null && effectPickerPopup.isShowing()) {
             effectPickerPopup.dismiss();
+        }
+        if (stylePickerPopup != null && stylePickerPopup.isShowing()) {
+            stylePickerPopup.dismiss();
         }
         if (lyricEffectPickerPopup != null && lyricEffectPickerPopup.isShowing()) {
             lyricEffectPickerPopup.dismiss();
@@ -1751,7 +1760,7 @@ public class PlayerFragment extends BaseFloatFragment {
                 stopSpectrum();
                 requireActivity().onBackPressed();
             }
-            @Override public void switchOutfitStyle() { PlayerFragment.this.toggleImmersiveMode(); }
+            @Override public void switchOutfitStyle() { PlayerFragment.this.showStylePicker(); }
             @Override public void playSongAtPosition(int queueIndex) {
                 // 拼贴墙点卡绝对定位播放：内部换 delta 走 playSongAt 链（列表桥/spectrum/歌词/收藏全刷新）
                 PlayerFragment.this.playSongAtPosition(queueIndex);
@@ -1788,9 +1797,121 @@ public class PlayerFragment extends BaseFloatFragment {
         if (p != null) p.notifyControlExtrasChanged();
     }
 
-    private void toggleImmersiveMode() {
-        // 装扮循环只在 V2 新风格间切换（收口入口；若内存值为旧风格异常态则先归位）
-        coverStyle = COVER_STYLE_CLASSIC_V2 + ((Math.max(coverStyle, COVER_STYLE_CLASSIC_V2) + 1 - COVER_STYLE_CLASSIC_V2) % 5);
+    /**
+     * 弹出播放风格选择浮窗（装扮键由循环切换改造）：样式与音效/动效弹窗一致——
+     * 贴左垂直居中、左直角右圆角深底、当前风格青色发光高亮，点击即切
+     */
+    private void showStylePicker() {
+        if (stylePickerPopup != null && stylePickerPopup.isShowing()) {
+            stylePickerPopup.dismiss();
+            return;
+        }
+
+        Context ctx = requireContext();
+        int raw = coverStyle - COVER_STYLE_CLASSIC_V2;
+        if (raw < 0 || raw >= STYLE_V2_NAMES.length) raw = 0; // 旧风格异常态归位经典
+        final int current = raw;
+
+        float density = getResources().getDisplayMetrics().density;
+        int viewH = getAvailableScreenHeight();
+        if (viewH <= 0) viewH = getResources().getDisplayMetrics().heightPixels;
+        float basePx = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, 16, getResources().getDisplayMetrics());
+        boolean landscape = getLayoutWidth() > viewH * 1.2f;
+        float sf = Math.max(1f, viewH * (landscape ? 0.03f : 0.0188f) / basePx);
+
+        // 容器（与音效/动效弹窗同规格：左直角右圆角 20% 黑）
+        android.widget.LinearLayout container = new android.widget.LinearLayout(ctx);
+        container.setOrientation(android.widget.LinearLayout.VERTICAL);
+        container.setPadding(
+                (int)(10 * density * sf), (int)(10 * density * sf),
+                (int)(10 * density * sf), (int)(10 * density * sf));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        float r = 16 * density * sf;
+        bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
+        bg.setColor(Color.argb(51, 30, 30, 30));
+        container.setBackground(bg);
+
+        android.widget.TextView title = new android.widget.TextView(ctx);
+        title.setText("播放风格");
+        title.setTextColor(ThemeColors.sparkColor(isNightMode));
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 18 * density * sf);
+        title.setGravity(android.view.Gravity.CENTER);
+        title.setPadding(0, 0, 0, (int)(12 * density * sf));
+        container.addView(title);
+
+        // 选项列表（独立 LinearLayout：仅此区可滚动，标题钉在顶部）
+        android.widget.LinearLayout list = new android.widget.LinearLayout(ctx);
+        list.setOrientation(android.widget.LinearLayout.VERTICAL);
+
+        for (int i = 0; i < STYLE_V2_NAMES.length; i++) {
+            final int pick = i;
+            android.widget.TextView item = new android.widget.TextView(ctx);
+            item.setText(STYLE_V2_NAMES[i]);
+            item.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 16 * density * sf);
+            item.setGravity(android.view.Gravity.CENTER);
+            item.setPadding(
+                    (int)(20 * density * sf), (int)(14 * density * sf),
+                    (int)(20 * density * sf), (int)(14 * density * sf));
+            item.setFocusable(true);
+            CompatUtil.setForegroundCompat(item, ctx.getResources().getDrawable(R.drawable.tv_focus_popup_item));
+            if (i == current) { // 当前风格：青色发光（与音效弹窗一致）
+                item.setTextColor(ThemeColors.SPECTRUM_POPUP_SELECTED_TEXT);
+                item.setBackgroundColor(Color.argb(153, 0, 230, 180));
+            } else {
+                item.setTextColor(ThemeColors.SPECTRUM_POPUP_NORMAL_TEXT);
+                item.setBackgroundColor(Color.argb(153, 68, 68, 68));
+            }
+            android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
+                    (int)(140 * density * sf), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.setMargins((int)(6 * density * sf), (int)(4 * density * sf),
+                    (int)(6 * density * sf), (int)(4 * density * sf));
+            item.setLayoutParams(lp);
+            item.setOnClickListener(v -> {
+                stylePickerPopup.dismiss();
+                if (pick != current) switchToCoverStyle(COVER_STYLE_CLASSIC_V2 + pick);
+            });
+            list.addView(item);
+        }
+
+        // 选项滚动区（仅列表；矮屏保险裁高，与动效弹窗同机制）
+        int maxListH = (int) (viewH * 0.80f);
+        android.widget.ScrollView scroller = new android.widget.ScrollView(ctx);
+        scroller.setFillViewport(false);
+        scroller.setOverScrollMode(android.view.View.OVER_SCROLL_NEVER);
+        scroller.addView(list, new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT));
+        container.addView(scroller, new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+        list.measure(android.view.View.MeasureSpec.UNSPECIFIED, android.view.View.MeasureSpec.UNSPECIFIED);
+        int contentH = list.getMeasuredHeight();
+        int maxScrollH = maxListH - titleBottomSpace(density * sf);
+        if (contentH > maxScrollH) {
+            android.widget.LinearLayout.LayoutParams sLp =
+                    (android.widget.LinearLayout.LayoutParams) scroller.getLayoutParams();
+            sLp.height = maxScrollH;
+            scroller.setLayoutParams(sLp);
+        }
+
+        stylePickerPopup = new android.widget.PopupWindow(container,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, true);
+        stylePickerPopup.setOutsideTouchable(true);
+        if (Build.VERSION.SDK_INT <= 22) {
+            stylePickerPopup.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        }
+        stylePickerPopup.setElevation(8 * density * sf);
+        if (mRootView != null) {
+            stylePickerPopup.showAtLocation(mRootView,
+                    android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL, 0, 0);
+        }
+    }
+
+    /** 切换到指定播放风格（风格弹窗收口：持久化 + 场景重排 + 频谱环类归位） */
+    private void switchToCoverStyle(int style) {
+        coverStyle = style;
         requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit().putInt("cover_style", coverStyle).apply();
 
         // 目标风格不适配环类频谱时（轮播无圆形封面可挂）：真值直接归位第一个频谱（竖条）。
@@ -1814,15 +1935,12 @@ public class PlayerFragment extends BaseFloatFragment {
         if (!(isAuroraActive()) && lyricView != null) {
             lyricView.restoreHighlightColor();
         }
-        int width = getLayoutWidth();
-        int height = getAvailableScreenHeight();
-        sceneLayout(width, height);
+        sceneLayout(getLayoutWidth(), getAvailableScreenHeight());
 
         // 重新加载封面
         loadCover();
 
-        String[] styleNames = {"经典", "沉浸", "唱机", "轮播", "拼贴"}; // 与 V2 风格值（4~8）对齐
-        android.widget.Toast.makeText(requireContext(), styleNames[coverStyle - COVER_STYLE_CLASSIC_V2],
+        android.widget.Toast.makeText(requireContext(), STYLE_V2_NAMES[coverStyle - COVER_STYLE_CLASSIC_V2],
                 android.widget.Toast.LENGTH_SHORT).show();
     }
 
