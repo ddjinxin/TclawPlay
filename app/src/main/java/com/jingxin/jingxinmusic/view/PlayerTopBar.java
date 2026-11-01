@@ -149,8 +149,9 @@ public class PlayerTopBar extends LinearLayout {
         rp.weight = 0;
         rightGroup.setLayoutParams(rp);
 
-        // 键内边距（横屏 5%，竖屏 22%）：右侧三键 + 左列音效/动效同规格
-        int topRightPadding = landscape ? (int) (topRightBtnSize * 0.05f) : (int) (topRightBtnSize * 0.22f);
+        // 键内边距（横竖统一 15%）：此前横屏 5% 把右五键图标撑满按钮，返回键 1.3 倍
+        // 放大在横屏被抹平；统一 15% 后两方向层级一致（差约 55%）且图标不致过小
+        int topRightPadding = (int) (topRightBtnSize * 0.15f);
 
         // 间距基准：右组相邻键图标间隙（每键均分 rightGroupW/3，图标居中）
         int gapRight = Math.max(0, rightGroupW / 3 - (topRightBtnSize - 2 * topRightPadding));
