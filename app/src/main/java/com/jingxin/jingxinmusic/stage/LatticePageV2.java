@@ -156,6 +156,10 @@ public class LatticePageV2 extends StandardPageBase {
         hideTopBars();
         syncQueueData();
         applyNightToWall();
+        // 卡内频谱/文字层必须重灌位置：super.layout 的 layoutPortraitImpl/layoutLandscapeImpl
+        // 无条件把频谱实例高度写成 10% 屏高（它以为是 info_flow 底部频谱，实为我们拎出的
+        // 卡内实例）；而墙的带矩形未变不触发回调，循环回拼贴时破坏值会一直留着
+        pushSpectrumStyle();
     }
 
     // ===== 旁路父类的传统元素机制 =====
