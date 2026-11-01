@@ -716,7 +716,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
   `DioramaLyricView` 及对应 `lyriceffect/` 页面，分别源自 folia 的
   classic / pendolo / cadenza / tilt / partita / fume / diorama 效果
 
-按其许可要求，上述模块同样适用 AGPL-3.0（见下方许可证说明）。
+原项目为 AGPL-3.0，与本项目整体许可一致（见下方许可证说明）。
 星空效果为独立自研视觉，不属 FOLIA 衖生。
 
 ---
@@ -953,20 +953,20 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 许可证
 
-MIT License（除下列模块外）
+**AGPL-3.0**（GNU Affero General Public License v3.0），完整许可证见仓库内 `LICENSE`
+或 <https://www.gnu.org/licenses/agpl-3.0.html>。
 
-**拼贴风格与歌词动效模块**移植自 [FOLIA](https://github.com/chthollyphile/folia-major)，
-遵循 **AGPL-3.0**：
+任何人可以自由使用、修改与分发本应用，但分发或提供网络服务时必须以 AGPL-3.0
+同样开放相应源代码。
 
-> 本应用的拼贴封面墙（`view/lattice/`、`stage/LatticePageV2`）与歌词动效
-> （流光/时计/心象/倾诉/云阶/浮名/镜台：`view/*LyricView.java`、
-> `view/PendoloClockworkView` 及对应 `lyriceffect/` 页面）源自 FOLIA
-> （folia-major，作者 chthollyphile）的对应实现。上述模块按 GNU Affero
-> General Public License v3.0 授权；任何包含或基于这些模块的分发版本，
-> 必须对相应源代码以 AGPL-3.0 同样开放，并保留本声明与 FOLIA 的版权信息。
-> 完整许可证见仓库内 `LICENSE-AGPL-LATTICE.txt` 或
-> <https://www.gnu.org/licenses/agpl-3.0.html>，原项目地址
-> <https://github.com/chthollyphile/folia-major>。星空不属 FOLIA 衖生。
+**衍生声明**：本应用的拼贴风格（`view/lattice/`、`stage/LatticePageV2`，源自
+[FOLIA](https://github.com/chthollyphile/folia-major) 的 Lattice 封面墙）与七种歌词
+动效（流光/时计/心象/倾诉/云阶/浮名/镜台，分别源自 folia 的 classic/pendolo/
+cadenza/tilt/partita/fume/diorama）为 FOLIA 衍生实现（作者 chthollyphile），
+分发时须保留本声明及其版权信息；星空效果为独立自研，不属 FOLIA 衍生。
+频谱部分样式（柱状/酷狗/AI语音/波形柱/扩散圆环/波浪圆环）移植自
+[SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid)（作者
+michael007js，无明确许可声明，特此注明出处并致谢）。
 
 ---
 
@@ -1391,8 +1391,9 @@ the open-source project [FOLIA](https://github.com/chthollyphile/folia-major) (A
   `DioramaLyricView` and their `lyriceffect/` pages, from folia's classic / pendolo /
   cadenza / tilt / partita / fume / diorama effects respectively
 
-These modules are therefore licensed under AGPL-3.0 as well (see License section below).
-The Starfield effect is an in-house visual and is not derived from FOLIA.
+The upstream project is AGPL-3.0, consistent with this project's overall license
+(see License section below). The Starfield effect is an in-house visual and is not
+derived from FOLIA.
 
 ---
 
@@ -1601,21 +1602,22 @@ Jingxin — Built with TeleClaw
 
 ## License
 
-MIT License (except the modules below)
+**AGPL-3.0** (GNU Affero General Public License v3.0). Full license text: `LICENSE`
+in this repository or <https://www.gnu.org/licenses/agpl-3.0.html>.
 
-The **Lattice style and lyric effect modules** are ported from
-[FOLIA](https://github.com/chthollyphile/folia-major) and licensed under **AGPL-3.0**:
+Everyone is free to use, modify and distribute this application, provided that any
+distribution or network service makes the corresponding source code available under
+AGPL-3.0 as well.
 
-> The collage cover wall (`view/lattice/`, `stage/LatticePageV2`) and the lyric effects
-> (Glow / Pendolo / Cadenza / Tilt / Partita / Fume / Diorama: `view/*LyricView.java`,
-> `view/PendoloClockworkView` and their `lyriceffect/` pages) are derived from the
-> corresponding implementations in FOLIA (folia-major, by chthollyphile). These modules
-> are licensed under the GNU Affero General Public License v3.0; any distribution
-> containing or based on them must make the corresponding source code available under
-> AGPL-3.0 and retain this notice along with FOLIA's copyright information. Full license:
-> `LICENSE-AGPL-LATTICE.txt` in this repository or
-> <https://www.gnu.org/licenses/agpl-3.0.html>; upstream:
-> <https://github.com/chthollyphile/folia-major>. The Starfield effect is not derived
-> from FOLIA.
+**Derivation notice**: the Lattice style (`view/lattice/`, `stage/LatticePageV2`, from
+FOLIA's Lattice cover wall) and seven lyric effects (Glow / Pendolo / Cadenza / Tilt /
+Partita / Fume / Diorama, from folia's classic / pendolo / cadenza / tilt / partita /
+fume / diorama) are derived from [FOLIA](https://github.com/chthollyphile/folia-major)
+(by chthollyphile); distributions must retain this notice and its copyright information.
+The Starfield effect is an independent in-house visual and is not derived from FOLIA.
+Some spectrum styles (Columnar / Kugou / AI Voice / Wave Column / Diffusion Ring /
+Wave Ring) are ported from
+[SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid)
+(by michael007js, no explicit license notice; attributed here with thanks).
 
 > AI生成
