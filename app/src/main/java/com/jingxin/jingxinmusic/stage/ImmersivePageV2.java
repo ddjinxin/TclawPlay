@@ -474,7 +474,8 @@ public class ImmersivePageV2 extends StagePage {
     }
 
     private void applySpectrumTint() {
-        if (auroraSkin && coverColorsBottom != 0) {
+        // 统一前景配色：频谱恒封面双色 tint（不分皮肤，与标准页同规则）
+        if (coverColorsBottom != 0) {
             spectrum.setTint(coverColorsTop, coverColorsBottom);
             spectrumL.setTint(coverColorsTop, coverColorsBottom);
         } else {
@@ -483,9 +484,11 @@ public class ImmersivePageV2 extends StagePage {
         }
     }
 
-    /** 歌词高亮色：光晕=副色映射（QQ 固定深色，同旧 getLyricHighlightColor(bottom, false)）；非光晕=恢复自定义色 */
+    /** 歌词高亮色：跟随封面开关开=副色映射（同旧 getLyricHighlightColor(bottom, false)）；关=恢复自定义色 */
     private void applyLyricHighlight() {
-        if (auroraSkin && coverColorsBottom != 0) {
+        boolean follow = com.jingxin.jingxinmusic.fragment.SettingsFragment
+                .isLyricFollowCover(lyric.getContext());
+        if (follow && coverColorsBottom != 0) {
             int lyricColor = CoverColorExtractor.getLyricHighlightColor(coverColorsBottom, false);
             lyric.setHighlightColor(lyricColor);
             lyricL.setHighlightColor(lyricColor);
@@ -536,12 +539,12 @@ public class ImmersivePageV2 extends StagePage {
         topBarViewL.applyTheme(night, ThemeColors.dayTextPrimary());
         progress.setTimeTextColor(name);
         progressL.setTimeTextColor(name);
+        // 进度条圆球/已进度段：恒光晕配色（白夜均文字色），与开关无关（与标准页同规则）
         if (lastWidth > 0 && lastHeight > 0) {
-            progress.applyTrackTheme(lastHeight, lastWidth, night, auroraSkin);
-            progressL.applyTrackTheme(lastHeight, lastWidth, night, auroraSkin);
+            progress.applyTrackTheme(lastHeight, lastWidth, night, true);
+            progressL.applyTrackTheme(lastHeight, lastWidth, night, true);
         }
-        // 光晕高亮收敛（旧 updateThemeUI 尾部同款）：setThemeMode 会重置为自定义高亮色，
-        // 光晕皮肤必须在其后覆盖为封面副色映射色（applyLyricHighlight 不受此影响的保底）
+        // 高亮收敛：setThemeMode 会重置为自定义高亮色，applyLyricHighlight 按开关分流重覆盖
         applyLyricHighlight();
     }
 
