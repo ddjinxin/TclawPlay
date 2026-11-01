@@ -38,7 +38,8 @@ import java.util.concurrent.ExecutorService;
  * 拼贴墙 View（FOLIA Lattice PosterWall + 相机 + 卡片渲染的 Android 全自绘移植）
  *
  * 结构对照 FOLIA：
- * - 相机只写画布平移（camX/camY）：世界坐标 + cam = 屏幕坐标；每帧 collectNear 按视口裁剪
+ * - 相机（A 方案）：屏幕 = 世界 × camScale + cam；scale 按视口宽度三档（FOLIA getScale 原值）；
+ *   世界几何恒定 unit=128/gap=8；拖/惯性速度按 1/scale 折算世界单位
  * - 展开让位：单进度弹簧 0→1，块内 12 卡矩形在基础模板与让位表间插值
  *   （线性系统：单弹簧驱动插值 ≡ FOLIA 每卡同参弹簧的轨迹，位移不超块宽时帧差 <0.5 单位）
  * - 相机弹簧 + OverScroller 惯性；动效运行期才挂 Choreographer，静止即停帧
@@ -77,14 +78,29 @@ public class LatticeWallView extends View {
     /** 本次按下的长按是否已触发（抬手吞掉 tap，防“长按呼出→抬手误点卡切歌”） */
     private boolean longPressFired = false;
 
-    // ===== 度量 =====
-    private static final float CELLS_TALL = 6.5f;       // 墙基准：屏高约 6.5 格
-    private static final float GAP_RATIO = 1f / 16f;
-    private static final float OVERSCAN_FACTOR = 0.25f; // overscan = 25% 视口
+    // ===== 度量（FOLIA 方案 A：固定世界单位 + 相机缩放按视口宽度三档）=====
+    // 世界几何恒定 unit=128/gap=8（FOLIA CELL_SIZE/GAP 原值）；屏幕观感由相机 scale 决定
+    private static final float UNIT = 128f;
+    private static final float GAP_PX = 8f;
+    private static final float OVERSCAN_FACTOR = 0.25f; // overscan = 25% 视口（世界单位）
     /** 绘制缓冲（几何上限 + 展开保活余量） */
     private static final int MAX_DRAWN = LatticeGeometry.MAX_INSTANCES + 16;
 
-    private float cellSize = 160f, gap = 10f;
+    /** FOLIA getScale 原值：宽度三档（<640→0.52，<1100→0.64，否则 0.76） */
+    private static float scaleOf(float viewportWidth) {
+        return viewportWidth < 640f ? 0.52f : viewportWidth < 1100f ? 0.64f : 0.76f;
+    }
+
+    private float gap = GAP_PX;
+    private float cellSize = UNIT;
+    /** 相机缩放（世界→屏幕），onSizeChanged 按宽度定档；展开卡屏幕占比随宽高比浮动（FOLIA 同） */
+    private float camScale = 0.76f;
+
+    // 世界 ↔ 屏幕：屏幕 = 世界 × camScale + cam
+    private float worldToScreenX(float wx) { return wx * camScale + camX; }
+    private float worldToScreenY(float wy) { return wy * camScale + camY; }
+    private float screenToWorldX(float sx) { return (sx - camX) / camScale; }
+    private float screenToWorldY(float sy) { return (sy - camY) / camScale; }
 
     // ===== 数据 =====
     private List<Song> playlist = new ArrayList<>();
@@ -202,6 +218,7 @@ public class LatticeWallView extends View {
             @Override
             public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
                 cancelMotions();
+                // 拖动量是屏幕像素，除以 scale 转世界单位
                 camX -= dx;
                 camY -= dy;
                 invalidate();
@@ -211,8 +228,10 @@ public class LatticeWallView extends View {
             @Override
             public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
                 cancelMotions();
+                // 惯性速度屏幕像素/s，转世界单位后驱动 fling
+                float k = 1f / camScale;
                 scroller.fling(Math.round(camX), Math.round(camY),
-                        (int) -vx, (int) -vy,
+                        (int) (-vx * k), (int) (-vy * k),
                         Integer.MIN_VALUE, Integer.MAX_VALUE,
                         Integer.MIN_VALUE, Integer.MAX_VALUE);
                 flinging = true;
@@ -320,8 +339,13 @@ public class LatticeWallView extends View {
 
     // ===== 定位 =====
 
-    private float viewWorldX() { return -camX + getWidth() / 2f; }
-    private float viewWorldY() { return -camY + getHeight() / 2f; }
+    /** 视口中心的世界坐标（屏幕反推：世界 = (屏幕 - cam) / scale） */
+    private float viewWorldX() { return screenToWorldX(getWidth() / 2f); }
+    private float viewWorldY() { return screenToWorldY(getHeight() / 2f); }
+
+    /** 世界矩形中心居屏所需相机平移（cam = 屏幕中心 - 世界中心×scale） */
+    private float camXForCenter(float worldCx) { return getWidth() / 2f - worldCx * camScale; }
+    private float camYForCenter(float worldCy) { return getHeight() / 2f - worldCy * camScale; }
 
     private LatticeGeometry.Instance nearestToCenter(int queueIndex) {
         if (cell == null || playlist.isEmpty() || queueIndex < 0 || queueIndex >= playlist.size()) return null;
@@ -340,8 +364,8 @@ public class LatticeWallView extends View {
         expV = 0f;
         expActive = true;
         grownRectOf(inst, expandedTmp);
-        camX = -(expandedTmp[0] + expandedTmp[2] / 2f) + getWidth() / 2f;
-        camY = -(expandedTmp[1] + expandedTmp[3] / 2f) + getHeight() / 2f;
+        camX = camXForCenter(expandedTmp[0] + expandedTmp[2] / 2f);
+        camY = camYForCenter(expandedTmp[1] + expandedTmp[3] / 2f);
         cancelMotions();
         startFrameLoop();
     }
@@ -361,8 +385,8 @@ public class LatticeWallView extends View {
         if (expandProgress < 0.02f) expV = 0f;
         expActive = true;
         grownRectOf(inst, expandedTmp);
-        camTX = -(expandedTmp[0] + expandedTmp[2] / 2f) + getWidth() / 2f;
-        camTY = -(expandedTmp[1] + expandedTmp[3] / 2f) + getHeight() / 2f;
+        camTX = camXForCenter(expandedTmp[0] + expandedTmp[2] / 2f);
+        camTY = camYForCenter(expandedTmp[1] + expandedTmp[3] / 2f);
         camVX = camVY = 0;
         camSpringActive = true;
         cancelFling();
@@ -415,7 +439,7 @@ public class LatticeWallView extends View {
     // ===== 点击 =====
 
     private void handleTap(float sx, float sy) {
-        float wx = sx - camX, wy = sy - camY;
+        float wx = screenToWorldX(sx), wy = screenToWorldY(sy);
         for (int i = Math.min(drawn.size(), MAX_DRAWN) - 1; i >= 0; i--) {
             float x = drawnRects[i * 4], y = drawnRects[i * 4 + 1];
             float w = drawnRects[i * 4 + 2], h = drawnRects[i * 4 + 3];
@@ -509,16 +533,21 @@ public class LatticeWallView extends View {
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         super.onSizeChanged(w, h, ow, oh);
         if (w <= 0 || h <= 0) return;
-        cellSize = Math.max(72f, h / CELLS_TALL);
-        gap = cellSize * GAP_RATIO;
+        // FOLIA 方案 A：世界几何恒定，相机缩放按视口宽度三档
+        boolean scaleChanged = camScale != scaleOf(w);
+        camScale = scaleOf(w);
+        gap = GAP_PX;
+        cellSize = UNIT;
         if (!playlist.isEmpty()) {
             cell = LatticeGeometry.cellOf(playlist.size(), cellSize, gap);
         }
         buildVignette(w, h);
         scrimTop = Float.MIN_VALUE;
-        // 尺寸/旋转变化：当前曲重定位（相机瞬移不飞行）
+        // 尺寸/旋转/scale 档位变化：当前曲重定位（相机瞬移不飞行）
         if (entered && currentIndex >= 0 && !playlist.isEmpty()) {
             centerOnCurrentInstant();
+        } else if (scaleChanged) {
+            invalidate();
         }
     }
 
@@ -541,10 +570,13 @@ public class LatticeWallView extends View {
             return;
         }
 
-        // 视口裁剪收集 + 展开实例保活（FOLIA drawn 逻辑）
-        float overscan = Math.max(w, h) * OVERSCAN_FACTOR;
+        // 视口裁剪收集 + 展开实例保活（FOLIA drawn 逻辑）。
+        // 世界视口 = 屏幕视口反推：(0..w - cam)/scale
+        float worldLeft = screenToWorldX(0), worldTop = screenToWorldY(0);
+        float worldRight = screenToWorldX(w), worldBottom = screenToWorldY(h);
+        float overscan = Math.max(w, h) / camScale * OVERSCAN_FACTOR; // 世界单位
         LatticeGeometry.collectNear(cell, playlist.size(),
-                -camX, -camY, -camX + w, -camY + h,
+                worldLeft, worldTop, worldRight, worldBottom,
                 overscan, cellSize, gap, drawn);
         if (expanded != null && !containsInstance(drawn, expanded) && drawn.size() < MAX_DRAWN) {
             drawn.add(expanded);
@@ -571,10 +603,11 @@ public class LatticeWallView extends View {
 
         canvas.save();
         canvas.translate(camX, camY);
+        canvas.scale(camScale, camScale);
 
-        // 渲染剔除：世界坐标矩形 vs 世界坐标视口（-camX..），不能拿屏幕基准 0..w 比
-        float vl = -camX - overscan, vt = -camY - overscan;
-        float vr = -camX + w + overscan, vb = -camY + h + overscan;
+        // 渲染剔除：世界坐标矩形 vs 世界坐标视口（屏幕反推）
+        float vl = worldLeft - overscan, vt = worldTop - overscan;
+        float vr = worldRight + overscan, vb = worldBottom + overscan;
         for (int i = 0; i < n; i++) {
             LatticeGeometry.Instance in = drawn.get(i);
             float x = drawnRects[i * 4], y = drawnRects[i * 4 + 1];
@@ -671,15 +704,16 @@ public class LatticeWallView extends View {
         // 需要屏幕坐标，变化时回调页面同步
         updateSpectrumBand(t, x, y, cw, ch);
 
-        // 底边 LED 进度线：颜色与频谱一致（频谱 tint 主色；无 tint 回落频谱竖条默认色）
+        // 卡顶 LED 进度线：颜色与频谱一致（频谱 tint 主色；无 tint 回落频谱竖条默认色）
         if (t > 0.9f) {
-            float lineTop = y + ch - Math.max(3f, ch * 0.006f);
+            float lineH = Math.max(3f, ch * 0.008f);
+            float lineBottom = y + lineH;
             paint.setColor(0x33FFFFFF);
-            canvas.drawRect(x, lineTop, x + cw, y + ch, paint);
+            canvas.drawRect(x, y, x + cw, lineBottom, paint);
             if (progressDur > 0) {
                 float frac = Math.min(1f, progressPos / (float) progressDur);
                 paint.setColor(progressLineTint());
-                canvas.drawRect(x, lineTop, x + cw * frac, y + ch, paint);
+                canvas.drawRect(x, y, x + cw * frac, lineBottom, paint);
             }
         }
     }
@@ -704,10 +738,10 @@ public class LatticeWallView extends View {
         int idx = indexOfDrawn(expanded);
         if (idx < 0) return null;
         if (cardRectCache == null) cardRectCache = new float[4];
-        cardRectCache[0] = drawnRects[idx * 4] + camX;
-        cardRectCache[1] = drawnRects[idx * 4 + 1] + camY;
-        cardRectCache[2] = cardRectCache[0] + drawnRects[idx * 4 + 2];
-        cardRectCache[3] = cardRectCache[1] + drawnRects[idx * 4 + 3];
+        cardRectCache[0] = worldToScreenX(drawnRects[idx * 4]);
+        cardRectCache[1] = worldToScreenY(drawnRects[idx * 4 + 1]);
+        cardRectCache[2] = worldToScreenX(drawnRects[idx * 4] + drawnRects[idx * 4 + 2]);
+        cardRectCache[3] = worldToScreenY(drawnRects[idx * 4 + 1] + drawnRects[idx * 4 + 3]);
         return cardRectCache;
     }
 
@@ -720,7 +754,8 @@ public class LatticeWallView extends View {
      */
     private void updateSpectrumBand(float t, float x, float y, float cw, float ch) {
         // 卡矩形（屏幕坐标）变化检测：文字层随卡走（环类模式带恒 null 但文字仍要跟）
-        float left = x + camX, topS = y + camY, right = x + cw + camX, bottomS = y + ch + camY;
+        float left = worldToScreenX(x), topS = worldToScreenY(y);
+        float right = worldToScreenX(x + cw), bottomS = worldToScreenY(y + ch);
         boolean cardChanged = lastCardRect == null
                 || Math.abs(lastCardRect[0] - left) > 0.5f || Math.abs(lastCardRect[1] - topS) > 0.5f
                 || Math.abs(lastCardRect[2] - right) > 0.5f || Math.abs(lastCardRect[3] - bottomS) > 0.5f;
@@ -735,12 +770,12 @@ public class LatticeWallView extends View {
                 && !com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(
                         com.jingxin.jingxinmusic.view.SpectrumView.getCurrentStyleStatic())) {
             if (bandScratch == null) bandScratch = new float[4];
-            float bandTopW = y + ch * 0.66f;
-            float progTop = y + ch - Math.max(3f, ch * 0.006f);
-            // 带高=h×70%×(0.42-ε)，ε为底缝（0.42=0.60×0.70：卡高60%区间×降30%）
-            float bTop = bandTopW + camY + (progTop - bandTopW) * 0.42f;
-            float bBottom = progTop - Math.max(3f, ch * 0.012f) + camY;
-            if (bBottom - bTop < ch * 0.035f) bTop = bBottom - ch * 0.035f;
+            // 频谱贴卡底无缝：底=卡底，顶=底-带高（12%卡高，世界系恒定随scale缩放）
+            float bBottomW = y + ch;
+            float bandH = ch * 0.12f;
+            float bTopW = bBottomW - bandH;
+            float bTop = worldToScreenY(bTopW);
+            float bBottom = worldToScreenY(bBottomW);
             bandScratch[0] = left; bandScratch[1] = bTop;
             bandScratch[2] = right; bandScratch[3] = bBottom;
             next = bandScratch;

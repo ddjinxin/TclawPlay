@@ -198,11 +198,26 @@ public class LatticePageV2 extends StandardPageBase {
 
     // ===== 顶栏呼出/隐藏 =====
 
+    /** 呼出顶栏：拼贴墙恒深底，顶栏恒夜间态（清滤镜白色），不随系统日夜切换 */
+
     private void revealTopBar() {
         topBarHandler.removeCallbacks(topBarHider);
-        if (topBarV != null) topBarV.setVisibility(View.VISIBLE);
-        if (topBarLV != null) topBarLV.setVisibility(View.VISIBLE);
+        if (topBarV != null) {
+            forceTopBarNightTheme(topBarV);
+            topBarV.setVisibility(View.VISIBLE);
+        }
+        if (topBarLV != null) {
+            forceTopBarNightTheme(topBarLV);
+            topBarLV.setVisibility(View.VISIBLE);
+        }
         topBarHandler.postDelayed(topBarHider, TOPBAR_AUTOHIDE_MS);
+    }
+
+    /** 顶栏恒夜间态（清滤镜白图标）：墙恒深底，白天染深色会看不清 */ 
+    private void forceTopBarNightTheme(View topBarView) {
+        if (topBarView instanceof com.jingxin.jingxinmusic.view.PlayerTopBar) {
+            ((com.jingxin.jingxinmusic.view.PlayerTopBar) topBarView).applyTheme(true, 0);
+        }
     }
 
     private void hideTopBars() {
@@ -454,9 +469,10 @@ public class LatticePageV2 extends StandardPageBase {
         cardArtistTv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, titleSize * 0.62f);
         cardArtistTv.setTextColor(0xB3FFFFFF);
         // 位置：与展开卡同矩形，底部内边距=进度线+间距（原 canvas 公式同源）
-        float progLine = Math.max(3f, cardH * 0.006f);
+        // 底部内边距：让出底部频谱带（12%卡高，无底缝），文字坐在频谱上方
+        float bandH = cardH * 0.12f;
         cardTextLayer.setPadding((int) (cardW * 0.05f), 0, (int) (cardW * 0.05f),
-                (int) (progLine + cardH * 0.012f));
+                (int) (bandH + cardH * 0.008f));
         android.widget.LinearLayout.LayoutParams alp =
                 (android.widget.LinearLayout.LayoutParams) cardArtistTv.getLayoutParams();
         int artistGap = (int) (cardH * 0.012f);
