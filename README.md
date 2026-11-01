@@ -704,6 +704,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 | `androidx.recyclerview:recyclerview` | 列表展示 |
 | `com.android.tools:desugar_jdk_libs` | Java 8+ API 降级支持 |
 
+**拼贴播放风格**（`view/lattice/`、`stage/LatticePageV2`）移植自开源项目
+[FOLIA](https://github.com/chthollyphile/folia-major)（AGPL-3.0）的 Lattice 封面墙，
+按其许可要求该模块同样适用 AGPL-3.0（见下方许可证说明）。
+
 ---
 
 ## APK 大小
@@ -938,7 +942,16 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 ## 许可证
 
-MIT License
+MIT License（除拼贴风格模块外）
+
+**拼贴风格模块**（`view/lattice/`、`stage/LatticePageV2`）移植自
+[FOLIA](https://github.com/chthollyphile/folia-major)，遵循 **AGPL-3.0**：
+
+> 本应用包含源自 FOLIA（folia-major，作者 chthollyphile）的拼贴封面墙实现。
+> 该模块按 GNU Affero General Public License v3.0 授权；任何包含或基于该模块的
+> 分发版本，必须对相应源代码以 AGPL-3.0 同样开放，并保留本声明与 FOLIA 的
+> 版权信息。完整许可证见 <https://www.gnu.org/licenses/agpl-3.0.html>，
+> 原项目地址 <https://github.com/chthollyphile/folia-major>。
 
 ---
 
@@ -1349,6 +1362,10 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 | `androidx.recyclerview:recyclerview` | List display |
 | `com.android.tools:desugar_jdk_libs` | Java 8+ API desugaring |
 
+The **Lattice playback style** (`view/lattice/`, `stage/LatticePageV2`) is ported from
+the open-source project [FOLIA](https://github.com/chthollyphile/folia-major) (AGPL-3.0)
+and is therefore licensed under AGPL-3.0 as well (see License section below).
+
 ---
 
 ## APK Size
@@ -1556,6 +1573,16 @@ Jingxin — Built with TeleClaw
 
 ## License
 
-MIT License
+MIT License (except the Lattice style module)
+
+The **Lattice style module** (`view/lattice/`, `stage/LatticePageV2`) is ported from
+[FOLIA](https://github.com/chthollyphile/folia-major) and licensed under **AGPL-3.0**:
+
+> This application contains an implementation of the collage cover wall derived from
+> FOLIA (folia-major, by chthollyphile). That module is licensed under the GNU Affero
+> General Public License v3.0; any distribution containing or based on it must make
+> the corresponding source code available under AGPL-3.0 and retain this notice along
+> with FOLIA's copyright information. Full license: <https://www.gnu.org/licenses/agpl-3.0.html>,
+> upstream: <https://github.com/chthollyphile/folia-major>.
 
 > AI生成
