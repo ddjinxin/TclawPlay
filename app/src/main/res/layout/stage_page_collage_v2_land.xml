@@ -1,22 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 拼贴风格页 V2 · 竖屏（第9风格，队列拼贴墙，FOLIA Lattice 移植）
-     墙层全屏置底，信息流标题/歌词/频谱/进度/控制条浮于其上（信息流背景透明化由页面代码处理）
-     父类绑定 id 全部保留（cover_area 收起防父类空引用） -->
+<!-- 拼贴风格页 V2 · 横屏（第9风格，自研织块墙引擎）
+     id 全部 _land 后缀（StagePageBase.bindLandscape 绑定约定，与轮播横屏一致）；
+     墙层全屏置底；信息流（标题/双行歌词/频谱/进度/控制条）浮于其上 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/v2_page_root"
+    android:id="@+id/v2_page_root_land"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/player_bg">
 
-    <!-- ===== 背景栈（父类四态绑定，墙铺满后不可见仅保守留位）===== -->
     <com.jingxin.jingxinmusic.view.AuroraGradientView
-        android:id="@+id/v2_aurora"
+        android:id="@+id/v2_aurora_land"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone" />
 
     <ImageView
-        android:id="@+id/v2_blur"
+        android:id="@+id/v2_blur_land"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
@@ -24,88 +23,82 @@
         android:visibility="gone" />
 
     <View
-        android:id="@+id/v2_dark_mask"
+        android:id="@+id/v2_dark_mask_land"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@color/overlay_dark_black"
         android:visibility="gone" />
 
     <View
-        android:id="@+id/v2_hide_touch_layer"
+        android:id="@+id/v2_hide_touch_layer_land"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone" />
 
-    <!-- ===== 拼贴墙层（本风格专属：全屏置底，自绘无限平铺封面墙）===== -->
-    <com.jingxin.jingxinmusic.view.lattice.LatticeWallView
-        android:id="@+id/lt2_wall"
+    <!-- ===== 拼贴墙层（全屏，横屏单元连续自适应→铺得更宽）===== -->
+    <com.jingxin.jingxinmusic.view.collage.CollageWallView
+        android:id="@+id/clg_wall_land"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- ===== 信息流（标题+歌词+频谱+进度+控制条，浮于墙上）===== -->
+    <!-- ===== 信息流（横屏锁双行歌词 + 全宽底部三件）===== -->
     <LinearLayout
-        android:id="@+id/v2_info_flow"
+        android:id="@+id/v2_info_flow_land"
         android:layout_width="match_parent"
         android:visibility="gone"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center_horizontal">
 
-        <View
-            android:id="@+id/v2_cover_placeholder"
-            android:layout_width="1dp"
-            android:layout_height="0dp"
-            android:visibility="gone" />
-
         <com.jingxin.jingxinmusic.view.SongTitleBar
-            android:id="@+id/v2_title"
+            android:id="@+id/v2_title_land"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="52dp" />
+            android:layout_marginTop="46dp" />
 
         <com.jingxin.jingxinmusic.view.LyricView
-            android:id="@+id/v2_lyric"
+            android:id="@+id/v2_lyric_land"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:layout_marginTop="12dp"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp" />
-
-        <com.jingxin.jingxinmusic.view.SpectrumView
-            android:id="@+id/v2_spectrum"
-            android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:layout_marginBottom="12dp"
+            android:layout_marginTop="10dp"
             android:layout_marginStart="24dp"
             android:layout_marginEnd="24dp" />
 
+        <com.jingxin.jingxinmusic.view.SpectrumView
+            android:id="@+id/v2_spectrum_land"
+            android:layout_width="match_parent"
+            android:layout_height="90dp"
+            android:layout_marginBottom="10dp"
+            android:layout_marginStart="32dp"
+            android:layout_marginEnd="32dp" />
+
         <com.jingxin.jingxinmusic.view.ProgressPanel
-            android:id="@+id/v2_progress"
+            android:id="@+id/v2_progress_land"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp" />
+            android:layout_marginBottom="10dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp" />
 
         <com.jingxin.jingxinmusic.view.ControlBar
-            android:id="@+id/v2_control"
+            android:id="@+id/v2_control_land"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="18dp"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginBottom="14dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp" />
     </LinearLayout>
 
     <!-- ===== 封面区（父类绑定依赖，拼贴墙接管，默认收起）===== -->
     <FrameLayout
-        android:id="@+id/v2_cover_area"
+        android:id="@+id/v2_cover_col_land"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:visibility="gone">
 
         <com.jingxin.jingxinmusic.view.RotatingCoverView
-            android:id="@+id/v2_cover"
+            android:id="@+id/v2_cover_land"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal|top"
@@ -114,14 +107,14 @@
             android:foreground="@drawable/tv_focus_round" />
 
         <com.jingxin.jingxinmusic.view.SpectrumView
-            android:id="@+id/v2_spectrum_ring"
+            android:id="@+id/v2_spectrum_ring_land"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone" />
     </FrameLayout>
 
     <com.jingxin.jingxinmusic.view.PlayerTopBar
-        android:id="@+id/v2_top_bar"
+        android:id="@+id/v2_top_bar_land"
         android:visibility="gone"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

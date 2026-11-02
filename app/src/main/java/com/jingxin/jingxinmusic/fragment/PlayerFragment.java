@@ -130,7 +130,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int COVER_STYLE_IMMERSIVE_V2 = 5; // 第6风格：沉浸 V2（自持实例页）
     private static final int COVER_STYLE_RECORD_V2 = 6; // 第7风格：唱片机 V2（自持实例页）
     private static final int COVER_STYLE_CAROUSEL_V2 = 7; // 第8风格：轮播 V2（自持实例页）
-    private static final int COVER_STYLE_LATTICE_V2 = 8; // 第9风格：拼贴 V2（FOLIA Lattice 封面墙移植）
+    private static final int COVER_STYLE_COLLAGE_V2 = 8; // 第9风格：拼贴 V2（自研织块墙）
     /** V2 风格名（下标=风格值-4，供风格弹窗与切换 Toast 共用） */
     private static final String[] STYLE_V2_NAMES = {"经典", "沉浸", "唱机", "轮播", "拼贴"};
 
@@ -139,7 +139,7 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private static int normalizeCoverStyle(int style) {
         if (style < COVER_STYLE_CLASSIC_V2) return style + COVER_STYLE_CLASSIC_V2;
-        return style > COVER_STYLE_LATTICE_V2 ? COVER_STYLE_CLASSIC_V2 : style;
+        return style > COVER_STYLE_COLLAGE_V2 ? COVER_STYLE_CLASSIC_V2 : style;
     }
     private int coverStyle = COVER_STYLE_CLASSIC;
     private int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
@@ -162,7 +162,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private com.jingxin.jingxinmusic.stage.ImmersivePageV2 immersiveV2Page; // 沉浸
     private com.jingxin.jingxinmusic.stage.RecordPageV2 recordV2Page; // 唱机
     private com.jingxin.jingxinmusic.stage.CarouselPageV2 carouselV2Page; // 轮播
-    private com.jingxin.jingxinmusic.stage.LatticePageV2 latticeV2Page; // 拼贴
+    private com.jingxin.jingxinmusic.stage.CollagePageV2 collageV2Page; // 拼贴
     private com.jingxin.jingxinmusic.stage.StagePage currentScene;
     /** currentScene 本次进入时的方向形态（横竖切换时 layout 前需 exit→enter 重建，等价旧架构两 Scene 实例） */
     private boolean enteredAsLandscape = false;
@@ -216,12 +216,12 @@ public class PlayerFragment extends BaseFloatFragment {
                 checkFavoriteStatus();
                 updateDownloadButtonVisibility();
                 saveLastPlayed();
-            // CarouselV2/LatticeV2 切歌后列表同步（activePage 已建则同步，未建则待 enter 时拉取）
+            // CarouselV2/CollageV2 切歌后列表同步（activePage 已建则同步，未建则待 enter 时拉取）
             com.jingxin.jingxinmusic.stage.StagePage cp = activePage();
             if (cp instanceof com.jingxin.jingxinmusic.stage.CarouselPageV2) {
                 ((com.jingxin.jingxinmusic.stage.CarouselPageV2) cp).syncPlaylistPosition();
-            } else if (cp instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
-                ((com.jingxin.jingxinmusic.stage.LatticePageV2) cp).syncQueueData();
+            } else if (cp instanceof com.jingxin.jingxinmusic.stage.CollagePageV2) {
+                ((com.jingxin.jingxinmusic.stage.CollagePageV2) cp).syncQueueData();
             }
                 // 切歌时重置自动隐藏计时（新歌重新计算5秒窗口）
                 if (controlsHideEnabled) {
@@ -405,8 +405,8 @@ public class PlayerFragment extends BaseFloatFragment {
                         com.jingxin.jingxinmusic.stage.StagePage cp2 = activePage();
                         if (cp2 instanceof com.jingxin.jingxinmusic.stage.CarouselPageV2) {
                             ((com.jingxin.jingxinmusic.stage.CarouselPageV2) cp2).syncPlaylistPosition();
-                        } else if (cp2 instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
-                            ((com.jingxin.jingxinmusic.stage.LatticePageV2) cp2).syncQueueData();
+                        } else if (cp2 instanceof com.jingxin.jingxinmusic.stage.CollagePageV2) {
+                            ((com.jingxin.jingxinmusic.stage.CollagePageV2) cp2).syncQueueData();
                         }
                         // 启动直达歌词动效：歌单就绪后进入上次记忆的效果（仅冷启动首次，消费即失效）
                         if (pendingAutoEnterLyricEffect) {
@@ -600,8 +600,8 @@ public class PlayerFragment extends BaseFloatFragment {
         // 效果页退出回调：拼贴页恢复卡内频谱（detach 时刻）
         lyricEffectManager.setOnDetachListener(() -> {
             com.jingxin.jingxinmusic.stage.StagePage cp = activePage();
-            if (cp instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
-                ((com.jingxin.jingxinmusic.stage.LatticePageV2) cp).setEffectPageActive(false);
+            if (cp instanceof com.jingxin.jingxinmusic.stage.CollagePageV2) {
+                ((com.jingxin.jingxinmusic.stage.CollagePageV2) cp).setEffectPageActive(false);
             }
         });
         // 低频能量源（时计摆轮；无频谱时返 0，机芯恒速）
@@ -978,7 +978,7 @@ public class PlayerFragment extends BaseFloatFragment {
             case COVER_STYLE_IMMERSIVE_V2:  return immersiveV2Page;
             case COVER_STYLE_RECORD_V2:     return recordV2Page;
             case COVER_STYLE_CAROUSEL_V2:   return carouselV2Page;
-            case COVER_STYLE_LATTICE_V2:    return latticeV2Page;
+            case COVER_STYLE_COLLAGE_V2:   return collageV2Page;
             case COVER_STYLE_CLASSIC_V2:
             default:                        return classicV2Page;
         }
@@ -1254,15 +1254,15 @@ public class PlayerFragment extends BaseFloatFragment {
                     installV2Page(p);
                 }
                 return carouselV2Page;
-            case COVER_STYLE_LATTICE_V2:
-                if (latticeV2Page == null) {
-                    com.jingxin.jingxinmusic.stage.LatticePageV2 p =
-                            new com.jingxin.jingxinmusic.stage.LatticePageV2(sceneHelper);
+            case COVER_STYLE_COLLAGE_V2:
+                if (collageV2Page == null) {
+                    com.jingxin.jingxinmusic.stage.CollagePageV2 p =
+                            new com.jingxin.jingxinmusic.stage.CollagePageV2(sceneHelper);
                     p.setActions(buildCarouselV2Actions()); // 拼贴复用轮播 actions（列表桥同构）
-                    latticeV2Page = p;
+                    collageV2Page = p;
                     installV2Page(p);
                 }
-                return latticeV2Page;
+                return collageV2Page;
             case COVER_STYLE_CLASSIC_V2:
             default: // 异常 prefs 值也回落新经典（旧四风格已下线）
                 if (classicV2Page == null) {
@@ -2204,8 +2204,8 @@ public class PlayerFragment extends BaseFloatFragment {
         if (lyricEffectManager == null || lyricEffectManager.isActive()) return;
         // 拼贴页：动效页全屏沉浸，卡内频谱隐藏
         com.jingxin.jingxinmusic.stage.StagePage cp = activePage();
-        if (cp instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
-            ((com.jingxin.jingxinmusic.stage.LatticePageV2) cp).setEffectPageActive(true);
+        if (cp instanceof com.jingxin.jingxinmusic.stage.CollagePageV2) {
+            ((com.jingxin.jingxinmusic.stage.CollagePageV2) cp).setEffectPageActive(true);
         }
         com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect[] effects = {
                 com.jingxin.jingxinmusic.lyriceffect.LyricEffectManager.Effect.STARFIELD,
@@ -2312,8 +2312,8 @@ public class PlayerFragment extends BaseFloatFragment {
                             .edit().putInt(KEY_LYRIC_EFFECT_MODE, pick).apply();
                     // 拼贴页：动效页全屏沉浸，卡内频谱隐藏
                     com.jingxin.jingxinmusic.stage.StagePage cpk = activePage();
-                    if (cpk instanceof com.jingxin.jingxinmusic.stage.LatticePageV2) {
-                        ((com.jingxin.jingxinmusic.stage.LatticePageV2) cpk).setEffectPageActive(true);
+                    if (cpk instanceof com.jingxin.jingxinmusic.stage.CollagePageV2) {
+                        ((com.jingxin.jingxinmusic.stage.CollagePageV2) cpk).setEffectPageActive(true);
                     }
                     lyricEffectManager.attach(effects[pick]);
                 }

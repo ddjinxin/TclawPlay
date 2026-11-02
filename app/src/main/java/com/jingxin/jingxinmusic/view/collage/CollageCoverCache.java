@@ -1,4 +1,4 @@
-package com.jingxin.jingxinmusic.view.lattice;
+package com.jingxin.jingxinmusic.view.collage;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -16,15 +16,15 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 /**
- * 拼贴墙封面缓存（FOLIA useWallPosterArtwork 思想移植，车机简化版）
+ * 拼贴墙封面缓存（两档位解码，车机版）
  *
- * 两档位：卡档（小卡显示）/ 展开档（6x6 大卡）。
+ * - 卡档（小卡显示）/ 展开档（6x6 大卡）
  * - 先显示卡档，展开档解码完成回调升级（只升不降，模糊胜过空白）
  * - 失败负缓存防重试（本地封面缺二进制 404 场景）
  * - in-flight 去重：同 key 并发请求只发一次
  * - LruCache 总量钳制 maxMemory/8
  */
-public class LatticeCoverCache {
+public class CollageCoverCache {
 
     /** 档位 */
     public static final int STEP_CARD = 0;    // 普通卡
@@ -61,7 +61,7 @@ public class LatticeCoverCache {
     /** 失败负缓存上限（防长队列烂封面撑爆） */
     private static final int MAX_FAILED = 256;
 
-    public LatticeCoverCache(Context context, Listener listener) {
+    public CollageCoverCache(Context context, Listener listener) {
         this.context = context.getApplicationContext();
         this.listener = listener;
         this.cache = new LruCache<Key, Bitmap>((int) (Runtime.getRuntime().maxMemory() / 8)) {
@@ -86,7 +86,7 @@ public class LatticeCoverCache {
         Bitmap hit = cache.get(key);
         if (hit != null && !hit.isRecycled()) return hit;
         if (failed.contains(key) || inFlight.contains(key)) return null;
-        // 无卡档时先试着不挡路：异步拉
+        // 无缓存不挡路：异步拉
         request(song, step, key);
         return null;
     }

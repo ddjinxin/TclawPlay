@@ -10,19 +10,19 @@ import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.player.PlayerStateHub;
 import com.jingxin.jingxinmusic.view.SpectrumView;
-import com.jingxin.jingxinmusic.view.lattice.LatticeWallView;
+import com.jingxin.jingxinmusic.view.collage.CollageWallView;
 
 import java.util.List;
 
 /**
- * 拼贴风格页 V2（第9风格，FOLIA Lattice 封面墙移植，全屏墙形态）
+ * 拼贴风格页 V2（第9风格，自研织块墙引擎，全屏墙形态）
  */
-public class LatticePageV2 extends StandardPageBase {
+public class CollagePageV2 extends StandardPageBase {
 
-    private CarouselPageV2.Actions latticeActions;
+    private CarouselPageV2.Actions collageActions;
 
-    private LatticeWallView wall;
-    private LatticeWallView wallL;
+    private CollageWallView wall;
+    private CollageWallView wallL;
 
     // 父类私有视图的自持引用（infoFlow/topBar 为 private，此处自行绑定同 id）
     private View infoFlowV, infoFlowLV, topBarV, topBarLV;
@@ -51,48 +51,48 @@ public class LatticePageV2 extends StandardPageBase {
         @Override public void run() { hideTopBars(); }
     };
 
-    public LatticePageV2(com.jingxin.jingxinmusic.scene.CoverSceneHelper helper) {
+    public CollagePageV2(com.jingxin.jingxinmusic.scene.CoverSceneHelper helper) {
         super(helper);
     }
 
     public void setActions(CarouselPageV2.Actions actions) {
         super.setActions(actions);
-        this.latticeActions = actions;
+        this.collageActions = actions;
     }
 
     @Override
     public void install(LayoutInflater inflater, ViewGroup host) {
         super.install(inflater, host);
-        wall = portraitRoot.findViewById(R.id.lt2_wall);
-        wallL = landscapeRoot.findViewById(R.id.lt2_wall_land);
+        wall = portraitRoot.findViewById(R.id.clg_wall);
+        wallL = landscapeRoot.findViewById(R.id.clg_wall_land);
         infoFlowV = portraitRoot.findViewById(R.id.v2_info_flow);
         infoFlowLV = landscapeRoot.findViewById(R.id.v2_info_flow_land);
         topBarV = portraitRoot.findViewById(R.id.v2_top_bar);
         topBarLV = landscapeRoot.findViewById(R.id.v2_top_bar_land);
         cardSpectrum = portraitRoot.findViewById(R.id.v2_spectrum);
         cardSpectrumL = landscapeRoot.findViewById(R.id.v2_spectrum_land);
-        LatticeWallView.OnTileAction tile = new LatticeWallView.OnTileAction() {
+        CollageWallView.OnTileAction tile = new CollageWallView.OnTileAction() {
             @Override public void onPlaySongAt(int queueIndex) {
                 // 绝对定位播放：queueIndex 是队列真实索引（墙环绕索引已换算），
                 // 不走 delta（delta=墙索引-当前索引 在环绕/远副本下无意义）
-                if (latticeActions != null) latticeActions.playSongAtPosition(queueIndex);
+                if (collageActions != null) collageActions.playSongAtPosition(queueIndex);
             }
             @Override public void onTogglePlayPause() {
-                if (latticeActions != null) latticeActions.togglePlayPause();
+                if (collageActions != null) collageActions.togglePlayPause();
             }
             @Override public void onPlayPrevious() {
-                if (latticeActions != null) latticeActions.playPrevious();
+                if (collageActions != null) collageActions.playPrevious();
             }
             @Override public void onPlayNext() {
-                if (latticeActions != null) latticeActions.playNext();
+                if (collageActions != null) collageActions.playNext();
             }
         };
-        LatticeWallView.OnEmptyTapListener emptyTap = this::revealTopBar;
-        LatticeWallView.OnLongPressListener longPress = (sx, sy) -> revealTopBar();
-        LatticeWallView.OnExpandedCoverTapListener coverTap = () -> {
-            if (latticeActions != null) latticeActions.openLyricEffectRemembered();
+        CollageWallView.OnEmptyTapListener emptyTap = this::revealTopBar;
+        CollageWallView.OnLongPressListener longPress = (sx, sy) -> revealTopBar();
+        CollageWallView.OnExpandedCoverTapListener coverTap = () -> {
+            if (collageActions != null) collageActions.openLyricEffectRemembered();
         };
-        for (LatticeWallView w : new LatticeWallView[]{wall, wallL}) {
+        for (CollageWallView w : new CollageWallView[]{wall, wallL}) {
             if (w == null) continue;
             w.setExecutor(h.executor);
             w.setOnTileAction(tile);
@@ -109,10 +109,10 @@ public class LatticePageV2 extends StandardPageBase {
 
     /** 拼贴独立骨架 XML（父类绑定 id 全保留复用） */
     @Override
-    protected int providePortraitLayout() { return R.layout.stage_page_lattice_v2; }
+    protected int providePortraitLayout() { return R.layout.stage_page_collage_v2; }
 
     @Override
-    protected int provideLandscapeLayout() { return R.layout.stage_page_lattice_v2_land; }
+    protected int provideLandscapeLayout() { return R.layout.stage_page_collage_v2_land; }
 
     @Override
     public void enter() {
@@ -213,7 +213,7 @@ public class LatticePageV2 extends StandardPageBase {
         topBarHandler.postDelayed(topBarHider, TOPBAR_AUTOHIDE_MS);
     }
 
-    /** 顶栏恒夜间态（清滤镜白图标）：墙恒深底，白天染深色会看不清 */ 
+    /** 顶栏恒夜间态（清滤镜白图标）：墙恒深底，白天染深色会看不清 */
     private void forceTopBarNightTheme(View topBarView) {
         if (topBarView instanceof com.jingxin.jingxinmusic.view.PlayerTopBar) {
             ((com.jingxin.jingxinmusic.view.PlayerTopBar) topBarView).applyTheme(true, 0);
@@ -248,9 +248,9 @@ public class LatticePageV2 extends StandardPageBase {
 
     /** 列表全量刷新（enter/切歌广播/服务就绪/横竖切换均走此处） */
     public void syncQueueData() {
-        if (latticeActions == null) return;
-        List<Song> playlist = latticeActions.getPlaylist();
-        int idx = latticeActions.getCurrentIndex();
+        if (collageActions == null) return;
+        List<Song> playlist = collageActions.getPlaylist();
+        int idx = collageActions.getCurrentIndex();
         if (playlist == null || playlist.isEmpty()) return;
         lastPlaylist = playlist;
         // 两实例都灌（横竖切换即得数据）
@@ -334,12 +334,6 @@ public class LatticePageV2 extends StandardPageBase {
         progressObserver.onProgress(hb.getPositionMs(), hb.getDurationMs());
     }
 
-    /** 双色光晕模式判定（背景皮肤模式 1；供 aurora 背景用，频谱 tint 不判此开关） */
-    private static boolean aAuroraActive(PlayerStateHub hb) {
-        PlayerStateHub.State s = hb.getState();
-        return s.bgSkinMode == 1 && s.auroraActive;
-    }
-
     private void unsubscribeWallObservers() {
         PlayerStateHub hb = hubRef();
         if (progressObserver != null) { hb.removeProgressObserver(progressObserver); progressObserver = null; }
@@ -347,8 +341,8 @@ public class LatticePageV2 extends StandardPageBase {
         if (coverColorObserver != null) { hb.removeCoverColorObserver(coverColorObserver); coverColorObserver = null; }
     }
 
-    private LatticeWallView activeWall(boolean landscape) {
-        LatticeWallView active = landscape ? wallL : wall;
+    private CollageWallView activeWall(boolean landscape) {
+        CollageWallView active = landscape ? wallL : wall;
         return active != null ? active : (wall != null ? wall : wallL);
     }
 
@@ -372,7 +366,7 @@ public class LatticePageV2 extends StandardPageBase {
     /** 把活跃 SpectrumView 实例平移缩放到墙算出的频谱带上（带无效/环类/动效页占用=隐藏） */
     private void syncCardSpectrumPosition() {
         if (effectPageActive) return; // 动效页期间不恢复
-        LatticeWallView active = activeWall(h.isLandscapeMode);
+        CollageWallView active = activeWall(h.isLandscapeMode);
         // 文字层与频谱同步走（同一回调链：卡矩形/带矩形变化均触发）
         syncCardText(active);
         SpectrumView sp = h.isLandscapeMode ? cardSpectrumL : cardSpectrum;
@@ -439,7 +433,7 @@ public class LatticePageV2 extends StandardPageBase {
      * 文字层随展开卡同步：位置/字号/透明度/内容（卡矩形回调链每帧触发）。
      * 与频谱同域重叠——文字在上层（z 序），频谱铺在文字后方作为底纹。
      */
-    private void syncCardText(LatticeWallView active) {
+    private void syncCardText(CollageWallView active) {
         if (cardTextLayer == null || active == null) return;
         float[] r = active.getExpandedCardRect();
         float t = active.getExpandProgress();
@@ -462,13 +456,13 @@ public class LatticePageV2 extends StandardPageBase {
             if (!title.equals(lastTitleSet)) { cardTitleTv.setText(title); lastTitleSet = title; }
             if (!artist.equals(lastArtistSet)) { cardArtistTv.setText(artist); lastArtistSet = artist; }
         }
-        // 字号/颜色（像素级对齐旧 canvas 版公式；歌名缩小后=卡宽0.06）
+        // 字号/颜色（歌名=卡宽0.06）
         float titleSize = Math.max(14f, Math.min(30f, cardW * 0.06f));
         cardTitleTv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, titleSize);
         cardTitleTv.setTextColor(0xFFFFFFFF);
         cardArtistTv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, titleSize * 0.62f);
         cardArtistTv.setTextColor(0xB3FFFFFF);
-        // 位置：与展开卡同矩形，底部内边距=进度线+间距（原 canvas 公式同源）
+        // 位置：与展开卡同矩形，底部内边距=进度线+间距
         // 底部内边距：让出底部频谱带（12%卡高，无底缝），文字坐在频谱上方
         float bandH = cardH * 0.12f;
         cardTextLayer.setPadding((int) (cardW * 0.05f), 0, (int) (cardW * 0.05f),
@@ -487,7 +481,7 @@ public class LatticePageV2 extends StandardPageBase {
         lp.width = (int) cardW;
         lp.height = (int) cardH;
         cardTextLayer.setLayoutParams(lp);
-        // 淡入随展开进度（原 canvas 公式同源）
+        // 淡入随展开进度
         cardTextLayer.setAlpha(Math.min(1f, (t - 0.55f) / 0.35f));
         cardTextLayer.setVisibility(View.VISIBLE);
     }

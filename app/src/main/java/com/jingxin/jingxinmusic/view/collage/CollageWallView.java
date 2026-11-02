@@ -1,4 +1,4 @@
-package com.jingxin.jingxinmusic.view.lattice;
+package com.jingxin.jingxinmusic.view.collage;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -7,21 +7,19 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
-import android.text.StaticLayout;
-import android.text.TextPaint;
-import android.text.TextUtils;
-import android.text.Layout;
 import android.graphics.Typeface;
-import android.graphics.Path;
-import android.graphics.RectF;
+import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.LongSparseArray;
+import android.os.SystemClock;
 import android.view.Choreographer;
 import android.view.GestureDetector;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.OverScroller;
@@ -35,22 +33,22 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
- * 拼贴墙 View（FOLIA Lattice PosterWall + 相机 + 卡片渲染的 Android 全自绘移植）
+ * 拼贴墙 View（自研引擎：像素空间织块墙）
  *
- * 结构对照 FOLIA：
- * - 相机（A 方案）：屏幕 = 世界 × camScale + cam；scale 按视口宽度三档（FOLIA getScale 原值）；
- *   世界几何恒定 unit=128/gap=8；拖/惯性速度按 1/scale 折算世界单位
- * - 展开让位：单进度弹簧 0→1，块内 12 卡矩形在基础模板与让位表间插值
- *   （线性系统：单弹簧驱动插值 ≡ FOLIA 每卡同参弹簧的轨迹，位移不超块宽时帧差 <0.5 单位）
- * - 相机弹簧 + OverScroller 惯性；动效运行期才挂 Choreographer，静止即停帧
- * - 触摸：拖动平移 / 点击展开；点已展开卡=播放语义（当前曲暂停续播，他曲切歌）
+ * 结构（与 {@link CollageLayout} 配合）：
+ * - 像素空间直接布局：卡片坐标即内容像素，视口 = 内容平移 scrollX/scrollY；
+ *   单元尺寸按视口宽度连续推导（无档位跳变）
+ * - 织块平铺：10×10 织块无限延展，视图只收集可见织块，成本与队列长度无关
+ * - 展开：被点卡锚定放大，同织块其余卡沿让位模式重排（单进度插值），
+ *   相机弹簧飞至展开卡中心
+ * - 动效运行期才挂 Choreographer，静止即停帧
+ * - 触摸：拖动平移 / 惯性 / 点击展开；点已展开卡=播放语义（当前曲暂停续播，他曲切歌）
  *
  * 性能红线（车机）：
- * - onDraw 零分配（Paint/Rect/列表/shader 全预建复用；徽章字符串按队列缓存）
- * - 不用 setShadowLayer 辉光（5.1 GPU 崩溃病灶），高亮走细描边
- * - StaticLayout 用构造器而非 Builder（Builder 是 API 23+，项目兼容 5.1）
+ * - onDraw 零分配（Paint/Rect/卡池/shader 全预建复用；徽章字符串按队列缓存）
+ * - 不用 setShadowLayer 辉光（低配 GPU 崩溃病灶），LED 走细描边
  */
-public class LatticeWallView extends View {
+public class CollageWallView extends View {
 
     /** 卡片动作桥（页面实现，转 Fragment Actions） */
     public interface OnTileAction {
@@ -60,68 +58,56 @@ public class LatticeWallView extends View {
         void onPlayNext();
     }
 
-    /** 空白处点击回调（顶部 chrome 呼出备选路径，保留） */
+    /** 空白处点击回调（顶部 chrome 呼出备选路径） */
     public interface OnEmptyTapListener {
         void onEmptyTap();
     }
 
-    /** 展开大卡封面区点击（传输带外）：进入歌词动效页（FOLIA：点展开卡正文打开详情页） */
+    /** 展开大卡封面区点击（传输带外）：进入歌词动效页 */
     public interface OnExpandedCoverTapListener {
         void onExpandedCoverTap();
     }
 
-    /** 长按呼出顶栏回调（任何位置含封面上，450ms，不依赖空白） */
+    /** 长按呼出顶栏回调（任何位置含封面上，不依赖空白） */
     public interface OnLongPressListener {
         void onLongPress(float sx, float sy);
     }
 
-    /** 本次按下的长按是否已触发（抬手吞掉 tap，防“长按呼出→抬手误点卡切歌”） */
+    /** 本次按下的长按是否已触发（抬手吞掉 tap，防"长按呼出→抬手误点卡切歌"） */
     private boolean longPressFired = false;
 
-    // ===== 度量（FOLIA 方案 A：固定世界单位 + 相机缩放按视口宽度三档）=====
-    // 世界几何恒定 unit=128/gap=8（FOLIA CELL_SIZE/GAP 原值）；屏幕观感由相机 scale 决定
-    private static final float UNIT = 128f;
-    private static final float GAP_PX = 8f;
-    private static final float OVERSCAN_FACTOR = 0.25f; // overscan = 25% 视口（世界单位）
-    /** 绘制缓冲（几何上限 + 展开保活余量） */
-    private static final int MAX_DRAWN = LatticeGeometry.MAX_INSTANCES + 16;
+    // ===== 度量（像素空间连续推导）=====
+    /** 单元尺寸：视口宽度连续映射 + 钳制；跨设备过渡无跳变 */
+    private static final float UNIT_MIN = 64f;
+    private static final float UNIT_MAX = 104f;
+    private static final float UNIT_PER_WIDTH = 1f / 13.5f;
+    private float unitPx = 80f;
+    private float gapPx = 5.6f;
 
-    /** FOLIA getScale 原值：宽度三档（<640→0.52，<1100→0.64，否则 0.76） */
-    private static float scaleOf(float viewportWidth) {
-        return viewportWidth < 640f ? 0.52f : viewportWidth < 1100f ? 0.64f : 0.76f;
-    }
+    private float pitch() { return unitPx + gapPx; }
+    private float regionPx() { return CollageLayout.REGION * pitch(); }
 
-    private float gap = GAP_PX;
-    private float cellSize = UNIT;
-    /** 相机缩放（世界→屏幕），onSizeChanged 按宽度定档；展开卡屏幕占比随宽高比浮动（FOLIA 同） */
-    private float camScale = 0.76f;
-
-    // 世界 ↔ 屏幕：屏幕 = 世界 × camScale + cam
-    private float worldToScreenX(float wx) { return wx * camScale + camX; }
-    private float worldToScreenY(float wy) { return wy * camScale + camY; }
-    private float screenToWorldX(float sx) { return (sx - camX) / camScale; }
-    private float screenToWorldY(float sy) { return (sy - camY) / camScale; }
+    /** 绘制实例上限（车机降载） */
+    private static final int MAX_DRAWN = 192;
 
     // ===== 数据 =====
     private List<Song> playlist = new ArrayList<>();
     private int currentIndex = -1;
-    private LatticeGeometry.Cell cell;
-    private final LatticeCoverCache coverCache;
+    private final CollageLayout layout = new CollageLayout();
+    private final CollageCoverCache coverCache;
     private final LongSparseArray<String> badgeStrings = new LongSparseArray<>();
 
-    // ===== 相机 =====
-    private float camX = 0f, camY = 0f;
+    // ===== 滚动（内容像素）=====
+    private float scrollX = 0f, scrollY = 0f;
 
     // ===== 展开状态 =====
-    @Nullable private LatticeGeometry.Instance expanded;
-    private int expandedQueueIndex = -1;
-    private final float[] grownRects = new float[12 * 4]; // 让位矩形（按 blockSlot）
-    private final float[] baseRects = new float[12 * 4];  // 基础矩形（按 blockSlot）
+    private boolean hasExpanded = false;
+    private int expandedRegionX, expandedRegionY, expandedLeaf, expandedQueueIndex = -1;
     private float expandProgress = 0f;
 
-    // ===== 弹簧（相机 + 展开进度；与 FOLIA wallReflowMotion 同参：k300/c34 阻尼比≈0.98）=====
-    private static final float CAM_K = 260f, CAM_C = 30f;
-    private static final float EXP_K = 300f, EXP_C = 34f;
+    // ===== 弹簧（相机飞行 + 展开进度；自定参数）=====
+    private static final float CAM_K = 190f, CAM_C = 27f;
+    private static final float EXP_K = 220f, EXP_C = 30f;
     private float camVX, camVY, camTX, camTY;
     private boolean camSpringActive = false;
     private float expV = 0f, expTarget = 0f;
@@ -132,6 +118,21 @@ public class LatticeWallView extends View {
     private boolean flinging = false;
 
     // ===== 帧链 =====
+    // ===== 呼吸动效（当前曲/上一曲/下一曲副本在视野内时上下浮动微缩，科幻悬浮感）=====
+    private static final float BREATH_PERIOD_MS = 2400f;
+    private static final float BREATH_LIFT_UNIT = 0.022f; // 上浮幅度（×unit）
+    private static final float BREATH_SHRINK = 0.015f;    // 峰值收缩幅度
+    /** 三角色队列索引（切歌时重算）；相位按角色错开 → 波浪传递感 */
+    private int roleCurrent = -1, rolePrev = -1, roleNext = -1;
+    /** 本帧是否有呼吸卡可见（帧循环维持依据）与呼吸卡包围盒（内容坐标，脏区重绘用） */
+    private boolean breathVisible = false;
+    private final float[] breathDirty = new float[4];
+
+    /** 令帧链持续运转的动画 */
+    private boolean fullAnimActive() {
+        return flinging || camSpringActive || expActive;
+    }
+
     private final Choreographer choreographer = Choreographer.getInstance();
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
         @Override public void doFrame(long timeNs) {
@@ -139,7 +140,16 @@ public class LatticeWallView extends View {
             float dt = lastFrameNs == 0 ? 0.016f : Math.min(0.033f, (timeNs - lastFrameNs) / 1e9f);
             lastFrameNs = timeNs;
             boolean more = step(dt);
-            invalidate();
+            // 呼吸卡在视野内：帧循环持续；仅呼吸时只重绘呼吸卡脏区（车机降载）
+            if (breathVisible) more = true;
+            if (fullAnimActive()) {
+                invalidate();
+            } else if (breathVisible) {
+                invalidate((int) Math.floor(breathDirty[0] - scrollX) - 5,
+                        (int) Math.floor(breathDirty[1] - scrollY) - 5,
+                        (int) Math.ceil(breathDirty[2] - scrollX) + 5,
+                        (int) Math.ceil(breathDirty[3] - scrollY) + 5);
+            }
             if (more) choreographer.postFrameCallback(this);
             else frameRunning = false;
         }
@@ -150,15 +160,20 @@ public class LatticeWallView extends View {
     // ===== 手势 =====
     private final GestureDetector detector;
 
-    // ===== 绘制预分配 =====
-    private final ArrayList<LatticeGeometry.Instance> drawn = new ArrayList<>(128);
+    // ===== 绘制池（零分配）=====
+    /** 卡实例：织块坐标 + 叶位 + 队列索引 + 内容像素矩形 */
+    private static final class Tile {
+        int regionX, regionY, leaf, queueIndex;
+        float x, y, w, h;
+    }
+    private final ArrayList<Tile> tilePool = new ArrayList<>(MAX_DRAWN);
+    private int drawnCount = 0;
     private final float[] drawnRects = new float[MAX_DRAWN * 4];
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint badgePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final Rect srcRect = new Rect();
     private final RectF dstRect = new RectF();
     private final Rect badgeRect = new Rect();
-    private final float[] expandedTmp = new float[4];
     // 展开 scrim（缓存，矩形变化才重建）
     private LinearGradient scrimShader;
     private float scrimTop = Float.MIN_VALUE, scrimBottom = Float.MIN_VALUE;
@@ -180,12 +195,11 @@ public class LatticeWallView extends View {
     private int progressPos = 0, progressDur = 0;
     private final Path glyphPath = new Path();
     private final Paint glyphPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final RectF zoneRect = new RectF();
 
     // ===== 展开卡凸出感（浮起柔影+顶棱高光；随展开进度渐进）=====
     private static final int LIFT_LAYERS = 6;       // 柔影同心环层数
     private final Path liftPath = new Path();
-    /** 卡面对角渐变（左下 50% 黑 → 右上透明）缓存：矩形变化才重建，onDraw 零分配 */
+    /** 卡面对角渐变（左下 70% 黑 → 右上透明）缓存：矩形变化才重建，onDraw 零分配 */
     private LinearGradient diagShader;
     private float diagRectX, diagRectY, diagRectW, diagRectH;
 
@@ -197,37 +211,38 @@ public class LatticeWallView extends View {
     /** 页面注入：频谱带变化回调（每帧展开/拖动后带位置变了要同步） */
     @Nullable private Runnable spectrumBandUpdater;
 
-    public LatticeWallView(Context context) { this(context, null); }
+    public CollageWallView(Context context) { this(context, null); }
 
-    public LatticeWallView(Context context, @Nullable AttributeSet attrs) {
+    public CollageWallView(Context context, @Nullable AttributeSet attrs) {
         this(context, attrs, 0);
     }
 
-    public LatticeWallView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+    public CollageWallView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         scroller = new OverScroller(context);
-        coverCache = new LatticeCoverCache(context, (song, step, bitmap) -> postInvalidateOnAnimation());
+        coverCache = new CollageCoverCache(context, (song, step, bitmap) -> postInvalidateOnAnimation());
         badgePaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         detector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onDown(MotionEvent e) { longPressFired = false; return true; }
 
             @Override
             public void onLongPress(MotionEvent e) {
-                // 长按呼出顶栏：不依赖空白（卡间隙太窄点不中），全屏任意位置都算，
+                // 长按呼出顶栏：全屏任意位置都算（卡间隙窄点不中），
                 // 手指按住不移动不会触发 onScroll，拖动浏览不受影响
                 longPressFired = true;
                 if (longPressListener != null) {
                     longPressListener.onLongPress(e.getX(), e.getY());
-                    performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                 }
             }
 
             @Override
             public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
                 cancelMotions();
-                // 拖动量是屏幕像素，除以 scale 转世界单位
-                camX -= dx;
-                camY -= dy;
+                // onScroll 的 dx/dy 与手指位移反向（= 上次焦点 − 当前焦点）；
+                // 本墙约定 屏幕 = 内容 − scroll，跟手即 scroll += distance
+                scrollX += dx;
+                scrollY += dy;
                 invalidate();
                 return true;
             }
@@ -235,10 +250,8 @@ public class LatticeWallView extends View {
             @Override
             public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
                 cancelMotions();
-                // 惯性速度屏幕像素/s，转世界单位后驱动 fling
-                float k = 1f / camScale;
-                scroller.fling(Math.round(camX), Math.round(camY),
-                        (int) (-vx * k), (int) (-vy * k),
+                scroller.fling(Math.round(scrollX), Math.round(scrollY),
+                        (int) -vx, (int) -vy,
                         Integer.MIN_VALUE, Integer.MAX_VALUE,
                         Integer.MIN_VALUE, Integer.MAX_VALUE);
                 flinging = true;
@@ -278,7 +291,7 @@ public class LatticeWallView extends View {
     public void setProgress(int positionMs, int durationMs) {
         this.progressPos = positionMs;
         this.progressDur = durationMs;
-        if (expanded != null && expandProgress > 0.5f) invalidate();
+        if (hasExpanded && expandProgress > 0.5f) invalidate();
     }
 
     /** 频谱样式同步（页面把真值 SpectrumView 实例盖到频谱带，墙只算带矩形） */
@@ -290,7 +303,7 @@ public class LatticeWallView extends View {
         invalidate();
     }
 
-    /** 频谱动态跟随色（封面双色，页面注入；进度线与频谱同色用。null=回落默认） */
+    /** 频谱动态跟随色（封面双色，页面注入；进度线与频谱同色用。0=回落默认） */
     public void setSpectrumTint(int colorTop, int colorBottom) {
         this.tintTop = colorTop;
         this.tintBottom = colorBottom;
@@ -317,117 +330,115 @@ public class LatticeWallView extends View {
         currentIndex = Math.max(-1, index);
         badgeStrings.clear();
         if (playlist.isEmpty()) {
-            expanded = null;
+            hasExpanded = false;
             expandedQueueIndex = -1;
+            layout.configure(0);
             invalidate();
             return;
         }
-        if (countChanged || cell == null) {
-            cell = LatticeGeometry.cellOf(playlist.size(), cellSize, gap);
+        if (countChanged) {
+            layout.configure(playlist.size());
         }
+        computeRoles();
         if (!entered) {
-            // 首次进入：相机瞬移居中当前曲（无飞行，防"漂移"感——FOLIA instant=true）
+            // 首次进入：相机瞬移居中当前曲（无飞行，防"漂移"感），让位动画播放
             centerOnCurrentInstant();
             entered = true;
-        } else if (indexChanged || expanded == null) {
+        } else if (indexChanged || !hasExpanded) {
             // 切歌：新当前曲飞入并展开
             focusCurrentAnimated();
         } else if (expandedQueueIndex < playlist.size()) {
-            // 同曲数据刷新：展开卡座标可能挪位，保持对位
-            LatticeGeometry.Instance nearest = nearestToCenter(expandedQueueIndex);
-            if (nearest != null && !sameInstance(nearest, expanded)) {
-                expanded = nearest;
-                expandedQueueIndex = nearest.queueIndex;
-                computeGrownRects();
-                    }
+            // 同曲数据刷新：展开位可能挪位（队列长度变化重排），保持对位
+            int[] near = layout.nearestInstance(expandedQueueIndex,
+                    scrollX, scrollY, regionPx(), regionPx(), getWidth(), getHeight());
+            if (near != null && (near[0] != expandedRegionX || near[1] != expandedRegionY
+                    || near[2] != expandedLeaf)) {
+                expandedRegionX = near[0];
+                expandedRegionY = near[1];
+                expandedLeaf = near[2];
+            }
         }
         invalidate();
     }
 
+    /** 呼吸三角色：当前曲/上一曲/下一曲（环绕；单两首时退化） */
+    private void computeRoles() {
+        int n = playlist.size();
+        roleCurrent = currentIndex;
+        rolePrev = (n > 1 && currentIndex >= 0) ? (((currentIndex - 1) % n) + n) % n : -1;
+        roleNext = (n > 2 && currentIndex >= 0) ? (currentIndex + 1) % n : -1;
+    }
+
     // ===== 定位 =====
 
-    /** 视口中心的世界坐标（屏幕反推：世界 = (屏幕 - cam) / scale） */
-    private float viewWorldX() { return screenToWorldX(getWidth() / 2f); }
-    private float viewWorldY() { return screenToWorldY(getHeight() / 2f); }
-
-    /** 世界矩形中心居屏所需相机平移（cam = 屏幕中心 - 世界中心×scale） */
-    private float camXForCenter(float worldCx) { return getWidth() / 2f - worldCx * camScale; }
-    private float camYForCenter(float worldCy) { return getHeight() / 2f - worldCy * camScale; }
-
-    private LatticeGeometry.Instance nearestToCenter(int queueIndex) {
-        if (cell == null || playlist.isEmpty() || queueIndex < 0 || queueIndex >= playlist.size()) return null;
-        return LatticeGeometry.nearestOf(cell, playlist.size(), queueIndex,
-                viewWorldX(), viewWorldY(), cellSize, gap);
+    /** 队列条目距视口中心最近的实例（织块坐标 + 叶位） */
+    @Nullable
+    private int[] nearestToCenter(int queueIndex) {
+        if (playlist.isEmpty() || queueIndex < 0 || queueIndex >= playlist.size()) return null;
+        return layout.nearestInstance(queueIndex, scrollX, scrollY,
+                regionPx(), regionPx(), getWidth(), getHeight());
     }
 
     private void centerOnCurrentInstant() {
-        LatticeGeometry.Instance inst = nearestToCenter(currentIndex);
-        if (inst == null) return;
-        expanded = inst;
-        expandedQueueIndex = inst.queueIndex;
-        computeGrownRects();
+        int[] near = nearestToCenter(currentIndex);
+        if (near == null) return;
+        expandedRegionX = near[0];
+        expandedRegionY = near[1];
+        expandedLeaf = near[2];
+        expandedQueueIndex = currentIndex;
+        hasExpanded = true;
         expandProgress = 0f;
         expTarget = 1f;
         expV = 0f;
         expActive = true;
-        grownRectOf(inst, expandedTmp);
-        camX = camXForCenter(expandedTmp[0] + expandedTmp[2] / 2f);
-        camY = camYForCenter(expandedTmp[1] + expandedTmp[3] / 2f);
+        scrollX = anchorCenterScreenX() - getWidth() / 2f;
+        scrollY = anchorCenterScreenY() - getHeight() / 2f;
         cancelMotions();
         startFrameLoop();
     }
 
     private void focusCurrentAnimated() {
-        LatticeGeometry.Instance inst = nearestToCenter(currentIndex);
-        if (inst == null) return;
-        expandInstance(inst);
+        int[] near = nearestToCenter(currentIndex);
+        if (near == null) return;
+        expandAt(near[0], near[1], near[2], currentIndex);
+    }
+
+    /** 展开锚中心（内容像素） */
+    private float anchorCenterScreenX() {
+        int[] grow = layout.reflowAt(expandedRegionX, expandedRegionY, expandedLeaf);
+        return cellCenterPxX(expandedRegionX, grow[expandedLeaf * 4], grow[expandedLeaf * 4 + 2]);
+    }
+
+    private float anchorCenterScreenY() {
+        int[] grow = layout.reflowAt(expandedRegionX, expandedRegionY, expandedLeaf);
+        return cellCenterPxY(expandedRegionY, grow[expandedLeaf * 4 + 1], grow[expandedLeaf * 4 + 3]);
+    }
+
+    /** 单元格坐标 → 内容像素中心 */
+    private float cellCenterPxX(int regionX, int cellX, int cellW) {
+        return (regionX * CollageLayout.REGION + cellX + cellW / 2f) * pitch();
+    }
+
+    private float cellCenterPxY(int regionY, int cellY, int cellH) {
+        return (regionY * CollageLayout.REGION + cellY + cellH / 2f) * pitch();
     }
 
     /** 展开某实例：让位插值 + 相机弹簧飞至展开卡中心 */
-    private void expandInstance(LatticeGeometry.Instance inst) {
-        expanded = inst;
-        expandedQueueIndex = inst.queueIndex;
-        computeGrownRects();
+    private void expandAt(int regionX, int regionY, int leaf, int queueIndex) {
+        expandedRegionX = regionX;
+        expandedRegionY = regionY;
+        expandedLeaf = leaf;
+        expandedQueueIndex = queueIndex;
+        hasExpanded = true;
         expTarget = 1f;
         if (expandProgress < 0.02f) expV = 0f;
         expActive = true;
-        grownRectOf(inst, expandedTmp);
-        camTX = camXForCenter(expandedTmp[0] + expandedTmp[2] / 2f);
-        camTY = camYForCenter(expandedTmp[1] + expandedTmp[3] / 2f);
+        camTX = anchorCenterScreenX() - getWidth() / 2f;
+        camTY = anchorCenterScreenY() - getHeight() / 2f;
         camVX = camVY = 0;
         camSpringActive = true;
         cancelFling();
         startFrameLoop();
-    }
-
-    /** 展开实例的让位矩形 → out[4] */
-    private void grownRectOf(LatticeGeometry.Instance inst, float[] out) {
-        out[0] = grownRects[inst.blockSlot * 4];
-        out[1] = grownRects[inst.blockSlot * 4 + 1];
-        out[2] = grownRects[inst.blockSlot * 4 + 2];
-        out[3] = grownRects[inst.blockSlot * 4 + 3];
-    }
-
-    /** 展开块 12 槽让位矩形 + 基础矩形 */
-    private void computeGrownRects() {
-        if (expanded == null || cell == null) return;
-        LatticeGeometry.expandedBlockRects(cell, expanded, cellSize, gap, grownRects, 0);
-        int col = LatticeGeometry.columnOf(expanded, cell);
-        int row = LatticeGeometry.rowOf(expanded, cell);
-        int localColumn = col - expanded.repeatX * cell.blocksPerRow;
-        int localRow = row - expanded.repeatY * cell.blockRows;
-        LatticeTemplates.Slot[] tmpl = LatticeTemplates.templateOf(localColumn, localRow);
-        float pitch = cellSize + gap;
-        float originX = expanded.repeatX * cell.cellWidth + localColumn * cell.blockWidth;
-        float originY = expanded.repeatY * cell.cellHeight + localRow * cell.blockHeight;
-        for (int s = 0; s < LatticeTemplates.SLOTS_PER_BLOCK; s++) {
-            LatticeTemplates.Slot slot = tmpl[s];
-            baseRects[s * 4] = originX + slot.x * pitch;
-            baseRects[s * 4 + 1] = originY + slot.y * pitch;
-            baseRects[s * 4 + 2] = slot.cols * pitch - gap;
-            baseRects[s * 4 + 3] = slot.rows * pitch - gap;
-        }
-        scrimTop = Float.MIN_VALUE; // 几何变了，scrim 待重建
     }
 
     private void cancelMotions() {
@@ -446,17 +457,19 @@ public class LatticeWallView extends View {
     // ===== 点击 =====
 
     private void handleTap(float sx, float sy) {
-        float wx = screenToWorldX(sx), wy = screenToWorldY(sy);
-        for (int i = Math.min(drawn.size(), MAX_DRAWN) - 1; i >= 0; i--) {
+        float cx = sx + scrollX, cy = sy + scrollY;
+        for (int i = drawnCount - 1; i >= 0; i--) {
             float x = drawnRects[i * 4], y = drawnRects[i * 4 + 1];
             float w = drawnRects[i * 4 + 2], h = drawnRects[i * 4 + 3];
-            if (wx >= x && wx <= x + w && wy >= y && wy <= y + h) {
-                LatticeGeometry.Instance hit = drawn.get(i);
-                if (expanded != null && sameInstance(hit, expanded)) {
+            if (cx >= x && cx <= x + w && cy >= y && cy <= y + h) {
+                int hitRegionX = drawnRegionX(i), hitRegionY = drawnRegionY(i), hitLeaf = drawnLeaf(i);
+                boolean hitExpanded = hasExpanded && hitRegionX == expandedRegionX
+                        && hitRegionY == expandedRegionY && hitLeaf == expandedLeaf;
+                if (hitExpanded) {
                     // 传输带（展开稳后生效）：三等分 ·上/播放暂停/下
-                    if (expandProgress > 0.9f && action != null && wy >= y + h * 0.38f && wy <= y + h * 0.62f) {
-                        if (wx < x + w / 3f) { action.onPlayPrevious(); return; }
-                        if (wx > x + w * 2f / 3f) { action.onPlayNext(); return; }
+                    if (expandProgress > 0.9f && action != null && cy >= y + h * 0.38f && cy <= y + h * 0.62f) {
+                        if (cx < x + w / 3f) { action.onPlayPrevious(); return; }
+                        if (cx > x + w * 2f / 3f) { action.onPlayNext(); return; }
                         action.onTogglePlayPause();
                         return;
                     }
@@ -467,20 +480,17 @@ public class LatticeWallView extends View {
                     }
                     return; // 带外但展开未稳（动画中）：忽略
                 }
+                int hitQueue = drawnQueue(i);
                 // 点非当前曲的卡：展开 + 立即切歌
-                if (action != null && hit.queueIndex != currentIndex) {
-                    action.onPlaySongAt(hit.queueIndex);
+                if (action != null && hitQueue != currentIndex) {
+                    action.onPlaySongAt(hitQueue);
                 }
-                expandInstance(hit);
+                expandAt(hitRegionX, hitRegionY, hitLeaf, hitQueue);
                 return;
             }
         }
         // 空白处：交给页面（临时呼出顶栏）
         if (emptyTapListener != null) emptyTapListener.onEmptyTap();
-    }
-
-    private boolean sameInstance(LatticeGeometry.Instance a, LatticeGeometry.Instance b) {
-        return a.cellSlot == b.cellSlot && a.repeatX == b.repeatX && a.repeatY == b.repeatY;
     }
 
     // ===== 帧链 =====
@@ -497,24 +507,24 @@ public class LatticeWallView extends View {
         boolean more = false;
         if (flinging) {
             if (scroller.computeScrollOffset()) {
-                camX = scroller.getCurrX();
-                camY = scroller.getCurrY();
+                scrollX = scroller.getCurrX();
+                scrollY = scroller.getCurrY();
                 more = true;
             } else {
                 flinging = false;
             }
         }
         if (camSpringActive) {
-            float ax = (camTX - camX) * CAM_K - camVX * CAM_C;
-            float ay = (camTY - camY) * CAM_K - camVY * CAM_C;
+            float ax = (camTX - scrollX) * CAM_K - camVX * CAM_C;
+            float ay = (camTY - scrollY) * CAM_K - camVY * CAM_C;
             camVX += ax * dt;
             camVY += ay * dt;
-            camX += camVX * dt;
-            camY += camVY * dt;
-            if (Math.abs(camTX - camX) < 0.5f && Math.abs(camTY - camY) < 0.5f
+            scrollX += camVX * dt;
+            scrollY += camVY * dt;
+            if (Math.abs(camTX - scrollX) < 0.5f && Math.abs(camTY - scrollY) < 0.5f
                     && Math.abs(camVX) < 2f && Math.abs(camVY) < 2f) {
-                camX = camTX;
-                camY = camTY;
+                scrollX = camTX;
+                scrollY = camTY;
                 camSpringActive = false;
             } else {
                 more = true;
@@ -540,20 +550,14 @@ public class LatticeWallView extends View {
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         super.onSizeChanged(w, h, ow, oh);
         if (w <= 0 || h <= 0) return;
-        // FOLIA 方案 A：世界几何恒定，相机缩放按视口宽度三档
-        boolean scaleChanged = camScale != scaleOf(w);
-        camScale = scaleOf(w);
-        gap = GAP_PX;
-        cellSize = UNIT;
-        if (!playlist.isEmpty()) {
-            cell = LatticeGeometry.cellOf(playlist.size(), cellSize, gap);
-        }
+        unitPx = Math.max(UNIT_MIN, Math.min(UNIT_MAX, w * UNIT_PER_WIDTH));
+        gapPx = unitPx * 0.07f;
         buildVignette(w, h);
         scrimTop = Float.MIN_VALUE;
-        // 尺寸/旋转/scale 档位变化：当前曲重定位（相机瞬移不飞行）
+        // 尺寸/旋转变化：当前曲重定位（相机瞬移不飞行）
         if (entered && currentIndex >= 0 && !playlist.isEmpty()) {
             centerOnCurrentInstant();
-        } else if (scaleChanged) {
+        } else {
             invalidate();
         }
     }
@@ -564,6 +568,20 @@ public class LatticeWallView extends View {
                 new float[]{0f, 0.62f, 1f}, Shader.TileMode.CLAMP);
     }
 
+    // ===== 卡池 =====
+
+    private Tile obtainTile(int poolIndex) {
+        while (tilePool.size() <= poolIndex) {
+            tilePool.add(new Tile());
+        }
+        return tilePool.get(poolIndex);
+    }
+
+    private int drawnRegionX(int i) { return tilePool.get(i).regionX; }
+    private int drawnRegionY(int i) { return tilePool.get(i).regionY; }
+    private int drawnLeaf(int i) { return tilePool.get(i).leaf; }
+    private int drawnQueue(int i) { return tilePool.get(i).queueIndex; }
+
     // ===== 绘制 =====
 
     @Override
@@ -572,67 +590,71 @@ public class LatticeWallView extends View {
         if (w <= 0 || h <= 0) return;
         canvas.drawColor(night ? BG_NIGHT : BG_DAY);
 
-        if (cell == null || playlist.isEmpty()) {
+        if (playlist.isEmpty()) {
             drawEmptyHint(canvas, w, h);
             return;
         }
 
-        // 视口裁剪收集 + 展开实例保活（FOLIA drawn 逻辑）。
-        // 世界视口 = 屏幕视口反推：(0..w - cam)/scale
-        float worldLeft = screenToWorldX(0), worldTop = screenToWorldY(0);
-        float worldRight = screenToWorldX(w), worldBottom = screenToWorldY(h);
-        float overscan = Math.max(w, h) / camScale * OVERSCAN_FACTOR; // 世界单位
-        LatticeGeometry.collectNear(cell, playlist.size(),
-                worldLeft, worldTop, worldRight, worldBottom,
-                overscan, cellSize, gap, drawn);
-        if (expanded != null && !containsInstance(drawn, expanded) && drawn.size() < MAX_DRAWN) {
-            drawn.add(expanded);
-        }
-        int n = Math.min(drawn.size(), MAX_DRAWN);
-
-        // 每卡矩形（展开块内插值）
-        for (int i = 0; i < n; i++) {
-            LatticeGeometry.Instance in = drawn.get(i);
-            if (expanded != null && sameBlock(in, expanded)) {
-                float t = expandProgress;
-                int s = in.blockSlot;
-                drawnRects[i * 4] = lerp(baseRects[s * 4], grownRects[s * 4], t);
-                drawnRects[i * 4 + 1] = lerp(baseRects[s * 4 + 1], grownRects[s * 4 + 1], t);
-                drawnRects[i * 4 + 2] = lerp(baseRects[s * 4 + 2], grownRects[s * 4 + 2], t);
-                drawnRects[i * 4 + 3] = lerp(baseRects[s * 4 + 3], grownRects[s * 4 + 3], t);
-            } else {
-                drawnRects[i * 4] = in.x;
-                drawnRects[i * 4 + 1] = in.y;
-                drawnRects[i * 4 + 2] = in.width;
-                drawnRects[i * 4 + 3] = in.height;
-            }
-        }
+        collectVisible(w, h);
+        int n = drawnCount;
+        breathVisible = false;
 
         canvas.save();
-        canvas.translate(camX, camY);
-        canvas.scale(camScale, camScale);
+        canvas.translate(-scrollX, -scrollY);
 
-        // 渲染剔除：世界坐标矩形 vs 世界坐标视口（屏幕反推）
-        float vl = worldLeft - overscan, vt = worldTop - overscan;
-        float vr = worldRight + overscan, vb = worldBottom + overscan;
         for (int i = 0; i < n; i++) {
-            LatticeGeometry.Instance in = drawn.get(i);
             float x = drawnRects[i * 4], y = drawnRects[i * 4 + 1];
             float cw = drawnRects[i * 4 + 2], ch = drawnRects[i * 4 + 3];
-            if (x + cw <= vl || x >= vr) continue;
-            if (y + ch <= vt || y >= vb) continue;
+            int regionX = drawnRegionX(i), regionY = drawnRegionY(i), leaf = drawnLeaf(i);
+            boolean isExpandedCard = hasExpanded && regionX == expandedRegionX
+                    && regionY == expandedRegionY && leaf == expandedLeaf;
+            Song song = playlist.get(drawnQueue(i));
 
-            boolean isExpandedCard = expanded != null && sameInstance(in, expanded);
-            Song song = playlist.get(in.queueIndex);
+            // 呼吸卡：当前/上一曲/下一曲副本上下浮动+微缩（错相 1/3 周期 → 波浪传递感）；
+            // 展开卡本体不晃（频谱/文字层是独立 View，不同步会脱节）
+            if (!isExpandedCard) {
+                int q = drawnQueue(i);
+                float bPhase = -1f;
+                if (q == roleCurrent) bPhase = 0f;
+                else if (q == rolePrev) bPhase = 1f / 3f;
+                else if (q == roleNext) bPhase = 2f / 3f;
+                if (bPhase >= 0f) {
+                    float p = ((SystemClock.uptimeMillis() % (long) BREATH_PERIOD_MS) / BREATH_PERIOD_MS + bPhase) % 1f;
+                    float s = 0.5f - 0.5f * (float) Math.cos((float) (p * Math.PI * 2.0));
+                    float lift = unitPx * BREATH_LIFT_UNIT * s;
+                    float k = 1f - BREATH_SHRINK * s;
+                    float nw = cw * k, nh = ch * k;
+                    x = x + (cw - nw) * 0.5f;
+                    y = y - lift + (ch - nh) * 0.5f;
+                    cw = nw;
+                    ch = nh;
+                    drawnRects[i * 4] = x;
+                    drawnRects[i * 4 + 1] = y;
+                    drawnRects[i * 4 + 2] = cw;
+                    drawnRects[i * 4 + 3] = ch;
+                    if (!breathVisible) {
+                        breathVisible = true;
+                        breathDirty[0] = x;
+                        breathDirty[1] = y;
+                        breathDirty[2] = x + cw;
+                        breathDirty[3] = y + ch;
+                    } else {
+                        if (x < breathDirty[0]) breathDirty[0] = x;
+                        if (y < breathDirty[1]) breathDirty[1] = y;
+                        if (x + cw > breathDirty[2]) breathDirty[2] = x + cw;
+                        if (y + ch > breathDirty[3]) breathDirty[3] = y + ch;
+                    }
+                }
+            }
 
             // 封面双档位：展开卡大图，小卡标准档
             Bitmap bitmap = null;
             if (isExpandedCard) {
-                Bitmap big = coverCache.get(song, LatticeCoverCache.STEP_EXPANDED);
-                if (big == null) bitmap = coverCache.get(song, LatticeCoverCache.STEP_CARD);
+                Bitmap big = coverCache.get(song, CollageCoverCache.STEP_EXPANDED);
+                if (big == null) bitmap = coverCache.get(song, CollageCoverCache.STEP_CARD);
                 else bitmap = big;
             } else {
-                bitmap = coverCache.get(song, LatticeCoverCache.STEP_CARD);
+                bitmap = coverCache.get(song, CollageCoverCache.STEP_CARD);
             }
 
             if (bitmap != null && !bitmap.isRecycled()) {
@@ -642,39 +664,41 @@ public class LatticeWallView extends View {
                 paint.setStyle(Paint.Style.FILL);
                 canvas.drawBitmap(bitmap, srcRect, dstRect, paint);
             } else {
-                paint.setColor(placeholderColor(in.queueIndex));
+                paint.setColor(placeholderColor(drawnQueue(i)));
                 canvas.drawRect(x, y, x + cw, y + ch, paint);
             }
 
-            // 非展开卡压暗（FOLIA poster tint，夜更深）
+            // 非展开卡压暗（夜更深）
             if (!isExpandedCard) {
-                paint.setColor(night ? 0x5E000000 : 0x42000000);
+                paint.setColor(night ? 0x59000000 : 0x40000000);
                 canvas.drawRect(x, y, x + cw, y + ch, paint);
             }
 
             // 当前曲副本：LED 青细描边（展开完成后才标，避免动画期杂线）
-            if (!isExpandedCard && in.queueIndex == currentIndex && expandProgress > 0.92f) {
+            if (!isExpandedCard && drawnQueue(i) == currentIndex && expandProgress > 0.92f) {
                 paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(Math.max(2f, cellSize * 0.022f));
+                paint.setStrokeWidth(Math.max(2f, unitPx * 0.044f));
                 paint.setColor(ACCENT);
                 canvas.drawRect(x, y, x + cw, y + ch, paint);
                 paint.setStyle(Paint.Style.FILL);
                 paint.setStrokeWidth(0);
             }
 
-            // 序号徽章（仅单格卡）
-            if (!isExpandedCard && Math.min(cw, ch) > cellSize * 0.55f) {
-                drawBadge(canvas, in.queueIndex, x, y);
+            // 序号徽章（非展开卡）
+            if (!isExpandedCard) {
+                drawBadge(canvas, drawnQueue(i), x, y);
             }
+
+            paint.setAlpha(255);
         }
 
-        // 展开卡凸出感：浮起柔影落在相邻卡上 + 顶棱微高光（画在所有卡之后，浮在墙上语义）
-        if (expanded != null && expandProgress > 0.02f) {
+        // 展开卡凸出感：浮起柔影落在相邻卡上 + 卡面对角渐变 + 顶棱微高光
+        if (hasExpanded && expandProgress > 0.02f) {
             drawLiftShadow(canvas, expandProgress);
         }
 
-        // 展开卡文字
-        if (expanded != null && expandProgress > 0.55f && expandedQueueIndex < playlist.size()) {
+        // 展开卡文字层（scrim + 传输三键 + 频谱带 + 进度线）
+        if (hasExpanded && expandProgress > 0.55f && expandedQueueIndex < playlist.size()) {
             drawExpandedText(canvas, expandProgress);
         }
 
@@ -685,12 +709,99 @@ public class LatticeWallView extends View {
             paint.setShader(vignette);
             canvas.drawRect(0, 0, w, h, paint);
             paint.setShader(null);
+            paint.setAlpha(255);
+        }
+
+        // 呼吸卡可见且无其他动画运转：接管帧链持续呼吸（静止后滚入呼吸卡时冷启动）
+        if (breathVisible && !frameRunning && !fullAnimActive()) {
+            startFrameLoop();
         }
     }
 
-    /** 展开卡文案与传输带：scrim + 传输三键 + 频谱带计算 + 歌名歌手（带上层）+ 进度线 */
+    /** 收集视口内卡实例（含 overscan 外扩 + 展开卡保活），填充 tilePool/drawnRects */
+    private void collectVisible(int w, int h) {
+        drawnCount = 0;
+        float pad = Math.max(w, h) * 0.35f;
+        float left = scrollX - pad, top = scrollY - pad;
+        float right = scrollX + w + pad, bottom = scrollY + h + pad;
+        float rp = regionPx();
+        float pitchPx = pitch();
+        int fromRX = (int) Math.floor(left / rp), toRX = (int) Math.floor((right - 1) / rp);
+        int fromRY = (int) Math.floor(top / rp), toRY = (int) Math.floor((bottom - 1) / rp);
+        boolean expandedCollected = false;
+        for (int ry = fromRY; ry <= toRY && drawnCount < MAX_DRAWN; ry++) {
+            for (int rx = fromRX; rx <= toRX && drawnCount < MAX_DRAWN; rx++) {
+                boolean isExpandRegion = hasExpanded && rx == expandedRegionX && ry == expandedRegionY;
+                int[] basePat = layout.patternAt(rx, ry);
+                int[] growPat = isExpandRegion
+                        ? layout.reflowAt(rx, ry, expandedLeaf) : null;
+                float t = isExpandRegion ? expandProgress : 0f;
+                for (int leaf = 0; leaf < CollageLayout.LEAVES && drawnCount < MAX_DRAWN; leaf++) {
+                    float bx = (rx * CollageLayout.REGION + basePat[leaf * 4]) * pitchPx;
+                    float by = (ry * CollageLayout.REGION + basePat[leaf * 4 + 1]) * pitchPx;
+                    float bw = basePat[leaf * 4 + 2] * pitchPx - gapPx;
+                    float bh = basePat[leaf * 4 + 3] * pitchPx - gapPx;
+                    if (growPat != null) {
+                        float gx = (rx * CollageLayout.REGION + growPat[leaf * 4]) * pitchPx;
+                        float gy = (ry * CollageLayout.REGION + growPat[leaf * 4 + 1]) * pitchPx;
+                        float gw = growPat[leaf * 4 + 2] * pitchPx - gapPx;
+                        float gh = growPat[leaf * 4 + 3] * pitchPx - gapPx;
+                        bx = lerp(bx, gx, t);
+                        by = lerp(by, gy, t);
+                        bw = lerp(bw, gw, t);
+                        bh = lerp(bh, gh, t);
+                    }
+                    Tile tile = obtainTile(drawnCount);
+                    tile.regionX = rx;
+                    tile.regionY = ry;
+                    tile.leaf = leaf;
+                    tile.queueIndex = layout.queueIndexOf(rx, ry, leaf);
+                    tile.x = bx;
+                    tile.y = by;
+                    tile.w = bw;
+                    tile.h = bh;
+                    drawnRects[drawnCount * 4] = bx;
+                    drawnRects[drawnCount * 4 + 1] = by;
+                    drawnRects[drawnCount * 4 + 2] = bw;
+                    drawnRects[drawnCount * 4 + 3] = bh;
+                    drawnCount++;
+                    if (isExpandRegion && leaf == expandedLeaf) expandedCollected = true;
+                }
+            }
+        }
+        if (hasExpanded && !expandedCollected && drawnCount < MAX_DRAWN) {
+            // 展开卡所在织块不在视口（相机飞行期）：单独保活
+            int[] grow = layout.reflowAt(expandedRegionX, expandedRegionY, expandedLeaf);
+            int[] base = layout.patternAt(expandedRegionX, expandedRegionY);
+            float t = expandProgress;
+            float bx = lerp((expandedRegionX * CollageLayout.REGION + base[expandedLeaf * 4]) * pitchPx,
+                    (expandedRegionX * CollageLayout.REGION + grow[expandedLeaf * 4]) * pitchPx, t);
+            float by = lerp((expandedRegionY * CollageLayout.REGION + base[expandedLeaf * 4 + 1]) * pitchPx,
+                    (expandedRegionY * CollageLayout.REGION + grow[expandedLeaf * 4 + 1]) * pitchPx, t);
+            float bw = lerp(base[expandedLeaf * 4 + 2] * pitchPx - gapPx,
+                    grow[expandedLeaf * 4 + 2] * pitchPx - gapPx, t);
+            float bh = lerp(base[expandedLeaf * 4 + 3] * pitchPx - gapPx,
+                    grow[expandedLeaf * 4 + 3] * pitchPx - gapPx, t);
+            Tile tile = obtainTile(drawnCount);
+            tile.regionX = expandedRegionX;
+            tile.regionY = expandedRegionY;
+            tile.leaf = expandedLeaf;
+            tile.queueIndex = expandedQueueIndex;
+            tile.x = bx;
+            tile.y = by;
+            tile.w = bw;
+            tile.h = bh;
+            drawnRects[drawnCount * 4] = bx;
+            drawnRects[drawnCount * 4 + 1] = by;
+            drawnRects[drawnCount * 4 + 2] = bw;
+            drawnRects[drawnCount * 4 + 3] = bh;
+            drawnCount++;
+        }
+    }
+
+    /** 展开卡文案层：scrim + 传输三键 + 频谱带计算 + 进度线（文字层为页面侧 View） */
     private void drawExpandedText(Canvas canvas, float t) {
-        int idx = indexOfDrawn(expanded);
+        int idx = indexOfExpandedDrawn();
         if (idx < 0) return;
         float x = drawnRects[idx * 4], y = drawnRects[idx * 4 + 1];
         float cw = drawnRects[idx * 4 + 2], ch = drawnRects[idx * 4 + 3];
@@ -706,6 +817,7 @@ public class LatticeWallView extends View {
         paint.setShader(scrimShader);
         canvas.drawRect(x, top, x + cw, bottom, paint);
         paint.setShader(null);
+        paint.setAlpha(255);
 
         // 中央传输三键（展开稳后淡入）
         if (t > 0.9f) {
@@ -727,22 +839,23 @@ public class LatticeWallView extends View {
                 paint.setColor(progressLineTint());
                 canvas.drawRect(x, y, x + cw * frac, lineBottom, paint);
             }
+            paint.setAlpha(255);
         }
     }
 
-    /** 进度线颜色：频谱 tint 主色（双色跟随封面）；无 tint 回落频谱默认色（夜首青，昼金色系） */
+    /** 进度线颜色：频谱 tint 主色（双色跟随封面）；无 tint 回落频谱默认色（夜青日金） */
     private int progressLineTint() {
         if (tintTop != 0) return tintTop;
-        // 默认态与 SpectrumView 竖条静态色同源：昼=金色渐变近低端、夜=首色
         return night ? 0xFF00E5CC : 0xFFF2C14E;
     }
 
     /**
-     * 展开卡凸出感三件套：全向递减柔影（整体下移模拟顶光）+ 卡面对角渐变（左下50%黑→右上透明）+ 顶棱内微高光，强度随展开进度渐进。
+     * 展开卡凸出感三件套：全向递减柔影（整体下移模拟顶光）+ 卡面对角渐变
+     * （左下70%黑→右上透明）+ 顶棱内微高光，强度随展开进度渐进。
      * 纯矩形分层环（EVEN_ODD）+ 线性渐变，无 shadowLayer，硬件加速安全；零分配。
      */
     private void drawLiftShadow(Canvas canvas, float t) {
-        int idx = indexOfDrawn(expanded);
+        int idx = indexOfExpandedDrawn();
         if (idx < 0) return;
         float x = drawnRects[idx * 4], y = drawnRects[idx * 4 + 1];
         float cw = drawnRects[idx * 4 + 2], ch = drawnRects[idx * 4 + 3];
@@ -762,7 +875,7 @@ public class LatticeWallView extends View {
             paint.setColor(Math.round(baseA * fr * fr * 255f) << 24);
             canvas.drawPath(liftPath, paint);
         }
-        // 卡面对角渐变：左下角 50% 黑 → 右上角透明（立体感；随展开淡入）
+        // 卡面对角渐变：左下角 70% 黑 → 右上角透明（立体感；随展开淡入）
         if (diagShader == null || x != diagRectX || y != diagRectY
                 || cw != diagRectW || ch != diagRectH) {
             diagRectX = x; diagRectY = y; diagRectW = cw; diagRectH = ch;
@@ -778,25 +891,39 @@ public class LatticeWallView extends View {
         float hh = Math.max(1.2f, ch * 0.0025f);
         paint.setColor((Math.round(0x17 * t) << 24) | 0xFFFFFF);
         canvas.drawRect(x, y, x + cw, y + hh, paint);
+        paint.setAlpha(255);
     }
 
     /** 展开进度（1=展开到位；文字层淡入用） */
-    public float getExpandProgress() { return expanded != null ? expandProgress : 0f; }
+    public float getExpandProgress() { return hasExpanded ? expandProgress : 0f; }
 
     /** 展开卡对应队列索引（-1=无） */
-    public int getExpandedQueueIndex() { return expandedQueueIndex; }
+    public int getExpandedQueueIndex() { return hasExpanded ? expandedQueueIndex : -1; }
+
+    /** 展开卡在绘制集中的下标（-1=不在） */
+    private int indexOfExpandedDrawn() {
+        if (!hasExpanded) return -1;
+        for (int i = 0; i < drawnCount; i++) {
+            if (tilePool.get(i).regionX == expandedRegionX
+                    && tilePool.get(i).regionY == expandedRegionY
+                    && tilePool.get(i).leaf == expandedLeaf) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
     /** 展开卡矩形（屏幕坐标 l,t,r,b，复用缓存；无展开返回 null。页面立即消费，勿持有） */
     @Nullable
     public float[] getExpandedCardRect() {
-        if (expanded == null) return null;
-        int idx = indexOfDrawn(expanded);
+        if (!hasExpanded) return null;
+        int idx = indexOfExpandedDrawn();
         if (idx < 0) return null;
         if (cardRectCache == null) cardRectCache = new float[4];
-        cardRectCache[0] = worldToScreenX(drawnRects[idx * 4]);
-        cardRectCache[1] = worldToScreenY(drawnRects[idx * 4 + 1]);
-        cardRectCache[2] = worldToScreenX(drawnRects[idx * 4] + drawnRects[idx * 4 + 2]);
-        cardRectCache[3] = worldToScreenY(drawnRects[idx * 4 + 1] + drawnRects[idx * 4 + 3]);
+        cardRectCache[0] = drawnRects[idx * 4] - scrollX;
+        cardRectCache[1] = drawnRects[idx * 4 + 1] - scrollY;
+        cardRectCache[2] = drawnRects[idx * 4] + drawnRects[idx * 4 + 2] - scrollX;
+        cardRectCache[3] = drawnRects[idx * 4 + 1] + drawnRects[idx * 4 + 3] - scrollY;
         return cardRectCache;
     }
 
@@ -809,8 +936,8 @@ public class LatticeWallView extends View {
      */
     private void updateSpectrumBand(float t, float x, float y, float cw, float ch) {
         // 卡矩形（屏幕坐标）变化检测：文字层随卡走（环类模式带恒 null 但文字仍要跟）
-        float left = worldToScreenX(x), topS = worldToScreenY(y);
-        float right = worldToScreenX(x + cw), bottomS = worldToScreenY(y + ch);
+        float left = x - scrollX, topS = y - scrollY;
+        float right = left + cw, bottomS = topS + ch;
         boolean cardChanged = lastCardRect == null
                 || Math.abs(lastCardRect[0] - left) > 0.5f || Math.abs(lastCardRect[1] - topS) > 0.5f
                 || Math.abs(lastCardRect[2] - right) > 0.5f || Math.abs(lastCardRect[3] - bottomS) > 0.5f;
@@ -825,14 +952,13 @@ public class LatticeWallView extends View {
                 && !com.jingxin.jingxinmusic.view.SpectrumView.isOverlayStyle(
                         com.jingxin.jingxinmusic.view.SpectrumView.getCurrentStyleStatic())) {
             if (bandScratch == null) bandScratch = new float[4];
-            // 频谱贴卡底无缝：底=卡底，顶=底-带高（12%卡高，世界系恒定随scale缩放）
-            float bBottomW = y + ch;
+            // 频谱贴卡底无缝：底=卡底，顶=底-带高（12%卡高）
+            float bBottom = y + ch;
             float bandH = ch * 0.12f;
-            float bTopW = bBottomW - bandH;
-            float bTop = worldToScreenY(bTopW);
-            float bBottom = worldToScreenY(bBottomW);
-            bandScratch[0] = left; bandScratch[1] = bTop;
-            bandScratch[2] = right; bandScratch[3] = bBottom;
+            bandScratch[0] = left;
+            bandScratch[1] = bBottom - bandH - scrollY;
+            bandScratch[2] = right;
+            bandScratch[3] = bBottom - scrollY;
             next = bandScratch;
         }
         boolean bandChanged = !sameRect(next, spectrumBand);
@@ -851,9 +977,7 @@ public class LatticeWallView extends View {
                 && Math.abs(a[2] - b[2]) < 0.5f && Math.abs(a[3] - b[3]) < 0.5f;
     }
 
-    /**
-     * 取频谱带矩形（屏幕坐标 l,t,r,b）；无带（未展开/环类/无数据）返回 null。
-     */
+    /** 取频谱带矩形（屏幕坐标 l,t,r,b）；无带（未展开/环类/无数据）返回 null */
     @Nullable
     public float[] getSpectrumBand() {
         return spectrumBand;
@@ -906,21 +1030,12 @@ public class LatticeWallView extends View {
                 cx3 + gw * 0.85f + g * 0.12f, cy + g / 2f, glyphPaint);
     }
 
-    private int indexOfDrawn(@Nullable LatticeGeometry.Instance target) {
-        if (target == null) return -1;
-        int n = Math.min(drawn.size(), MAX_DRAWN);
-        for (int i = 0; i < n; i++) {
-            if (sameInstance(drawn.get(i), target)) return i;
-        }
-        return -1;
-    }
-
     private void drawBadge(Canvas canvas, int queueIndex, float x, float y) {
         String text = badgeOf(queueIndex);
         badgePaint.setColor(0xFFFFFFFF);
-        badgePaint.setTextSize(Math.max(11f, cellSize * 0.16f));
+        badgePaint.setTextSize(Math.max(11f, unitPx * 0.16f));
         badgePaint.getTextBounds(text, 0, text.length(), badgeRect);
-        float pad = cellSize * 0.05f;
+        float pad = unitPx * 0.05f;
         paint.setColor(0x8C000000);
         canvas.drawRect(x, y, x + badgeRect.width() + pad * 2, y + badgeRect.height() + pad * 2, paint);
         canvas.drawText(text, x + pad, y + pad + badgeRect.height(), badgePaint);
@@ -944,7 +1059,7 @@ public class LatticeWallView extends View {
     }
 
     private int placeholderColor(int queueIndex) {
-        float[] hsv = {(queueIndex * 47) % 360, 0.32f, night ? 0.14f : 0.22f};
+        float[] hsv = {(queueIndex * 53) % 360, 0.32f, night ? 0.14f : 0.22f};
         return Color.HSVToColor(hsv);
     }
 
@@ -961,25 +1076,22 @@ public class LatticeWallView extends View {
         }
     }
 
-    private boolean sameBlock(LatticeGeometry.Instance a, LatticeGeometry.Instance b) {
-        if (cell == null) return false;
-        return LatticeGeometry.columnOf(a, cell) == LatticeGeometry.columnOf(b, cell)
-                && LatticeGeometry.rowOf(a, cell) == LatticeGeometry.rowOf(b, cell);
-    }
-
-    private boolean containsInstance(ArrayList<LatticeGeometry.Instance> list, LatticeGeometry.Instance target) {
-        for (LatticeGeometry.Instance in : list) {
-            if (sameInstance(in, target)) return true;
-        }
-        return false;
-    }
-
     // ===== 触摸 =====
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         boolean handled = detector.onTouchEvent(event);
         return handled || super.onTouchEvent(event);
+    }
+
+    @Override
+    protected void onVisibilityChanged(View changedView, int visibility) {
+        super.onVisibilityChanged(changedView, visibility);
+        // 呼吸是永久动画：页不可见时必须停帧链，防后台空转
+        if (visibility != VISIBLE) {
+            frameRunning = false;
+            choreographer.removeFrameCallback(frameCallback);
+        }
     }
 
     @Override
