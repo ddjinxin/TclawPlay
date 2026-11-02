@@ -55,6 +55,11 @@ public final class LatticeGeometry {
         public float centerY() { return y + height / 2f; }
     }
 
+    /** 地板除（minSdk 21 无 Math.floorDiv，其 API 24 起；除数恒正） */
+    private static int floorDiv(int a, int b) {
+        return (a >= 0 || a % b == 0) ? a / b : a / b - 1;
+    }
+
     /** 建 cell 几何（pitch = cellSize + gap） */
     public static Cell cellOf(int totalEntries, float cellSize, float gap) {
         float pitch = cellSize + gap;
@@ -76,8 +81,8 @@ public final class LatticeGeometry {
     private static Instance build(Cell cell, int totalEntries,
                                   int absoluteColumn, int absoluteRow, int blockSlot,
                                   float cellSize, float gap) {
-        int repeatX = Math.floorDiv(absoluteColumn, cell.blocksPerRow);
-        int repeatY = Math.floorDiv(absoluteRow, cell.blockRows);
+        int repeatX = floorDiv(absoluteColumn, cell.blocksPerRow);
+        int repeatY = floorDiv(absoluteRow, cell.blockRows);
         int localColumn = absoluteColumn - repeatX * cell.blocksPerRow;
         int localRow = absoluteRow - repeatY * cell.blockRows;
         int cellSlot = (localRow * cell.blocksPerRow + localColumn)

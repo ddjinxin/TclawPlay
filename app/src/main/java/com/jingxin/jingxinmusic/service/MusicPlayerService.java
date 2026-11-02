@@ -152,6 +152,8 @@ public class MusicPlayerService extends Service {
     // 瞬态错误（IO/解码器初始化类）重试一次，避免偶发失败被误判为格式不支持
     private boolean transientRetryUsed = false;
     private static final long TRACK_RECHECK_DELAY = 500; // onTracksChanged 误判二次确认延时ms
+    private static final long TRANSIENT_RETRY_DELAY_MS = 300; // 瞬态错误延时重试（等旧MediaCodec/AudioTrack实例异步释放）
+    private static final long FALLBACK_RETRY_DELAY_MS = 500;  // MediaPlayer兜底初始化失败延时重试
 
     // B站异步获取音频流URL期间设为true，阻止自动切歌避免竞态
     private volatile boolean biliFetching = false;
@@ -357,8 +359,20 @@ public class MusicPlayerService extends Service {
                 // 车机常见场景：解码器被其他应用占用、上一次异步释放未完成、网络抖动
                 if (isTransientError(code) && !transientRetryUsed) {
                     transientRetryUsed = true;
-                    Log.w(TAG, "瞬态播放错误，重试一次");
-                    retryCurrentPlayback();
+                    // 延时重试：车机快速切歌时旧MediaCodec/AudioTrack实例异步释放未完，
+                    // 立即重试会再次初始化失败（曾致误报"格式不支持"）；延时期间切歌则放弃
+                    final Song errSong = getCurrentSong();
+                    final int errPos = currentIndex;
+                    Log.w(TAG, "瞬态播放错误，延时" + TRANSIENT_RETRY_DELAY_MS + "ms重试");
+                    handler.postDelayed(() -> {
+                        Song cur = getCurrentSong();
+                        if (currentIndex != errPos || cur == null || errSong == null
+                                || (cur.filePath == null ? errSong.filePath != null
+                                : !cur.filePath.equals(errSong.filePath))) {
+                            return; // 已切歌，新播放自行接管
+                        }
+                        retryCurrentPlayback();
+                    }, TRANSIENT_RETRY_DELAY_MS);
                     return;
                 }
                 transientRetryUsed = false;
@@ -1744,66 +1758,101 @@ public class MusicPlayerService extends Service {
         }
 
         new Thread(() -> {
-            final android.media.MediaPlayer mp = new android.media.MediaPlayer();
-            try {
-                // 优先使用文件路径（MediaPlayer 通过路径可直接访问文件，比 content URI 更兼容）
-                // content URI 在某些设备/模拟器上可能无法正确传递格式信息
-                String dataSource = song.filePath != null ? song.filePath : playUri;
-                if (dataSource.startsWith("content://")) {
-                    mp.setDataSource(this, Uri.parse(dataSource));
-                } else {
-                    mp.setDataSource(dataSource);
-                }
-                mp.setOnCompletionListener(m -> handler.post(() -> playNext()));
-                mp.setOnErrorListener((m, what, extra) -> {
-                    Log.e(TAG, "MediaPlayer兜底播放也失败: what=" + what + " extra=" + extra);
-                    releaseFallbackPlayer();
-                    isFallbackMode = false;
-                    showToast("当前设备不支持播放此音频格式");
-                    handler.post(() -> handlePlaybackError());
-                    return true;
-                });
-                mp.prepare();
-
-                // 恢复播放进度
-                if (pendingSeekPosition > 0) {
-                    long seekPos = pendingSeekPosition;
-                    pendingSeekPosition = 0;
-                    mp.seekTo((int) seekPos);
-                }
-
-                // 创建成功后才赋给成员变量（失败路径由局部引用直接释放，杜绝泄漏）
-                fallbackPlayer = mp;
-                // MediaPlayer 兜底 session：预设走系统效果器（无软件 EQ，车机此场景本来就罕见）
+            android.media.MediaPlayer mp = null;
+            // 兜底初始化失败多为瞬态：车机快速切歌时旧 MediaCodec/AudioTrack 实例异步释放未完，
+            // 新建即失败（曾误报"格式不支持"、切几次又好的病根）；延时重试一次
+            for (int attempt = 1; attempt <= 2; attempt++) {
                 try {
-                    if (audioEffectManager != null) {
-                        audioEffectManager.setFallbackMode(true);
-                        audioEffectManager.attachAsync(mp.getAudioSessionId());
+                    if (attempt > 1) {
+                        if (isFallbackSuperseded(song, position)) { // 重试间隙被切歌
+                            return;
+                        }
+                        Log.w(TAG, "MediaPlayer兜底初始化失败，延时" + FALLBACK_RETRY_DELAY_MS + "ms重试");
+                        Thread.sleep(FALLBACK_RETRY_DELAY_MS);
                     }
-                } catch (Exception ignored) {}
-                mp.start();
-
-                // 播放成功，重置连续错误计数和瞬态重试标记
-                consecutiveErrors = 0;
-                transientRetryUsed = false;
-
-                logPlayHistory(song);
-
-                // 同步播放状态到UI（fallback模式下没有ExoPlayer回调，需手动发送）
-                handler.post(() -> {
-                    sendPlayStateBroadcast();
-                    updateNotification();
-                    startPlaybackStateUpdater();
-                    sendSongChangedBroadcast(song, position);
-                });
-            } catch (Exception e) {
-                Log.e(TAG, "MediaPlayer兜底播放初始化失败: " + e.getMessage());
-                try { mp.release(); } catch (Exception ignored) {}
-                isFallbackMode = false;
-                showToast("当前设备不支持播放此音频格式");
-                handler.post(() -> handlePlaybackError());
+                    mp = new android.media.MediaPlayer();
+                    // 优先使用文件路径（MediaPlayer 通过路径可直接访问文件，比 content URI 更兼容）
+                    // content URI 在某些设备/模拟器上可能无法正确传递格式信息
+                    String dataSource = song.filePath != null ? song.filePath : playUri;
+                    if (dataSource.startsWith("content://")) {
+                        mp.setDataSource(this, Uri.parse(dataSource));
+                    } else {
+                        mp.setDataSource(dataSource);
+                    }
+                    mp.setOnCompletionListener(m -> handler.post(() -> playNext()));
+                    mp.setOnErrorListener((m, what, extra) -> {
+                        Log.e(TAG, "MediaPlayer兜底播放也失败: what=" + what + " extra=" + extra);
+                        releaseFallbackPlayer();
+                        isFallbackMode = false;
+                        showToast("播放失败，请重试");
+                        handler.post(() -> handlePlaybackError());
+                        return true;
+                    });
+                    mp.prepare();
+                    break; // 初始化成功
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    if (mp != null) { try { mp.release(); } catch (Exception ignored) {} }
+                    return;
+                } catch (Exception e) {
+                    Log.e(TAG, "MediaPlayer兜底播放初始化失败(第" + attempt + "次): " + e.getMessage());
+                    if (mp != null) { try { mp.release(); } catch (Exception ignored) {} mp = null; }
+                }
             }
+            if (mp == null) { // 两次都失败
+                isFallbackMode = false;
+                showToast("播放失败，请重试");
+                handler.post(() -> handlePlaybackError());
+                return;
+            }
+            // 重试间隙被切歌：新播放已接管（isFallbackMode 由新路径管理），放弃本次
+            if (isFallbackSuperseded(song, position)) {
+                try { mp.release(); } catch (Exception ignored) {}
+                return;
+            }
+
+            // 恢复播放进度
+            if (pendingSeekPosition > 0) {
+                long seekPos = pendingSeekPosition;
+                pendingSeekPosition = 0;
+                mp.seekTo((int) seekPos);
+            }
+
+            // 创建成功后才赋给成员变量（失败路径由局部引用直接释放，杜绝泄漏）
+            fallbackPlayer = mp;
+            // MediaPlayer 兜底 session：预设走系统效果器（无软件 EQ，车机此场景本来就罕见）
+            try {
+                if (audioEffectManager != null) {
+                    audioEffectManager.setFallbackMode(true);
+                    audioEffectManager.attachAsync(mp.getAudioSessionId());
+                }
+            } catch (Exception ignored) {}
+            mp.start();
+
+            // 播放成功，重置连续错误计数和瞬态重试标记
+            consecutiveErrors = 0;
+            transientRetryUsed = false;
+
+            logPlayHistory(song);
+
+            // 同步播放状态到UI（fallback模式下没有ExoPlayer回调，需手动发送）
+            handler.post(() -> {
+                sendPlayStateBroadcast();
+                updateNotification();
+                startPlaybackStateUpdater();
+                sendSongChangedBroadcast(song, position);
+            });
         }, "FallbackInit").start();
+    }
+
+    /** 兜底异步流程是否已被切歌取代（快速切歌时放弃过期初始化，避免双声/错位） */
+    private boolean isFallbackSuperseded(Song song, int position) {
+        if (currentIndex != position) return true;
+        Song cur = getCurrentSong();
+        if (cur == song) return false;
+        if (cur == null || song == null) return true;
+        if (song.filePath != null && song.filePath.equals(cur.filePath)) return false;
+        return song.contentUri == null || !song.contentUri.equals(cur.contentUri);
     }
 
     /**

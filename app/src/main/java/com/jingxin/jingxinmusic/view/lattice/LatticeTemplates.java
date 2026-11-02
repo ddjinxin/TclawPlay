@@ -113,7 +113,10 @@ public final class LatticeTemplates {
     /** 块朝向索引：模板线性步进保相邻不重样，反射哈希打散周期（0..15） */
     public static int orientationOf(int blockColumn, int blockRow) {
         int template = ((blockColumn + blockRow * 2) % TEMPLATE_COUNT + TEMPLATE_COUNT) % TEMPLATE_COUNT;
-        return template * REFLECTION_COUNT + mixBlockCoords(blockColumn, blockRow) % REFLECTION_COUNT;
+        // TS 原版 h>>>0 得无符号数，Java 无此语义：负哈希 % 4 会得 -1..-3 的反射号，
+        // 大歌单 cell（局部列达 4/8/10）曾据此越界 ORIENTED[-1]，双 % 归位与 template 行同防御
+        int reflection = mixBlockCoords(blockColumn, blockRow) % REFLECTION_COUNT;
+        return template * REFLECTION_COUNT + (reflection + REFLECTION_COUNT) % REFLECTION_COUNT;
     }
 
     /** 取某块的 12 槽位模板（blockColumn/blockRow 可为任意整数，含负） */
