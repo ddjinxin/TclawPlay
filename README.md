@@ -40,8 +40,6 @@ AIGC:
 folia 的 classic/pendolo/cadenza/tilt/partita/fume/diorama）为
 [FOLIA](https://github.com/chthollyphile/folia-major)（作者 chthollyphile）
 衍生实现，分发时须保留本声明及其版权信息。
-第 9 播放风格「拼贴」（`view/collage/`、`stage/CollagePageV2`）为自研实现，
-不包含上述第三方衍生代码。
 频谱部分样式（柱状/酷狗/AI语音/波形柱/扩散圆环/波浪圆环）移植自
 [SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid)（作者
 michael007js，无明确许可声明，特此注明出处并致谢）。
@@ -794,8 +792,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 [SpectrumForAndroid](https://github.com/michael007js/SpectrumForAndroid)（作者 michael007js，
 无明确许可声明，仅作技术学习用途移植，特此注明出处并致谢）。竖条/圆点/波浪线/网易圆环为自实现。
 
-**拼贴播放风格**为自研实现（`view/collage/`、`stage/CollagePageV2`），
-不包含第三方衍生代码。**歌词动效体系**移植自开源项目
+**歌词动效体系**移植自开源项目
 [FOLIA](https://github.com/chthollyphile/folia-major)（AGPL-3.0）：
 - 歌词动效：`view/GlowLyricView`、`PendoloLyricView`、`PendoloClockworkView`、
   `CadenzaLyricView`、`TiltLyricView`、`PartitaLyricView`、`FumeLyricView`、
@@ -1064,9 +1061,7 @@ Everyone is free to use, modify and distribute this application, provided that a
 distribution or network service makes the corresponding source code available under
 AGPL-3.0 as well.
 
-**Derivation notice**: the **Collage playback style** (`view/collage/`,
-`stage/CollagePageV2`) is an original implementation free of third-party derived
-code. Seven lyric effects (Glow / Pendolo / Cadenza / Tilt /
+**Derivation notice**: seven lyric effects (Glow / Pendolo / Cadenza / Tilt /
 Partita / Fume / Diorama, from folia's classic / pendolo / cadenza / tilt / partita /
 fume / diorama) are derived from [FOLIA](https://github.com/chthollyphile/folia-major)
 (by chthollyphile); distributions must retain this notice and its copyright information.
@@ -1509,8 +1504,7 @@ plus the band normalization algorithm) are ported from the open-source project
 which carries no explicit license notice; ported for technical learning purposes with
 attribution and thanks). Bar / Dot / Wave / NetEase Ring styles are original implementations.
 
-The **Collage playback style** (`view/collage/`, `stage/CollagePageV2`) is an
-original implementation free of third-party derived code. The **lyric effect suite**
+The **lyric effect suite**
 is ported from
 the open-source project [FOLIA](https://github.com/chthollyphile/folia-major) (AGPL-3.0):
 - Lyric effects: `view/GlowLyricView`, `PendoloLyricView`, `PendoloClockworkView`,
