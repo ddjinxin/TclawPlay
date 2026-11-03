@@ -48,13 +48,24 @@ michael007js，无明确许可声明，特此注明出处并致谢）。
 
 ---
 
-## 📢 最新版本 (v1.0.9.3)
+## 📢 最新版本 (v1.0.9.4)
+
+### v1.0.9.4 (2026-11)
+#### 修复
+
+- **本地音乐首播偶发无声** — 瞬态解码失败后的自动重试存在空转缺陷（ExoPlayer 致命错误后播放队列已清空，仅重新 prepare 无效），重试改为重新装配 MediaItem；首播 FLAC 等"第一次放不出、切上下曲才好"的问题根治
+- **拼贴页切歌后歌名不刷新** — 展开卡文字层刷新依赖卡片矩形变化的副作用，几何恰好重合时回调不触发导致标题残留上一首；改为切歌后强制同步 + 内容先行刷新
+
+#### 优化
+
+- **拼贴墙呼吸动效调整** — 上一曲卡片不再浮动；当前曲与下一曲卡片动效加强约 1.5 倍，两卡错相 1/2 周期交替波浪
+- **顶栏右五键视觉优化（触控区不变）** — 竖屏右五键框形改严格正方、图标缩小 30%；横屏图标缩小 15%；点击热区均保持原尺寸
+- **拼贴引擎换自研「织块」** — 像素空间连续缩放 + 递归尺切 + 运行时锚定剥离，无模板表/离线让位表依赖，大歌单不再越界崩溃
 
 ### v1.0.9.3 (2026-11)
 #### 新功能
 
-- **第 9 播放风格「拼贴」** — 无限封面墙：封面无尽延展的拼贴世界，拖拽惯性浏览；点任意卡展开 6×6 大卡并切歌，大卡集成传输三键/卡顶进度线/卡底频谱/歌名歌手；长按呼出顶栏，点大卡直达歌词动效页
-- **展开卡流光描边** — 播放时彗星光沿大卡边框流转（9 秒一圈），暂停转为呼吸灯；颜色与频谱/进度线同源，跟随封面取色
+- **第 9 播放风格「拼贴」** — 无限封面墙：封面无尽延展的拼贴世界，拖拽惯性浏览；点任意卡展开 6×6 大卡并切歌，大卡集成传输三键/卡顶进度线/卡底频谱/歌名歌手；长按呼出顶栏，点大卡直达歌词动效页（v1.0.9.4 起引擎已换自研「织块」，边框流光已移除，换展开卡凸出感三件套）
 - **装扮键风格选择弹窗** — 顶栏装扮键由循环切换改为弹出风格列表（经典/沉浸/唱机/轮播/拼贴，当前风格高亮），与音效/动效弹窗同格式
 - **前景配色跟随封面** — 播放页与沉浸页前景配色统一封面取色，新增高亮色跟随封面开关
 - **控制条图标全组升级** — 玻璃胶囊播放键图标放大 30%，其余控制键图标同步换装
@@ -304,13 +315,24 @@ michael007js，无明确许可声明，特此注明出处并致谢）。
 
 <!--EN-->
 
-## 📢 Latest Version (v1.0.9.3)
+## 📢 Latest Version (v1.0.9.4)
+
+### v1.0.9.4 (2026-11)
+#### Fixes
+
+- **First-play of local music occasionally silent** — the transient-error auto-retry was a no-op (after a fatal ExoPlayer error the internal queue is cleared, so re-prepare alone does nothing); retry now re-assembles the MediaItem, curing "first play won't start, prev/next then plays" for FLAC and other formats
+- **Collage page: title stuck on previous song after switching** — the expanded-card text refresh relied on a card-rect-change side effect; when geometry coincided the callback never fired. Now force-synced on song change + content-first refresh
+
+#### Improvements
+
+- **Breathing animation retuned** — previous-track tiles no longer float; current & next cards strengthened ~1.5×, half-period offset alternate wave
+- **Top-bar right five buttons visual (touch targets unchanged)** — portrait buttons now strictly square with icons 30% smaller; landscape icons 15% smaller; hit areas unchanged
+- **Collage engine replaced by self-developed "Weave"** — pixel-space continuous scaling + recursive split + runtime anchored peel-away, no template/offline tables, no more crashes on large playlists
 
 ### v1.0.9.3 (2026-11)
 #### New Features
 
-- **Ninth player style "Lattice"** — an infinite cover wall: an endless mosaic world of covers with drag/fling browsing; tap any tile to expand it into a 6×6 card and switch songs — the expanded card integrates transport keys, top progress line, bottom spectrum band and title/artist; long-press anywhere for the top bar, tap the big cover to jump into the lyric-effect page
-- **Expanded-card border light** — a comet streak travels along the expanded card's border while playing (9 s per lap) and turns into a breathing glow when paused; color shared with spectrum/progress line, following the album cover
+- **Ninth player style "Lattice"** — an infinite cover wall: an endless mosaic world of covers with drag/fling browsing; tap any tile to expand it into a 6×6 card and switch songs — the expanded card integrates transport keys, top progress line, bottom spectrum band and title/artist; long-press anywhere for the top bar, tap the big cover to jump into the lyric-effect page (since v1.0.9.4 the engine is the self-developed "Weave"; the border comet light was removed in favor of the lifted-card effect trio)
 - **Style picker popup** — the outfit button now opens a style list (Classic / Immersive / Turntable / Carousel / Lattice, current highlighted) instead of cycling, matching the effect/lyric-effect popups
 - **Foreground colors follow album cover** — player and immersive pages tint foreground from the cover; new highlight-follows-cover toggle
 - **Control bar icon overhaul** — glass-capsule play button icon enlarged 30%, all other control icons restyled
@@ -1055,13 +1077,24 @@ Wave Ring) are ported from
 
 ---
 
-## 📢 Latest Version (v1.0.9.3)
+## 📢 Latest Version (v1.0.9.4)
+
+### v1.0.9.4 (2026-11)
+#### Fixes
+
+- **First-play of local music occasionally silent** — the transient-error auto-retry was a no-op (after a fatal ExoPlayer error the internal queue is cleared, so re-prepare alone does nothing); retry now re-assembles the MediaItem, curing "first play won't start, prev/next then plays" for FLAC and other formats
+- **Collage page: title stuck on previous song after switching** — the expanded-card text refresh relied on a card-rect-change side effect; when geometry coincided the callback never fired. Now force-synced on song change + content-first refresh
+
+#### Improvements
+
+- **Breathing animation retuned** — previous-track tiles no longer float; current & next cards strengthened ~1.5×, half-period offset alternate wave
+- **Top-bar right five buttons visual (touch targets unchanged)** — portrait buttons now strictly square with icons 30% smaller; landscape icons 15% smaller; hit areas unchanged
+- **Collage engine replaced by self-developed "Weave"** — pixel-space continuous scaling + recursive split + runtime anchored peel-away, no template/offline tables, no more crashes on large playlists
 
 ### v1.0.9.3 (2026-11)
 #### New Features
 
-- **Ninth player style "Lattice"** — an infinite cover wall: an endless mosaic world of covers with drag/fling browsing; tap any tile to expand it into a 6×6 card and switch songs — the expanded card integrates transport keys, top progress line, bottom spectrum band and title/artist; long-press anywhere for the top bar, tap the big cover to jump into the lyric-effect page
-- **Expanded-card border light** — a comet streak travels along the expanded card's border while playing (9 s per lap) and turns into a breathing glow when paused; color shared with spectrum/progress line, following the album cover
+- **Ninth player style "Lattice"** — an infinite cover wall: an endless mosaic world of covers with drag/fling browsing; tap any tile to expand it into a 6×6 card and switch songs — the expanded card integrates transport keys, top progress line, bottom spectrum band and title/artist; long-press anywhere for the top bar, tap the big cover to jump into the lyric-effect page (since v1.0.9.4 the engine is the self-developed "Weave"; the border comet light was removed in favor of the lifted-card effect trio)
 - **Style picker popup** — the outfit button now opens a style list (Classic / Immersive / Turntable / Carousel / Lattice, current highlighted) instead of cycling, matching the effect/lyric-effect popups
 - **Foreground colors follow album cover** — player and immersive pages tint foreground from the cover; new highlight-follows-cover toggle
 - **Control bar icon overhaul** — glass-capsule play button icon enlarged 30%, all other control icons restyled
