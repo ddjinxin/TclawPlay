@@ -437,24 +437,25 @@ public class CollagePageV2 extends StandardPageBase {
         if (cardTextLayer == null || active == null) return;
         float[] r = active.getExpandedCardRect();
         float t = active.getExpandProgress();
-        if (r == null || t <= 0.55f) {
-            cardTextLayer.setVisibility(View.GONE);
-            return;
-        }
-        float cardX = r[0], cardY = r[1];
-        float cardW = r[2] - r[0], cardH = r[3] - r[1];
-        // 内容（去重，避免无关帧触发 TextView 重排版）
+        // 内容先行刷新（墙在切歌后已强制同步，此处把歌名/歌手按新队列索引写入，
+        // 即使此刻展开卡还没进绘制集、矩形为 null，也先存对新字防残留旧歌名）
         int qi = active.getExpandedQueueIndex();
-        // 进度线与频谱同色：tint 变化注入墙（无 tint 传 0 回落默认色）
-        if (active == wall || active == wallL) {
-            active.setSpectrumTint(tintTop, tintBottom);
-        }
         if (lastPlaylist != null && qi >= 0 && qi < lastPlaylist.size()) {
             Song s = lastPlaylist.get(qi);
             String title = s.title != null ? s.title : "";
             String artist = s.artist != null ? s.artist : "";
             if (!title.equals(lastTitleSet)) { cardTitleTv.setText(title); lastTitleSet = title; }
             if (!artist.equals(lastArtistSet)) { cardArtistTv.setText(artist); lastArtistSet = artist; }
+        }
+        if (r == null || t <= 0.55f) {
+            cardTextLayer.setVisibility(View.GONE);
+            return;
+        }
+        float cardX = r[0], cardY = r[1];
+        float cardW = r[2] - r[0], cardH = r[3] - r[1];
+        // 进度线与频谱同色：tint 变化注入墙（无 tint 传 0 回落默认色）
+        if (active == wall || active == wallL) {
+            active.setSpectrumTint(tintTop, tintBottom);
         }
         // 字号/颜色（歌名=卡宽0.06）
         float titleSize = Math.max(14f, Math.min(30f, cardW * 0.06f));

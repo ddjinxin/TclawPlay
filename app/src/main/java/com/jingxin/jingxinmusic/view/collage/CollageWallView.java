@@ -120,10 +120,10 @@ public class CollageWallView extends View {
     // ===== 帧链 =====
     // ===== 呼吸动效（当前曲/上一曲/下一曲副本在视野内时上下浮动微缩，科幻悬浮感）=====
     private static final float BREATH_PERIOD_MS = 2400f;
-    private static final float BREATH_LIFT_UNIT = 0.022f; // 上浮幅度（×unit）
-    private static final float BREATH_SHRINK = 0.015f;    // 峰值收缩幅度
+    private static final float BREATH_LIFT_UNIT = 0.034f; // 上浮幅度（×unit，加强）
+    private static final float BREATH_SHRINK = 0.023f;    // 峰值收缩幅度（加强）
     /** 三角色队列索引（切歌时重算）；相位按角色错开 → 波浪传递感 */
-    private int roleCurrent = -1, rolePrev = -1, roleNext = -1;
+    private int roleCurrent = -1, roleNext = -1;
     /** 本帧是否有呼吸卡可见（帧循环维持依据）与呼吸卡包围盒（内容坐标，脏区重绘用） */
     private boolean breathVisible = false;
     private final float[] breathDirty = new float[4];
@@ -344,9 +344,14 @@ public class CollageWallView extends View {
             // 首次进入：相机瞬移居中当前曲（无飞行，防"漂移"感），让位动画播放
             centerOnCurrentInstant();
             entered = true;
+            notifyExpandedContentChanged();
         } else if (indexChanged || !hasExpanded) {
             // 切歌：新当前曲飞入并展开
             focusCurrentAnimated();
+            // 强制刷新卡内内容（歌名/歌手）：展开卡内容随队列索引走，
+            // 若新卡几何恰与旧卡重合（中心不移动、cardChanged/bandChanged 均为假），
+            // 几何驱动回调不会触发，必须显式补一次，否则歌名残留上一首。
+            notifyExpandedContentChanged();
         } else if (expandedQueueIndex < playlist.size()) {
             // 同曲数据刷新：展开位可能挪位（队列长度变化重排），保持对位
             int[] near = layout.nearestInstance(expandedQueueIndex,
@@ -361,11 +366,22 @@ public class CollageWallView extends View {
         invalidate();
     }
 
+    /**
+     * 切歌后强制页面同步展开卡内容（歌名/歌手/频谱带）：
+     * 正常切歌走相机飞行、矩形必变、几何回调会带上；此处是兜底——防"新卡几何与旧卡
+     * 完全重合"时几何回调不触发导致的文字残留。页面侧 syncCardText 已改为内容先行刷新，
+     * 即使此刻展开卡尚未入绘制集也不会把文字写丢。
+     */
+    private void notifyExpandedContentChanged() {
+        if (spectrumBandUpdater != null) {
+            try { spectrumBandUpdater.run(); } catch (Throwable ignored) {}
+        }
+    }
+
     /** 呼吸三角色：当前曲/上一曲/下一曲（环绕；单两首时退化） */
     private void computeRoles() {
         int n = playlist.size();
         roleCurrent = currentIndex;
-        rolePrev = (n > 1 && currentIndex >= 0) ? (((currentIndex - 1) % n) + n) % n : -1;
         roleNext = (n > 2 && currentIndex >= 0) ? (currentIndex + 1) % n : -1;
     }
 
@@ -610,14 +626,13 @@ public class CollageWallView extends View {
                     && regionY == expandedRegionY && leaf == expandedLeaf;
             Song song = playlist.get(drawnQueue(i));
 
-            // 呼吸卡：当前/上一曲/下一曲副本上下浮动+微缩（错相 1/3 周期 → 波浪传递感）；
-            // 展开卡本体不晃（频谱/文字层是独立 View，不同步会脱节）
+            // 呼吸卡：当前曲与下一曲副本上下浮动+微缩（错相 1/2 周期 → 交替波浪），
+            // 上一曲不再有呼吸动效；展开大卡本体不晃（频谱/文字层是独立 View，不同步会脱节）
             if (!isExpandedCard) {
                 int q = drawnQueue(i);
                 float bPhase = -1f;
                 if (q == roleCurrent) bPhase = 0f;
-                else if (q == rolePrev) bPhase = 1f / 3f;
-                else if (q == roleNext) bPhase = 2f / 3f;
+                else if (q == roleNext) bPhase = 0.5f;
                 if (bPhase >= 0f) {
                     float p = ((SystemClock.uptimeMillis() % (long) BREATH_PERIOD_MS) / BREATH_PERIOD_MS + bPhase) % 1f;
                     float s = 0.5f - 0.5f * (float) Math.cos((float) (p * Math.PI * 2.0));

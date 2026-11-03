@@ -1959,14 +1959,34 @@ public class MusicPlayerService extends Service {
     }
 
     /**
-     * 重试当前歌曲：stop 后重新 prepare（重建 MediaCodec 实例/重连网络源）
+     * 重试当前歌曲：重新装配 MediaItem 后 stop→prepare→play（重建 MediaCodec 实例/重连网络源）。
+     * 关键：media3 遇致命错误（如解码器初始化失败）会清空播放队列进入 IDLE，
+     * 只调 prepare() 面对空队列什么都不做，必须重新 setMediaItem 才能重建解码器。
      */
     private void retryCurrentPlayback() {
         Song currentSong = getCurrentSong();
         if (currentSong == null || exoPlayer == null) return;
+        String playUri = getLocalPlayUri(currentSong);
+        if (playUri == null) {
+            handlePlaybackError();
+            return;
+        }
         try {
-            exoPlayer.pause();
+            exoPlayer.stop();
+            String mimeType = inferMimeType(currentSong.filePath, playUri);
+            MediaItem mediaItem = (mimeType != null)
+                    ? new MediaItem.Builder()
+                            .setUri(Uri.parse(playUri))
+                            .setMimeType(mimeType)
+                            .build()
+                    : MediaItem.fromUri(Uri.parse(playUri));
+            exoPlayer.setMediaItem(mediaItem);
             exoPlayer.prepare(); // 重新 prepare 重建数据源和渲染器
+            if (pendingSeekPosition > 0) {
+                long seekPos = pendingSeekPosition;
+                pendingSeekPosition = 0;
+                exoPlayer.seekTo(seekPos);
+            }
             exoPlayer.play();
         } catch (Exception e) {
             Log.e(TAG, "重试播放失败: " + e.getMessage());

@@ -19,7 +19,7 @@ import com.jingxin.jingxinmusic.R;
  * 结构（单一定义，替代此前 8 份 XML 按钮块 + 2 份复制的 layoutTopBar 公式）：
  * [返回][音效][歌词动效] ←弹性空位→ [歌词搜索][频谱][装扮]
  * - 返回键原规格公式（三档比例×aspectFactor×1.3，含自身 padding）
- * - 右组三条均分 35% 屏宽（weight）
+ * - 右组三条正方（宽高 = topRightBtnSize，不再 weight 均分）
  * - 左列三键相邻图标间隙 = 右组相邻键间隙（margin 补齐）
  * - 日夜染色：夜间原图标（白色），白天染主题深色
  */
@@ -141,9 +141,14 @@ public class PlayerTopBar extends LinearLayout {
         int topRightBtnSize = (int) (height * rRightTop * aspectFactor);
         int backPadding = (int) (topBtnSize / 1.3f * 0.15f);
 
-        // 右组：宽 35% 屏宽，高 topRightBtnSize
-        int rightGroupW = (int) (width * 0.35f);
+        // 右组宽度：竖屏各正方键刚好；横屏保持原样 35% 屏宽（weight 均分，非正方）
+        int rightGroupW;
         LayoutParams rp = (LayoutParams) rightGroup.getLayoutParams();
+        if (landscape) {
+            rightGroupW = (int) (width * 0.35f);
+        } else {
+            rightGroupW = topRightBtnSize * 3;
+        }
         rp.width = rightGroupW;
         rp.height = topRightBtnSize;
         rp.weight = 0;
@@ -152,6 +157,13 @@ public class PlayerTopBar extends LinearLayout {
         // 键内边距（横竖统一 15%）：此前横屏 5% 把右五键图标撑满按钮，返回键 1.3 倍
         // 放大在横屏被抹平；统一 15% 后两方向层级一致（差约 55%）且图标不致过小
         int topRightPadding = (int) (topRightBtnSize * 0.15f);
+
+        // 图标视觉缩放（仅触控键框不变）：
+// 竖屏缩小 30%（可见占比 0.70×0.70≈0.49）；横屏缩小 15%（0.70×0.85≈0.595）。
+// 均通过加大内边距实现，键框宽高保持 topRightBtnSize、点击热区不变。
+int iconPadding = landscape
+        ? (int) (topRightBtnSize * 0.2025f)
+        : (int) (topRightBtnSize * 0.255f);
 
         // 间距基准：右组相邻键图标间隙（每键均分 rightGroupW/3，图标居中）
         int gapRight = Math.max(0, rightGroupW / 3 - (topRightBtnSize - 2 * topRightPadding));
@@ -168,19 +180,25 @@ public class PlayerTopBar extends LinearLayout {
         LayoutParams effP = new LayoutParams(topRightBtnSize, topRightBtnSize);
         effP.rightMargin = gapEffFx;
         btnEffect.setLayoutParams(effP);
-        btnEffect.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
+        btnEffect.setPadding(iconPadding, iconPadding, iconPadding, iconPadding);
 
         LayoutParams fxP = new LayoutParams(topRightBtnSize, topRightBtnSize);
         btnLyricFx.setLayoutParams(fxP);
-        btnLyricFx.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
+        btnLyricFx.setPadding(iconPadding, iconPadding, iconPadding, iconPadding);
 
-        // 右组三键：均分（weight）
+        // 右组三键：竖屏正方（宽高 = topRightBtnSize）；横屏保持原样（weight 均分，仅高固定）
         for (ImageView b : new ImageView[]{btnOutfit, btnSpectrum, btnSearch}) {
             LayoutParams p = (LayoutParams) b.getLayoutParams();
-            p.height = topRightBtnSize;
-            p.weight = 1;
+            if (landscape) {
+                p.height = topRightBtnSize;
+                p.weight = 1;
+            } else {
+                p.width = topRightBtnSize;
+                p.height = topRightBtnSize;
+                p.weight = 0;
+            }
             b.setLayoutParams(p);
-            b.setPadding(topRightPadding, topRightPadding, topRightPadding, topRightPadding);
+            b.setPadding(iconPadding, iconPadding, iconPadding, iconPadding);
         }
     }
 }
