@@ -1801,11 +1801,25 @@ public class PlayerFragment extends BaseFloatFragment {
      * 弹出播放风格选择浮窗（装扮键由循环切换改造）：样式与音效/动效弹窗一致——
      * 贴左垂直居中、左直角右圆角深底、当前风格青色发光高亮，点击即切
      */
-    private void showStylePicker() {
-        if (stylePickerPopup != null && stylePickerPopup.isShowing()) {
-            stylePickerPopup.dismiss();
-            return;
+    /**
+     * 弹窗 toggle 守卫（死窗自愈）。
+     * 返回 true = 弹窗真实可见（isShowing 且内容仍挂在窗口上）→ 本次点击语义为"收起"，调用方 return。
+     * 返回 false = 无弹窗，或窗已被外部杀死（车机熄屏/系统弹窗夺焦后 isShowing 可能滞留 true
+     * 而画面已消失）→ 已代为 dismiss 清理，调用方继续走全新创建+展示，点击立即恢复生效。
+     * 隐患背景：车机上弹窗窗体被系统移除后 isShowing 不清零，旧守卫会把点击吞成
+     * 无效果的 dismiss（一次事件可同时废掉全部顶栏弹窗按钮，重进页面重建 Fragment 才恢复）。
+     */
+    private boolean togglePopupClose(android.widget.PopupWindow popup) {
+        if (popup != null && popup.isShowing()) {
+            boolean alive = popup.getContentView() != null && popup.getContentView().isAttachedToWindow();
+            try { popup.dismiss(); } catch (Exception ignored) {}
+            return alive;
         }
+        return false;
+    }
+
+    private void showStylePicker() {
+        if (togglePopupClose(stylePickerPopup)) return;
 
         Context ctx = requireContext();
         int raw = coverStyle - COVER_STYLE_CLASSIC_V2;
@@ -1948,10 +1962,7 @@ public class PlayerFragment extends BaseFloatFragment {
      * 弹出频谱选择浮窗面板（竖屏2列5行，横屏5列2行）
      */
     private void showSpectrumPicker() {
-        if (spectrumPickerPopup != null && spectrumPickerPopup.isShowing()) {
-            spectrumPickerPopup.dismiss();
-            return;
-        }
+        if (togglePopupClose(spectrumPickerPopup)) return;
 
         String[] names = com.jingxin.jingxinmusic.view.SpectrumView.STYLE_NAMES;
         int currentStyle = spectrumView.getCurrentStyle(); // 真值=prefs（实例构造即恢复）
@@ -2075,10 +2086,7 @@ public class PlayerFragment extends BaseFloatFragment {
      * 竖屏 2 列，横屏 4 列
      */
     private void showEffectPickerPopup() {
-        if (effectPickerPopup != null && effectPickerPopup.isShowing()) {
-            effectPickerPopup.dismiss();
-            return;
-        }
+        if (togglePopupClose(effectPickerPopup)) return;
 
         String[] names = com.jingxin.jingxinmusic.util.AudioEffectManager.PRESET_NAMES;
         int currentPreset = SettingsFragment.getAudioEffectPreset(requireContext());
@@ -2227,10 +2235,7 @@ public class PlayerFragment extends BaseFloatFragment {
      * 弹出歌词动效选择浮窗：星空 / 流光（样式与音效弹窗一致：贴左垂直居中、青色发光选中）
      */
     private void showLyricEffectPicker() {
-        if (lyricEffectPickerPopup != null && lyricEffectPickerPopup.isShowing()) {
-            lyricEffectPickerPopup.dismiss();
-            return;
-        }
+        if (togglePopupClose(lyricEffectPickerPopup)) return;
         if (lyricEffectManager == null || lyricEffectManager.isActive()) return;
 
         String[] names = {"星空", "流光", "时计", "心象", "倾诉", "云阶", "浮名", "镜台"};
@@ -2366,10 +2371,7 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     private void showLyricSearchPopup() {
-        if (lyricSearchPopup != null && lyricSearchPopup.isShowing()) {
-            lyricSearchPopup.dismiss();
-            return;
-        }
+        if (togglePopupClose(lyricSearchPopup)) return;
         if (song == null) {
             android.widget.Toast.makeText(requireContext(), "无歌曲信息", android.widget.Toast.LENGTH_SHORT).show();
             return;

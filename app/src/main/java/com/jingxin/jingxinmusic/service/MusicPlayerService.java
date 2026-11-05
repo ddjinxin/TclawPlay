@@ -43,7 +43,9 @@ import com.jingxin.jingxinmusic.util.BiliApi;
 import com.jingxin.jingxinmusic.util.BiliConfig;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.FileUtil;
+import com.jingxin.jingxinmusic.util.FavoriteManager;
 import com.jingxin.jingxinmusic.util.HistoryManager;
+import com.jingxin.jingxinmusic.util.MusicScanner;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.util.LoudnessScanner;
 import com.jingxin.jingxinmusic.util.LyricPublicUtil;
@@ -60,6 +62,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -173,6 +176,9 @@ public class MusicPlayerService extends Service {
 
     // 恢复播放进度：收到 playSong 请求时暂存，等 ExoPlayer prepare 完成后 seekTo
     private long pendingSeekPosition = 0;
+
+    // 冷启动队列恢复中标志（外部 play 命令触发恢复上次记忆），防重复恢复竞态
+    private volatile boolean restoringQueue = false;
 
     // ========== PendingIntent 工厂方法 ==========
 
@@ -1076,6 +1082,11 @@ public class MusicPlayerService extends Service {
      * fallback 模式下 MediaPlayer 操作可能阻塞，故移到子线程。
      */
     private void resumePlayback() {
+        // 冷启动兜底：队列空且无当前曲（乐酷PIP等外部 play 命令在应用刚冷启动时到达），
+        // 按“启动直达”同款逻辑恢复上次记忆的队列、歌曲与进度后开播
+        if ((playlist.isEmpty() || currentIndex < 0) && !restoringQueue) {
+            if (tryRestoreLastPlayed()) return;
+        }
         if (isFallbackMode && fallbackPlayer != null) {
             final android.media.MediaPlayer mp = fallbackPlayer;
             new Thread(() -> {
@@ -1085,6 +1096,154 @@ public class MusicPlayerService extends Service {
             return;
         }
         if (exoPlayer != null) exoPlayer.play();
+    }
+
+    /**
+     * 冷启动兜底：外部 play 命令（乐酷桌面/通知栏）到达但内存队列为空时，
+     * 按“启动直达”同源记忆恢复：last_played（当前歌/队列模式/进度）、
+     * webdav_playlist（B站/WebDAV 整队列）、folder_song_paths（目录队列）、收藏列表。
+     * 本地库扫描可能较慢，I/O 全在子线程；恢复完成后回主线程装队列并开播。
+     * 恢复期间再次 play 由 restoringQueue 标志吞掉，防止并发恢复。
+     * @return true 表示已受理恢复（异步生效，完成后自动开播）
+     */
+    private boolean tryRestoreLastPlayed() {
+        Song lastSong = Song.fromPrefs(getSharedPreferences("last_played", MODE_PRIVATE));
+        if (lastSong == null) return false; // 无上次播放记忆
+
+        restoringQueue = true;
+        new Thread(() -> {
+            List<Song> queue = null;
+            int start = 0;
+            try {
+                android.content.SharedPreferences prefs =
+                        getSharedPreferences("last_played", MODE_PRIVATE);
+                String mode = prefs.getString("playlist_mode", "all");
+                long savedPos = prefs.getLong("play_position", 0L);
+                int savedIndex = prefs.getInt("position", 0);
+
+                if ("webdav".equals(mode) || "bili".equals(mode)
+                        || prefs.getBoolean("from_webdav", false)) {
+                    // WebDAV/B站：整队列已持久化，position 即该队列内的索引
+                    queue = loadSavedWebDavPlaylist();
+                    if (!queue.isEmpty()) {
+                        start = (savedIndex >= 0 && savedIndex < queue.size())
+                                ? savedIndex : findSongIndex(queue, lastSong, 0);
+                    }
+                } else if ("folder".equals(mode)) {
+                    // 目录模式：按记忆的路径集从本地库筛出该目录歌曲（Set 无序，靠歌曲键定位）
+                    Set<String> paths = prefs.getStringSet("folder_song_paths", null);
+                    List<Song> all = loadLocalLibrary();
+                    if (paths != null && !paths.isEmpty() && !all.isEmpty()) {
+                        List<Song> folderSongs = new ArrayList<>();
+                        for (String path : paths) {
+                            for (Song s : all) {
+                                if (s.filePath != null && s.filePath.equals(path)) {
+                                    folderSongs.add(s);
+                                    break;
+                                }
+                            }
+                        }
+                        if (!folderSongs.isEmpty()) {
+                            queue = folderSongs;
+                            start = findSongIndex(queue, lastSong, 0);
+                        }
+                    }
+                    if (queue == null && !all.isEmpty()) {
+                        // 目录已变化：降级为全库（与播放页目录模式降级一致）
+                        queue = all;
+                        start = findSongIndex(queue, lastSong, savedIndex);
+                    }
+                } else if ("favorites".equals(mode)) {
+                    // 收藏模式：队列 = 收藏列表；收藏为空降级全库
+                    queue = FavoriteManager.loadFavorites(FavoriteManager.getFavoriteDir(this));
+                    if (queue.isEmpty()) queue = loadLocalLibrary();
+                    if (!queue.isEmpty()) start = findSongIndex(queue, lastSong, savedIndex);
+                } else {
+                    // 全库模式
+                    queue = loadLocalLibrary();
+                    if (!queue.isEmpty()) start = findSongIndex(queue, lastSong, savedIndex);
+                }
+
+                // 兜底：队列全部恢复失败时恢复为单曲（与播放页降级一致，B站URL过期会自动重取）
+                if (queue == null || queue.isEmpty()) {
+                    queue = new ArrayList<>(java.util.Collections.singletonList(lastSong));
+                    start = 0;
+                }
+
+                final List<Song> finalQueue = queue;
+                final int finalStart = Math.max(0, start);
+                final long finalPos = savedPos;
+                handler.post(() -> {
+                    restoringQueue = false;
+                    // 竞态守卫：恢复期间用户已在应用内主动选歌，以用户为准
+                    if (!playlist.isEmpty() && currentIndex >= 0) return;
+                    playlist = new ArrayList<>(finalQueue);
+                    pendingSeekPosition = Math.max(0, finalPos);
+                    playSongAtPosition(finalStart);
+                });
+            } catch (Throwable t) {
+                restoringQueue = false;
+                Log.w(TAG, "恢复上次播放失败: " + t.getMessage());
+            }
+        }, "QueueRestore").start();
+        return true;
+    }
+
+    /** 读取本地曲库：优先缓存，缓存无效再全量扫描（与播放页加载顺序一致） */
+    private List<Song> loadLocalLibrary() {
+        List<Song> all = MusicScanner.loadCache(this);
+        if (all == null || all.isEmpty()) {
+            all = MusicScanner.scanMusic(this);
+        }
+        return all != null ? all : new ArrayList<>();
+    }
+
+    /** 从 SharedPreferences 恢复 WebDAV/B站播放队列（与播放页 loadWebDavPlaylist 同源） */
+    private List<Song> loadSavedWebDavPlaylist() {
+        List<Song> songs = new ArrayList<>();
+        try {
+            String json = getSharedPreferences("webdav_playlist", MODE_PRIVATE)
+                    .getString("playlist", null);
+            if (json != null) {
+                org.json.JSONArray arr = new org.json.JSONArray(json);
+                for (int i = 0; i < arr.length(); i++) {
+                    Song s = Song.fromJson(arr.getJSONObject(i));
+                    if (s != null) songs.add(s);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "恢复WebDAV/B站队列失败: " + e.getMessage());
+        }
+        return songs;
+    }
+
+    /**
+     * 在队列中定位歌曲：优先稳定键（id/contentUri/filePath），
+     * 均未命中再回退记忆的队列索引（收藏等顺序敏感模式）
+     */
+    private static int findSongIndex(List<Song> list, Song target, int fallbackIndex) {
+        if (list == null || list.isEmpty()) return -1;
+        if (target != null) {
+            if (target.id != 0) {
+                for (int i = 0; i < list.size(); i++) {
+                    if (list.get(i).id == target.id) return i;
+                }
+            }
+            if (target.contentUri != null && !target.contentUri.isEmpty()) {
+                for (int i = 0; i < list.size(); i++) {
+                    String uri = list.get(i).contentUri;
+                    if (uri != null && uri.equals(target.contentUri)) return i;
+                }
+            }
+            if (target.filePath != null && !target.filePath.isEmpty()) {
+                for (int i = 0; i < list.size(); i++) {
+                    String p = list.get(i).filePath;
+                    if (p != null && p.equals(target.filePath)) return i;
+                }
+            }
+        }
+        if (fallbackIndex >= 0 && fallbackIndex < list.size()) return fallbackIndex;
+        return 0;
     }
 
     private void sendPlayStateNotify() {

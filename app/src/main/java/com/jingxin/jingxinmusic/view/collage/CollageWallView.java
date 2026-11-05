@@ -29,6 +29,7 @@ import androidx.annotation.Nullable;
 import com.jingxin.jingxinmusic.model.Song;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -128,6 +129,12 @@ public class CollageWallView extends View {
     private boolean breathVisible = false;
     private final float[] breathDirty = new float[4];
 
+    // ===== 封面淡入过渡（首次装载封面就绪后平滑浮现，消除占位色→实封面的跳变闪烁）=====
+    private static final float FADE_IN_RATE = 5.5f;   // alpha/秒（约 0.18s 淡入）
+    private float[] fadeIn = new float[0];            // per queueIndex 淡入进度，1=已就绪/不淡入
+    private boolean[] fadedOnce = new boolean[0];     // per queueIndex 是否已淡入过（重投递不重放）
+    private final ArrayList<Integer> fadingIndexes = new ArrayList<>();
+
     /** 令帧链持续运转的动画 */
     private boolean fullAnimActive() {
         return flinging || camSpringActive || expActive;
@@ -220,7 +227,22 @@ public class CollageWallView extends View {
     public CollageWallView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         scroller = new OverScroller(context);
-        coverCache = new CollageCoverCache(context, (song, step, bitmap) -> postInvalidateOnAnimation());
+        coverCache = new CollageCoverCache(context, (song, step, bitmap) -> {
+            // 封面就绪：首次投递启动淡入（占位色→封面平滑浮现）；
+            // 重投递（缓存曾被驱逐后重取）直接到位，不重放淡入脉动
+            int idx = indexOfSong(song);
+            if (idx >= 0 && idx < fadeIn.length) {
+                if (fadeIn[idx] >= 1f && !fadedOnce[idx]) {
+                    fadeIn[idx] = 0f;
+                    fadedOnce[idx] = true;
+                    fadingIndexes.add(idx);
+                    startFrameLoop();
+                } else {
+                    fadeIn[idx] = 1f;
+                }
+            }
+            postInvalidateOnAnimation();
+        });
         badgePaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         detector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onDown(MotionEvent e) { longPressFired = false; return true; }
@@ -338,6 +360,10 @@ public class CollageWallView extends View {
         }
         if (countChanged) {
             layout.configure(playlist.size());
+            fadeIn = new float[playlist.size()];
+            Arrays.fill(fadeIn, 1f); // 默认不淡入；异步封面就绪后再按曲目置 0 启动淡入
+            fadedOnce = new boolean[playlist.size()];
+            fadingIndexes.clear();
         }
         computeRoles();
         if (!entered) {
@@ -557,6 +583,18 @@ public class CollageWallView extends View {
                 more = true;
             }
         }
+        // 封面淡入推进（就绪后逐帧抬升 alpha；全就绪后停）
+        if (!fadingIndexes.isEmpty()) {
+            float d = dt * FADE_IN_RATE;
+            boolean any = false;
+            for (int i = 0; i < fadingIndexes.size(); ) {
+                int q = fadingIndexes.get(i);
+                float a = fadeIn[q] + d;
+                if (a >= 1f) { fadeIn[q] = 1f; fadingIndexes.remove(i); }
+                else { fadeIn[q] = a; i++; any = true; }
+            }
+            if (any) more = true;
+        }
         return more;
     }
 
@@ -672,14 +710,23 @@ public class CollageWallView extends View {
                 bitmap = coverCache.get(song, CollageCoverCache.STEP_CARD);
             }
 
+            int q = drawnQueue(i);
+            float fa = q < fadeIn.length ? fadeIn[q] : 1f;
+            if (fa < 1f) {
+                // 淡入中：先画占位色底（透明 1-fa），再叠封面（alpha=fa）→ crossfade 平滑浮现
+                paint.setColor(placeholderColor(q));
+                paint.setAlpha((int) (255f * (1f - fa)));
+                canvas.drawRect(x, y, x + cw, y + ch, paint);
+            }
             if (bitmap != null && !bitmap.isRecycled()) {
                 fillSrcRect(srcRect, bitmap, cw, ch);
                 dstRect.set(x, y, x + cw, y + ch);
-                paint.setAlpha(255);
+                paint.setAlpha((int) (255f * fa));
                 paint.setStyle(Paint.Style.FILL);
                 canvas.drawBitmap(bitmap, srcRect, dstRect, paint);
             } else {
-                paint.setColor(placeholderColor(drawnQueue(i)));
+                paint.setColor(placeholderColor(q));
+                paint.setAlpha(255);
                 canvas.drawRect(x, y, x + cw, y + ch, paint);
             }
 
@@ -727,8 +774,9 @@ public class CollageWallView extends View {
             paint.setAlpha(255);
         }
 
-        // 呼吸卡可见且无其他动画运转：接管帧链持续呼吸（静止后滚入呼吸卡时冷启动）
-        if (breathVisible && !frameRunning && !fullAnimActive()) {
+        // 呼吸卡可见或封面淡入未完且无其他动画运转：接管帧循环（页面回来自愈半透明卡）
+        if (!frameRunning && !fullAnimActive()
+                && (breathVisible || !fadingIndexes.isEmpty())) {
             startFrameLoop();
         }
     }
@@ -1071,6 +1119,18 @@ public class CollageWallView extends View {
         badgePaint.setTextSize(Math.max(14f, h * 0.03f));
         String hint = "播放队列为空";
         canvas.drawText(hint, (w - badgePaint.measureText(hint)) / 2f, h / 2f, badgePaint);
+    }
+
+    /** 定位封面所属队列下标（淡入触发用）：引用优先；队列中途被换时按稳定身份键兜底（song.id 跨会话撞号不可用） */
+    private int indexOfSong(Song song) {
+        for (int i = 0; i < playlist.size(); i++) {
+            if (playlist.get(i) == song) return i;
+        }
+        long k = CollageCoverCache.stableKeyOf(song);
+        for (int i = 0; i < playlist.size(); i++) {
+            if (CollageCoverCache.stableKeyOf(playlist.get(i)) == k) return i;
+        }
+        return -1;
     }
 
     private int placeholderColor(int queueIndex) {
