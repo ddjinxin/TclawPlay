@@ -105,10 +105,37 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         context = parent.getContext();
+        attachedRv = (RecyclerView) parent;
         initItemFontSize();
         View view = LayoutInflater.from(context)
                 .inflate(R.layout.item_webdav, parent, false);
         return new ViewHolder(view);
+    }
+
+    /** 宿主列表引用（轻量刷新遍历可见卡片用） */
+    private RecyclerView attachedRv;
+
+    /**
+     * 轻量刷新：只更新已显示文件夹卡片的渐变底色（主色变化时），
+     * 不重绑不 reset 封面——切歌取色后卡片纹丝不动（原 notifyDataSetChanged
+     * 会把每张卡片“清空封面→异步回填”装一遍，目录视觉闪烁）。
+     */
+    public void refreshFolderGradientColors() {
+        RecyclerView rv = attachedRv;
+        if (rv == null) return;
+        for (int i = 0; i < rv.getChildCount(); i++) {
+            View child = rv.getChildAt(i);
+            int pos = rv.getChildAdapterPosition(child);
+            if (pos < 0 || pos >= items.size()) continue;
+            if (!items.get(pos).isDirectory) continue;
+            int folderCount = 0;
+            for (int j = 0; j < pos; j++) {
+                if (items.get(j).isDirectory) folderCount++;
+            }
+            int[] colors = ThemeColors.folderGradientColors(folderCount, isNightMode);
+            ((ViewHolder) rv.getChildViewHolder(child))
+                    .ivFolderCover.setGradientColors(colors[0], colors[1]);
+        }
     }
 
     @Override

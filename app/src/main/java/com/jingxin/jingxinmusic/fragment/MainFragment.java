@@ -2258,16 +2258,17 @@ public class MainFragment extends BaseFloatFragment {
                 // 无封面：清除动态主色，回退纯底色
                 ThemeColors.clearDominantColor();
                 runOnUi(() -> {
-                    if (!isActivityGone() && dynamicBgEnabled) {
-                        applyDynamicBg();
-                        updateTabUI();
-                        updateShimmerLineColors();
-                        updateTopIconColors();
-                        // 文件夹卡片 6 色渐变依赖主色，重绑刷新
-                        if (browseAdapter != null) browseAdapter.notifyDataSetChanged();
-                    }
-                });
-                return;
+                if (!isActivityGone() && dynamicBgEnabled) {
+                    applyDynamicBg();
+                    updateTabUI();
+                    updateShimmerLineColors();
+                    updateTopIconColors();
+                    // 文件夹卡片 6 色渐变依赖主色：轻量更新已显示卡片的渐变底色，
+                    // 不重绑（notifyDataSetChanged 会“清空封面→异步回填”装一遍，切歌目录不应闪烁）
+                    if (browseAdapter != null) browseAdapter.refreshFolderGradientColors();
+                }
+            });
+            return;
             }
             // QQ Music 同款：70x70 缩图 → 8桶取主色 → 色相查表（白天浅色/夜间深色）
             int dominant = com.jingxin.jingxinmusic.util.MagicColor.extractDominant(coverBitmap);
@@ -2285,8 +2286,8 @@ public class MainFragment extends BaseFloatFragment {
                     updateTabUI();
                     updateShimmerLineColors();
                     updateTopIconColors();
-                    // 文件夹卡片 6 色渐变依赖主色，重绑刷新
-                    if (browseAdapter != null) browseAdapter.notifyDataSetChanged();
+                    // 文件夹卡片 6 色渐变依赖主色：轻量更新渐变底色，不重绑（防切歌封面闪烁）
+                    if (browseAdapter != null) browseAdapter.refreshFolderGradientColors();
                 }
             });
         });

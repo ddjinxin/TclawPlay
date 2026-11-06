@@ -645,8 +645,18 @@ public class CollageWallView extends View {
         canvas.drawColor(night ? BG_NIGHT : BG_DAY);
 
         if (playlist.isEmpty()) {
+            // 空态宽限：队列常在异步装填（本地库扫描/冷启动恢复/绑定中），
+            // 首空不立即判死，先示“加载中…”，宽限期内队列到达自动出墙
+            if (emptySince < 0) {
+                emptySince = SystemClock.uptimeMillis();
+                postDelayed(emptyGraceCheck, EMPTY_GRACE_MS);
+            }
             drawEmptyHint(canvas, w, h);
             return;
+        }
+        if (emptySince >= 0) { // 队列到达：撤销宽限（含判死后迟到，同样自然出墙）
+            emptySince = -1L;
+            removeCallbacks(emptyGraceCheck);
         }
 
         collectVisible(w, h);
@@ -1114,10 +1124,22 @@ public class CollageWallView extends View {
         return s;
     }
 
+    // ===== 空态宽限 =====
+
+    private static final long EMPTY_GRACE_MS = 2000;
+    /** -1=非空/从未空；0=宽限已过判死；>0=宽限起点 */
+    private long emptySince = -1L;
+    private final Runnable emptyGraceCheck = new Runnable() {
+        @Override public void run() {
+            emptySince = 0L;
+            if (playlist.isEmpty()) invalidate();
+        }
+    };
+
     private void drawEmptyHint(Canvas canvas, int w, int h) {
         badgePaint.setColor(0x80FFFFFF);
         badgePaint.setTextSize(Math.max(14f, h * 0.03f));
-        String hint = "播放队列为空";
+        String hint = emptySince > 0 ? "加载中…" : "播放队列为空";
         canvas.drawText(hint, (w - badgePaint.measureText(hint)) / 2f, h / 2f, badgePaint);
     }
 
@@ -1174,6 +1196,7 @@ public class CollageWallView extends View {
         super.onDetachedFromWindow();
         frameRunning = false;
         choreographer.removeFrameCallback(frameCallback);
+        removeCallbacks(emptyGraceCheck);
     }
 
     private static float lerp(float a, float b, float t) {

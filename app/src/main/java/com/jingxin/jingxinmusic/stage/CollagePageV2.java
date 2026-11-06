@@ -51,6 +51,16 @@ public class CollagePageV2 extends StandardPageBase {
         @Override public void run() { hideTopBars(); }
     };
 
+    // 空队列延迟确认：enter 时队列常在异步装填（扫描/冷启动恢复/绑定中）。
+    // 服务就绪与切歌广播会重推墙，此重试只兜“就绪推墙时本页尚未建”的窗口；
+    // 300ms×8 次≈2.4s，与墙空态宽限 2s 对齐
+    private static final long QUEUE_RETRY_MS = 300;
+    private static final int QUEUE_RETRY_MAX = 8;
+    private int queueRetry;
+    private final Runnable queueRetryTask = new Runnable() {
+        @Override public void run() { syncQueueData(); }
+    };
+
     public CollagePageV2(com.jingxin.jingxinmusic.scene.CoverSceneHelper helper) {
         super(helper);
     }
@@ -138,6 +148,8 @@ public class CollagePageV2 extends StandardPageBase {
         super.exit();
         unsubscribeWallObservers();
         topBarHandler.removeCallbacks(topBarHider);
+        topBarHandler.removeCallbacks(queueRetryTask);
+        queueRetry = 0;
         hideTopBars();
         if (wall != null) wall.setVisibility(View.GONE);
         if (wallL != null) wallL.setVisibility(View.GONE);
@@ -251,7 +263,17 @@ public class CollagePageV2 extends StandardPageBase {
         if (collageActions == null) return;
         List<Song> playlist = collageActions.getPlaylist();
         int idx = collageActions.getCurrentIndex();
-        if (playlist == null || playlist.isEmpty()) return;
+        if (playlist == null || playlist.isEmpty()) {
+            // 可能仍在异步装填：短间隔重查，队列到达即灌墙（墙侧宽限期内示“加载中…”）
+            if (queueRetry < QUEUE_RETRY_MAX) {
+                queueRetry++;
+                topBarHandler.removeCallbacks(queueRetryTask);
+                topBarHandler.postDelayed(queueRetryTask, QUEUE_RETRY_MS);
+            }
+            return;
+        }
+        queueRetry = 0;
+        topBarHandler.removeCallbacks(queueRetryTask);
         lastPlaylist = playlist;
         // 两实例都灌（横竖切换即得数据）
         if (wall != null) wall.setQueueData(playlist, idx);

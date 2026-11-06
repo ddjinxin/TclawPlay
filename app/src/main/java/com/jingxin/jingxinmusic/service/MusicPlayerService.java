@@ -16,6 +16,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
@@ -465,12 +466,15 @@ public class MusicPlayerService extends Service {
 
             @Override
             public void onSkipToNext() {
-                playNext();
+                // 外部切歌命令双入口去重：同一物理键可能同时走“应用自认领（onStartCommand）”
+                // 与“乐酷/系统 MediaSession 转发”两条路（连切两首/广播双发），
+                // 350ms 内重复命令只执行第一次；内部连续错误自动跳歌不走此门
+                if (acceptExternalSkip(true)) playNext();
             }
 
             @Override
             public void onSkipToPrevious() {
-                playPrevious();
+                if (acceptExternalSkip(false)) playPrevious();
             }
 
             @Override
@@ -517,9 +521,9 @@ public class MusicPlayerService extends Service {
             if ("ACTION_PLAY_PAUSE".equals(action)) {
                 togglePlayPause();
             } else if ("ACTION_PREVIOUS".equals(action)) {
-                playPrevious();
+                if (acceptExternalSkip(false)) playPrevious();
             } else if ("ACTION_NEXT".equals(action)) {
-                playNext();
+                if (acceptExternalSkip(true)) playNext();
             } else if (ACTION_UPDATE_METADATA.equals(action)) {
                 updateMediaSessionMetadata();
             } else if (ACTION_WEBDAV_CONFIG_CHANGED.equals(action)) {
@@ -1249,6 +1253,22 @@ public class MusicPlayerService extends Service {
     private void sendPlayStateNotify() {
         sendPlayStateBroadcast();
         updateNotification();
+    }
+
+    // ===== 外部切歌命令双入口去重 =====
+
+    /** 去重时间窗：两条入口（startService 与 MediaSession）几乎同帧到达，350ms 足够分满 */
+    private static final long EXTERNAL_CMD_DEDUPE_MS = 350L;
+    private long lastExternalNextMs = 0L, lastExternalPrevMs = 0L;
+
+    /** 外部上一曲/下一曲命令去重：350ms 内重复丢弃（内部自动跳歌不经此门） */
+    private boolean acceptExternalSkip(boolean next) {
+        long now = SystemClock.uptimeMillis();
+        long last = next ? lastExternalNextMs : lastExternalPrevMs;
+        if (now - last < EXTERNAL_CMD_DEDUPE_MS) return false;
+        if (next) lastExternalNextMs = now;
+        else lastExternalPrevMs = now;
+        return true;
     }
 
     private void playNext() {
