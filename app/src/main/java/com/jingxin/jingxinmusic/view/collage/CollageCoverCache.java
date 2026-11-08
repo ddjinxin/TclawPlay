@@ -64,7 +64,9 @@ public class CollageCoverCache {
     private final Set<Key> failed = new HashSet<>();
     private final Set<Key> inFlight = new HashSet<>();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private volatile ExecutorService executor; // 页面 install 后注入
+    /** 封面加载专用共享池：与播放页主单线程池解耦——4路并行，防网络下载串行长队（填墙慢的主因） */
+    private static final ExecutorService LOAD_POOL =
+            java.util.concurrent.Executors.newFixedThreadPool(4);
     private final Context context;
     private final Listener listener;
     /** 失败负缓存上限（防长队列烂封面撑爆） */
@@ -97,10 +99,6 @@ public class CollageCoverCache {
         return STEP_SIZE[step];
     }
 
-    public void setExecutor(ExecutorService executor) {
-        this.executor = executor;
-    }
-
     /** 取缓存（可能为 null）；null 时内部发起异步解码 */
     public Bitmap get(Song song, int step) {
         if (song == null) return null;
@@ -118,8 +116,7 @@ public class CollageCoverCache {
      * 稳定身份键：与歌名/队列无关、跨会话恒定。
      * song.id 不可用：B站歌源头 id=0，进队列靠"每次浏览从 1000000 重计的序号"就地覆写，
      * 跨会话/跨列表两批歌会撞同一 id → 封面墙命中"另外一首"的缓存图（杀进程重启后封面错乱的根因）。
-     * 键控策略：本地=MediaStore id（稳定唯一）；B站=bvid+cid；WebDAV=路径+URL。
-     * String.hashCode 首次计算后缓存于对象内，且方法内全为基本量运算，不产生分配。
+     * 键控策略：本地=MediaStore id（稳定唯一）；B站=bvid+cid；WebDAV=路径+URL；电台=流地址（直播流无过期概念，跨会话恒定）。
      */
     static long stableKeyOf(Song song) {
         switch (song.sourceType) {
@@ -128,6 +125,9 @@ public class CollageCoverCache {
             case Song.SOURCE_WEBDAV:
                 return (song.filePath != null ? song.filePath.hashCode() : 0) * 1000003L
                         ^ (song.contentUri != null ? song.contentUri.hashCode() : 0);
+            case Song.SOURCE_RADIO:
+                return (song.audioUrl != null ? song.audioUrl.hashCode() : 0) * 1000003L
+                        ^ (song.filePath != null ? song.filePath.hashCode() : 0);
             default: // 本地：MediaStore id 跨会话稳定
                 return song.id;
         }
@@ -139,12 +139,10 @@ public class CollageCoverCache {
     }
 
     private void request(final Song song, final int step, final Key key) {
-        final ExecutorService exec = executor;
-        if (exec == null) return; // 未注入 executor：等注入后首次 get 重试（不在 failed/inFlight 里）
         inFlight.add(key);
         boolean preferLocal = SettingsFragment.isLocalCoverPriority(context);
         CoverLoader.load(context, song, STEP_SIZE[step], STEP_SIZE[step], true, preferLocal,
-                exec, new CoverLoader.CoverCallback() {
+                LOAD_POOL, new CoverLoader.CoverCallback() {
                     @Override public void onCoverLoaded(Bitmap bitmap) {
                         main.post(() -> {
                             if (bitmap == null || bitmap.isRecycled()) {
@@ -178,12 +176,7 @@ public class CollageCoverCache {
             finishDelivery(song, step, key, bitmap);
             return;
         }
-        ExecutorService exec = executor;
-        if (exec == null) { // 无池兜底：原图直入（质量无损，仅体积大）
-            finishDelivery(song, step, key, bitmap);
-            return;
-        }
-        exec.execute(() -> {
+        LOAD_POOL.execute(() -> {
             float s = (float) target / maxSide;
             int w = Math.max(1, Math.round(bitmap.getWidth() * s));
             int h = Math.max(1, Math.round(bitmap.getHeight() * s));

@@ -208,7 +208,14 @@ public class PlayerFragment extends BaseFloatFragment {
                 position = intent.getIntExtra(MusicPlayerService.EXTRA_SONG_INDEX, 0);
                 stateHub.setSong(newSong); // 数据中枢同步（组件化第2步）
 
+                // 电台固定拼贴：切歌在「电台↔普通」间翻转时重排页面
+                //（进入电台→拼贴，离开电台→恢复用户所选风格）
+                boolean wasRadio = song != null && song.sourceType == Song.SOURCE_RADIO;
                 song = newSong;
+                boolean nowRadio = newSong.sourceType == Song.SOURCE_RADIO;
+                if (wasRadio != nowRadio) {
+                    switchScene();
+                }
                 // Hub 封面/歌词快照失效（新歌数据到达前，独立页不读到旧歌缓存）
                 stateHub.invalidateCoverAndLyric();
                 loadCover();
@@ -392,8 +399,8 @@ public class PlayerFragment extends BaseFloatFragment {
                                 playerBinder.setPlaylist(allSongs);
                                 playSong();
                             }
-                        } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode) || (getArguments() != null && getArguments().getBoolean("from_webdav", false))) {
-                            // WebDAV/B站模式：从SharedPreferences恢复播放列表
+                        } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode) || "radio".equals(playlistMode) || (getArguments() != null && getArguments().getBoolean("from_webdav", false))) {
+                            // WebDAV/B站/电台模式：从SharedPreferences恢复播放列表
                             List<Song> savedSongs = loadWebDavPlaylist();
                             if (!savedSongs.isEmpty()) {
                                 playerBinder.setPlaylist(savedSongs);
@@ -993,7 +1000,7 @@ public class PlayerFragment extends BaseFloatFragment {
      * currentScene 仍是经典页，此时不应喂新风格页。
      */
     private com.jingxin.jingxinmusic.stage.StagePage activePage() {
-        switch (coverStyle) {
+        switch (effectiveCoverStyle()) {
             case COVER_STYLE_IMMERSIVE_V2:  return immersiveV2Page;
             case COVER_STYLE_RECORD_V2:     return recordV2Page;
             case COVER_STYLE_CAROUSEL_V2:   return carouselV2Page;
@@ -1089,10 +1096,21 @@ public class PlayerFragment extends BaseFloatFragment {
     private void toggleFavorite() {
         if (song == null) return;
         resetControlsHideTimer();
-        File favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(requireContext());
+        // 电台走专属收藏夹（radio_favorites），不与歌曲收藏混存
+        //（防主收藏Tab把台名当歌名搜出错误封面）
+        boolean radio = song.sourceType == Song.SOURCE_RADIO;
+        File favDir = radio
+                ? com.jingxin.jingxinmusic.util.RadioFavoriteManager.getRadioFavDir(requireContext())
+                : com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(requireContext());
 
         if (isFavorite) {
             FavoriteManager.removeFavorite(favDir, song);
+            // 电台历史遗留：修复前误存进歌曲收藏夹的条目一并清除
+            //（removeFavorite 无匹配时为空操作，安全）
+            if (radio) {
+                FavoriteManager.removeFavorite(
+                        com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(requireContext()), song);
+            }
             isFavorite = false;
             notifyActivePageControlExtras();
             android.widget.Toast.makeText(requireContext(), "取消收藏", android.widget.Toast.LENGTH_SHORT).show();
@@ -1109,8 +1127,20 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private void checkFavoriteStatus() {
         if (song == null) return;
-        File favDir = com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(requireContext());
-        isFavorite = FavoriteManager.isFavorite(favDir, song.title, song.artist);
+        boolean radio = song.sourceType == Song.SOURCE_RADIO;
+        if (radio) {
+            // 电台：专属收藏夹 + 历史遗留误存的歌曲收藏夹都算已收藏（取消时双清）
+            isFavorite = FavoriteManager.isFavorite(
+                            com.jingxin.jingxinmusic.util.RadioFavoriteManager.getRadioFavDir(requireContext()),
+                            song.title, song.artist)
+                    || FavoriteManager.isFavorite(
+                            com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(requireContext()),
+                            song.title, song.artist);
+        } else {
+            isFavorite = FavoriteManager.isFavorite(
+                    com.jingxin.jingxinmusic.util.FavoriteManager.getFavoriteDir(requireContext()),
+                    song.title, song.artist);
+        }
         notifyActivePageControlExtras();
     }
 
@@ -1300,13 +1330,14 @@ public class PlayerFragment extends BaseFloatFragment {
      * @return 是否发生了 Scene 切换
      */
     private boolean switchScene() {
-        com.jingxin.jingxinmusic.stage.StagePage target = ensurePage(coverStyle);
+        int style = effectiveCoverStyle();
+        com.jingxin.jingxinmusic.stage.StagePage target = ensurePage(style);
         if (target != currentScene) {
             currentScene.onStyleExit();
             currentScene.exit();
             currentScene = target;
             // 进入沉浸模式（含V2）：不支持全屏歌词，若当前为全屏则降级为多行
-            if (coverStyle == COVER_STYLE_IMMERSIVE_V2 && lyricView != null
+            if (style == COVER_STYLE_IMMERSIVE_V2 && lyricView != null
                     && lyricView.getDisplayMode() == com.jingxin.jingxinmusic.view.LyricView.DisplayMode.FULL) {
                 lyricView.setDisplayMode(com.jingxin.jingxinmusic.view.LyricView.DisplayMode.MULTI_LINE);
             }
@@ -1316,6 +1347,15 @@ public class PlayerFragment extends BaseFloatFragment {
             return true;
         }
         return false;
+    }
+
+    /**
+     * 当前应展示的封面风格：电台固定拼贴（用户偏好仍保存在 coverStyle/prefs，
+     * 离开电台自动恢复）。拼贴对直播流展示友好（无歌词/封面时全屏墙+台名）。
+     */
+    private int effectiveCoverStyle() {
+        return (song != null && song.sourceType == Song.SOURCE_RADIO)
+                ? COVER_STYLE_COLLAGE_V2 : coverStyle;
     }
 
     /**
@@ -1391,6 +1431,12 @@ public class PlayerFragment extends BaseFloatFragment {
         if (song == null || lyricView == null) return;
         lyricView.clearLyric();
 
+        // 电台：直播流没有歌词——不搜索（防台名误匹配到无关歌词），并清空 V2 页上一首遗留歌词
+        if (song.sourceType == Song.SOURCE_RADIO) {
+            stateHub.setLyricData(null);
+            return;
+        }
+
         String title = Song.cleanSongTitle(song.title, song.artist);
         String artist = song.artist;
         if ("<unknown>".equals(artist)) artist = "";
@@ -1447,14 +1493,14 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 将默认封面矢量图(ic_music_icon)转为Bitmap并设置模糊背景
+     * 将品牌图标(ic_launcher)转为Bitmap并设置模糊背景
      * 确保无在线封面时播放页面也有模糊背景效果
      */
     private void applyDefaultCoverBlur() {
         if (isActivityGone()) return;
         executor.execute(() -> {
             try {
-                Drawable drawable = ContextCompat.getDrawable(requireContext(), R.drawable.ic_music_icon);
+                Drawable drawable = ContextCompat.getDrawable(requireContext(), R.mipmap.ic_launcher);
                 if (drawable == null) return;
                 // 矢量图需要指定尺寸转为Bitmap
                 int size = 256;
@@ -2698,8 +2744,8 @@ public class PlayerFragment extends BaseFloatFragment {
             // 清旧 B站/WebDAV 标记：恢复分派 from_webdav 优先级高，
             // 残留会把 folder 劫持到 B 站队列（上次播放记忆错乱的实锤根因）
             editor.remove("from_webdav");
-        } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
-            // WebDAV/B站模式：保存标记，播放列表已在webdav_playlist SharedPreferences中
+        } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode) || "radio".equals(playlistMode)) {
+            // WebDAV/B站/电台模式：保存标记，播放列表已在webdav_playlist SharedPreferences中
             editor.putBoolean("from_webdav", true);
         } else {
             // 其他模式清除旧数据

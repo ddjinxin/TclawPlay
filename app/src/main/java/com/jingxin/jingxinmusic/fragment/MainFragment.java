@@ -56,6 +56,8 @@ import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.FavoriteManager;
 import com.jingxin.jingxinmusic.util.LocalDirectoryScanner;
 import com.jingxin.jingxinmusic.util.MusicScanner;
+import com.jingxin.jingxinmusic.util.RadioBrowserApi;
+import com.jingxin.jingxinmusic.util.RadioFavoriteManager;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.UpdateHelper;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
@@ -111,11 +113,13 @@ public class MainFragment extends BaseFloatFragment {
     private View tabLocal;
     private View tabCloud;
     private View tabBili;
+    private View tabRadio;
     private View tabFavorite;
     // Tab 子文字（小标题 + 大标题）
     private TextView tabLocalTop, tabLocalTitle;
     private TextView tabCloudTop, tabCloudTitle;
     private TextView tabBiliTop, tabBiliTitle;
+    private TextView tabRadioTop, tabRadioTitle;
     private TextView tabFavoriteTop, tabFavoriteTitle;
 
     // Browse area
@@ -223,11 +227,17 @@ public class MainFragment extends BaseFloatFragment {
                 miniSongArtist.setText(artist);
                 miniPlayerWrap.setVisibility(View.VISIBLE);
                 if (shimmerAnimator != null && !shimmerAnimator.isRunning()) shimmerAnimator.start();
-                loadMiniCover(title, artist);
-                startCoverRotation();
-                // 春意盎然风格：提取封面主色更新首页背景
-                if (dynamicBgEnabled) {
-                    extractAndApplyMagicBgColor(title, artist);
+                // 电台：favicon 直载 mini 封面 + 主色取色（不走歌名搜图链路）
+                Song radioSong = (bound && playerBinder != null) ? playerBinder.getCurrentSong() : null;
+                if (radioSong != null && radioSong.sourceType == Song.SOURCE_RADIO) {
+                    loadMiniCoverAndColor(radioSong, dynamicBgEnabled);
+                } else {
+                    loadMiniCover(title, artist);
+                    startCoverRotation();
+                    // 春意盎然风格：提取封面主色更新首页背景
+                    if (dynamicBgEnabled) {
+                        extractAndApplyMagicBgColor(title, artist);
+                    }
                 }
             } else if (MusicPlayerService.ACTION_PLAY_STATE_CHANGED.equals(action)) {
                 boolean playing = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_PLAYING, false);
@@ -463,6 +473,7 @@ public class MainFragment extends BaseFloatFragment {
         tabLocal = view.findViewById(R.id.tab_local);
         tabCloud = view.findViewById(R.id.tab_cloud);
         tabBili = view.findViewById(R.id.tab_bili);
+        tabRadio = view.findViewById(R.id.tab_radio);
         tabFavorite = view.findViewById(R.id.tab_favorite);
         tabLocalTop = view.findViewById(R.id.tab_local_top);
         tabLocalTitle = view.findViewById(R.id.tab_local_title);
@@ -470,6 +481,8 @@ public class MainFragment extends BaseFloatFragment {
         tabCloudTitle = view.findViewById(R.id.tab_cloud_title);
         tabBiliTop = view.findViewById(R.id.tab_bili_top);
         tabBiliTitle = view.findViewById(R.id.tab_bili_title);
+        tabRadioTop = view.findViewById(R.id.tab_radio_top);
+        tabRadioTitle = view.findViewById(R.id.tab_radio_title);
         tabFavoriteTop = view.findViewById(R.id.tab_favorite_top);
         tabFavoriteTitle = view.findViewById(R.id.tab_favorite_title);
 
@@ -497,6 +510,8 @@ public class MainFragment extends BaseFloatFragment {
                     navigateCloudTo(item.url);
                 } else if (currentTab == 2) {
                     navigateBiliTo(item.url);
+                } else if (currentTab == 4 && item.path != null && item.path.startsWith("radio://tag/")) {
+                    navigateRadioTo(item.name);
                 }
             } else {
                 playFromBrowse(item);
@@ -558,9 +573,10 @@ public class MainFragment extends BaseFloatFragment {
         tabLocal.setOnClickListener(v -> switchTab(0));
         tabCloud.setOnClickListener(v -> switchTab(1));
         tabBili.setOnClickListener(v -> switchTab(2));
+        tabRadio.setOnClickListener(v -> switchTab(4));
         tabFavorite.setOnClickListener(v -> switchTab(3));
 
-        // 返回按钮
+        // 返回按钮（电台三层也可返回）
         btnNavigateBack.setOnClickListener(v -> {
             if (currentTab == 0) {
                 navigateLocalBack();
@@ -568,6 +584,8 @@ public class MainFragment extends BaseFloatFragment {
                 navigateCloudBack();
             } else if (currentTab == 2) {
                 navigateBiliBack();
+            } else if (currentTab == 4) {
+                navigateRadioBack();
             }
         });
 
@@ -627,6 +645,7 @@ public class MainFragment extends BaseFloatFragment {
                         .getString("playlist_mode", "all");
                 if ("bili".equals(savedMode)) initialTab = 2;
                 else if ("webdav".equals(savedMode)) initialTab = 1;
+                else if ("radio".equals(savedMode)) initialTab = 4;
             }
         }
         viewCreatedOnce = true;
@@ -756,6 +775,9 @@ public class MainFragment extends BaseFloatFragment {
             } else if ("webdav".equals(savedPlaylistMode) && currentTab != 1) {
                 currentTab = 1;
                 tabChanged = true;
+            } else if ("radio".equals(savedPlaylistMode) && currentTab != 4) {
+                currentTab = 4;
+                tabChanged = true;
             }
         }
         returningFromPlayer = false;
@@ -872,7 +894,7 @@ public class MainFragment extends BaseFloatFragment {
         args.putInt("position", position);
         args.putString("playlist_mode", playlistMode);
         args.putBoolean("resume_play", true);
-        if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
+        if ("webdav".equals(playlistMode) || "bili".equals(playlistMode) || "radio".equals(playlistMode)) {
             args.putBoolean("from_webdav", true);
             args.putInt("song_index", position);
         }
@@ -903,6 +925,7 @@ public class MainFragment extends BaseFloatFragment {
         setTabColor(tabLocalTop, tabLocalTitle, mode == 0, activeColor, inactiveColor);
         setTabColor(tabCloudTop, tabCloudTitle, mode == 1, activeColor, inactiveColor);
         setTabColor(tabBiliTop, tabBiliTitle, mode == 2, activeColor, inactiveColor);
+        setTabColor(tabRadioTop, tabRadioTitle, mode == 4, activeColor, inactiveColor);
         setTabColor(tabFavoriteTop, tabFavoriteTitle, mode == 3, activeColor, inactiveColor);
 
         // 底部指示线 + 滑动指示器（与 Tab 文字同色）
@@ -952,6 +975,7 @@ public class MainFragment extends BaseFloatFragment {
         if (index == 0) return tabLocal;
         if (index == 1) return tabCloud;
         if (index == 2) return tabBili;
+        if (index == 4) return tabRadio;
         return tabFavorite;
     }
 
@@ -972,6 +996,8 @@ public class MainFragment extends BaseFloatFragment {
             loadWebDavItems();
         } else if (currentTab == 2) {
             loadBiliItems();
+        } else if (currentTab == 4) {
+            loadRadioItems();
         } else {
             int spanCount = calcSpanCount();
             rvList.setLayoutManager(new GridLayoutManager(requireContext(), spanCount));
@@ -1327,6 +1353,138 @@ public class MainFragment extends BaseFloatFragment {
         }
     }
 
+    // ==================== 电台 浏览 ====================
+
+    /** 电台当前所在分类（null=根分类层） */
+    private String radioCurrentTag = null;
+    private boolean radioLoadedOnce = false;
+
+    /** 根层：分类目录网格（热门/中国/新闻/.../收藏） */
+    private void loadRadioItems() {
+        navigateRadioTo(null);
+    }
+
+    /**
+     * 进入分类：tag=null 显示根分类层，否则拉取该分类台列表
+     */
+    private void navigateRadioTo(String tag) {
+        radioCurrentTag = tag;
+        if (tag == null) {
+            // 根层：目录卡片（分类）
+            List<BrowseItem> items = new ArrayList<>();
+            for (String t : RadioBrowserApi.TAGS) {
+                items.add(BrowseItem.radioCategory(t));
+            }
+            // 自定义清单：根层只出一张"个人"目录卡，内部再分文档分类
+            if (RadioBrowserApi.hasCustomData(requireContext())) {
+                items.add(BrowseItem.radioCategory(RadioBrowserApi.CUSTOM_ROOT));
+            }
+            // 电台收藏（与歌曲收藏分开存储，播放页收藏按钮写入）
+            items.add(BrowseItem.radioCategory(RadioBrowserApi.TAG_FAVORITE));
+            browseAdapter.setItems(items);
+            lastLoadedBiliUrl = null;
+            pathBar.setVisibility(View.GONE);
+            btnWebDavSettings.setVisibility(View.GONE);
+            btnBiliSettings.setVisibility(View.GONE);
+            webdavSetupArea.setVisibility(View.GONE);
+            browseLoading.setVisibility(View.GONE);
+            rvBrowse.setVisibility(View.VISIBLE);
+            updateCountText();
+            return;
+        }
+
+        // "个人"层：文档内分类目录卡（本地解析，同步显示）
+        if (RadioBrowserApi.CUSTOM_ROOT.equals(tag)) {
+            List<BrowseItem> catItems = new ArrayList<>();
+            for (String c : RadioBrowserApi.customCategories(requireContext())) {
+                catItems.add(BrowseItem.radioCategory(c));
+            }
+            browseAdapter.setItems(catItems);
+            lastLoadedBiliUrl = null;
+            pathBar.setVisibility(View.VISIBLE);
+            tvBrowsePath.setText("/ " + RadioBrowserApi.CUSTOM_ROOT);
+            btnWebDavSettings.setVisibility(View.GONE);
+            btnBiliSettings.setVisibility(View.GONE);
+            webdavSetupArea.setVisibility(View.GONE);
+            browseLoading.setVisibility(View.GONE);
+            rvBrowse.setVisibility(View.VISIBLE);
+            updateCountText();
+            return;
+        }
+
+        // 分类层：loading → 拉取台列表
+        pathBar.setVisibility(View.VISIBLE);
+        btnWebDavSettings.setVisibility(View.GONE);
+        btnBiliSettings.setVisibility(View.GONE);
+        tvBrowsePath.setText(RadioBrowserApi.isCustomCategory(requireContext(), tag)
+                ? "/ " + RadioBrowserApi.CUSTOM_ROOT + " / " + tag : "/ " + tag);
+        webdavSetupArea.setVisibility(View.GONE);
+        rvBrowse.setVisibility(View.GONE);
+        browseLoading.setVisibility(View.VISIBLE);
+
+        final String finalTag = tag;
+        executor.execute(() -> {
+            List<Song> stations = null;
+            if (RadioBrowserApi.TAG_FAVORITE.equals(finalTag)) {
+                stations = RadioFavoriteManager.loadFavorites(requireContext());
+                if (stations == null) stations = new ArrayList<>();
+            } else if (RadioBrowserApi.TAG_HOT.equals(finalTag)) {
+                stations = RadioBrowserApi.fetchHot(50);
+            } else if ("中国".equals(finalTag)) {
+                stations = RadioBrowserApi.fetchByCountry("China", 50);
+            } else if (RadioBrowserApi.isCustomCategory(requireContext(), finalTag)) {
+                // 自定义清单分类：本地读 Download/jingxin_radio.json，不走网络
+                stations = RadioBrowserApi.loadCustomStations(requireContext(), finalTag);
+            } else {
+                stations = RadioBrowserApi.fetchByTag(finalTag, 50);
+            }
+            // 目录失败兜底：读缓存 → 中国/热门再试种子（自定义分类纯本地，不走网络兜底）
+            if ((stations == null || stations.isEmpty())
+                    && !RadioBrowserApi.TAG_FAVORITE.equals(finalTag)
+                    && !RadioBrowserApi.isCustomCategory(requireContext(), finalTag)) {
+                String cacheKey = RadioBrowserApi.TAG_HOT.equals(finalTag) ? "hot"
+                        : ("中国".equals(finalTag) ? "cn" : "tag_" + finalTag);
+                String cached = RadioBrowserApi.readCache(requireContext(), cacheKey,
+                        24 * 60 * 60 * 1000L);
+                if (cached != null) {
+                    stations = RadioBrowserApi.parseStationJson(cached);
+                }
+                if ((stations == null || stations.isEmpty())
+                        && ("热门".equals(finalTag) || "中国".equals(finalTag))) {
+                    stations = RadioBrowserApi.loadSeed(requireContext());
+                }
+            }
+            List<BrowseItem> browseItems = new ArrayList<>();
+            if (stations != null) {
+                for (Song s : stations) {
+                    browseItems.add(BrowseItem.radioStation(s));
+                }
+            }
+            runOnUi(() -> {
+                if (isActivityGone()) return;
+                browseLoading.setVisibility(View.GONE);
+                rvBrowse.setVisibility(View.VISIBLE);
+                browseAdapter.setItems(browseItems);
+                lastLoadedBiliUrl = null;
+                updateCountText();
+                if (browseItems.isEmpty()) {
+                    // 收藏为空或加载失败：保留在当前层，计数文本显示 0 个电台
+                }
+            });
+        });
+    }
+
+    private void navigateRadioBack() {
+        // 自定义分类层（个人内部）：先回"个人"分类层，再回根层
+        if (radioCurrentTag != null
+                && RadioBrowserApi.isCustomCategory(requireContext(), radioCurrentTag)) {
+            navigateRadioTo(RadioBrowserApi.CUSTOM_ROOT);
+        } else {
+            navigateRadioTo(null);
+        }
+    }
+
+
     private String extractBiliDisplayPath(String url) {
         if (url == null) return "B站收藏夹";
         if (url.startsWith("bili://folder/")) return "收藏夹";
@@ -1418,6 +1576,8 @@ public class MainFragment extends BaseFloatFragment {
             String playlistMode = "webdav";
             if (clickedItem.source == Song.SOURCE_BILI) {
                 playlistMode = "bili";
+            } else if (clickedItem.source == Song.SOURCE_RADIO) {
+                playlistMode = "radio";
             }
 
             Bundle args = new Bundle();
@@ -1485,6 +1645,22 @@ public class MainFragment extends BaseFloatFragment {
                 if (!item.isDirectory) songCount++;
             }
             tvSongCount.setText(songCount + " 首歌曲");
+        } else if (currentTab == 4) {
+            if (radioCurrentTag == null) {
+                // TAGS + 电台收藏卡 + （有清单时）个人卡
+                int catCount = RadioBrowserApi.TAGS.length + 1
+                        + (RadioBrowserApi.hasCustomData(requireContext()) ? 1 : 0);
+                tvSongCount.setText(catCount + " 个分类");
+            } else if (RadioBrowserApi.CUSTOM_ROOT.equals(radioCurrentTag)) {
+                tvSongCount.setText(RadioBrowserApi.customCategories(requireContext()).size() + " 个分类");
+            } else {
+                List<BrowseItem> items = browseAdapter.getItems();
+                int stationCount = 0;
+                for (BrowseItem item : items) {
+                    if (!item.isDirectory) stationCount++;
+                }
+                tvSongCount.setText(stationCount + " 个电台");
+            }
         } else {
             tvSongCount.setText(songAdapter.getFavoriteSongs().size() + " 首收藏");
         }
@@ -1590,6 +1766,7 @@ public class MainFragment extends BaseFloatFragment {
         setTabColor(tabLocalTop, tabLocalTitle, currentTab == 0, activeColor, inactiveColor);
         setTabColor(tabCloudTop, tabCloudTitle, currentTab == 1, activeColor, inactiveColor);
         setTabColor(tabBiliTop, tabBiliTitle, currentTab == 2, activeColor, inactiveColor);
+        setTabColor(tabRadioTop, tabRadioTitle, currentTab == 4, activeColor, inactiveColor);
         setTabColor(tabFavoriteTop, tabFavoriteTitle, currentTab == 3, activeColor, inactiveColor);
         // 底部指示线 + 滑动指示器（与 Tab 文字同色）
         int indicatorColor = activeColor;
@@ -2167,6 +2344,41 @@ public class MainFragment extends BaseFloatFragment {
         coverRotationHelper.pause();
     }
 
+    /**
+     * 电台：favicon 直载 mini 封面 + 主色取色（电台 Tab 封面也是 favicon，取色与歌曲封面同链路）
+     */
+    private void loadMiniCoverAndColor(Song song, boolean colorEnabled) {
+        if (song == null || song.coverUrl == null || song.coverUrl.isEmpty()) {
+            miniCover.setImageResource(R.drawable.ic_music_icon);
+            if (colorEnabled) extractAndApplyMagicBgColor(song != null ? song.title : null, "电台", null);
+            return;
+        }
+        final String url = song.coverUrl;
+        executor.execute(() -> {
+            android.graphics.Bitmap bmp = null;
+            try {
+                bmp = com.jingxin.jingxinmusic.util.HttpUtil.getBitmap(url);
+                if (bmp != null) {
+                    int size = Math.min(bmp.getWidth(), bmp.getHeight());
+                    android.graphics.Bitmap squared = android.graphics.Bitmap.createBitmap(
+                            bmp,
+                            (bmp.getWidth() - size) / 2,
+                            (bmp.getHeight() - size) / 2,
+                            size, size);
+                    android.graphics.Bitmap rounded = getScaledRoundedBitmap(squared, 42);
+                    runOnUi(() -> {
+                        if (!isActivityGone()) miniCover.setImageBitmap(rounded);
+                    });
+                }
+            } catch (Exception e) {
+                bmp = null;
+            }
+            if (colorEnabled) {
+                extractAndApplyMagicBgColor(song.title, "电台", bmp);
+            }
+        });
+    }
+
     private void loadMiniCover(String title, String artist) {
         if (title == null) return;
         executor.execute(() -> {
@@ -2235,12 +2447,20 @@ public class MainFragment extends BaseFloatFragment {
      * （MagicColor.extractDominant 8桶取色 → MagicColor.mapColor 色相查10档表）
      */
     private void extractAndApplyMagicBgColor(String title, String artist) {
+        extractAndApplyMagicBgColor(title, artist, null);
+    }
+
+    /**
+     * 重载：coverBitmap 直通版（电台：favicon 网络图直接传入，跳过本地缓存查找）
+     */
+    private void extractAndApplyMagicBgColor(String title, String artist, android.graphics.Bitmap presetBitmap) {
         if (title == null) return;
         // 后台线程回调时 Fragment 可能已销毁，先快照 Context 引用
         final android.content.Context ctx = getActivity();
         if (ctx == null) return;
         executor.execute(() -> {
-            android.graphics.Bitmap coverBitmap = null;
+            android.graphics.Bitmap coverBitmap = presetBitmap;
+            if (coverBitmap == null) {
             try {
                 File coverDir = com.jingxin.jingxinmusic.util.CoverLoader.getCoverDir(ctx);
                 if (coverDir != null) {
@@ -2258,6 +2478,7 @@ public class MainFragment extends BaseFloatFragment {
                     }
                 }
             } catch (Exception e) {
+            }
             }
             if (coverBitmap == null) {
                 // 无封面：清除动态主色，回退纯底色
@@ -2416,10 +2637,12 @@ public class MainFragment extends BaseFloatFragment {
                 if (tabLocalTitle != null) tabLocalTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
                 if (tabCloudTitle != null) tabCloudTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
                 if (tabBiliTitle != null) tabBiliTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabRadioTitle != null) tabRadioTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
                 if (tabFavoriteTitle != null) tabFavoriteTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
                 if (tabLocalTop != null) tabLocalTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
                 if (tabCloudTop != null) tabCloudTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
                 if (tabBiliTop != null) tabBiliTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
+                if (tabRadioTop != null) tabRadioTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
                 if (tabFavoriteTop != null) tabFavoriteTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
             }
             if (tvCopyright != null) {
@@ -2526,10 +2749,12 @@ public class MainFragment extends BaseFloatFragment {
                 if (tabLocalTitle != null) tabLocalTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
                 if (tabCloudTitle != null) tabCloudTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
                 if (tabBiliTitle != null) tabBiliTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
+                if (tabRadioTitle != null) tabRadioTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
                 if (tabFavoriteTitle != null) tabFavoriteTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTitleSize);
                 if (tabLocalTop != null) tabLocalTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
                 if (tabCloudTop != null) tabCloudTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
                 if (tabBiliTop != null) tabBiliTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
+                if (tabRadioTop != null) tabRadioTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
                 if (tabFavoriteTop != null) tabFavoriteTop.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, tabTopSize);
                 // 指示器宽度 = Tab 宽度的 60%
                 if (tabIndicator != null) {

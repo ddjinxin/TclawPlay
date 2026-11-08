@@ -13,6 +13,7 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
+import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.util.CoverLoader;
 
 import java.util.ArrayList;
@@ -80,6 +81,8 @@ public class CoverFlowView extends View {
     }
     private final SongProvider provider;
     private final Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    /** 无封面占位：品牌图标位图（懒加载一次，绘制路径与真实封面完全一致） */
+    private Bitmap defaultCover;
     private final Paint maskPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     // 手绘软影画笔/矩形（成员复用零分配；替代 setShadowLayer 的硬件加速安全实现）
     private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -508,6 +511,24 @@ public class CoverFlowView extends View {
 
     private void drawCardInner(Canvas canvas, Bitmap bmp, float px, float py, float size,
                                boolean isCenter, float density) {
+        if (defaultCover == null) {
+            // 注意：API26+ 的 ic_launcher 是自适应图标XML，BitmapFactory解不了——必须Drawable绘制转位图
+            try {
+                android.graphics.drawable.Drawable d = getResources()
+                        .getDrawable(R.mipmap.ic_launcher, null);
+                if (d != null) {
+                    int dw = d.getIntrinsicWidth() > 0 ? d.getIntrinsicWidth() : 256;
+                    int dh = d.getIntrinsicHeight() > 0 ? d.getIntrinsicHeight() : 256;
+                    defaultCover = Bitmap.createBitmap(dw, dh, Bitmap.Config.ARGB_8888);
+                    Canvas c = new Canvas(defaultCover);
+                    d.setBounds(0, 0, dw, dh);
+                    d.draw(c);
+                }
+            } catch (Exception e) {
+                defaultCover = null;
+            }
+        }
+        Bitmap drawBmp = (bmp != null && !bmp.isRecycled()) ? bmp : defaultCover;
         float left = px - size / 2f, top = py - size;
         // 层叠阴影（手绘软影）：原 setShadowLayer 依赖软件层（硬加速下非文本阴影被
         // 静默忽略），改 3 层递减透明度、逐层下移外扩的圆角矩形近似原 12dp/6dp 辉散
@@ -530,16 +551,16 @@ public class CoverFlowView extends View {
         clip.addRoundRect(r, size * 0.08f, size * 0.08f, Path.Direction.CW);
         int sc = canvas.save();
         canvas.clipPath(clip);
-        if (bmp != null && !bmp.isRecycled()) {
-            // 等比裁切居中绘制
-            float bw = bmp.getWidth(), bh = bmp.getHeight();
+        if (drawBmp != null && !drawBmp.isRecycled()) {
+            // 等比裁切居中绘制（无封面时=品牌图标占位，同一路径同圆角）
+            float bw = drawBmp.getWidth(), bh = drawBmp.getHeight();
             float scale = Math.max(size / bw, size / bh);
             float dw = bw * scale, dh = bh * scale;
-            canvas.drawBitmap(bmp, null,
+            canvas.drawBitmap(drawBmp, null,
                     new RectF(left + (size - dw) / 2f, top + (size - dh) / 2f,
                             left + (size + dw) / 2f, top + (size + dh) / 2f), cardPaint);
         } else {
-            // 占位：星空上可见的暗蓝描边空卡（原灰色与星空同色致"卡消失"错觉）
+            // 兜底：品牌位图不可用时画星空上可见的暗蓝描边空卡
             cardPaint.setColor(Color.argb(200, 10, 16, 30));
             canvas.drawRect(r, cardPaint);
             Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);

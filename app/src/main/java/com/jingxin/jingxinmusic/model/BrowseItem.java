@@ -129,4 +129,32 @@ public class BrowseItem {
         item.song = song;
         return item;
     }
+
+    /**
+     * 创建电台分类目录项（点击进入分类台列表）
+     * @param tag 分类名（热门/中国/新闻/... 或 RadioBrowserApi.TAG_FAVORITE）
+     */
+    public static BrowseItem radioCategory(String tag) {
+        BrowseItem item = new BrowseItem();
+        item.name = tag;
+        item.path = "radio://tag/" + tag;
+        item.url = "radio://tag/" + tag;
+        item.isDirectory = true;
+        item.source = Song.SOURCE_RADIO;
+        return item;
+    }
+
+    /**
+     * 创建电台歌曲项（favicon 作为封面）
+     */
+    public static BrowseItem radioStation(Song song) {
+        BrowseItem item = new BrowseItem();
+        item.name = song.title;
+        item.path = song.filePath;
+        item.url = song.audioUrl;
+        item.isDirectory = false;
+        item.source = Song.SOURCE_RADIO;
+        item.song = song;
+        return item;
+    }
 }

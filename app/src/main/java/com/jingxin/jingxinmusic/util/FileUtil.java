@@ -23,6 +23,24 @@ public class FileUtil {
     private static final String TAG = "FileUtil";
 
     /**
+     * 读取 assets 目录下的文本资源（UTF-8）
+     */
+    public static String readAsset(android.content.Context ctx, String assetName) {
+        try {
+            java.io.InputStream is = ctx.getAssets().open(assetName);
+            if (is == null) return null;
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = is.read(buf)) != -1) bos.write(buf, 0, n);
+            is.close();
+            return bos.toString("UTF-8");
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * 读取文本文件全部内容（不带换行拼接）
      * 自动识别编码：UTF-8 严格解码，失败回退 GBK
      */

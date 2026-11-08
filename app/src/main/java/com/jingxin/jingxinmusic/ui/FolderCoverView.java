@@ -31,6 +31,7 @@ public class FolderCoverView extends View {
     private Bitmap coverBitmap;         // 外部设置的封面
     private Bitmap defaultCoverBitmap;  // 默认封面缓存
     private boolean nightMode = true;
+    private boolean radioStyle;         // 电台目录卡：中心图标用 radio 图标（默认=耳机）
 
     // 渐变背景色
     private int gradientStart = 0;
@@ -67,6 +68,14 @@ public class FolderCoverView extends View {
         invalidate();
     }
 
+    /** 电台目录卡模式：中心图标用 radio 图标（ViewHolder 复用需切图） */
+    public void setRadioStyle(boolean radio) {
+        if (radioStyle == radio) return;
+        radioStyle = radio;
+        defaultCoverBitmap = null; // 换图标需重解默认位图
+        invalidate();
+    }
+
     /** 设置外部6色循环渐变色 */
     public void setGradientColors(int startColor, int endColor) {
         this.gradientStart = startColor;
@@ -90,7 +99,8 @@ public class FolderCoverView extends View {
     private Bitmap ensureDefaultCover() {
         if (defaultCoverBitmap != null && !defaultCoverBitmap.isRecycled()) return defaultCoverBitmap;
         try {
-            Drawable drawable = ContextCompat.getDrawable(getContext(), R.drawable.ic_music_icon);
+            Drawable drawable = ContextCompat.getDrawable(getContext(),
+                    radioStyle ? R.drawable.ic_radio_station : R.drawable.ic_music_icon);
             if (drawable == null) return null;
             int size = 256;
             defaultCoverBitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
@@ -133,17 +143,18 @@ public class FolderCoverView extends View {
         coverRect.set(coverLeft, coverTop, coverLeft + coverWidth, coverTop + coverHeight);
 
         // 3. 画封面图片
-        Bitmap bmp = (coverBitmap != null && !coverBitmap.isRecycled()) ? coverBitmap : ensureDefaultCover();
+        boolean isPlaceholder = (coverBitmap == null || coverBitmap.isRecycled());
+        Bitmap bmp = isPlaceholder ? ensureDefaultCover() : coverBitmap;
         if (bmp != null) {
             canvas.save();
             // 裁剪圆角区域
             buildRoundRectPath(coverRect, 8 * density, 8 * density);
             canvas.clipPath(roundRectPath);
 
-            // 计算缩放：coverFit（填满区域），居中裁剪
+            // 计算缩放：真实封面=填满区域居中裁剪；占位图=缩至区域60%居中
             float scaleX = coverWidth / bmp.getWidth();
             float scaleY = coverHeight / bmp.getHeight();
-            float scale = Math.max(scaleX, scaleY);
+            float scale = isPlaceholder ? Math.min(scaleX, scaleY) * 0.6f : Math.max(scaleX, scaleY);
 
             BitmapShader shader = new BitmapShader(bmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             shaderMatrix.reset();

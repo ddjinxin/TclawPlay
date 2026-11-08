@@ -42,6 +42,7 @@ public class Song {
     public static final int SOURCE_LOCAL = 0;
     public static final int SOURCE_WEBDAV = 1;
     public static final int SOURCE_BILI = 2;
+    public static final int SOURCE_RADIO = 3;
     public int sourceType = SOURCE_LOCAL;
 
     // B站音源字段
@@ -76,7 +77,30 @@ public class Song {
     }
 
     /**
-     * 从B站收藏夹项创建Song对象
+     * 从电台条目创建 Song 对象
+     * @param uuid Radio Browser stationuuid（播放队列稳定身份）
+     * @param name 电台名
+     * @param streamUrl 真实可播流地址（url_resolved）
+     * @param faviconUrl 台标 URL（可能为空）
+     * @param codecBr 备注串（如 "MP3 128k"），可为空
+     */
+    public static Song fromRadio(String uuid, String name, String streamUrl,
+                                 String faviconUrl, String codecBr) {
+        Song song = new Song();
+        song.sourceType = SOURCE_RADIO;
+        song.artist = "电台";
+        song.album = codecBr != null && !codecBr.isEmpty() ? codecBr : "网络电台";
+        song.coverUrl = faviconUrl;
+        song.albumArt = faviconUrl;
+        song.audioUrl = streamUrl;      // 直播流终地址，无过期概念
+        song.filePath = "radio://" + uuid; // 占位路径，播放时取 audioUrl
+        song.title = name;
+        song.displayName = song.title;
+        return song;
+    }
+
+    /**
+     * 从 B站收藏夹项创建Song对象
      * @param bvid BV号
      * @param title 标题（可能含HTML标签，会自动清理）
      * @param upperName UP主名称

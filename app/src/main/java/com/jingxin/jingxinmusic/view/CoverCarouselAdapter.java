@@ -75,15 +75,15 @@ public class CoverCarouselAdapter {
             } else {
                 // 超出列表范围，显示空封面
                 visibleSongs[i] = null;
-                iv.setImageResource(R.drawable.ic_music_icon);
+                iv.setImageResource(R.mipmap.ic_launcher);
                 iv.setAlpha(i == 2 ? 1.0f : 0.5f);
             }
         }
     }
 
     private void loadCoverForCard(ImageView iv, Song song, int cardIndex) {
-        // 先设置默认封面
-        iv.setImageResource(R.drawable.ic_music_icon);
+        // 先设置默认封面（品牌图标）
+        iv.setImageResource(R.mipmap.ic_launcher);
         // 中间卡片不透明，侧边卡片半透明
         iv.setAlpha(cardIndex == 2 ? 1.0f : (cardIndex == 1 || cardIndex == 3) ? 0.85f : 0.7f);
 

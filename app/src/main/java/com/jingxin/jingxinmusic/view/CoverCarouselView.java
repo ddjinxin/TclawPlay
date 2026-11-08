@@ -100,7 +100,7 @@ public class CoverCarouselView extends FrameLayout {
         for (int idx : addOrder) {
             ImageView iv = new ImageView(context);
             iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            iv.setImageResource(R.drawable.ic_music_icon);
+            iv.setImageResource(R.mipmap.ic_launcher);
             iv.setOutlineProvider(roundOutline);
             iv.setClipToOutline(true);
             iv.setElevation((int) (6 * density));

@@ -82,8 +82,38 @@ public class HttpUtil {
         return executeRequest(apiUrl, "GET", BILI_USER_AGENT, BILI_TIMEOUT, headers, null, null);
     }
 
+
     public static String postWithHeaders(String apiUrl, String body, Map<String, String> headers) {
         return executeRequest(apiUrl, "POST", BILI_USER_AGENT, BILI_TIMEOUT, headers, body, "application/x-www-form-urlencoded");
+    }
+
+
+    /**
+     * HTTP GET 下载原始字节（favicon 等小文件落盘缓存用）
+     * @return 字节数组，失败返回 null
+     */
+    public static byte[] getBytes(String url) {
+        HttpURLConnection conn = null;
+        try {
+            URL u = new URL(url);
+            conn = (HttpURLConnection) u.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(TIMEOUT);
+            conn.setReadTimeout(TIMEOUT);
+            conn.setRequestProperty("User-Agent", USER_AGENT);
+            if (conn.getResponseCode() != 200) return null;
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            InputStream is = conn.getInputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = is.read(buf)) != -1) bos.write(buf, 0, n);
+            is.close();
+            return bos.toByteArray();
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
     }
 
     /**

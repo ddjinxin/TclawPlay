@@ -39,6 +39,7 @@ public class LyricView extends View {
     }
     
     private DisplayMode currentMode = DisplayMode.DOUBLE_LINE;
+    private boolean hideEmptyHint = false; // 电台模式：空歌词时不画"暂无歌词"提示
     private boolean isWideScreen = false;
 
     // 模式切换回调
@@ -204,6 +205,13 @@ public class LyricView extends View {
         lines.clear();
         currentLineIndex = -1;
         currentPosition = 0;
+        invalidate();
+    }
+
+    /** 电台模式开关：直播流本就无歌词，开启后空歌词时不再画"暂无歌词"提示（纯空白） */
+    public void setHideEmptyHint(boolean hide) {
+        if (hideEmptyHint == hide) return;
+        hideEmptyHint = hide;
         invalidate();
     }
     
@@ -492,8 +500,10 @@ public class LyricView extends View {
         super.onDraw(canvas);
         
         if (lines.isEmpty()) {
-            paintHint.setTextSize(textSizeCurrent);
-            canvas.drawText("暂无歌词", viewWidth / 2f, viewHeight / 2f, paintHint);
+            if (!hideEmptyHint) {
+                paintHint.setTextSize(textSizeCurrent);
+                canvas.drawText("暂无歌词", viewWidth / 2f, viewHeight / 2f, paintHint);
+            }
             return;
         }
         

@@ -323,13 +323,19 @@ public class StandardPageBase extends StagePage {
         if (hb.getCover() != null) {
             onCoverArrived(hb.getCover(), landscape);
         } else {
-            cover.setImageResource(R.drawable.ic_music_icon);
-            coverL.setImageResource(R.drawable.ic_music_icon);
+            cover.setImageResource(R.mipmap.ic_launcher);
+            coverL.setImageResource(R.mipmap.ic_launcher);
         }
         if (hb.getLyricData() != null) {
             lyric.setLyricData(hb.getLyricData());
             lyricL.setLyricData(hb.getLyricData());
         }
+        // 电台快照：进入页面即抑制空提示（addObserver 不回放，需读当前 song）
+        com.jingxin.jingxinmusic.model.Song snapSong = hb.getSong();
+        boolean snapRadio = snapSong != null
+                && snapSong.sourceType == com.jingxin.jingxinmusic.model.Song.SOURCE_RADIO;
+        lyric.setHideEmptyHint(snapRadio);
+        lyricL.setHideEmptyHint(snapRadio);
         if (hb.hasCoverColors()) {
             onColorsArrived(hb.getCoverColorTop(), hb.getCoverColorBottom());
         }
@@ -413,6 +419,11 @@ public class StandardPageBase extends StagePage {
             if (night != state.nightMode) { night = state.nightMode; }
             auroraSkin = state.bgSkinMode == 1;
             playing = state.playing;
+            // 电台：直播流无歌词，抑制空提示（不显示"暂无歌词"）
+            boolean radio = state.song != null
+                    && state.song.sourceType == com.jingxin.jingxinmusic.model.Song.SOURCE_RADIO;
+            lyric.setHideEmptyHint(radio);
+            lyricL.setHideEmptyHint(radio);
             if (skinChanged || nightChanged) {
                 applyBackgroundState();
                 applyThemeColors(); // 皮肤切换也要重染：进度条圆球/已进度段/控制条/顶栏（光晕球色跟随文字色）

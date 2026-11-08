@@ -12,6 +12,7 @@ import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -23,6 +24,8 @@ import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.ui.FolderCoverView;
 import com.jingxin.jingxinmusic.ui.SquareImageView;
 import com.jingxin.jingxinmusic.util.CoverFetcher;
+import com.jingxin.jingxinmusic.util.RadioBrowserApi;
+import com.jingxin.jingxinmusic.util.RadioFavoriteManager;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.WebDavScanner;
 
@@ -164,6 +167,8 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             holder.ivCover.setVisibility(View.GONE);
             holder.ivFolderCover.setVisibility(View.VISIBLE);
             holder.ivFolderCover.setNightMode(isNightMode);
+            // 电台分类卡：中心图标用 radio 图标（本地文件夹保持耳机）
+            holder.ivFolderCover.setRadioStyle(item.source == Song.SOURCE_RADIO);
             // 计算当前文件夹在列表中是第几个文件夹，用于6色循环
             int folderCount = 0;
             for (int i = 0; i < position; i++) {
@@ -186,13 +191,87 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
         } else {
             holder.ivCover.setVisibility(View.VISIBLE);
             holder.ivFolderCover.setVisibility(View.GONE);
-            loadCover(holder, item);
+            // 电台：favicon 直载（不走"搜歌名"的在线封面链路）
+            holder.ivCover.setTag(position);
+            if (item.source == Song.SOURCE_RADIO) {
+                loadRadioFavicon(holder, position, item);
+            } else {
+                loadCover(holder, item);
+            }
         }
 
         // 点击
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onItemClick(item, holder.getAdapterPosition());
+            }
+        });
+    }
+
+    /**
+     * 电台台标封面：favicon 网络直载，LRU 缓存键=URL，默认渐变底+音乐图标兜底
+     */
+    private void loadRadioFavicon(ViewHolder holder, int position, BrowseItem item) {
+        if (context == null) return;
+        String favicon = item.song != null ? item.song.coverUrl : null;
+        String name = item.song != null ? item.song.title : "";
+        boolean hasUrl = favicon != null && !favicon.isEmpty();
+        // 缓存键：有 URL 用 URL，无 URL（仅本地台标）用台名
+        String cacheKey = hasUrl ? favicon : ("logo:" + name);
+        Bitmap cached = coverCache.get(cacheKey);
+        if (cached != null) {
+            holder.ivCover.setImageBitmap(cached);
+            holder.ivCover.setBackground(null);
+            holder.ivCover.setColorFilter(0);
+            return;
+        }
+        // 占位：默认卡片（电台Tab专用radio图标，inset版=缩至区域60%居中；渐变底一致，加载成功后替换）
+        holder.ivCover.setImageResource(R.drawable.ic_radio_station_inset);
+        holder.ivCover.setBackground(ThemeColors.cardGradient(isNightMode));
+        holder.ivCover.setColorFilter(0);
+        // 无 URL 且无台名：纯兜底，不做加载
+        if (!hasUrl && name.isEmpty()) return;
+
+        synchronized (loadingCovers) {
+            if (loadingCovers.contains(cacheKey)) return;
+            loadingCovers.add(cacheKey);
+        }
+        final ImageView cover = holder.ivCover;
+        coverExecutor.execute(() -> {
+            Bitmap bmp = null;
+            try {
+                // 1. 本地台标（Download/jingxinmusic/radio/电台名.png，用户手放的优先）
+                bmp = com.jingxin.jingxinmusic.util.RadioBrowserApi.loadLocalLogo(name);
+                // 2. URL 落盘缓存（上次会话下载过的，秒回不打网络）
+                if (bmp == null && hasUrl) {
+                    bmp = com.jingxin.jingxinmusic.util.RadioBrowserApi.loadFavicon(context, favicon);
+                }
+                // 3. 未命中：网络下载 + 落盘（下次会话直接用）
+                if (bmp == null && hasUrl) {
+                    bmp = com.jingxin.jingxinmusic.util.HttpUtil.getBitmap(favicon);
+                    if (bmp != null) {
+                        byte[] data = com.jingxin.jingxinmusic.util.HttpUtil.getBytes(favicon);
+                        com.jingxin.jingxinmusic.util.RadioBrowserApi.saveFavicon(context, favicon, data);
+                    }
+                }
+                if (bmp != null && (bmp.getWidth() > 256 || bmp.getHeight() > 256)) {
+                    bmp = BitmapUtil.scaleToMaxSize(bmp, 256);
+                }
+            } catch (Exception e) {
+                bmp = null;
+            }
+            final Bitmap finalBmp = bmp;
+            if (finalBmp != null) coverCache.put(cacheKey, finalBmp);
+            synchronized (loadingCovers) { loadingCovers.remove(cacheKey); }
+            if (finalBmp != null) {
+                uiHandler.post(() -> {
+                    Object tag = cover.getTag();
+                    if (tag instanceof Integer && ((Integer) tag) == position) {
+                        holder.ivCover.setBackground(null);
+                        holder.ivCover.setColorFilter(0);
+                        holder.ivCover.setImageBitmap(finalBmp);
+                    }
+                });
             }
         });
     }
@@ -367,6 +446,10 @@ public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder
             result = findWebDavCover(dirItem);
         } else if (dirItem.source == Song.SOURCE_BILI) {
             result = findBiliCover(dirItem);
+        } else if (dirItem.source == Song.SOURCE_RADIO) {
+            // 电台分类目录卡：回退为纯渐变目录卡（不继承下层封面）
+            // 曾尝试“分类缓存里第一个台的 favicon”，引入后分类页加载变慢，已整体回退
+            result = null;
         } else {
             // 本地目录：直接扫描文件系统
             String dirPath = dirItem.path != null ? dirItem.path : dirItem.url;

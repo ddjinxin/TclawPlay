@@ -31,7 +31,6 @@ import com.jingxin.jingxinmusic.model.Song;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 /**
  * 拼贴墙 View（自研引擎：像素空间织块墙）
@@ -72,6 +71,11 @@ public class CollageWallView extends View {
     /** 长按呼出顶栏回调（任何位置含封面上，不依赖空白） */
     public interface OnLongPressListener {
         void onLongPress(float sx, float sy);
+    }
+
+    /** 长按当前展开大卡回调（页面处理收藏音乐/电台；展开到位时优先于 OnLongPressListener） */
+    public interface OnCurrentCardLongPressListener {
+        void onLongPressCurrentCard(float sx, float sy);
     }
 
     /** 本次按下的长按是否已触发（抬手吞掉 tap，防"长按呼出→抬手误点卡切歌"） */
@@ -195,6 +199,7 @@ public class CollageWallView extends View {
     @Nullable private OnTileAction action;
     @Nullable private OnEmptyTapListener emptyTapListener;
     @Nullable private OnLongPressListener longPressListener;
+    @Nullable private OnCurrentCardLongPressListener currentCardLongPressListener;
     @Nullable private OnExpandedCoverTapListener expandedCoverTapListener;
 
     // 播放态/进度（展开卡传输条与进度线用）
@@ -249,13 +254,18 @@ public class CollageWallView extends View {
 
             @Override
             public void onLongPress(MotionEvent e) {
-                // 长按呼出顶栏：全屏任意位置都算（卡间隙窄点不中），
+                // 长按：落在当前展开大卡上=收藏音乐/电台；其余位置=呼出顶栏。
                 // 手指按住不移动不会触发 onScroll，拖动浏览不受影响
                 longPressFired = true;
-                if (longPressListener != null) {
-                    longPressListener.onLongPress(e.getX(), e.getY());
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                float sx = e.getX(), sy = e.getY();
+                if (isLongPressOnExpandedCard(sx, sy)) {
+                    if (currentCardLongPressListener != null) {
+                        currentCardLongPressListener.onLongPressCurrentCard(sx, sy);
+                    }
+                } else if (longPressListener != null) {
+                    longPressListener.onLongPress(sx, sy);
                 }
+                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             }
 
             @Override
@@ -290,15 +300,15 @@ public class CollageWallView extends View {
         });
     }
 
-    public void setExecutor(@Nullable ExecutorService executor) {
-        coverCache.setExecutor(executor);
-    }
-
     public void setOnTileAction(@Nullable OnTileAction action) { this.action = action; }
 
     public void setOnEmptyTapListener(@Nullable OnEmptyTapListener l) { this.emptyTapListener = l; }
 
     public void setOnLongPressListener(@Nullable OnLongPressListener l) { this.longPressListener = l; }
+
+    public void setOnCurrentCardLongPressListener(@Nullable OnCurrentCardLongPressListener l) {
+        this.currentCardLongPressListener = l;
+    }
 
     public void setOnExpandedCoverTapListener(@Nullable OnExpandedCoverTapListener l) { this.expandedCoverTapListener = l; }
 
@@ -989,6 +999,18 @@ public class CollageWallView extends View {
             }
         }
         return -1;
+    }
+
+    /** 长按点是否落在当前展开大卡上（展开到位才算；内部数据判定，与调用坐标同域） */
+    private boolean isLongPressOnExpandedCard(float sx, float sy) {
+        if (!hasExpanded || expandProgress < 0.9f) return false;
+        int idx = indexOfExpandedDrawn();
+        if (idx < 0) return false;
+        float x = drawnRects[idx * 4] - scrollX;
+        float y = drawnRects[idx * 4 + 1] - scrollY;
+        float w = drawnRects[idx * 4 + 2];
+        float h = drawnRects[idx * 4 + 3];
+        return sx >= x && sx <= x + w && sy >= y && sy <= y + h;
     }
 
     /** 展开卡矩形（屏幕坐标 l,t,r,b，复用缓存；无展开返回 null。页面立即消费，勿持有） */

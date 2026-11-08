@@ -45,6 +45,8 @@ public class PlayerTopBar extends LinearLayout {
     private final View spacer = new View(getContext());
 
     private Listener listener;
+    /** 电台态：动效/歌词搜索/装扮三键禁用（直播流无歌词/动效，装扮也不切拼贴固定态） */
+    private boolean radioMode = false;
 
     public PlayerTopBar(Context context) { this(context, null); }
 
@@ -92,8 +94,8 @@ public class PlayerTopBar extends LinearLayout {
 
         btnBack.setOnClickListener(v -> { if (listener != null) listener.onBack(); });
         btnEffect.setOnClickListener(v -> { if (listener != null) listener.onEffect(btnEffect); });
-        btnLyricFx.setOnClickListener(v -> { if (listener != null) listener.onLyricEffect(); });
-        btnSearch.setOnClickListener(v -> { if (listener != null) listener.onLyricSearch(btnSearch); });
+        btnLyricFx.setOnClickListener(v -> { if (listener != null && !radioMode) listener.onLyricEffect(); });
+        btnSearch.setOnClickListener(v -> { if (listener != null && !radioMode) listener.onLyricSearch(btnSearch); });
         btnSpectrum.setOnClickListener(v -> {
             if (listener != null) listener.onSpectrum(btnSpectrum, false);
         });
@@ -101,7 +103,7 @@ public class PlayerTopBar extends LinearLayout {
             if (listener != null) listener.onSpectrum(btnSpectrum, true);
             return true;
         });
-        btnOutfit.setOnClickListener(v -> { if (listener != null) listener.onOutfit(); });
+        btnOutfit.setOnClickListener(v -> { if (listener != null && !radioMode) listener.onOutfit(); });
     }
 
     private ImageView[] buttons() {
@@ -109,6 +111,9 @@ public class PlayerTopBar extends LinearLayout {
     }
 
     public void setListener(Listener l) { this.listener = l; }
+
+    /** 电台态：动效/歌词搜索/装扮三键禁用 */
+    public void setRadioMode(boolean radio) { this.radioMode = radio; }
 
     /** 日夜染色：夜间清滤镜（白色原图），白天染主题深色 */
     public void applyTheme(boolean night, int dayColor) {

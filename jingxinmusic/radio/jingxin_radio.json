@@ -1,0 +1,1345 @@
+[
+  {
+    "name": "CNR国际新闻",
+    "category": "央广系",
+    "stream": "https://lhttp.qtfm.cn/live/20500172/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "CNR经济之声",
+    "category": "央广系",
+    "stream": "http://ngcdn002.cnr.cn/live/jjzs/index.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CNR音乐之声",
+    "category": "音乐",
+    "stream": "https://ngcdn001.cnr.cn/live/yyzs/index.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "中国之声",
+    "category": "央广系",
+    "stream": "https://lhttp.qtfm.cn/live/15318317/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://cnvod.cnr.cn/audio2017/ondemand/media/1100/20210425/1619317448858.jpg"
+  },
+  {
+    "name": "CRI世界华声",
+    "category": "国际台",
+    "stream": "http://sk.cri.cn/hxfh.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CRI中文环球",
+    "category": "国际台",
+    "stream": "http://sk.cri.cn/hyhq.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CRI南海之声",
+    "category": "国际台",
+    "stream": "http://sk.cri.cn/nhzs.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CRI环球资讯广播",
+    "category": "国际台",
+    "stream": "http://sk.cri.cn/905.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CRI英语资讯 China Plus",
+    "category": "国际台",
+    "stream": "http://sk.cri.cn/am846.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CCTV-13新闻伴音",
+    "category": "央广系",
+    "stream": "https://piccpndali.v.myalicdn.com/audio/cctv13_2.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CCTV-15音乐伴音",
+    "category": "音乐",
+    "stream": "https://piccpndali.v.myalicdn.com/audio/cctv15_2.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CCTV-16奥林匹克伴音",
+    "category": "央广系",
+    "stream": "https://piccpndali.v.myalicdn.com/audio/cctv16_2.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CCTV-1综合伴音",
+    "category": "央广系",
+    "stream": "https://piccpndali.v.myalicdn.com/audio/cctv1_2.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CCTV-2财经伴音",
+    "category": "央广系",
+    "stream": "https://piccpndali.v.myalicdn.com/audio/cctv2_2.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CCTV-4中文国际伴音",
+    "category": "央广系",
+    "stream": "https://piccpndali.v.myalicdn.com/audio/cctv4_2.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CCTV-5体育伴音",
+    "category": "央广系",
+    "stream": "https://piccpndali.v.myalicdn.com/audio/cctv5_2.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CCTV-8电视剧伴音",
+    "category": "央广系",
+    "stream": "https://piccpndali.v.myalicdn.com/audio/cctv8_2.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "北京交通广播",
+    "category": "各地之声",
+    "stream": "https://lhttp.qingting.fm/live/336/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "http://pic.qingting.fm/2019/0227/20190227023249.png"
+  },
+  {
+    "name": "北京文艺广播",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/333/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "北京新闻广播",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/339/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://pic.qtfm.cn/2015/0514/2015051417385422.jpg"
+  },
+  {
+    "name": "北京音乐广播",
+    "category": "音乐",
+    "stream": "https://lhttp.qtfm.cn/live/332/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://pic.qtfm.cn/2017/0424/20170424025444.jpeg"
+  },
+  {
+    "name": "上海交通广播",
+    "category": "各地之声",
+    "stream": "http://lhttp.qingting.fm/live/266/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "http://www.fm1057.cn/template/conch/asset/img/favicon.png"
+  },
+  {
+    "name": "上海动感101",
+    "category": "各地之声",
+    "stream": "https://lhttp-hw.qtfm.cn/live/274/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "上海新闻广播",
+    "category": "各地之声",
+    "stream": "http://lhttp.qingting.fm/live/270/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "http://pic.qingting.fm/2015/0202/20150202170847551.jpg"
+  },
+  {
+    "name": "上海第一财经",
+    "category": "各地之声",
+    "stream": "http://lhttp.qingting.fm/live/276/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "http://pic.qtfm.cn/sso/48/1641438475219_mv9SoJP78.jpeg!200"
+  },
+  {
+    "name": "上海经典947",
+    "category": "各地之声",
+    "stream": "https://lhttp-hw.qtfm.cn/live/267/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "http://pic.qingting.fm/sso/48/1641437907698_k0NNOUP54.jpeg"
+  },
+  {
+    "name": "上海音乐广播",
+    "category": "音乐",
+    "stream": "http://lhttp.qingting.fm/live/273/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "MY FM广州",
+    "category": "各地之声",
+    "stream": "http://lhttp.qingting.fm/live/20194/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "广东交通之声",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/1262/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "广东城市之声",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/469/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://pic.qtfm.cn/2020/0402/20200402042931.png"
+  },
+  {
+    "name": "广东新闻广播",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/1254/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://img.gdtv.cn/image/202109/0.03748908070393519628f4c932fb282e942OSS1630576729.png"
+  },
+  {
+    "name": "广东珠江经济台",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/1259/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://img.gdtv.cn/image/202109/0.986862757622444235b2e2f050a9656a6OSS1630576753.png"
+  },
+  {
+    "name": "广东股市广播",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/4847/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "广东音乐之声",
+    "category": "音乐",
+    "stream": "https://lhttp.qtfm.cn/live/1260/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://img.gdtv.cn/image/202109/0.070466864478565984968adb1bd6e36150OSS1630576772.png"
+  },
+  {
+    "name": "广州新闻资讯广播",
+    "category": "各地之声",
+    "stream": "http://lhttp.qingting.fm/live/4848/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://load.gztv.com/filedata/gzbn/product/src/2022/1012/thumb/e237b0104ac14ae8a874706d43fab25f.jpg"
+  },
+  {
+    "name": "广州金曲音乐广播",
+    "category": "音乐",
+    "stream": "http://lhttp.qingting.fm/live/20192/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "深圳交通广播",
+    "category": "各地之声",
+    "stream": "http://lhttp.qingting.fm/live/1272/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "深圳新闻广播",
+    "category": "各地之声",
+    "stream": "http://lhttp.qingting.fm/live/1270/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "深圳音乐广播",
+    "category": "音乐",
+    "stream": "https://lhttp.qtfm.cn/live/1271/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "500首华语经典",
+    "category": "音乐",
+    "stream": "https://lhttp.qtfm.cn/live/5022308/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "AsiaFM亚洲粤语台",
+    "category": "音乐",
+    "stream": "https://lhttp.qtfm.cn/live/15318569/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "AsiaFM亚洲经典台",
+    "category": "音乐",
+    "stream": "https://lhttp.qingting.fm/live/5021912/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "http://pic.qtfm.cn/2022/0712/20220712122112.jpeg!200"
+  },
+  {
+    "name": "AsiaFM亚洲音乐台",
+    "category": "音乐",
+    "stream": "https://lhttp.qingting.fm/live/4581/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "CityFM城市音乐台",
+    "category": "音乐",
+    "stream": "https://lhttp.qtfm.cn/live/20500153/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "两广之声音乐台",
+    "category": "音乐",
+    "stream": "https://lhttp.qtfm.cn/live/20500149/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://pic.qtfm.cn/2022/0619/20220619063631.jpeg"
+  },
+  {
+    "name": "动听音乐台",
+    "category": "音乐",
+    "stream": "https://lhttp-hw.qtfm.cn/live/5022107/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://pic.qtfm.cn/2021/0411/20210411040015.jpeg"
+  },
+  {
+    "name": "华语金曲500首",
+    "category": "音乐",
+    "stream": "http://ls.qingting.fm/live/3412131.m3u8?bitrate=64",
+    "codec": "HLS"
+  },
+  {
+    "name": "星空电台 STAR RADIO",
+    "category": "音乐",
+    "stream": "https://lhttp-hw.qtfm.cn/live/5022379/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "清晨音乐台",
+    "category": "音乐",
+    "stream": "http://lhttp.qingting.fm/live/4915/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "四川新闻广播",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/4906/64k.mp3",
+    "codec": "MP3 64k",
+    "favicon": "https://scgcscreen.sctv-tf.com/favicon.ico"
+  },
+  {
+    "name": "安徽小说评书广播",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/1951/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "江苏经典流行音乐",
+    "category": "音乐",
+    "stream": "https://lhttp.qtfm.cn/live/4938/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "济南故事广播",
+    "category": "各地之声",
+    "stream": "https://lhttp.qtfm.cn/live/1672/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "湖北经典音乐广播",
+    "category": "音乐",
+    "stream": "https://lhttp.qtfm.cn/live/1296/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "苏州新闻广播",
+    "category": "各地之声",
+    "stream": "http://lhttp.qingting.fm/live/2808/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "郑州新闻广播",
+    "category": "各地之声",
+    "stream": "http://lhttp.qingting.fm/live/1220/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "重庆交通广播",
+    "category": "各地之声",
+    "stream": "http://ls.qingting.fm/live/1500.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "重庆音乐广播",
+    "category": "音乐",
+    "stream": "http://ls.qingting.fm/live/647.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "长沙BIG RADIO流行音乐",
+    "category": "音乐",
+    "stream": "http://lhttp.qingting.fm/live/20847/64k.mp3",
+    "codec": "MP3 64k"
+  },
+  {
+    "name": "河南新闻广播",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/xinwen/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河南经济广播",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/jingji/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河南交通广播",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/jiaotong/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河南戏曲广播",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/yule/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河南音乐广播",
+    "category": "音乐",
+    "stream": "https://stream.hndt.com/live/yinyue/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "大象资讯台",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/nongcun/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "My Radio",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/yingshi/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "私家车999",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/sijiache/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河南教育广播",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/jiaoyu/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河南信息广播",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/leling/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "Big Radio",
+    "category": "各地之声",
+    "stream": "https://stream.hndt.com/live/gudian/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CRI华语环球广播",
+    "category": "各地之声",
+    "stream": "http://sk.cri.cn/hyhq.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CRI英语环球广播 China Plus Radio",
+    "category": "各地之声",
+    "stream": "http://sk.cri.cn/am846.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CRI粤语国际",
+    "category": "各地之声",
+    "stream": "http://sk.cri.cn/hxfh.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CNR中国之声",
+    "category": "各地之声",
+    "stream": "http://ngcdn001.cnr.cn/live/zgzs/index.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CNR文艺之声",
+    "category": "各地之声",
+    "stream": "http://audiows010.cnr.cn/live/wyzs192/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "上海长三角之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32dfgbdt/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "上海第一财经广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32dycjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "江苏故事广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32jsgsgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "江苏新闻综合广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32jsxwzhgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "江苏文艺广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32jswygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "江苏财经广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32jscjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "安徽之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxahxxgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "安徽生活广播·城市之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxahshgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "安徽经济广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxahjjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "安徽交通广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxahjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "安徽旅游广播·高速之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxahlygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "安徽戏曲广播·动听995",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxahxqgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "安徽故事广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxahxspsgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "湖北之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32hubzsgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "楚天交通广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32hubctjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河北文艺广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxhebwygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河北综合广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxhebzhgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河北交通广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxhebjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河北经济广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxhebjjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河北生活广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxhebshgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "福建都市广播·私家车987",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32fjdndsgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "福建东南广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32fjdngb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "山东交通广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxsdjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "山东体育休闲广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxsdtyxxgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "山东经济广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxsdjjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "山东乡村广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxsdxcgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "绍兴之声",
+    "category": "各地之声",
+    "stream": "http://live.shaoxing.com.cn/audio/s10001-xw1/index.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "绍兴交通广播",
+    "category": "各地之声",
+    "stream": "http://live.shaoxing.com.cn/audio/s10001-jt2/index.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "陕西交通广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxsxxjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "陕西经济广播·896汽车调频",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxsxxjjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "陕西农村广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxsxxncgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "陕西新闻广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxsxxxwgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "浙江之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxzjzs/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "浙江经济广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxzjjjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "浙江交通之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxzjjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "浙江民生资讯广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxzjmsgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "浙江城市之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxzjcszs/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "浙江旅游之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxzj1045/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "四川交通广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxscjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "四川综合广播四川之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxsczhgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "贵州经济广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gzjjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "贵州旅游广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gzlygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "贵州故事广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gzgsgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "贵州综合广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gzwxwzhgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "延边文艺生活广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxybwyshgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "辽宁之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxlnzhgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "辽宁乡村广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxlnxcgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "辽宁经济广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxlnjjtb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "辽宁交通广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxlnjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "福州左海之声",
+    "category": "各地之声",
+    "stream": "http://live.zohi.tv/audio/s10001-FM901/index.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "福州交通之声",
+    "category": "各地之声",
+    "stream": "http://live.zohi.tv/audio/s10001-FM876/index.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "福州新闻广播",
+    "category": "各地之声",
+    "stream": "http://live.zohi.tv/audio/s10001-FM944/index.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "黑龙江都市女性广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32hljnxgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "黑龙江高校广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32hljgxgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "黑龙江老年少儿广播·爱家调频",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32hljajgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "黑龙江朝鲜语广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32hljcygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "内蒙古农村牧区广播绿野之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmglyzs/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "内蒙古新闻广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmghyzhxwgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "内蒙古蒙语对外广播草原之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmgdwgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "内蒙古蒙语新闻综合广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmgmygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "锡林郭勒汉语广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmgxlglhygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "锡林郭勒蒙语广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmgxlglmygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "阿拉善汉语广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmgalshygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "阿拉善蒙语广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmgalsmygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "呼伦贝尔汉语广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmghlbehygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "呼伦贝尔蒙语广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmghlbemygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "新疆私家车广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxxjsjcgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "甘肃经济广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxgshhzs/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "广西教育广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gbjyshgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "广西综合广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gxrmgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "广西北部湾之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gxdwgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "广西交通广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gxjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "云南新闻广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxynxwgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "云南经济广播·私家车电台",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxynjjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "云南交通之声",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxynjtgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "云南民族广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxynmzgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "云南国际广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxynsegb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "宁夏新闻广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wxnxxwgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "青海新闻综合广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32qhwxzhgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "青海经济广播",
+    "category": "各地之声",
+    "stream": "https://satellitepull.cnr.cn/live/wx32qhjjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "世界华声",
+    "category": "各地之声",
+    "stream": "http://sk.cri.cn/hxfh.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "开州之声",
+    "category": "各地之声",
+    "stream": "http://183.64.174.171:10124/tlgb.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "M-Radio全国广播",
+    "category": "国际台",
+    "stream": "http://stream.rcs.revma.com/044q61ha7a0uv/hls.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CityFM|城市广播",
+    "category": "国际台",
+    "stream": "http://fm929.cityfm.tw:8080/929.mp3",
+    "codec": "MP3"
+  },
+  {
+    "name": "CityFM|台北健康",
+    "category": "国际台",
+    "stream": "http://fm901.cityfm.tw:8080/901.mp3",
+    "codec": "MP3"
+  },
+  {
+    "name": "CityFM|台南之音",
+    "category": "国际台",
+    "stream": "http://fm971.cityfm.tw:8080/971.mp3",
+    "codec": "MP3"
+  },
+  {
+    "name": "正义电台",
+    "category": "国际台",
+    "stream": "http://211.20.119.103:8081",
+    "codec": "MP3"
+  },
+  {
+    "name": "太阳电台",
+    "category": "国际台",
+    "stream": "http://211.20.119.102:8081",
+    "codec": "MP3"
+  },
+  {
+    "name": "台北广播电台FM93.1",
+    "category": "国际台",
+    "stream": "https://stream.ginnet.cloud/live0130lo-yfyo/_definst_/fm/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "台北广播电台AM1134",
+    "category": "国际台",
+    "stream": "https://stream.ginnet.cloud/live0130lo-yfyo/_definst_/am/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "中广音乐网",
+    "category": "音乐",
+    "stream": "http://stream.rcs.revma.com/ks4vsmg3qtzuv",
+    "codec": "MP3"
+  },
+  {
+    "name": "中广新闻网",
+    "category": "国际台",
+    "stream": "http://stream.rcs.revma.com/78fm9wyy2tzuv",
+    "codec": "MP3"
+  },
+  {
+    "name": "中广流行网",
+    "category": "国际台",
+    "stream": "http://stream.rcs.revma.com/aw9uqyxy2tzuv",
+    "codec": "MP3"
+  },
+  {
+    "name": "News98新闻台",
+    "category": "国际台",
+    "stream": "http://stream.rcs.revma.com/55tyxsy4qtzuv",
+    "codec": "MP3"
+  },
+  {
+    "name": "飞碟电台",
+    "category": "国际台",
+    "stream": "http://stream.rcs.revma.com/em90w4aeewzuv",
+    "codec": "MP3"
+  },
+  {
+    "name": "台湾古典音乐台",
+    "category": "音乐",
+    "stream": "http://59.120.88.155:8000/live.mp3",
+    "codec": "MP3"
+  },
+  {
+    "name": "CAPITAL 958",
+    "category": "国际台",
+    "stream": "https://19183.live.streamtheworld.com/CAPITAL958FM_PREM.aac",
+    "codec": "MP3"
+  },
+  {
+    "name": "好FM",
+    "category": "国际台",
+    "stream": "https://22283.live.streamtheworld.com/HAO_963AAC.aac",
+    "codec": "MP3"
+  },
+  {
+    "name": "YES 933",
+    "category": "国际台",
+    "stream": "https://22393.live.streamtheworld.com/YES933_PREM.aac",
+    "codec": "MP3"
+  },
+  {
+    "name": "LOVE 972",
+    "category": "国际台",
+    "stream": "https://14033.live.streamtheworld.com/LOVE972FM_PREM.aac",
+    "codec": "MP3"
+  },
+  {
+    "name": "UFM 1003",
+    "category": "国际台",
+    "stream": "https://22243.live.streamtheworld.com/UFM_1003AAC_SC",
+    "codec": "MP3"
+  },
+  {
+    "name": "法国国际广播电台",
+    "category": "国际台",
+    "stream": "https://rfienchinois64k.ice.infomaniak.ch/rfienchinois-64.mp3",
+    "codec": "MP3"
+  },
+  {
+    "name": "美国之音",
+    "category": "国际台",
+    "stream": "https://voa-ingest.akamaized.net/hls/live/2035206/151_124L/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CNA 938",
+    "category": "国际台",
+    "stream": "https://14033.live.streamtheworld.com/938NOW_PREM.aac",
+    "codec": "MP3"
+  },
+  {
+    "name": "VOCALO",
+    "category": "国际台",
+    "stream": "https://stream.wbez.org/vocalolinear",
+    "codec": "MP3"
+  },
+  {
+    "name": "n p r | WBEZ",
+    "category": "国际台",
+    "stream": "http://stream.wbez.org/wbezlinear",
+    "codec": "MP3"
+  },
+  {
+    "name": "n p r | MPR News",
+    "category": "国际台",
+    "stream": "http://nis.stream.publicradio.org/nis.mp3",
+    "codec": "MP3"
+  },
+  {
+    "name": "n p r | WOSU",
+    "category": "国际台",
+    "stream": "http://wosu.streamguys1.com/NPR_256",
+    "codec": "MP3"
+  },
+  {
+    "name": "n p r | KQED",
+    "category": "国际台",
+    "stream": "http://hls.kqed.org/kqed/256/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "n p r | KPBS",
+    "category": "国际台",
+    "stream": "http://kpbs-wowza.streamguys1.com/live/smil:kpbs.smil/live/kpbs256kaac.stream/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "n p r | CPR",
+    "category": "国际台",
+    "stream": "https://stream2.cprnetwork.org/2198_256.aac/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "n p r | KWMU",
+    "category": "国际台",
+    "stream": "http://kwmu-flash.streamguys1.com/live/smil:kwmu1.smil/live/kwmu1-256k.stream/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "n p r | GPB",
+    "category": "国际台",
+    "stream": "http://gpb-hls.streamguys1.com/itunes256/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "阿里郎电台(视频)",
+    "category": "国际台",
+    "stream": "https://amdlive-ch03-ctnd-com.akamaized.net/arirang_3ch/smil:arirang_3ch.smil/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "阿里郎电台(音频)",
+    "category": "国际台",
+    "stream": "http://amdlive-ch03.ctnd.com.edgesuite.net/arirang_3ch/arirang_3ch_audio/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "CRI HIT FM (广州)",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxhitfm/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "陕西音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxsxxyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "陕西青少广播·好听1055",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxsxxqcgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "苏州都市音乐广播",
+    "category": "音乐",
+    "stream": "http://audio-live.radio.cn/live/szyy1/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "山东音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxsdyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "山东经典音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxsdshxxgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "安徽音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxahyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "湖南音乐之声·芒果音乐台",
+    "category": "音乐",
+    "stream": "http://a.live.hnradio.com/yypd/radio120k_yypd.m3u8?auth_key=1588751172-0-0-d97b858279c1c86650172b9913ea4af2",
+    "codec": "HLS"
+  },
+  {
+    "name": "内蒙古音乐之声",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32nmgyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "甘肃青春调频",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxgsqcgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "甘肃都市调频",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxgsdstb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "广西音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gxwygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "广西经济广播·女主播电台",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gxjjgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "云南音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxynyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "江苏音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32jsyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "江苏经典流行音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32jsjdlxyy/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "浙江音乐调频·动听968",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxzj968/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "河北音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxhebyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "深圳飞扬971",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxszfy971/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "深圳生活942",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxszsjcgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "海南音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxhainyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "贵州音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gzyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "贵州都市广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32gzqcgb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "宁夏音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxnxyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "江西音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32jiangxyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "黑龙江音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32hljyygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "福州音乐广播",
+    "category": "音乐",
+    "stream": "http://live.zohi.tv/audio/s10001-FM893/index.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "青岛音体广播",
+    "category": "音乐",
+    "stream": "http://video11.qtv.com.cn/zhiboytgb-sd/manifest.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "青岛摩登音乐调频",
+    "category": "音乐",
+    "stream": "http://video11.qtv.com.cn/zhibo886/manifest.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "辽宁经典音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wxlnwygb/playlist.m3u8",
+    "codec": "HLS"
+  },
+  {
+    "name": "青海交通音乐广播",
+    "category": "音乐",
+    "stream": "https://satellitepull.cnr.cn/live/wx32qhjtyygb/playlist.m3u8",
+    "codec": "HLS"
+  }
+]

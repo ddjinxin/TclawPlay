@@ -169,6 +169,38 @@
                 android:singleLine="true" />
         </LinearLayout>
 
+        <!-- 电台 -->
+        <LinearLayout
+            android:id="@+id/tab_radio"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="@drawable/tv_focus_rect">
+
+            <TextView
+                android:id="@+id/tab_radio_top"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="RADIO"
+                android:textSize="6sp"
+                android:singleLine="true"
+                android:letterSpacing="0.1" />
+
+            <TextView
+                android:id="@+id/tab_radio_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3.5dp"
+                android:text="电台"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:singleLine="true" />
+        </LinearLayout>
+
         <!-- 收藏 -->
         <LinearLayout
             android:id="@+id/tab_favorite"

@@ -157,6 +157,11 @@ public class MusicPlayerService extends Service {
     /** 兜底播放中错误同歌重启标记（每首一次，播放成功重置；防无限重启） */
     private boolean fallbackInplayRetryUsed = false;
 
+    // 电台断流重连：同一电台最多重连 N 次（网络抖动/直播流瞬断），仍失败转切台
+    private static final int RADIO_RETRY_LIMIT = 3;
+    private String radioRetryPath = null;
+    private int radioRetryCount = 0;
+
     private static final long TRANSIENT_RETRY_DELAY_MS = 300; // 瞬态错误延时重试（等旧MediaCodec/AudioTrack实例异步释放）
     private static final long FALLBACK_RETRY_DELAY_MS = 500;  // MediaPlayer兜底初始化失败延时重试
     private static final long TRACK_RECHECK_DELAY = 500;     // 音频轨道静默未选中延迟二次确认（轨道选择为异步，避免竞态误判）
@@ -646,7 +651,7 @@ public class MusicPlayerService extends Service {
                 // 残留会把 folder 劫持到 B 站队列（上次播放记忆错乱的实锤根因）
                 ed.putStringSet("folder_song_paths", folderSongPaths);
                 ed.remove("from_webdav");
-            } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
+            } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode) || "radio".equals(playlistMode)) {
                 ed.putBoolean("from_webdav", true);
             } else {
                 ed.remove("folder_song_paths");
@@ -678,7 +683,7 @@ public class MusicPlayerService extends Service {
                 // 同上：目录模式清 from_webdav 防恢复分派被劫持
                 ed.putStringSet("folder_song_paths", folderSongPaths);
                 ed.remove("from_webdav");
-            } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
+            } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode) || "radio".equals(playlistMode)) {
                 ed.putBoolean("from_webdav", true);
             } else {
                 ed.remove("folder_song_paths");
@@ -836,6 +841,15 @@ public class MusicPlayerService extends Service {
         // 音量均衡：切歌入口统一应用/归零增益（内部自带网络流归零逻辑）
         applyVolumeNormalize(song);
 
+        // 电台歌曲：直播流，无解析，直接播 audioUrl（audioUrl 即真实流地址）
+        // 备用判断：filePath以"radio://"开头也视为电台（兼容旧版保存的播放列表）
+        if (song.sourceType == Song.SOURCE_RADIO ||
+            (song.filePath != null && song.filePath.startsWith("radio://"))) {
+            song.sourceType = Song.SOURCE_RADIO; // 确保类型正确
+            playRadioSong(song, position);
+            return;
+        }
+
         // B站歌曲：异步获取音频流URL后再播放
         // 备用判断：filePath以"bili://"开头也视为B站歌曲（兼容旧版保存的播放列表）
         if (song.sourceType == Song.SOURCE_BILI ||
@@ -897,7 +911,7 @@ public class MusicPlayerService extends Service {
         // 仅本地文件（content URI 无法直接读标签/扫描）
         String path = song != null ? song.filePath : null;
         if (path == null || path.startsWith("http") || path.startsWith("content://")
-                || path.startsWith("bili://")) {
+                || path.startsWith("bili://") || path.startsWith("radio://")) {
             if (audioEffectManager != null) audioEffectManager.setLoudnessGainAsync(0f);
             applyPlayerVolume(1f);
             return;
@@ -1009,6 +1023,62 @@ public class MusicPlayerService extends Service {
         // 其 saveLastPlayed 不会执行，last_played 会残留旧会话记忆（如旧 B 站歌）。
         // 此处由 Service 在每次开播时保存当前歌/索引/队列模式，保证下次恢复一致
         savePlaybackContext();
+    }
+
+    /**
+     * 电台歌曲播放：直播流，无解析无 seek。
+     * audioUrl 即真实可播流地址；默认 OkHttp 数据源裸播（个别 http 明文流需系统允许明文）。
+     */
+    private void playRadioSong(Song song, int position) {
+        if (song == null || song.audioUrl == null || song.audioUrl.isEmpty()) {
+            Log.e(TAG, "电台流地址为空");
+            handlePlaybackError(song);
+            return;
+        }
+        try {
+            releaseFallbackPlayer();
+            isFallbackMode = false;
+            if (audioEffectManager != null) audioEffectManager.setFallbackMode(false);
+
+            exoPlayer.stop();
+
+            // 电台流多为 http/https 明文，用 OkHttpDataSource（默认 UA）裸播即可
+            OkHttpClient radioClient = new OkHttpClient.Builder()
+                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .build();
+            OkHttpDataSource.Factory radioFactory = new OkHttpDataSource.Factory(radioClient)
+                    .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+            DataSource.Factory ds = new DefaultDataSource.Factory(this, radioFactory);
+            DefaultMediaSourceFactory msf = new DefaultMediaSourceFactory(ds);
+            MediaItem mediaItem = MediaItem.fromUri(Uri.parse(song.audioUrl));
+            exoPlayer.setMediaSource(msf.createMediaSource(mediaItem));
+            exoPlayer.prepare();
+            exoPlayer.play();
+
+            try {
+                if (audioEffectManager != null) {
+                    audioEffectManager.setFallbackMode(false);
+                    audioEffectManager.attachLoudnessOnlyAsync(exoPlayer.getAudioSessionId());
+                }
+            } catch (Throwable ignored) {}
+
+            // 播放成功，重置连续错误计数和瞬态重试标记（电台用独立重连计数）
+            consecutiveErrors = 0;
+            transientRetryUsed = false;
+            fallbackInplayRetryUsed = false;
+            radioRetryPath = song.filePath;
+            radioRetryCount = 0;
+
+            // 电台不进"最近播放歌曲"历史（避免污染歌曲历史；电台历史由收藏页维护）
+            updateNotification();
+            sendSongChangedBroadcast(song, position);
+            savePlaybackContext();
+        } catch (Exception e) {
+            Log.e(TAG, "电台播放失败: " + e.getMessage());
+            handlePlaybackError(song);
+        }
     }
 
     /**
@@ -2227,6 +2297,32 @@ public class MusicPlayerService extends Service {
      * 统一处理播放错误：递增计数，未超限则跳下一首，超限则通知 UI 停止自动切歌
      */
     private void handlePlaybackError(Song failedSong) {
+        // 电台断流重连：直播流瞬断居多，同台重连优先于切台
+        Song radioCur = getCurrentSong();
+        if (radioCur != null && radioCur.sourceType == Song.SOURCE_RADIO) {
+            boolean sameRadio = (radioCur.filePath != null && radioCur.filePath.equals(radioRetryPath));
+            if (sameRadio && radioRetryCount < RADIO_RETRY_LIMIT) {
+                radioRetryCount++;
+                Log.w(TAG, "电台断流，重连 " + radioRetryCount + "/" + RADIO_RETRY_LIMIT + " : " + radioCur.title);
+                // 直播流：重试同 URL（不走瞬态重试/清缓存逻辑）
+                final Song radio = radioCur;
+                handler.postDelayed(() -> {
+                    if (radio != null && getCurrentSong() == radio) {
+                        playRadioSong(radio, currentIndex);
+                    }
+                }, TRANSIENT_RETRY_DELAY_MS);
+                return;
+            }
+            if (sameRadio) {
+                // 重连次数用完，告知界面（电台页 Toast），随后走常规切台
+                Intent errIntent = new Intent(ACTION_PLAY_STATE_CHANGED);
+                errIntent.setPackage(getPackageName());
+                errIntent.putExtra("play_error", true);
+                errIntent.putExtra("error_message", "电台连接失败，已尝试重连" + RADIO_RETRY_LIMIT + "次");
+                sendBroadcast(errIntent);
+            }
+        }
+
         // 跳歌竞态防护：双错报竞态下第二发跳歌指令晚到时当前歌已被切走，
         // 直接跳会误杀刚开播的新歌（日志实锤"装醉"被冤杀）；核对出错歌仍是当前歌才跳
         Song cur = getCurrentSong();

@@ -1,0 +1,18 @@
+[
+  {"uuid":"seed_cn_01","name":"CNR中国之声","stream":"https://lhttp.qtfm.cn/live/15318317/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_02","name":"CNR经济之声","stream":"http://ngcdn002.cnr.cn/live/jjzs/index.m3u8","codec":"HLS"},
+  {"uuid":"seed_cn_03","name":"CNR国际新闻","stream":"https://lhttp.qtfm.cn/live/20500172/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_04","name":"CRI中文环球","stream":"http://sk.cri.cn/hyhq.m3u8","codec":"HLS"},
+  {"uuid":"seed_cn_05","name":"CRI英语资讯 China Plus","stream":"http://sk.cri.cn/am846.m3u8","codec":"HLS"},
+  {"uuid":"seed_cn_06","name":"CCTV-13新闻伴音","stream":"https://piccpndali.v.myalicdn.com/audio/cctv13_2.m3u8","codec":"HLS"},
+  {"uuid":"seed_cn_07","name":"北京新闻广播","stream":"https://lhttp.qtfm.cn/live/339/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_08","name":"上海新闻广播","stream":"http://lhttp.qingting.fm/live/270/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_09","name":"第一财经","stream":"http://lhttp.qingting.fm/live/276/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_10","name":"广东新闻广播","stream":"https://lhttp.qtfm.cn/live/1254/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_11","name":"广东音乐之声","stream":"https://lhttp.qtfm.cn/live/1260/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_12","name":"广东交通之声","stream":"https://lhttp.qtfm.cn/live/1262/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_13","name":"广东珠江经济台","stream":"https://lhttp.qtfm.cn/live/1259/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_14","name":"深圳新闻广播","stream":"http://lhttp.qingting.fm/live/1270/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_15","name":"北京新闻广播·音乐","stream":"http://lhttp.qingting.fm/live/339/64k.mp3","codec":"MP3 64k"},
+  {"uuid":"seed_cn_16","name":"广州交通音乐台","stream":"http://lhttp.qingting.fm/live/20192/64k.mp3","codec":"MP3 64k"}
+]

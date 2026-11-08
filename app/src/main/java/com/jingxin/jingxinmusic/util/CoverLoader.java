@@ -103,11 +103,51 @@ public class CoverLoader {
      *
      * @param preferLocal true=内嵌封面→缓存→在线；false=跳过内嵌和缓存，直接在线获取
      */
-    public static void load(Context context, Song song, int reqWidth, int reqHeight,
-                            boolean saveCache, boolean preferLocal,
-                            ExecutorService executor, CoverCallback callback) {
+public static void load(Context context, Song song, int reqWidth, int reqHeight,
+                             boolean saveCache, boolean preferLocal,
+                             ExecutorService executor, CoverCallback callback) {
         if (song == null || song.title == null) {
             callback.onCoverFailed();
+            return;
+        }
+
+        // 电台：封面优先本地台标（Download/jingxinmusic/radio/电台名.png），
+        // 无则 URL 落盘缓存 → 网络下载+落盘（与台卡网格共用 radio_favicons）
+        if (song.sourceType == Song.SOURCE_RADIO) {
+            String favicon = song.coverUrl;
+            String stName = song.title;
+            boolean hasUrl = favicon != null && !favicon.isEmpty();
+            if (!hasUrl && (stName == null || stName.isEmpty())) {
+                callback.onCoverFailed();
+                return;
+            }
+            Handler uiHandler = new Handler(Looper.getMainLooper());
+            executor.execute(() -> {
+                Bitmap result = null;
+                try {
+                    result = RadioBrowserApi.loadLocalLogo(stName);
+                    if (result == null && hasUrl) {
+                        result = RadioBrowserApi.loadFavicon(context, favicon);
+                        if (result == null) {
+                            result = HttpUtil.getBitmap(favicon);
+                            if (result != null) {
+                                RadioBrowserApi.saveFavicon(context, favicon, HttpUtil.getBytes(favicon));
+                            }
+                        }
+                    }
+                    if (result != null && reqWidth > 0) {
+                        result = BitmapUtil.scaleToMaxSize(result, Math.max(reqWidth, reqHeight));
+                    }
+                } catch (Exception e) {
+                    result = null;
+                }
+                final Bitmap fb = result;
+                if (fb != null) {
+                    uiHandler.post(() -> callback.onCoverLoaded(fb));
+                } else {
+                    uiHandler.post(() -> callback.onCoverFailed());
+                }
+            });
             return;
         }
 

@@ -38,6 +38,8 @@ public class CollagePageV2 extends StandardPageBase {
     private List<Song> lastPlaylist;
     // 封面双色（同步给墙做进度线色；与频谱实例同源）
     private int tintTop, tintBottom;
+    /** 长按当前大卡收藏的脉冲心形（由小变大+渐隐；收藏实心/取消空心） */
+    private android.widget.ImageView favPulse;
 
     // Hub 自有订阅（基类订阅喂歌词/进度条，本页歌词/进度条全隐，自建喂墙）
     private PlayerStateHub.ProgressObserver progressObserver;
@@ -99,15 +101,27 @@ public class CollagePageV2 extends StandardPageBase {
         };
         CollageWallView.OnEmptyTapListener emptyTap = this::revealTopBar;
         CollageWallView.OnLongPressListener longPress = (sx, sy) -> revealTopBar();
-        CollageWallView.OnExpandedCoverTapListener coverTap = () -> {
-            if (collageActions != null) collageActions.openLyricEffectRemembered();
+        // 长按当前展开大卡：收藏音乐/电台（toggleFavorite 自动分流电台/歌曲收藏夹）
+        CollageWallView.OnCurrentCardLongPressListener cardLongPress = (sx, sy) -> {
+            if (collageActions == null) return;
+            collageActions.toggleFavorite();
+            showFavoritePulse(collageActions.isFavorite(), sx, sy);
         };
+CollageWallView.OnExpandedCoverTapListener coverTap = () -> {
+    // 电台直播流无歌词动效：点击当前卡不进动效页（传输带播放控制仍走墙内处理）
+    List<Song> list = collageActions != null ? collageActions.getPlaylist() : null;
+    int idx = collageActions != null ? collageActions.getCurrentIndex() : -1;
+    if (list != null && idx >= 0 && idx < list.size()
+            && list.get(idx).sourceType == Song.SOURCE_RADIO) return;
+    if (collageActions != null) collageActions.openLyricEffectRemembered();
+};
         for (CollageWallView w : new CollageWallView[]{wall, wallL}) {
             if (w == null) continue;
-            w.setExecutor(h.executor);
+            // 封面加载池已内置于 CollageCoverCache（4路共享，与播放页主单线程池解耦）
             w.setOnTileAction(tile);
             w.setOnEmptyTapListener(emptyTap);
             w.setOnLongPressListener(longPress);
+            w.setOnCurrentCardLongPressListener(cardLongPress);
             w.setOnExpandedCoverTapListener(coverTap);
             // 频谱带同步回调：带变化时把真 SpectrumView 实例盖上去
             w.setSpectrumBandUpdater(this::syncCardSpectrumPosition);
@@ -217,17 +231,34 @@ public class CollagePageV2 extends StandardPageBase {
 
     /** 呼出顶栏：拼贴墙恒深底，顶栏恒夜间态（清滤镜白色），不随系统日夜切换 */
 
-    private void revealTopBar() {
+private void revealTopBar() {
         topBarHandler.removeCallbacks(topBarHider);
+        // 电台直播态：顶栏动效/歌词搜索/装扮三键禁用
+        boolean radio = isRadioPlaying();
         if (topBarV != null) {
             forceTopBarNightTheme(topBarV);
+            if (topBarV instanceof com.jingxin.jingxinmusic.view.PlayerTopBar) {
+                ((com.jingxin.jingxinmusic.view.PlayerTopBar) topBarV).setRadioMode(radio);
+            }
             topBarV.setVisibility(View.VISIBLE);
         }
         if (topBarLV != null) {
             forceTopBarNightTheme(topBarLV);
+            if (topBarLV instanceof com.jingxin.jingxinmusic.view.PlayerTopBar) {
+                ((com.jingxin.jingxinmusic.view.PlayerTopBar) topBarLV).setRadioMode(radio);
+            }
             topBarLV.setVisibility(View.VISIBLE);
         }
         topBarHandler.postDelayed(topBarHider, TOPBAR_AUTOHIDE_MS);
+    }
+
+    /** 当前播放是否电台直播（顶栏按钮禁用判断用） */
+    private boolean isRadioPlaying() {
+        if (collageActions == null) return false;
+        List<Song> list = collageActions.getPlaylist();
+        int idx = collageActions.getCurrentIndex();
+        return list != null && idx >= 0 && idx < list.size()
+                && list.get(idx).sourceType == Song.SOURCE_RADIO;
     }
 
     /** 顶栏恒夜间态（清滤镜白图标）：墙恒深底，白天染深色会看不清 */
@@ -526,6 +557,48 @@ public class CollagePageV2 extends StandardPageBase {
         // 淡入随展开进度
         cardTextLayer.setAlpha(Math.min(1f, (t - 0.55f) / 0.35f));
         cardTextLayer.setVisibility(View.VISIBLE);
+    }
+
+    // ===== 长按收藏脉冲（心形由小变大+渐隐；收藏实心/取消空心）=====
+
+    private void ensureFavoritePulse() {
+        if (favPulse != null || h.rootLayout == null) return;
+        favPulse = new android.widget.ImageView(h.rootLayout.getContext());
+        favPulse.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        favPulse.setLayoutParams(new android.widget.FrameLayout.LayoutParams(0, 0));
+        h.rootLayout.addView(favPulse);
+        favPulse.setZ(25f); // 文字(20)/频谱(15)/墙之上
+        favPulse.setVisibility(View.GONE);
+    }
+
+    /** 长按当前大卡收藏后：触摸点为中心，心形由小变大至3倍并渐隐（filled=实心红色，否则空心白） */
+    private void showFavoritePulse(boolean filled, float sx, float sy) {
+        ensureFavoritePulse();
+        if (favPulse == null) return;
+        CollageWallView active = activeWall(h.isLandscapeMode);
+        float[] r = active != null ? active.getExpandedCardRect() : null;
+        int size = r != null ? Math.max(40, Math.round((r[2] - r[0]) * 0.16f)) : 72;
+        android.widget.FrameLayout.LayoutParams lp =
+                (android.widget.FrameLayout.LayoutParams) favPulse.getLayoutParams();
+        lp.width = size;
+        lp.height = size;
+        favPulse.setLayoutParams(lp);
+        favPulse.setTranslationX(sx - size / 2f);
+        favPulse.setTranslationY(sy - size / 2f);
+        favPulse.setImageResource(filled ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
+        favPulse.setColorFilter(filled ? 0xFFFF3B30 : 0xFFFFFFFF,
+                android.graphics.PorterDuff.Mode.SRC_IN); // 实心红 / 空心白描边
+        favPulse.animate().cancel();
+        favPulse.setVisibility(View.GONE);
+        favPulse.setAlpha(1f);
+        favPulse.setScaleX(0.2f);
+        favPulse.setScaleY(0.2f);
+        favPulse.setVisibility(View.VISIBLE);
+        favPulse.animate().scaleX(3f).scaleY(3f).alpha(0f)
+                .setDuration(420)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                .withEndAction(() -> favPulse.setVisibility(View.GONE))
+                .start();
     }
 
     private void applyNightToWall() {
