@@ -293,16 +293,25 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         holder.tvName.setTextColor(titleClr);
         holder.tvCount.setTextColor(subClr);
         holder.ivArrow.setColorFilter(subClr);
-        // 封面：内嵌封面 → 本地缓存文件 → 在线获取
+        // 封面：内嵌封面 → 本地缓存文件 → 在线获取（对齐"优先读取本地封面"开关：
+        // 关闭时跳过内嵌/缓存直接在线；组内无本地文件时回退本地优先，避免无谓在线）
         holder.ivCover.setImageResource(R.drawable.bg_folder_cover);
+        boolean preferLocal = com.jingxin.jingxinmusic.fragment.SettingsFragment.isLocalCoverPriority(context);
+        if (!preferLocal) {
+            boolean anyLocal = false;
+            for (Song s : fi.songs) {
+                if (s.filePath != null && new File(s.filePath).exists()) { anyLocal = true; break; }
+            }
+            if (!anyLocal) preferLocal = true;
+        }
         Bitmap localCover = null;
         for (Song s : fi.songs) {
-            // 1. 尝试提取内嵌封面
-            if (localCover == null && s.filePath != null) {
+            // 1. 尝试提取内嵌封面（开关关闭时跳过）
+            if (preferLocal && localCover == null && s.filePath != null) {
                 localCover = CoverFetcher.extractEmbeddedCover(s.filePath, 200, 200);
             }
-            // 2. 尝试本地缓存
-            if (localCover == null) {
+            // 2. 尝试本地缓存（开关关闭时跳过）
+            if (preferLocal && localCover == null) {
                 File f = getCoverFile(context, s);
                 if (f != null && f.exists() && f.length() > 0) {
                     localCover = com.jingxin.jingxinmusic.util.BitmapUtil.decodeSampledFromFile(f.getAbsolutePath(), 200, 200);

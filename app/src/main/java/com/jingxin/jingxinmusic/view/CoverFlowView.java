@@ -205,7 +205,9 @@ public class CoverFlowView extends View {
                     }
                     int req = Math.max(w, h) / 2;
                     if (req <= 0) req = 300;
-                    CoverLoader.load(getContext(), song, req, req, true, coverExecutor, new CoverLoader.CoverCallback() {
+                    CoverLoader.load(getContext(), song, req, req, true,
+                            com.jingxin.jingxinmusic.fragment.SettingsFragment.isLocalCoverPriority(getContext()),
+                            coverExecutor, new CoverLoader.CoverCallback() {
                         @Override
                         public void onCoverLoaded(Bitmap coverBitmap) {
                             // 共享缓存位图禁止 recycle：槽位替换只解引用
@@ -237,7 +239,9 @@ public class CoverFlowView extends View {
             }
             int req = Math.max(w, h) / 2;
             if (req <= 0) req = 300;
-            CoverLoader.load(getContext(), song, req, req, true, coverExecutor, new CoverLoader.CoverCallback() {
+            CoverLoader.load(getContext(), song, req, req, true,
+                            com.jingxin.jingxinmusic.fragment.SettingsFragment.isLocalCoverPriority(getContext()),
+                            coverExecutor, new CoverLoader.CoverCallback() {
                 @Override
                 public void onCoverLoaded(Bitmap coverBitmap) {
                     rollOldBitmaps[slot] = coverBitmap;

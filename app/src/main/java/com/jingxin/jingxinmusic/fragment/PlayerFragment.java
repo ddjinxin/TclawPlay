@@ -319,9 +319,14 @@ public class PlayerFragment extends BaseFloatFragment {
                 if (allSongs == null || allSongs.isEmpty()) {
                     allSongs = MusicScanner.scanMusic(requireContext());
                 }
-                uiHandler.post(() -> {
-                    if (bound && playerBinder != null && allSongs != null) {
-                        if (resumePlay && playerBinder.isPlaying()) {
+                 uiHandler.post(() -> {
+                     if (bound && playerBinder != null && allSongs != null) {
+                        // 同步队列上下文给 Service：无 UI 播放（乐酷/后台/车键切歌）时
+                        // Service 靠它保存 last_played，防记忆残留旧会话（如旧 B 站歌）
+                        playerBinder.setPlaylistContext(playlistMode,
+                                "folder".equals(playlistMode) && getArguments() != null
+                                        ? getArguments().getStringArrayList("folder_song_paths") : null);
+                         if (resumePlay && playerBinder.isPlaying()) {
                             // 从 mini 播放条跳转，音乐已在后台播放，只更新 UI
                             startSpectrumWithPermission();
                             // 通过 Scene 同步播放状态（唱片机同步唱臂等）
@@ -343,6 +348,20 @@ public class PlayerFragment extends BaseFloatFragment {
                                 }
                                 if (!folderSongs.isEmpty()) {
                                     playerBinder.setPlaylist(folderSongs);
+                                    // position 重算：autoResume 恢复时 position 来自全库定位
+                                    // （跨队列错用会让 currentIndex 指向别的歌：封面墙展开卡
+                                    // 与实际播放不符——华为实测日志实锤），按歌在目录队列内找回位置
+                                    if (song != null) {
+                                        int folderPos = -1;
+                                        for (int i = 0; i < folderSongs.size(); i++) {
+                                            Song f = folderSongs.get(i);
+                                            if (f == song || (f.id != 0 && f.id == song.id)) {
+                                                folderPos = i;
+                                                break;
+                                            }
+                                        }
+                                        if (folderPos >= 0) position = folderPos;
+                                    }
                                     playSong();
                                 } else {
                                     playerBinder.setPlaylist(allSongs);
@@ -2676,6 +2695,9 @@ public class PlayerFragment extends BaseFloatFragment {
             if (folderPaths != null && !folderPaths.isEmpty()) {
                 editor.putStringSet("folder_song_paths", new java.util.HashSet<>(folderPaths));
             }
+            // 清旧 B站/WebDAV 标记：恢复分派 from_webdav 优先级高，
+            // 残留会把 folder 劫持到 B 站队列（上次播放记忆错乱的实锤根因）
+            editor.remove("from_webdav");
         } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
             // WebDAV/B站模式：保存标记，播放列表已在webdav_playlist SharedPreferences中
             editor.putBoolean("from_webdav", true);

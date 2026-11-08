@@ -49,20 +49,6 @@ public class SettingsFragment extends BaseFloatFragment {
     public static final String KEY_VOLUME_NORMALIZE = "volume_normalize";
     public static final String KEY_BOOT_AUTO_START = "boot_auto_start";
     public static final String KEY_AUTO_HIDE_CONTROLS_SECONDS = "auto_hide_controls_seconds";
-
-    // ===== 车机按键映射（录制式：默认全未绑定=功能关） =====
-    /** 动作名（存 SharedPreferences 键后缀：car_key_<action>） */
-    public static final String[] CAR_KEY_ACTIONS = {"next", "prev", "play_pause", "home"};
-    public static final String CAR_KEY_NEXT = "car_key_next";
-    public static final String CAR_KEY_PREV = "car_key_prev";
-    public static final String CAR_KEY_PLAY_PAUSE = "car_key_play_pause";
-    public static final String CAR_KEY_HOME = "car_key_home";
-
-    /** 动作→已绑定键码（0=未绑定） */
-    public static int getCarKeyCode(Context ctx, String action) {
-        return ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getInt("car_key_" + action, 0);
-    }
     /** 自动隐藏播放栏：不隐藏 */
     public static final int AUTO_HIDE_CONTROLS_OFF = -1;
     /** 自动隐藏播放栏：默认 5 秒 */
@@ -89,14 +75,16 @@ public class SettingsFragment extends BaseFloatFragment {
     private View rootLayout;
     private TextView tvTitle;
     private LinearLayout topBar;
-    private View dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7, dividerMid8, dividerMid9;
+    private View dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7, dividerMid8;
     private ImageView btnBack;
     private ImageView btnHelp;
     private TextView[] styleTabs = new TextView[4];
     private int currentStyleIndex = 0;
     private SwitchCompat switchNight, switchFloat, switchSpectrum, switchLocalCover, switchLocalLyric, switchAutoResume, switchAutoResumeLyricEffect, switchUpdatePush, switchAutoTheme, switchVolumeNormalize, switchBootAutoStart, switchLyricFollowCover;
-    private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle, tvAutoThemeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvLyricFollowTitle;
-    private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc, tvAutoThemeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvLyricFollowDesc;
+    /** 缓存清理勾选框（纳入清理的范围，默认全勾） */
+    private android.widget.CheckBox cbClearMusic, cbClearCover, cbClearLyric;
+    private TextView tvNightTitle, tvStyleTitle, tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvLyricTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle, tvAutoThemeTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvLyricFollowTitle, tvClearCacheTitle;
+    private TextView tvNightDesc, tvStyleDesc, tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvLyricDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc, tvAutoThemeDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvLyricFollowDesc, tvClearCacheDesc;
     private android.widget.Spinner spinnerAutoHideControls;
     private TextView tvAutoHideControlsTitle, tvAutoHideControlsDesc;
     private TextView[] bgSkinTabs = new TextView[2];
@@ -117,12 +105,6 @@ public class SettingsFragment extends BaseFloatFragment {
     // 文件访问权限
     private TextView btnStoragePerm;
     private TextView tvStoragePermTitle, tvStoragePermDesc;
-
-    // 车机按键映射四行（顺序同 CAR_KEY_ACTIONS）
-    private final TextView[] carKeyTitles = new TextView[CAR_KEY_ACTIONS.length];
-    private final TextView[] carKeyDescs = new TextView[CAR_KEY_ACTIONS.length];
-    /** 正在录制的动作（null=非录制态） */
-    private String recordingAction;
 
     private View mRootView;
     private float sf = 1f; // 比例缩放系数：1=保持原样
@@ -247,6 +229,7 @@ public class SettingsFragment extends BaseFloatFragment {
         setupSpectrumSwitch(view);
         setupLocalCoverSwitch(view);
         setupLocalLyricSwitch(view);
+        setupClearCacheItem(view);
         setupAutoResumeSwitch(view);
         setupVolumeNormalizeSwitch(view);
         setupBootAutoStartSwitch(view);
@@ -254,7 +237,6 @@ public class SettingsFragment extends BaseFloatFragment {
         setupLyricColorSelector(view);
         setupLyricFollowCoverSwitch(view);
         setupUpdatePushSwitch(view);
-        setupCarKeyRows(view);
 
         applyTopInset(rootScroll);
 
@@ -318,7 +300,6 @@ public class SettingsFragment extends BaseFloatFragment {
         dividerMid6 = view.findViewById(R.id.divider_mid6);
         dividerMid7 = view.findViewById(R.id.divider_mid7);
         dividerMid8 = view.findViewById(R.id.divider_mid8);
-        dividerMid9 = view.findViewById(R.id.divider_mid9);
         btnBack = view.findViewById(R.id.btn_back);
         btnHelp = view.findViewById(R.id.btn_help);
         btnHelp.setOnClickListener(v -> {
@@ -366,13 +347,13 @@ public class SettingsFragment extends BaseFloatFragment {
         tvTitle.setTextColor(tc);
         // 刷新所有标题（含壁纸选择行：可操作项，与扫描按钮同用标题色）
         TextView[] titles = {tvNightTitle, tvAutoThemeTitle, tvStyleTitle, tvBgSkinTitle, tvEffectWallpaperTitle, rowPickWallpaper, tvFloatTitle, tvSpectrumTitle,
-                tvLyricTitle, tvScanTitle, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle, tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle, tvLyricFollowTitle,
-                carKeyTitles[0], carKeyTitles[1], carKeyTitles[2], carKeyTitles[3]};
+                tvLyricTitle, tvScanTitle, tvStoragePermTitle, btnStoragePerm, tvLocalCoverTitle, tvLocalLyricTitle, tvAutoResumeTitle, tvAutoResumeLyricEffectTitle, tvUpdatePushTitle,                 tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle, tvLyricFollowTitle, tvClearCacheTitle,
+                cbClearMusic, cbClearCover, cbClearLyric};
         for (TextView t : titles) if (t != null) t.setTextColor(tc);
+        applyCheckBoxTint(cbClearMusic, cbClearCover, cbClearLyric);
         // 刷新所有描述
         TextView[] descs = {tvNightDesc, tvAutoThemeDesc, tvStyleDesc, tvBgSkinDesc, tvEffectWallpaperDesc, tvFloatDesc, tvSpectrumDesc,
-                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc, tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc, tvLyricFollowDesc,
-                carKeyDescs[0], carKeyDescs[1], carKeyDescs[2], carKeyDescs[3]};
+                tvLyricDesc, tvScanDesc, tvStoragePermDesc, btnDayReset, btnNightReset, tvLocalCoverDesc, tvLocalLyricDesc, tvAutoResumeDesc, tvAutoResumeLyricEffectDesc, tvUpdatePushDesc,                 tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc, tvLyricFollowDesc, tvClearCacheDesc};
         for (TextView d : descs) if (d != null) d.setTextColor(ts);
         // 时间选择行文字
         TextView[] timeTexts = {tvDayStartLabel, tvDayStartValue, tvTimeSeparator, tvNightStartLabel, tvNightStartValue};
@@ -384,7 +365,7 @@ public class SettingsFragment extends BaseFloatFragment {
         // 歌词动效壁纸 tab 颜色与状态文案
         updateWallpaperTabColors();
         updateWallpaperStatusText();
-        View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7, dividerMid8, dividerMid9};
+        View[] dividers = {dividerTop, dividerMid, dividerMid2, dividerMid3, dividerMid4, dividerMid5, dividerMid6, dividerMid7, dividerMid8};
         for (View d : dividers) d.setBackgroundColor(divColor);
         if (dynamicBgEnabled) {
             // 动态模式：图标用黑白
@@ -822,85 +803,6 @@ public class SettingsFragment extends BaseFloatFragment {
         btnBack.setOnClickListener(v -> requireActivity().onBackPressed());
     }
 
-    // ===== 车机按键映射 =====
-
-    private void setupCarKeyRows(View view) {
-        int[] rowIds = {R.id.item_car_key_next, R.id.item_car_key_prev,
-                R.id.item_car_key_play_pause, R.id.item_car_key_home};
-        int[] titleIds = {R.id.tv_car_key_next_title, R.id.tv_car_key_prev_title,
-                R.id.tv_car_key_play_pause_title, R.id.tv_car_key_home_title};
-        int[] descIds = {R.id.tv_car_key_next_desc, R.id.tv_car_key_prev_desc,
-                R.id.tv_car_key_play_pause_desc, R.id.tv_car_key_home_desc};
-        for (int i = 0; i < CAR_KEY_ACTIONS.length; i++) {
-            carKeyTitles[i] = view.findViewById(titleIds[i]);
-            carKeyDescs[i] = view.findViewById(descIds[i]);
-            // 绑定即着色（applyTheme 先于本方法执行，届时控件尚未绑定不着色；
-            // 之后日夜切换由 applyTheme 的 titles/descs 数组统一刷新）
-            applyItemTheme(carKeyTitles[i], carKeyDescs[i]);
-            final int idx = i;
-            view.findViewById(rowIds[i]).setOnClickListener(v -> startCarKeyRecording(idx));
-            view.findViewById(rowIds[i]).setOnLongClickListener(v -> clearCarKeyBinding(idx));
-        }
-        refreshCarKeyDescs();
-    }
-
-    /** 点行：进入录制态等物理键（再点同行/他行=改录目标） */
-    private void startCarKeyRecording(int idx) {
-        recordingAction = CAR_KEY_ACTIONS[idx];
-        carKeyDescs[idx].setText("请按要绑定的车机按键…");
-        Toast.makeText(requireContext(), "请按要绑定的按键（长按此行可取消）", Toast.LENGTH_SHORT).show();
-    }
-
-    /** 长按行：解除绑定/取消录制 */
-    private boolean clearCarKeyBinding(int idx) {
-        recordingAction = null;
-        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String key = "car_key_" + CAR_KEY_ACTIONS[idx];
-        boolean had = prefs.getInt(key, 0) != 0;
-        prefs.edit().remove(key).apply();
-        refreshCarKeyDescs();
-        if (had) Toast.makeText(requireContext(), "已解除绑定", Toast.LENGTH_SHORT).show();
-        return true;
-    }
-
-    /** HostActivity 录制捕获回填（一键一绑：同键码已绑其他动作时自动解绑旧动作） */
-    public void onCarKeyRecording(int keyCode) {
-        String action = recordingAction;
-        if (action == null) return;
-        recordingAction = null;
-        if (keyCode == android.view.KeyEvent.KEYCODE_BACK) {
-            // 返回键不参与任何逻辑（防误绑丢失返回能力），本次录制作废
-            refreshCarKeyDescs();
-            return;
-        }
-        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        for (String a : CAR_KEY_ACTIONS) {
-            if (!a.equals(action) && prefs.getInt("car_key_" + a, 0) == keyCode) {
-                prefs.edit().remove("car_key_" + a).apply(); // 一键一绑：旧动作让位
-            }
-        }
-        prefs.edit().putInt("car_key_" + action, keyCode).apply();
-        refreshCarKeyDescs();
-        Toast.makeText(requireContext(), "已绑定按键（键码 " + keyCode + "）", Toast.LENGTH_SHORT).show();
-    }
-
-    /** 录制态查询（HostActivity/LecoFloatManager 按键路由用） */
-    public boolean isCarKeyRecording() {
-        return recordingAction != null;
-    }
-
-    private void refreshCarKeyDescs() {
-        if (carKeyDescs[0] == null) return;
-        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        for (int i = 0; i < CAR_KEY_ACTIONS.length; i++) {
-            if (recordingAction != null && CAR_KEY_ACTIONS[i].equals(recordingAction)) continue; // 录制中行保持提示文案
-            int code = prefs.getInt("car_key_" + CAR_KEY_ACTIONS[i], 0);
-            carKeyDescs[i].setText(code > 0
-                    ? "已绑定键码 " + code + " · 点击重录，长按解除"
-                    : "未绑定 · 点击录制按键，长按解除");
-        }
-    }
-
     private void setupSpectrumSwitch(View view) {
         switchSpectrum = view.findViewById(R.id.switch_spectrum);
         tvSpectrumTitle = view.findViewById(R.id.tv_spectrum_title);
@@ -948,8 +850,130 @@ public class SettingsFragment extends BaseFloatFragment {
 
         switchLocalLyric.setOnCheckedChangeListener((buttonView, isChecked) -> {
             prefs.edit().putBoolean(KEY_LOCAL_LYRIC_PRIORITY, isChecked).apply();
-            Toast.makeText(requireContext(), isChecked ? "已开启本地歌词优先" : "已关闭本地歌词优先", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), isChecked ? "已开启本地歌词优先" : "已关闭本地歌词优先，将在线获取", Toast.LENGTH_SHORT).show();
         });
+    }
+
+    // ===== 缓存清理（歌曲/封面/歌词三类，开关=纳入清理的范围，默认全开） =====
+
+    private static final String KEY_CLEAR_CACHE_MUSIC = "clear_cache_music";
+    private static final String KEY_CLEAR_CACHE_COVER = "clear_cache_cover";
+    private static final String KEY_CLEAR_CACHE_LYRIC = "clear_cache_lyric";
+
+    private void setupClearCacheItem(View view) {
+        tvClearCacheTitle = view.findViewById(R.id.tv_clear_cache_title);
+        tvClearCacheDesc = view.findViewById(R.id.tv_clear_cache_desc);
+        applyItemTheme(tvClearCacheTitle, tvClearCacheDesc);
+        cbClearMusic = view.findViewById(R.id.cb_clear_music);
+        cbClearCover = view.findViewById(R.id.cb_clear_cover);
+        cbClearLyric = view.findViewById(R.id.cb_clear_lyric);
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        cbClearMusic.setChecked(prefs.getBoolean(KEY_CLEAR_CACHE_MUSIC, true));
+        cbClearCover.setChecked(prefs.getBoolean(KEY_CLEAR_CACHE_COVER, true));
+        cbClearLyric.setChecked(prefs.getBoolean(KEY_CLEAR_CACHE_LYRIC, true));
+        applyCheckBoxTint(cbClearMusic, cbClearCover, cbClearLyric);
+        // 勾选=纳入清理（取消勾选即排除该项），选择持久化：下次进入保持用户偏好
+        cbClearMusic.setOnCheckedChangeListener((b, c) -> prefs.edit().putBoolean(KEY_CLEAR_CACHE_MUSIC, c).apply());
+        cbClearCover.setOnCheckedChangeListener((b, c) -> prefs.edit().putBoolean(KEY_CLEAR_CACHE_COVER, c).apply());
+        cbClearLyric.setOnCheckedChangeListener((b, c) -> prefs.edit().putBoolean(KEY_CLEAR_CACHE_LYRIC, c).apply());
+        TextView btnClear = view.findViewById(R.id.btn_clear_cache);
+        if (btnClear != null) {
+            btnClear.setTextColor(titleColor());
+            btnClear.setOnClickListener(v -> performClearCache(
+                    cbClearMusic.isChecked(), cbClearCover.isChecked(), cbClearLyric.isChecked()));
+        }
+        refreshClearCacheDesc();
+    }
+
+    /** 勾选框日夜适配：勾选色随主文字色、未勾随次级色（applyTheme 时同步刷新） */
+    private void applyCheckBoxTint(android.widget.CheckBox... cbs) {
+        int checked = titleColor();
+        int unchecked = secondaryColor();
+        int[][] states = {{android.R.attr.state_checked}, {}};
+        for (android.widget.CheckBox cb : cbs) {
+            if (cb == null) continue;
+            cb.setButtonTintList(new android.content.res.ColorStateList(states, new int[]{checked, unchecked}));
+        }
+    }
+
+    /** 异步统计三类缓存体量并刷新副标题 */
+    private void refreshClearCacheDesc() {
+        final Context ctx = requireContext();
+        new Thread(() -> {
+            final long[] sizes = computeCacheSizes(ctx);
+            if (tvClearCacheDesc != null) tvClearCacheDesc.post(() ->
+                    tvClearCacheDesc.setText("歌曲 " + fmtSize(sizes[0]) + " · 封面 " + fmtSize(sizes[1])
+                            + " · 歌词 " + fmtSize(sizes[2])));
+        }).start();
+    }
+
+    /** [歌曲缓存, 封面缓存, 歌词缓存] 字节数 */
+    private static long[] computeCacheSizes(Context ctx) {
+        long[] sizes = new long[3];
+        try {
+            sizes[0] = com.jingxin.jingxinmusic.util.WebDavCacheManager.getInstance(ctx).getCacheSize();
+        } catch (Exception ignored) {}
+        sizes[1] = dirSize(ctx.getExternalFilesDir("covers"));
+        sizes[2] = dirSize(ctx.getExternalFilesDir("lyrics"));
+        return sizes;
+    }
+
+    /** 清理弹窗已改为设置页内直接交互（三开关+清理按钮），弹窗方案在乐酷悬浮模式下
+     *  会被压到悬浮窗后台（Dialog 挂 Activity window），废弃 */
+
+    /** 子线程执行清理 → 主线程反馈释放量并刷新副标题 */
+    private void performClearCache(boolean clearMusic, boolean clearCover, boolean clearLyric) {
+        final Context ctx = requireContext();
+        new Thread(() -> {
+            long freed = 0;
+            if (clearMusic) {
+                try {
+                    com.jingxin.jingxinmusic.util.WebDavCacheManager mgr =
+                            com.jingxin.jingxinmusic.util.WebDavCacheManager.getInstance(ctx);
+                    freed += mgr.getCacheSize();
+                    mgr.clearCache();
+                } catch (Exception ignored) {}
+            }
+            if (clearCover) freed += dirClear(ctx.getExternalFilesDir("covers"));
+            if (clearLyric) freed += dirClear(ctx.getExternalFilesDir("lyrics"));
+            final long total = freed;
+            if (getActivity() == null) return;
+            getActivity().runOnUiThread(() -> {
+                Toast.makeText(ctx, "已清理 " + fmtSize(total), Toast.LENGTH_SHORT).show();
+                refreshClearCacheDesc();
+            });
+        }).start();
+    }
+
+    private static long dirSize(java.io.File dir) {
+        if (dir == null || !dir.exists()) return 0;
+        long total = 0;
+        java.io.File[] files = dir.listFiles();
+        if (files != null) for (java.io.File f : files) total += f.isDirectory() ? dirSize(f) : f.length();
+        return total;
+    }
+
+    /** 清空目录内容（仅限应用私有缓存目录；公共目录如 Download/lyrics 绝不经此方法） */
+    private static long dirClear(java.io.File dir) {
+        if (dir == null || !dir.exists()) return 0;
+        long freed = 0;
+        java.io.File[] files = dir.listFiles();
+        if (files != null) for (java.io.File f : files) {
+            if (f.isDirectory()) {
+                freed += dirClear(f);
+                f.delete();
+            } else {
+                long len = f.length();
+                if (f.delete()) freed += len;
+            }
+        }
+        return freed;
+    }
+
+    private static String fmtSize(long bytes) {
+        if (bytes < 1024) return bytes + "B";
+        if (bytes < 1048576L) return bytes / 1024 + "KB";
+        return String.format(java.util.Locale.US, "%.1fMB", bytes / 1048576f);
     }
 
     private void setupAutoResumeSwitch(View view) {
@@ -1270,8 +1294,7 @@ public class SettingsFragment extends BaseFloatFragment {
         int[] itemIds = {R.id.item_scan_music, R.id.item_storage_permission, R.id.item_night_mode,
                 R.id.item_auto_theme, R.id.item_style, R.id.item_bg_skin, R.id.item_float_window, R.id.item_spectrum,
                 R.id.item_auto_resume, R.id.item_local_cover, R.id.item_local_lyric, R.id.item_lyric_color,
-                R.id.item_volume_normalize, R.id.item_boot_auto_start, R.id.item_auto_hide_controls,
-                R.id.item_car_key_next, R.id.item_car_key_prev, R.id.item_car_key_play_pause, R.id.item_car_key_home};
+                R.id.item_volume_normalize, R.id.item_boot_auto_start, R.id.item_auto_hide_controls, R.id.item_clear_cache};
         for (int id : itemIds) {
             View item = mRootView.findViewById(id);
             if (item != null) item.setPadding(item.getPaddingLeft(), itemPad, item.getPaddingRight(), itemPad);
@@ -1280,12 +1303,13 @@ public class SettingsFragment extends BaseFloatFragment {
         // 条目标题 16sp、描述 12sp（含描述上边距 2dp）
         TextView[] titles = {tvScanTitle, tvStoragePermTitle, tvNightTitle, tvAutoThemeTitle, tvStyleTitle,
                 tvBgSkinTitle, tvFloatTitle, tvSpectrumTitle, tvAutoResumeTitle, tvLocalCoverTitle, tvLocalLyricTitle, tvLyricTitle,
-                tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle,
-                carKeyTitles[0], carKeyTitles[1], carKeyTitles[2], carKeyTitles[3]};
+                tvClearCacheTitle,
+                cbClearMusic, cbClearCover, cbClearLyric,
+                tvVolumeNormalizeTitle, tvBootAutoStartTitle, tvAutoHideControlsTitle};
         TextView[] descs = {tvScanDesc, tvStoragePermDesc, tvNightDesc, tvAutoThemeDesc, tvStyleDesc,
                 tvBgSkinDesc, tvFloatDesc, tvSpectrumDesc, tvAutoResumeDesc, tvLocalCoverDesc, tvLocalLyricDesc, tvLyricDesc,
-                tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc,
-                carKeyDescs[0], carKeyDescs[1], carKeyDescs[2], carKeyDescs[3]};
+                tvClearCacheDesc,
+                tvVolumeNormalizeDesc, tvBootAutoStartDesc, tvAutoHideControlsDesc};;
         float titleSize = spScaled(16);
         float descSize = spScaled(12);
         for (TextView t : titles) if (t != null) t.setTextSize(TypedValue.COMPLEX_UNIT_PX, titleSize);

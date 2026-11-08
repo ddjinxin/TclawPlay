@@ -152,12 +152,14 @@ public class MusicPlayerService extends Service {
     // 播放错误防循环：连续失败计数，超过阈值停止自动切歌
     private int consecutiveErrors = 0;
     private static final int MAX_CONSECUTIVE_ERRORS = 3;
-
     // 瞬态错误（IO/解码器初始化类）重试一次，避免偶发失败被误判为格式不支持
     private boolean transientRetryUsed = false;
-    private static final long TRACK_RECHECK_DELAY = 500; // onTracksChanged 误判二次确认延时ms
+    /** 兜底播放中错误同歌重启标记（每首一次，播放成功重置；防无限重启） */
+    private boolean fallbackInplayRetryUsed = false;
+
     private static final long TRANSIENT_RETRY_DELAY_MS = 300; // 瞬态错误延时重试（等旧MediaCodec/AudioTrack实例异步释放）
     private static final long FALLBACK_RETRY_DELAY_MS = 500;  // MediaPlayer兜底初始化失败延时重试
+    private static final long TRACK_RECHECK_DELAY = 500;     // 音频轨道静默未选中延迟二次确认（轨道选择为异步，避免竞态误判）
 
     // B站异步获取音频流URL期间设为true，阻止自动切歌避免竞态
     private volatile boolean biliFetching = false;
@@ -396,7 +398,7 @@ public class MusicPlayerService extends Service {
                 if (isIoError(code)) {
                     showToast("网络异常，暂时无法播放");
                 }
-                handlePlaybackError();
+                handlePlaybackError(currentSong);
             }
         };
 
@@ -456,25 +458,22 @@ public class MusicPlayerService extends Service {
         mediaSession.setCallback(new MediaSessionCompat.Callback() {
             @Override
             public void onPlay() {
-                resumePlayback();
+                if (acceptMediaCommand()) resumePlayback();
             }
 
             @Override
             public void onPause() {
-                pausePlayback();
+                if (acceptMediaCommand()) pausePlayback();
             }
 
             @Override
             public void onSkipToNext() {
-                // 外部切歌命令双入口去重：同一物理键可能同时走“应用自认领（onStartCommand）”
-                // 与“乐酷/系统 MediaSession 转发”两条路（连切两首/广播双发），
-                // 350ms 内重复命令只执行第一次；内部连续错误自动跳歌不走此门
-                if (acceptExternalSkip(true)) playNext();
+                if (acceptMediaCommand()) playNext();
             }
 
             @Override
             public void onSkipToPrevious() {
-                if (acceptExternalSkip(false)) playPrevious();
+                if (acceptMediaCommand()) playPrevious();
             }
 
             @Override
@@ -519,11 +518,11 @@ public class MusicPlayerService extends Service {
         if (intent != null) {
             String action = intent.getAction();
             if ("ACTION_PLAY_PAUSE".equals(action)) {
-                togglePlayPause();
+                if (acceptMediaCommand()) togglePlayPause();
             } else if ("ACTION_PREVIOUS".equals(action)) {
-                if (acceptExternalSkip(false)) playPrevious();
+                if (acceptMediaCommand()) playPrevious();
             } else if ("ACTION_NEXT".equals(action)) {
-                if (acceptExternalSkip(true)) playNext();
+                if (acceptMediaCommand()) playNext();
             } else if (ACTION_UPDATE_METADATA.equals(action)) {
                 updateMediaSessionMetadata();
             } else if (ACTION_WEBDAV_CONFIG_CHANGED.equals(action)) {
@@ -611,11 +610,90 @@ public class MusicPlayerService extends Service {
         super.onTaskRemoved(rootIntent);
     }
 
+    // ===== 播放上下文（队列模式）：无 UI 场景保存"上次播放"用 =====
+
+    /** 当前队列模式（all/folder/favorites/webdav/bili）：UI 灌队列时同步，恢复队列时归位 */
+    private String playlistMode = "all";
+    /** 目录模式路径集（与 folder_song_paths 同源） */
+    private java.util.Set<String> folderSongPaths;
+
+    /** UI 灌队列时同步队列上下文，供切歌时保存记忆（替代 PlayerFragment 独占的 saveLastPlayed） */
+    private void setPlaylistContext(String mode, java.util.List<String> folderPaths) {
+        playlistMode = mode != null ? mode : "all";
+        folderSongPaths = (folderPaths != null && !folderPaths.isEmpty())
+                ? new java.util.HashSet<>(folderPaths) : null;
+    }
+
+    /**
+     * 保存当前播放上下文（歌/索引/队列模式）：PlayerFragment 不在场（乐酷启动、
+     * 后台播放、车键切歌）时其 saveLastPlayed 不会执行，last_played 会残留旧会话
+     * 记忆（如旧 B 站歌）；此处由 Service 在每次开播时兜底保存。
+     * bili/webdav 整队列持久化与 bili_nav_url 仍由 UI 首次点歌时完成，此处不覆盖。
+     */
+    private void savePlaybackContext() {
+        try {
+            if (currentIndex < 0 || playlist == null || playlist.isEmpty()
+                    || currentIndex >= playlist.size()) return;
+            Song s = playlist.get(currentIndex);
+            android.content.SharedPreferences.Editor ed =
+                    getSharedPreferences("last_played", MODE_PRIVATE).edit();
+            s.saveToPrefs(ed);
+            ed.putInt("position", currentIndex)
+              .putBoolean(com.jingxin.jingxinmusic.model.Song.KEY_HAS_LAST, true)
+              .putString("playlist_mode", playlistMode);
+            if ("folder".equals(playlistMode) && folderSongPaths != null && !folderSongPaths.isEmpty()) {
+                // 目录模式必须清旧 B 站/WebDAV 标记：恢复分派 from_webdav 优先级高，
+                // 残留会把 folder 劫持到 B 站队列（上次播放记忆错乱的实锤根因）
+                ed.putStringSet("folder_song_paths", folderSongPaths);
+                ed.remove("from_webdav");
+            } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
+                ed.putBoolean("from_webdav", true);
+            } else {
+                ed.remove("folder_song_paths");
+                ed.remove("from_webdav");
+            }
+            ed.apply();
+        } catch (Exception e) {
+            Log.w(TAG, "保存播放上下文失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 同步落盘版（电源开关专用）：System.exit(0) 硬杀前必须 commit，
+     * 常规 apply 的异步写盘会被硬杀截断，导致 last_played 残留上一次落盘的旧歌。
+     */
+    private void savePlaybackContextSync() {
+        try {
+            if (currentIndex < 0 || playlist == null || playlist.isEmpty()
+                    || currentIndex >= playlist.size()) return;
+            Song s = playlist.get(currentIndex);
+            android.content.SharedPreferences.Editor ed =
+                    getSharedPreferences("last_played", MODE_PRIVATE).edit();
+            s.saveToPrefs(ed);
+            ed.putInt("position", currentIndex)
+              .putBoolean(com.jingxin.jingxinmusic.model.Song.KEY_HAS_LAST, true)
+              .putString("playlist_mode", playlistMode)
+              .putLong("play_position", getCurrentPosition());
+            if ("folder".equals(playlistMode) && folderSongPaths != null && !folderSongPaths.isEmpty()) {
+                // 同上：目录模式清 from_webdav 防恢复分派被劫持
+                ed.putStringSet("folder_song_paths", folderSongPaths);
+                ed.remove("from_webdav");
+            } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode)) {
+                ed.putBoolean("from_webdav", true);
+            } else {
+                ed.remove("folder_song_paths");
+                ed.remove("from_webdav");
+            }
+            ed.commit(); // 同步落盘：随后 System.exit 不会截断写盘
+        } catch (Exception e) {
+            Log.w(TAG, "同步保存播放上下文失败: " + e.getMessage());
+        }
+    }
+
     /**
      * 保存当前播放进度到 SharedPreferences，下次启动时可恢复
      */
-    private void savePlaybackPosition() {
-        try {
+    private void savePlaybackPosition() {        try {
             if (currentIndex >= 0 && playlist != null && !playlist.isEmpty()
                     && currentIndex < playlist.size()) {
                 long pos = getCurrentPosition();
@@ -673,6 +751,16 @@ public class MusicPlayerService extends Service {
 
         public void setPlaylist(List<Song> songs) {
             MusicPlayerService.this.setPlaylist(songs);
+        }
+
+        /** UI 灌队列时同步队列模式与目录路径集（供无 UI 切歌时保存记忆） */
+        public void setPlaylistContext(String mode, java.util.List<String> folderPaths) {
+            MusicPlayerService.this.setPlaylistContext(mode, folderPaths);
+        }
+
+        /** 电源开关退出前同步落盘（commit）：防 System.exit 硬杀截断 apply 异步写盘 */
+        public void saveNowSync() {
+            MusicPlayerService.this.savePlaybackContextSync();
         }
 
         public List<Song> getPlaylist() {
@@ -757,8 +845,10 @@ public class MusicPlayerService extends Service {
             return;
         }
 
-        // 优先使用 Content URI（不受 Scoped Storage 限制），fallback 到文件路径
-        String playUri = song.contentUri != null ? song.contentUri : song.filePath;
+        // filePath 优先：车机 content:// 通道存在 3 秒必断缺陷（15/15 实证），
+        // 兜底 MediaPlayer 走 filePath 17/17 成活、扫描/封面链路本就路径直读，权限矩阵已覆盖；
+        // filePath 为空（SAF 等来源）回落 contentUri
+        String playUri = song.filePath != null ? song.filePath : song.contentUri;
 
         // URL校验：WebDAV URL必须以http开头
         if (playUri != null && playUri.startsWith("http")) {
@@ -774,12 +864,12 @@ public class MusicPlayerService extends Service {
                 android.net.Uri parsed = Uri.parse(playUri);
                 if (parsed.getScheme() == null || parsed.getHost() == null) {
                     Log.e(TAG, "播放URL格式异常: " + playUri);
-                    handlePlaybackError();
+                    handlePlaybackError(song);
                     return;
                 }
             } catch (Exception e) {
                 Log.e(TAG, "播放URL解析失败: " + playUri + " - " + e.getMessage());
-                handlePlaybackError();
+                handlePlaybackError(song);
                 return;
             }
         }
@@ -907,6 +997,7 @@ public class MusicPlayerService extends Service {
         // 播放成功，重置连续错误计数和瞬态重试标记
         consecutiveErrors = 0;
         transientRetryUsed = false;
+        fallbackInplayRetryUsed = false;
 
         logPlayHistory(song);
 
@@ -914,6 +1005,10 @@ public class MusicPlayerService extends Service {
 
         // 通知 Activity 歌曲切换了
         sendSongChangedBroadcast(song, position);
+        // 无 UI 场景兑底保存：乐酷启动/后台/车键切歌时 PlayerFragment 不在场，
+        // 其 saveLastPlayed 不会执行，last_played 会残留旧会话记忆（如旧 B 站歌）。
+        // 此处由 Service 在每次开播时保存当前歌/索引/队列模式，保证下次恢复一致
+        savePlaybackContext();
     }
 
     /**
@@ -1018,6 +1113,7 @@ public class MusicPlayerService extends Service {
             // 播放成功，重置连续错误计数和瞬态重试标记
             consecutiveErrors = 0;
             transientRetryUsed = false;
+            fallbackInplayRetryUsed = false;
 
             logPlayHistory(song);
             updateNotification();
@@ -1026,7 +1122,7 @@ public class MusicPlayerService extends Service {
             sendSongChangedBroadcast(song, position);
         } catch (Exception e) {
             Log.e(TAG, "B站播放启动失败: " + e.getMessage());
-            handlePlaybackError();
+            handlePlaybackError(song);
         }
     }
 
@@ -1082,7 +1178,7 @@ public class MusicPlayerService extends Service {
 
     /**
      * 恢复播放：统一处理 MediaPlayer 兜底模式与 ExoPlayer 模式。
-     * 供 MediaSession 回调（外部应用如乐桌面）与通知栏按钮共用，避免外部播放漏掉兜底播放器。
+     * 供 MediaSession 回调（外部应用如乐桌面）与通知栏按钮共用，避免外部播放漏掉兑底播放器。
      * fallback 模式下 MediaPlayer 操作可能阻塞，故移到子线程。
      */
     private void resumePlayback() {
@@ -1124,6 +1220,8 @@ public class MusicPlayerService extends Service {
                 String mode = prefs.getString("playlist_mode", "all");
                 long savedPos = prefs.getLong("play_position", 0L);
                 int savedIndex = prefs.getInt("position", 0);
+                // 目录模式的路径集（恢复后作为上下文归位）
+                java.util.Set<String> paths = prefs.getStringSet("folder_song_paths", null);
 
                 if ("webdav".equals(mode) || "bili".equals(mode)
                         || prefs.getBoolean("from_webdav", false)) {
@@ -1135,7 +1233,7 @@ public class MusicPlayerService extends Service {
                     }
                 } else if ("folder".equals(mode)) {
                     // 目录模式：按记忆的路径集从本地库筛出该目录歌曲（Set 无序，靠歌曲键定位）
-                    Set<String> paths = prefs.getStringSet("folder_song_paths", null);
+                    // paths 已在 try 开头读取（folder_song_paths）
                     List<Song> all = loadLocalLibrary();
                     if (paths != null && !paths.isEmpty() && !all.isEmpty()) {
                         List<Song> folderSongs = new ArrayList<>();
@@ -1181,6 +1279,10 @@ public class MusicPlayerService extends Service {
                     restoringQueue = false;
                     // 竞态守卫：恢复期间用户已在应用内主动选歌，以用户为准
                     if (!playlist.isEmpty() && currentIndex >= 0) return;
+                    // 恢复队列的上下文归位：后续无 UI 切歌保存记忆时模式正确
+                    playlistMode = mode;
+                    folderSongPaths = ("folder".equals(mode) && paths != null && !paths.isEmpty())
+                            ? new java.util.HashSet<>(paths) : null;
                     playlist = new ArrayList<>(finalQueue);
                     pendingSeekPosition = Math.max(0, finalPos);
                     playSongAtPosition(finalStart);
@@ -1255,19 +1357,21 @@ public class MusicPlayerService extends Service {
         updateNotification();
     }
 
-    // ===== 外部切歌命令双入口去重 =====
+    // ===== 外部播放命令重复转发防御 =====
 
-    /** 去重时间窗：两条入口（startService 与 MediaSession）几乎同帧到达，350ms 足够分满 */
-    private static final long EXTERNAL_CMD_DEDUPE_MS = 350L;
-    private long lastExternalNextMs = 0L, lastExternalPrevMs = 0L;
+    /**
+     * 静默窗：应用侧按键映射已取消（乐酷已有按键扩展，双认领会致一次按键切两首），
+     * 现按键全由乐酷/系统 MediaSession 转发单路径执行；此窗仅防御同一命令在
+     * 800ms 内重复到达（乐酷自身双发/通知栏与线控重复）。
+     */
+    private static final long MEDIA_CMD_SILENCE_MS = 800L;
+    private volatile long lastKeyCmdMs = -MEDIA_CMD_SILENCE_MS;
 
-    /** 外部上一曲/下一曲命令去重：350ms 内重复丢弃（内部自动跳歌不经此门） */
-    private boolean acceptExternalSkip(boolean next) {
+    /** 外部命令准入：800ms 静默窗内丢弃重复命令（内部自动跳歌/Binder UI 不经此门） */
+    private boolean acceptMediaCommand() {
         long now = SystemClock.uptimeMillis();
-        long last = next ? lastExternalNextMs : lastExternalPrevMs;
-        if (now - last < EXTERNAL_CMD_DEDUPE_MS) return false;
-        if (next) lastExternalNextMs = now;
-        else lastExternalPrevMs = now;
+        if (now - lastKeyCmdMs < MEDIA_CMD_SILENCE_MS) return false;
+        lastKeyCmdMs = now;
         return true;
     }
 
@@ -1931,9 +2035,10 @@ public class MusicPlayerService extends Service {
         isFallbackMode = true;
         if (audioEffectManager != null) audioEffectManager.setFallbackMode(true);
 
-        // 暂停 ExoPlayer，避免两个播放器同时出声（仅判空调用，不阻塞）
+        // stop ExoPlayer：避免双声，并彻底释放其 MediaCodec/AudioTrack 实例，
+        // 降低低配车机降级瞬间双引擎并存的内存/解码器池压力（兜底播放中死亡 5/17 的诱因）
         if (exoPlayer != null) {
-            try { exoPlayer.pause(); } catch (Exception ignored) {}
+            try { exoPlayer.stop(); } catch (Exception ignored) {}
         }
 
         new Thread(() -> {
@@ -1950,9 +2055,18 @@ public class MusicPlayerService extends Service {
                         Thread.sleep(FALLBACK_RETRY_DELAY_MS);
                     }
                     mp = new android.media.MediaPlayer();
-                    // 优先使用文件路径（MediaPlayer 通过路径可直接访问文件，比 content URI 更兼容）
-                    // content URI 在某些设备/模拟器上可能无法正确传递格式信息
-                    String dataSource = song.filePath != null ? song.filePath : playUri;
+                    // 首次文件路径直读（最兼容）；初始化失败多为当前通道打不开或瞬态资源占用，
+                    // 第二次换另一条通道互补重试
+                    String dataSource;
+                    if (attempt == 1) {
+                        dataSource = song.filePath != null ? song.filePath : playUri;
+                    } else {
+                        String first = song.filePath != null ? song.filePath : playUri;
+                        String other = (song.contentUri != null && !song.contentUri.equals(first))
+                                ? song.contentUri : null;
+                        dataSource = other != null ? other : first;
+                    }
+                    if (dataSource == null) throw new IllegalStateException("无可用数据源");
                     if (dataSource.startsWith("content://")) {
                         mp.setDataSource(this, Uri.parse(dataSource));
                     } else {
@@ -1963,8 +2077,20 @@ public class MusicPlayerService extends Service {
                         Log.e(TAG, "MediaPlayer兜底播放也失败: what=" + what + " extra=" + extra);
                         releaseFallbackPlayer();
                         isFallbackMode = false;
+                        // 播放中错误多为瞬态（低配车机 Binder 事务失败等，重试即活）：
+                        // 同歌延时重启兜底一次，再失败才跳歌
+                        if (!fallbackInplayRetryUsed) {
+                            fallbackInplayRetryUsed = true;
+                            handler.postDelayed(() -> {
+                                if (isFallbackSuperseded(song, position)) {
+                                    return;
+                                }
+                                startFallbackPlayback(song, playUri, position);
+                            }, FALLBACK_RETRY_DELAY_MS);
+                            return true;
+                        }
                         showToast("播放失败，请重试");
-                        handler.post(() -> handlePlaybackError());
+                        handler.post(() -> handlePlaybackError(song));
                         return true;
                     });
                     mp.prepare();
@@ -1981,7 +2107,7 @@ public class MusicPlayerService extends Service {
             if (mp == null) { // 两次都失败
                 isFallbackMode = false;
                 showToast("播放失败，请重试");
-                handler.post(() -> handlePlaybackError());
+                handler.post(() -> handlePlaybackError(song));
                 return;
             }
             // 重试间隙被切歌：新播放已接管（isFallbackMode 由新路径管理），放弃本次
@@ -2008,9 +2134,10 @@ public class MusicPlayerService extends Service {
             } catch (Exception ignored) {}
             mp.start();
 
-            // 播放成功，重置连续错误计数和瞬态重试标记
+            // 播放成功，重置连续错误计数、瞬态重试标记与兜底播放中重启标记
             consecutiveErrors = 0;
             transientRetryUsed = false;
+            fallbackInplayRetryUsed = false;
 
             logPlayHistory(song);
 
@@ -2020,6 +2147,8 @@ public class MusicPlayerService extends Service {
                 updateNotification();
                 startPlaybackStateUpdater();
                 sendSongChangedBroadcast(song, position);
+                // 与 ExoPlayer 主路径同款：无 UI 场景（乐酷/后台/车键）兜底保存当前歌与队列模式
+                savePlaybackContext();
             });
         }, "FallbackInit").start();
     }
@@ -2083,11 +2212,11 @@ public class MusicPlayerService extends Service {
     }
 
     /**
-     * 获取当前歌曲的本地播放 URI（contentUri 优先），非本地源返回 null
+     * 获取当前歌曲的本地播放 URI（filePath 优先，与 playSong 主通道一致），非本地源返回 null
      */
     private String getLocalPlayUri(Song song) {
         if (song == null) return null;
-        String uri = song.contentUri != null ? song.contentUri : song.filePath;
+        String uri = song.filePath != null ? song.filePath : song.contentUri;
         if (uri != null && !uri.startsWith("http") && !uri.startsWith("bili://")) {
             return uri;
         }
@@ -2097,7 +2226,17 @@ public class MusicPlayerService extends Service {
     /**
      * 统一处理播放错误：递增计数，未超限则跳下一首，超限则通知 UI 停止自动切歌
      */
-    private void handlePlaybackError() {
+    private void handlePlaybackError(Song failedSong) {
+        // 跳歌竞态防护：双错报竞态下第二发跳歌指令晚到时当前歌已被切走，
+        // 直接跳会误杀刚开播的新歌（日志实锤"装醉"被冤杀）；核对出错歌仍是当前歌才跳
+        Song cur = getCurrentSong();
+        if (failedSong != null && cur != null && failedSong != cur
+                && (cur.filePath == null ? failedSong.filePath != null
+                : !cur.filePath.equals(failedSong.filePath))
+                && (cur.contentUri == null ? failedSong.contentUri != null
+                : !cur.contentUri.equals(failedSong.contentUri))) {
+            return;
+        }
         consecutiveErrors++;
         if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
             playNext();
@@ -2116,9 +2255,15 @@ public class MusicPlayerService extends Service {
      * 这类错误重试通常可恢复，不应直接判定为格式不支持。
      */
     private boolean isTransientError(int errorCode) {
-        // IO 类（网络抖动、连接失败、超时、HTTP错误）
-        if (errorCode >= PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
-                && errorCode <= PlaybackException.ERROR_CODE_IO_UNSPECIFIED) {
+        // IO 类（网络抖动、连接失败、超时、文件读取）。
+        // 常量区间为 IO_UNSPECIFIED(2000) ~ IO_READ_POSITION_OUT_OF_RANGE(2008)：
+        // 曾误写为 [IO_NETWORK_CONNECTION_FAILED(2001), IO_UNSPECIFIED(2000)] 空区间，
+        // 导致所有 IO 错误（含 2005 FILE_NOT_FOUND）从未走瞬态重试，直接降级
+        if (errorCode >= PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+                && errorCode <= PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE
+                // 权限/明文类错误重试必然无效，排除
+                && errorCode != PlaybackException.ERROR_CODE_IO_NO_PERMISSION
+                && errorCode != PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED) {
             return true;
         }
         // 解码器初始化失败（资源被占用、上一次异步释放未完成）
@@ -2147,7 +2292,7 @@ public class MusicPlayerService extends Service {
         if (currentSong == null || exoPlayer == null) return;
         String playUri = getLocalPlayUri(currentSong);
         if (playUri == null) {
-            handlePlaybackError();
+            handlePlaybackError(currentSong);
             return;
         }
         try {
@@ -2169,7 +2314,7 @@ public class MusicPlayerService extends Service {
             exoPlayer.play();
         } catch (Exception e) {
             Log.e(TAG, "重试播放失败: " + e.getMessage());
-            handlePlaybackError();
+            handlePlaybackError(currentSong);
         }
     }
 

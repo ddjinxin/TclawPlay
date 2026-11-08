@@ -467,6 +467,9 @@ public class CollageWallView extends View {
 
     /** 展开某实例：让位插值 + 相机弹簧飞至展开卡中心 */
     private void expandAt(int regionX, int regionY, int leaf, int queueIndex) {
+        // 展开目标切换即失效矩形缓存：新卡首帧矩形变化必须触发一次回调，
+        // 否则“新矩形与旧缓存重合”时页面文字层/频谱永不再同步（歌名消失/错位）
+        lastCardRect = null;
         expandedRegionX = regionX;
         expandedRegionY = regionY;
         expandedLeaf = leaf;
@@ -611,6 +614,8 @@ public class CollageWallView extends View {
         // 尺寸/旋转变化：当前曲重定位（相机瞬移不飞行）
         if (entered && currentIndex >= 0 && !playlist.isEmpty()) {
             centerOnCurrentInstant();
+            // 重定位曾对页面零通知（旧路径），文字层/频谱与瞬移后的墙脱节；补通知强制同步
+            notifyExpandedContentChanged();
         } else {
             invalidate();
         }

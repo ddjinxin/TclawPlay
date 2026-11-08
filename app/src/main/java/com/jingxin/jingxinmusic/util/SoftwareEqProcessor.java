@@ -61,11 +61,18 @@ public final class SoftwareEqProcessor implements AudioProcessor {
     @Override
     public AudioFormat configure(AudioFormat inputFormat) throws UnhandledAudioFormatException {
         if (inputFormat.encoding != C.ENCODING_PCM_16BIT
-                && inputFormat.encoding != C.ENCODING_PCM_FLOAT) {
+                && inputFormat.encoding != C.ENCODING_PCM_FLOAT
+                && inputFormat.encoding != C.ENCODING_PCM_24BIT) {
             throw new UnhandledAudioFormatException(inputFormat);
         }
         this.inputFormat = inputFormat;
-        this.outputFormat = inputFormat; // 直通格式，只改幅度不改结构
+        // 24bit packed 输入统一转 float 输出：
+        // 1) 修复 24bit FLAC 随机播放失败——部分 ROM 的 FLAC 解码器实例输出 24bit packed，
+        //    原实现直接抛 UnhandledAudioFormatException；解码器 fallback 到这类实例时必失败
+        // 2) float 是 AudioTrack 支持最广的高精度通路，DSP 本就在 float 域，24→float 精度无损
+        this.outputFormat = inputFormat.encoding == C.ENCODING_PCM_24BIT
+                ? new AudioFormat(inputFormat.sampleRate, inputFormat.channelCount, C.ENCODING_PCM_FLOAT)
+                : inputFormat; // 其余直通格式，只改幅度不改结构
         return outputFormat;
     }
 
@@ -84,20 +91,28 @@ public final class SoftwareEqProcessor implements AudioProcessor {
         int remaining = inputBuffer.remaining();
         if (remaining == 0) { buffer = EMPTY_BUFFER; return; }
         int ch = inputFormat.channelCount;
-        boolean isFloat = inputFormat.encoding == C.ENCODING_PCM_FLOAT;
-        int frameBytes = ch * (isFloat ? 4 : 2);
-        int frames = remaining / frameBytes;
+        boolean inFloat = inputFormat.encoding == C.ENCODING_PCM_FLOAT;
+        boolean in24 = inputFormat.encoding == C.ENCODING_PCM_24BIT;
+        boolean outFloat = outputFormat.encoding == C.ENCODING_PCM_FLOAT;
+        int inFrameBytes = ch * (in24 ? 3 : inFloat ? 4 : 2);
+        int outFrameBytes = ch * (outFloat ? 4 : 2);
+        int frames = remaining / inFrameBytes;
         if (frames == 0) { buffer = EMPTY_BUFFER; return; }
-        int need = frames * frameBytes;
         // Media3 PCM 为小端（native byte order），allocateDirect 默认大端，
         // 必须显式设为 LITTLE_ENDIAN，否则 getShort/getFloat/putShort 字节序错乱 → 杂音
-        ByteBuffer out = ByteBuffer.allocateDirect(need);
+        ByteBuffer out = ByteBuffer.allocateDirect(frames * outFrameBytes);
         out.order(java.nio.ByteOrder.LITTLE_ENDIAN);
         int oldLimit = inputBuffer.limit();
-        inputBuffer.limit(inputBuffer.position() + need);
-        if (preset <= 0 || ch > 2) {
-            // 直通 copy（必须拷贝，不可持有框架 buffer 引用——框架会复用该 buffer）
+        inputBuffer.limit(inputBuffer.position() + frames * inFrameBytes);
+        boolean bypass = preset <= 0 || ch > 2;
+        if (bypass && !in24) {
+            // 同格式直通 copy（必须拷贝，不可持有框架 buffer 引用——框架会复用该 buffer）
             out.put(inputBuffer);
+        } else if (bypass) {
+            // 24bit→float 搬移（无 DSP，仅格式转换）
+            for (int i = 0; i < frames; i++) {
+                for (int c = 0; c < ch; c++) out.putFloat(readSample24(inputBuffer));
+            }
         } else {
             // 懒初始化 DSP（首次处理 / preset 或采样率或声道变化时重算系数）
             int sr = inputFormat.sampleRate;
@@ -114,21 +129,35 @@ public final class SoftwareEqProcessor implements AudioProcessor {
         buffer = out;
     }
 
+    /** 读一个 24bit packed 小端样本 → float [-1,1)。符号位经最高字节的符号扩展保留。 */
+    private static float readSample24(ByteBuffer in) {
+        int b0 = in.get() & 0xFF;
+        int b1 = in.get() & 0xFF;
+        int b2 = in.get();
+        int v = b0 | (b1 << 8) | (b2 << 16);
+        return v / 8388608f; // 2^23
+    }
+
     private ByteBuffer allocateEmpty(int capacity) {
         ByteBuffer b = ByteBuffer.allocateDirect(capacity);
         b.flip();
         return b;
     }
 
-    /** 核心：逐帧逐声道滤波。encoding 由 inputFormat 决定，帧内样本交错。 */
+    /** 核心：逐帧逐声道滤波。读输入编码三态（16/float/24），写按 outputFormat。 */
     private void processPcm(ByteBuffer in, ByteBuffer out) {
-        boolean isFloat = inputFormat.encoding == C.ENCODING_PCM_FLOAT;
+        boolean inFloat = inputFormat.encoding == C.ENCODING_PCM_FLOAT;
+        boolean in24 = inputFormat.encoding == C.ENCODING_PCM_24BIT;
+        boolean outFloat = outputFormat.encoding == C.ENCODING_PCM_FLOAT;
         boolean mono = channels == 1;
-        int frameBytes = channels * (isFloat ? 4 : 2);
+        int frameBytes = channels * (in24 ? 3 : inFloat ? 4 : 2);
         while (in.remaining() >= frameBytes) {
             // 读一帧
             float l, r;
-            if (isFloat) {
+            if (in24) {
+                l = readSample24(in);
+                r = mono ? l : readSample24(in);
+            } else if (inFloat) {
                 l = in.getFloat();
                 r = mono ? l : in.getFloat();
             } else {
@@ -152,8 +181,8 @@ public final class SoftwareEqProcessor implements AudioProcessor {
             }
             // 防溢出 clamp
             l = clamp(l); r = clamp(r);
-            // 写一帧
-            if (isFloat) {
+            // 写一帧（按 outputFormat：24bit 输入已转 float 输出）
+            if (outFloat) {
                 out.putFloat(l);
                 if (!mono) out.putFloat(r);
             } else {

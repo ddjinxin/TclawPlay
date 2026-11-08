@@ -11,7 +11,6 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.os.Build;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
@@ -72,19 +71,6 @@ public class LecoFloatManager {
 
     // 当前 resumed 的 Activity
     private Activity currentResumedActivity;
-
-    /**
-     * 悬浮窗按键转发：悬浮态下 Activity 被系统 onStop，其 KeyEvent 链是死路，
-     * 但 overlay 窗口可获焦且是按键的实际到达点 → 收到 KeyEvent 时转发给宿主处理
-     * （HostActivity 的车机键逻辑：录制捕获/映射执行）
-     */
-    public interface KeyDelegate { boolean dispatch(KeyEvent event); }
-
-    private volatile KeyDelegate keyDelegate;
-
-    public void setKeyDelegate(KeyDelegate delegate) {
-        this.keyDelegate = delegate;
-    }
 
     private LecoFloatManager() {}
 
@@ -289,17 +275,8 @@ public class LecoFloatManager {
             originalLayoutParams = fragmentContainer.getLayoutParams();
 
             // 创建覆盖窗口容器（用 Application 上下文，不依赖 Activity 生命周期）
-            // 重写 dispatchKeyEvent：悬浮态按键入口在此（Activity 已 onStop），
-            // 转发给宿主 KeyDelegate（录制态捕获/已绑定键执行），否则无人消费
             if (windowContainer == null) {
-                windowContainer = new FrameLayout(application) {
-                    @Override
-                    public boolean dispatchKeyEvent(KeyEvent event) {
-                        KeyDelegate d = keyDelegate;
-                        if (d != null && d.dispatch(event)) return true;
-                        return super.dispatchKeyEvent(event);
-                    }
-                };
+                windowContainer = new FrameLayout(application);
                 windowContainer.setOnApplyWindowInsetsListener((v, insets) -> {
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                         return android.view.WindowInsets.CONSUMED;
@@ -355,16 +332,6 @@ public class LecoFloatManager {
             isFloating.set(true);
             lecoFloatExit = false;
 
-            // 悬浮态退出焦点竞争：键事件（车机映射键）路由给乐酷转发，连续按键保持生效；
-            // 取自老架构 NOT_FOCUSABLE 策略，仅此一件，不带回老架构窗口 GONE 的频谱/Fragment 崩溃问题。
-            // 例外：设置页录制态中（正等待用户按键绑定），必须保持可聚焦，否则录制永等不到键
-            try {
-                if (!isCarKeyRecordingActive()) {
-                    activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
-                }
-            } catch (Exception ignored) {
-            }
-
             // 主动通知 PlayerFragment 按悬浮区域尺寸刷新布局
             // 不依赖 onLayoutChange：首次进入悬浮时 onLayoutChange 可能因
             // newWidth==oldWidth（横竖屏未变）不触发，导致页面保持全屏布局
@@ -389,13 +356,6 @@ public class LecoFloatManager {
 
     private void restoreCurrentActivity() {
         try {
-            // 还原焦点能力：退出悬浮态时清除 NOT_FOCUSABLE，全屏使用照旧
-            try {
-                if (currentFloatingActivity != null && !currentFloatingActivity.isFinishing()) {
-                    currentFloatingActivity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
-                }
-            } catch (Exception ignored) {
-            }
             if (currentContentView != null && originalParent != null) {
                 if (windowContainer != null) {
                     windowContainer.removeView(currentContentView);
@@ -428,13 +388,6 @@ public class LecoFloatManager {
     }
 
     private void removeFloatWindow() {
-        // 保险：任何移除悬浮窗路径都顺带还原焦点能力（防 flag 残留到全屏态）
-        try {
-            if (currentFloatingActivity != null && !currentFloatingActivity.isFinishing()) {
-                currentFloatingActivity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
-            }
-        } catch (Exception ignored) {
-        }
         try {
             if (windowContainer != null && windowContainer.getWindowToken() != null) {
                 windowManager.removeViewImmediate(windowContainer);
@@ -509,17 +462,6 @@ public class LecoFloatManager {
     }
 
     // ==================== 公共 API ====================
-
-    /** 设置页车机按键录制态查询：录制中悬浮窗口需保持可聚焦（捕获物理键） */
-    private boolean isCarKeyRecordingActive() {
-        try {
-            if (currentFloatingActivity instanceof com.jingxin.jingxinmusic.HostActivity) {
-                return ((com.jingxin.jingxinmusic.HostActivity) currentFloatingActivity).isCarKeyRecordingActive();
-            }
-        } catch (Exception ignored) {
-        }
-        return false;
-    }
 
     public boolean isFloating() {
         return isFloating.get();

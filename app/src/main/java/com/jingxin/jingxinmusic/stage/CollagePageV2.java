@@ -141,6 +141,10 @@ public class CollagePageV2 extends StandardPageBase {
         applyNightToWall();
         subscribeWallObservers();
         pushSpectrumStyle();
+        // 同款竞态兑底：切回页面时墙刚从 GONE 恢复，展开动画/矩形可能晚一步就绪，
+        // 补帧重试防文字层卡死 GONE（歌名消失）
+        topBarHandler.post(syncRetry);
+        topBarHandler.postDelayed(syncRetry, 400);
     }
 
     @Override
@@ -149,6 +153,7 @@ public class CollagePageV2 extends StandardPageBase {
         unsubscribeWallObservers();
         topBarHandler.removeCallbacks(topBarHider);
         topBarHandler.removeCallbacks(queueRetryTask);
+        topBarHandler.removeCallbacks(syncRetry);
         queueRetry = 0;
         hideTopBars();
         if (wall != null) wall.setVisibility(View.GONE);
@@ -252,11 +257,19 @@ public class CollagePageV2 extends StandardPageBase {
             if (cardSpectrumL != null) cardSpectrumL.setVisibility(View.GONE);
             if (cardTextLayer != null) cardTextLayer.setVisibility(View.GONE);
         } else {
-            syncCardSpectrumPosition(); // 回墙时按当前带位置恢复
+            // 恢复点防竞态：墙 GONE 期间动画冻结，切回帧回调恢复时 dt 异常可能使
+            // 展开/飞行一步到位瞬移；若本次同步跑在瞬移前（t 低→GONE），瞬移后几何
+            // 静止回调不再来，文字层将卡死 GONE（歌名消失）。补帧+短延迟重试兑底
+            syncCardSpectrumPosition();
+            topBarHandler.post(syncRetry);
+            topBarHandler.postDelayed(syncRetry, 120);
+            topBarHandler.postDelayed(syncRetry, 400);
         }
     }
 
     private boolean effectPageActive = false;
+    /** 恢复点补帧重试（同一实例便于 exit 精确清除） */
+    private final Runnable syncRetry = this::syncCardSpectrumPosition;
 
     /** 列表全量刷新（enter/切歌广播/服务就绪/横竖切换均走此处） */
     public void syncQueueData() {
@@ -278,6 +291,12 @@ public class CollagePageV2 extends StandardPageBase {
         // 两实例都灌（横竖切换即得数据）
         if (wall != null) wall.setQueueData(playlist, idx);
         if (wallL != null) wallL.setQueueData(playlist, idx);
+        // 切歌/重灌与墙的展开目标、绘制集存在一帧时差，矩形回调链在窗口内可能不触发
+        //（日志实锤：切歌后12s零回调、文字层停留旧状态）：补帧强制文字层/频谱对齐墙最新状态
+        topBarHandler.removeCallbacks(syncRetry);
+        topBarHandler.post(syncRetry);
+        topBarHandler.postDelayed(syncRetry, 120);
+        topBarHandler.postDelayed(syncRetry, 400);
     }
 
     // ===== 频谱链：真 SpectrumView 实例盖到展开卡频谱带（与其他风格同源同款） =====

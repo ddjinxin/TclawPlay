@@ -443,6 +443,11 @@ public class MainFragment extends BaseFloatFragment {
         // 关闭按钮
         btnClose = view.findViewById(R.id.close_button);
         btnClose.setOnClickListener(v -> {
+            // System.exit(0) 硬杀会截断 apply 异步写盘，退出前经 binder 同步 commit
+            // 当前歌/索引/队列模式/进度，否则 last_played 残留上一次落盘的旧歌
+            try {
+                if (bound && playerBinder != null) playerBinder.saveNowSync();
+            } catch (Exception ignored) {}
             ctx.stopService(new Intent(ctx, MusicPlayerService.class));
             requireActivity().finishAffinity();
             System.exit(0);
