@@ -742,6 +742,11 @@ public class MainFragment extends BaseFloatFragment {
     public void onResume() {
         super.onResume();
 
+        // 非播放页恢复常规状态栏（系统垫下+主题色），与播放页沉浸互斥
+        if (getActivity() instanceof HostActivity) {
+            ((HostActivity) getActivity()).setStatusBarImmersive(false);
+        }
+
         // 处理来自 HostActivity 的新 tab 请求
         if (getActivity() instanceof HostActivity) {
             HostActivity host = (HostActivity) getActivity();
@@ -757,6 +762,9 @@ public class MainFragment extends BaseFloatFragment {
             isNightMode = savedNight;
             updateThemeUI();
         }
+
+        // 窗口状态可能已变（旋转/进出悬浮）：重算顶部避让
+        applyTitleBarTopMargin();
 
         // 从播放页返回时，根据上次播放来源恢复 tab
         // 不依赖 returningFromPlayer 实例变量（replace 会销毁重建 MainFragment 导致丢失）
@@ -2573,10 +2581,17 @@ public class MainFragment extends BaseFloatFragment {
 
     // ==================== 横屏比例布局 ====================
 
+    /**
+     * 标题栏顶部避让计算：策略统一在 StatusBarAvoid（只补偿真实伸入状态栏的重叠量）
+     */
+    private int titleBarTopMargin() {
+        return com.jingxin.jingxinmusic.util.StatusBarAvoid.effectiveTopInset(rootLayout, systemTopInset);
+    }
+
     private void applyTitleBarTopMargin() {
         if (titleBar != null) {
             android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
-            lp.topMargin = systemTopInset;
+            lp.topMargin = titleBarTopMargin();
             titleBar.setLayoutParams(lp);
         }
     }
@@ -2601,7 +2616,7 @@ public class MainFragment extends BaseFloatFragment {
             if (titleBar != null) {
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
                 lp.height = titleBarH;
-                lp.topMargin = systemTopInset;
+                lp.topMargin = titleBarTopMargin();
                 titleBar.setLayoutParams(lp);
                 // 顶部图标按标题栏高度等比缩放，下限20dp防极小屏（下限不得反超比例值）
                 int iconSize = (int) Math.max(20 * density, titleBarH * 0.72f);
@@ -2715,7 +2730,7 @@ public class MainFragment extends BaseFloatFragment {
                 int titleBarH = Math.max((int)(56 * density), (int)(height * 0.08f));
                 android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) titleBar.getLayoutParams();
                 lp.height = titleBarH;
-                lp.topMargin = systemTopInset;
+                lp.topMargin = titleBarTopMargin();
                 titleBar.setLayoutParams(lp);
                 // 顶部图标按标题栏高度等比缩放，下限36dp
                 int iconSize = Math.max((int)(36 * density), (int)(titleBarH * 0.72f));

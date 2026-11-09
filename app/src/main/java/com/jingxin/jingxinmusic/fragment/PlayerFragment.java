@@ -41,6 +41,7 @@ import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
 import com.jingxin.jingxinmusic.util.CompatUtil;
+import com.jingxin.jingxinmusic.HostActivity;
 import com.jingxin.jingxinmusic.service.MusicPlayerService;
 import com.jingxin.jingxinmusic.service.MusicPlayerService.MusicPlayerBinder;
 import com.jingxin.jingxinmusic.util.FavoriteManager;
@@ -158,6 +159,8 @@ public class PlayerFragment extends BaseFloatFragment {
 
     // 播放场景：四风格各持一个 StagePage 实例（组件化第5/6步）
     private CoverSceneHelper sceneHelper;
+    /** insets 原始顶部值（未折算，供 onResume 重算避让策略用） */
+    private int lastRawTopInset = -1;
     private com.jingxin.jingxinmusic.stage.ClassicPageV2 classicV2Page; // 经典
     private com.jingxin.jingxinmusic.stage.ImmersivePageV2 immersiveV2Page; // 沉浸
     private com.jingxin.jingxinmusic.stage.RecordPageV2 recordV2Page; // 唱机
@@ -582,6 +585,10 @@ public class PlayerFragment extends BaseFloatFragment {
         // 初始化 CoverScene 策略
         initCoverScene();
 
+        // 全局布局回调重算顶部避让：沉浸切换/旋转/悬浮导致窗口挪位时，
+        // onResume 同步测量会读到旧窗口位置（getLocationOnScreen 竞态），布局完成后重测即真值
+        mRootView.getViewTreeObserver().addOnGlobalLayoutListener(this::refreshTopAvoidance);
+
         // 延迟检测横屏模式（等视图布局完成）
         // 用 ViewTreeObserver 监听布局变化，自动切换横竖屏布局
         isLandscapeMode = false;
@@ -749,6 +756,12 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onResume() {
         super.onResume();
+        // 播放页沉浸：背景/封面顶到状态栏（状态栏透明），按钮避让由 StatusBarAvoid 公式自动接管
+        if (getActivity() instanceof HostActivity) {
+            ((HostActivity) getActivity()).setStatusBarImmersive(true);
+        }
+        // 窗口状态可能已变：立即重算一次；沉浸切换后的窗口挪位由全局布局回调兜底
+        refreshTopAvoidance();
         // 从设置页返回时重读背景皮肤和封面风格，切换即时生效
         int savedBgSkin = SettingsFragment.getBgSkin(requireContext());
         int savedCoverStyle = normalizeCoverStyle(requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).getInt("cover_style", COVER_STYLE_CLASSIC));
@@ -1251,6 +1264,7 @@ public class PlayerFragment extends BaseFloatFragment {
         initCurrentSceneHolder();
 
         // 监听系统窗口 insets，获取状态栏实际高度（车机全屏时为0）
+        // 存入 sceneHelper 的已是折叠后的有效避让值（普通手机窗口系统已垫下 → 0，见 StatusBarAvoid）
         rootLayout.setOnApplyWindowInsetsListener((v, insets) -> {
             int topInset;
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
@@ -1260,13 +1274,45 @@ public class PlayerFragment extends BaseFloatFragment {
                 // API 21-29：使用兼容 API
                 topInset = insets.getSystemWindowInsetTop();
             }
-            if (sceneHelper.systemTopInset != topInset) {
-                sceneHelper.systemTopInset = topInset;
+            lastRawTopInset = topInset;
+            int effectiveInset = com.jingxin.jingxinmusic.util.StatusBarAvoid.effectiveTopInset(v, topInset);
+            if (sceneHelper.systemTopInset != effectiveInset) {
+                sceneHelper.systemTopInset = effectiveInset;
                 // inset 变化时重新布局，让 applyButtonMargins 生效
                 v.requestLayout();
             }
             return insets;
         });
+    }
+
+    /**
+     * 顶部避让重算（onResume 与全局布局回调共用）：
+     * 主动从 rootWindowInsets 拉取原始 inset，不依赖回调是否触发过（部分 ROM
+     * 非 edge-to-edge 窗口 insets 事件被上层消费，lastRawTopInset 停在 -1）；
+     * 沉浸切换时窗口从 y=65 挪到 y=0 有布局延迟，onResume 同步测getLocationOnScreen
+     * 会读到旧值，全局布局回调在窗口挪位完成后重测，竞态消除。
+     */
+    private void refreshTopAvoidance() {
+        if (isActivityGone() || sceneHelper == null || mRootView == null) return;
+        int rawInset = lastRawTopInset;
+        try {
+            android.view.WindowInsets wi =
+                    android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M
+                            ? mRootView.getRootWindowInsets() : null;
+            if (wi != null) {
+                rawInset = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R
+                        ? wi.getInsets(android.view.WindowInsets.Type.systemBars()).top
+                        : wi.getSystemWindowInsetTop();
+            }
+        } catch (Exception ignored) {}
+        if (rawInset >= 0 && rawInset != lastRawTopInset) lastRawTopInset = rawInset;
+        if (rawInset >= 0) {
+            int effectiveInset = com.jingxin.jingxinmusic.util.StatusBarAvoid.effectiveTopInset(mRootView, rawInset);
+            if (sceneHelper.systemTopInset != effectiveInset) {
+                sceneHelper.systemTopInset = effectiveInset;
+                sceneLayout(getLayoutWidth(), getAvailableScreenHeight());
+            }
+        }
     }
 
     /**

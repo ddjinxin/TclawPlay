@@ -31,7 +31,8 @@ public class CoverSceneHelper {
     public ExecutorService executor;
     public final float density;
 
-    // 系统状态栏实际高度（车机全屏时为0，手机有状态栏时为实际像素高度）
+    // 顶部状态栏有效避让高度（已按 StatusBarAvoid 折算：悬浮窗/Android 15+/设置项开启=原始高度，
+    // 普通手机窗口系统已把内容垫在状态栏下方=0；PlayerFragment 赋值，车机全屏时也为0）
     public int systemTopInset = 0;
 
     public CoverSceneHelper(FrameLayout rootLayout, SpectrumView spectrumView, float density) {
@@ -42,10 +43,10 @@ public class CoverSceneHelper {
 
     /**
      * 纯比例计算顶部按钮栏高度（不依赖 getHeight()，避免横竖屏切换首帧读到旧值）
-     * = topMargin(systemTopInset + height×1%) + topBtnSize(按三档比例×aspectFactor×1.3)
+     * = topMargin(systemTopInset + height×0.2%) + topBtnSize(按三档比例×aspectFactor×1.3)
      */
     public int calcTopBarHeight(int height, int width, boolean isLandscape) {
-        int topMargin = systemTopInset + Math.max(4, (int) (height * 0.01f));
+        int topMargin = systemTopInset + Math.max(4, (int) (height * 0.002f));
         float rBack = (height < 700) ? 0.048f : (height <= 1200) ? 0.055f : 0.060f;
         float rBackTop = isLandscape ? rBack + 0.005f : rBack;
         float aspectFactor = 1f + Math.max(0f, (width / (float) height - 1.78f) / 3f);

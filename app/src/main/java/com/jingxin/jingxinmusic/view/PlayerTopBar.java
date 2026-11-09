@@ -131,7 +131,7 @@ public class PlayerTopBar extends LinearLayout {
                               float density, int systemTopInset) {
         FrameLayout.LayoutParams bp = (FrameLayout.LayoutParams) getLayoutParams();
         if (bp != null) {
-            bp.topMargin = systemTopInset + Math.max(4, (int) (height * 0.01f));
+            bp.topMargin = systemTopInset + Math.max(4, (int) (height * 0.002f));
             setLayoutParams(bp);
         }
         int sidePadding = (int) (density * 8);

@@ -274,6 +274,13 @@ private void revealTopBar() {
         if (topBarLV != null) topBarLV.setVisibility(View.GONE);
     }
 
+    /** 精简模式（自动隐藏控制键）联动：隐藏时顶栏一并隐藏（清 3.5s 自隐藏计时）；
+     *  恢复时不强制显示——拼贴顶栏保持"空点呼出"原规则 */
+    @Override
+    protected void applyTopBarHidden(boolean hidden) {
+        if (hidden) hideTopBars();
+    }
+
     private static void setGone(View... views) {
         for (View v : views) { if (v != null) v.setVisibility(View.GONE); }
     }

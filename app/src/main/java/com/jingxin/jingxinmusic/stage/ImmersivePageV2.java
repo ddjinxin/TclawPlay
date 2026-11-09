@@ -583,6 +583,7 @@ public class ImmersivePageV2 extends StagePage {
         int vis = hidden ? View.GONE : View.VISIBLE;
         progress.setVisibility(vis); progressL.setVisibility(vis);
         control.setVisibility(vis); controlL.setVisibility(vis);
+        topBarView.setVisibility(vis); topBarViewL.setVisibility(vis);
         hideTouch.setVisibility(hidden ? View.VISIBLE : View.GONE);
         hideTouchL.setVisibility(hidden ? View.VISIBLE : View.GONE);
         if (hidden) {

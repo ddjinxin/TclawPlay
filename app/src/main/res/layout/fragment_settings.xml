@@ -761,7 +761,7 @@
                 android:layout_height="wrap_content" />
         </LinearLayout>
 
-        <!-- 自动隐藏播放栏 -->
+        <!-- 自动隐藏播放和控制栏 -->
         <LinearLayout
             android:id="@+id/item_auto_hide_controls"
             android:layout_width="match_parent"
@@ -780,14 +780,14 @@
                     android:id="@+id/tv_auto_hide_controls_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="自动隐藏播放栏"
+                    android:text="自动隐藏播放和控制栏"
                     android:textSize="16sp" />
 
                 <TextView
                     android:id="@+id/tv_auto_hide_controls_desc"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="无操作时自动隐藏进度条和播放按钮"
+                    android:text="无操作时自动隐藏控制键与顶部按钮"
                     android:textSize="12sp"
                     android:layout_marginTop="2dp" />
             </LinearLayout>

@@ -291,8 +291,6 @@ public class StandardPageBase extends StagePage {
         title.attachHub(hb);
         titleL.attachHub(hb);
         syncControlExtras(); // 收藏态/下载键显隐随当前歌曲快照
-        // 精简模式态镜像旧页（进 V2 前可能已隐藏；横竖重入保持当前态）
-        if (actions != null) applyControlsHidden(actions.isControlsHidden());
         // 全量拉当前值灌入（切风格进入/横竖切换重入都走这里；hb 已声明于 attach 段）
         night = hb.isNightMode();
         auroraSkin = hb.getBgSkinMode() == 1;
@@ -304,6 +302,11 @@ public class StandardPageBase extends StagePage {
 
         bindPortraitState(!landscape);
         bindLandscapeState(landscape);
+
+        // 精简模式态镜像旧页（进 V2 前可能已隐藏；横竖重入保持当前态）。
+        // 必须在 bindXXXState 之后重放：bind 会把顶栏强制 VISIBLE，先放会被冲掉
+        // （横竖切换后顶栏隐藏失效的根因）
+        applyControlsHidden(actions != null ? actions.isControlsHidden() : controlsHidden);
 
         // 横竖切换重入：占位高度此刻可能按旧尺寸算（见 applyLyricModeEffect 守卫注释），
         // 布局收敛后下一帧以真实竖屏高度重申一次，保证标题落位封面下方
@@ -354,6 +357,7 @@ public class StandardPageBase extends StagePage {
         for (View l : new View[]{hideTouchLayer, hideTouchLayerL}) {
             l.setVisibility(hidden ? View.VISIBLE : View.GONE);
         }
+        applyTopBarHidden(hidden);
         // 横屏：底部三件隐藏/恢复会改变上层分栏高度，封面居中基准（可视区）随之变化，
         // 请求重布局使 layoutLandscapeImpl 的 post 修正重跑；竖屏封面独立定位不受影响
         if (h.isLandscapeMode && landscapeRoot != null && landscapeRoot.getVisibility() == View.VISIBLE) {
@@ -362,6 +366,16 @@ public class StandardPageBase extends StagePage {
                     layout(h.rootLayout.getWidth(), h.rootLayout.getHeight());
                 }
             });
+        }
+    }
+
+    /**
+     * 精简模式下顶栏跟随显隐（拼贴页 override：隐藏时走它自己的临时顶栏机制，
+     * 恢复时不强制显示，保持"空点呼出"规则）
+     */
+    protected void applyTopBarHidden(boolean hidden) {
+        for (PlayerTopBar t : new PlayerTopBar[]{topBar, topBarL}) {
+            if (t != null) t.setVisibility(hidden ? View.GONE : View.VISIBLE);
         }
     }
 

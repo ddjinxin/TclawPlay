@@ -11,6 +11,8 @@ import com.jingxin.jingxinmusic.floatwindow.LecoFloatManager;
 import com.jingxin.jingxinmusic.fragment.MainFragment;
 
 import android.content.res.Configuration;
+import android.view.View;
+import android.view.Window;
 
 /**
  * 单 Activity 容器
@@ -86,6 +88,28 @@ public class HostActivity extends BaseFloatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+    }
+
+    /**
+     * 状态栏沉浸切换（仅延伸顶部，不影响底部导航区）
+     * 沉浸=窗口铺到状态栏下+状态栏透明（背景/封面顶满屏幕，系统图标浮于其上）；
+     * 恢复=系统把窗口垫回状态栏下方+主题色状态栏。
+     * 按钮避让由 StatusBarAvoid 公式自动接管（沉浸后 rootTop=0 → 避让整条状态栏）。
+     * Android 15+ 系统强制边到边，此方法两态等价无副作用。
+     */
+    public void setStatusBarImmersive(boolean immersive) {
+        Window window = getWindow();
+        if (window == null) return;
+        View decor = window.getDecorView();
+        if (immersive) {
+            decor.setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+            window.setStatusBarColor(android.graphics.Color.TRANSPARENT);
+        } else {
+            decor.setSystemUiVisibility(0);
+            window.setStatusBarColor(
+                    androidx.core.content.ContextCompat.getColor(this, R.color.background));
+        }
     }
 
     @Override
