@@ -132,6 +132,7 @@ public class PlayerFragment extends BaseFloatFragment {
     private static final int COVER_STYLE_RECORD_V2 = 6; // 第7风格：唱片机 V2（自持实例页）
     private static final int COVER_STYLE_CAROUSEL_V2 = 7; // 第8风格：轮播 V2（自持实例页）
     private static final int COVER_STYLE_COLLAGE_V2 = 8; // 第9风格：拼贴 V2（自研织块墙）
+    private static final int COVER_STYLE_RADIO_V2 = 9;   // 电台专用：星空收音机页（动态分流，非用户可选风格）
     /** V2 风格名（下标=风格值-4，供风格弹窗与切换 Toast 共用） */
     private static final String[] STYLE_V2_NAMES = {"经典", "沉浸", "唱机", "轮播", "拼贴"};
 
@@ -140,7 +141,7 @@ public class PlayerFragment extends BaseFloatFragment {
      */
     private static int normalizeCoverStyle(int style) {
         if (style < COVER_STYLE_CLASSIC_V2) return style + COVER_STYLE_CLASSIC_V2;
-        return style > COVER_STYLE_COLLAGE_V2 ? COVER_STYLE_CLASSIC_V2 : style;
+        return style > COVER_STYLE_RADIO_V2 ? COVER_STYLE_CLASSIC_V2 : style;
     }
     private int coverStyle = COVER_STYLE_CLASSIC;
     private int bgSkinMode = 0; // 0=默认模式, 1=双色光晕
@@ -165,7 +166,8 @@ public class PlayerFragment extends BaseFloatFragment {
     private com.jingxin.jingxinmusic.stage.ImmersivePageV2 immersiveV2Page; // 沉浸
     private com.jingxin.jingxinmusic.stage.RecordPageV2 recordV2Page; // 唱机
     private com.jingxin.jingxinmusic.stage.CarouselPageV2 carouselV2Page; // 轮播
-    private com.jingxin.jingxinmusic.stage.CollagePageV2 collageV2Page; // 拼贴
+    private com.jingxin.jingxinmusic.stage.CollagePageV2 collageV2Page;
+    private com.jingxin.jingxinmusic.stage.RadioPageV2 radioV2Page; // 拼贴
     private com.jingxin.jingxinmusic.stage.StagePage currentScene;
     /** currentScene 本次进入时的方向形态（横竖切换时 layout 前需 exit→enter 重建，等价旧架构两 Scene 实例） */
     private boolean enteredAsLandscape = false;
@@ -211,8 +213,8 @@ public class PlayerFragment extends BaseFloatFragment {
                 position = intent.getIntExtra(MusicPlayerService.EXTRA_SONG_INDEX, 0);
                 stateHub.setSong(newSong); // 数据中枢同步（组件化第2步）
 
-                // 电台固定拼贴：切歌在「电台↔普通」间翻转时重排页面
-                //（进入电台→拼贴，离开电台→恢复用户所选风格）
+                // 切歌在「电台↔普通」间翻转时重排页面
+                //（进入电台→星空收音机页，离开电台→恢复用户所选风格）
                 boolean wasRadio = song != null && song.sourceType == Song.SOURCE_RADIO;
                 song = newSong;
                 boolean nowRadio = newSong.sourceType == Song.SOURCE_RADIO;
@@ -226,12 +228,14 @@ public class PlayerFragment extends BaseFloatFragment {
                 checkFavoriteStatus();
                 updateDownloadButtonVisibility();
                 saveLastPlayed();
-            // CarouselV2/CollageV2 切歌后列表同步（activePage 已建则同步，未建则待 enter 时拉取）
+            // CarouselV2/CollageV2/RadioV2 切歌后列表同步（activePage 已建则同步，未建则待 enter 时拉取）
             com.jingxin.jingxinmusic.stage.StagePage cp = activePage();
             if (cp instanceof com.jingxin.jingxinmusic.stage.CarouselPageV2) {
                 ((com.jingxin.jingxinmusic.stage.CarouselPageV2) cp).syncPlaylistPosition();
             } else if (cp instanceof com.jingxin.jingxinmusic.stage.CollagePageV2) {
                 ((com.jingxin.jingxinmusic.stage.CollagePageV2) cp).syncQueueData();
+            } else if (cp instanceof com.jingxin.jingxinmusic.stage.RadioPageV2) {
+                ((com.jingxin.jingxinmusic.stage.RadioPageV2) cp).syncQueueData();
             }
                 // 切歌时重置自动隐藏计时（新歌重新计算5秒窗口）
                 if (controlsHideEnabled) {
@@ -430,12 +434,14 @@ public class PlayerFragment extends BaseFloatFragment {
                             playerBinder.setPlaylist(allSongs);
                             playSong();
                         }
-                        // 列表就绪后：若当前为轮播/拼贴页，全量灌入
+                        // 列表就绪后：若当前为轮播/拼贴/电台页，全量灌入
                         com.jingxin.jingxinmusic.stage.StagePage cp2 = activePage();
                         if (cp2 instanceof com.jingxin.jingxinmusic.stage.CarouselPageV2) {
                             ((com.jingxin.jingxinmusic.stage.CarouselPageV2) cp2).syncPlaylistPosition();
                         } else if (cp2 instanceof com.jingxin.jingxinmusic.stage.CollagePageV2) {
                             ((com.jingxin.jingxinmusic.stage.CollagePageV2) cp2).syncQueueData();
+                        } else if (cp2 instanceof com.jingxin.jingxinmusic.stage.RadioPageV2) {
+                            ((com.jingxin.jingxinmusic.stage.RadioPageV2) cp2).syncQueueData();
                         }
                         // 启动直达歌词动效：歌单就绪后进入上次记忆的效果（仅冷启动首次，消费即失效）
                         if (pendingAutoEnterLyricEffect) {
@@ -1018,6 +1024,7 @@ public class PlayerFragment extends BaseFloatFragment {
             case COVER_STYLE_RECORD_V2:     return recordV2Page;
             case COVER_STYLE_CAROUSEL_V2:   return carouselV2Page;
             case COVER_STYLE_COLLAGE_V2:   return collageV2Page;
+            case COVER_STYLE_RADIO_V2:     return radioV2Page;
             case COVER_STYLE_CLASSIC_V2:
             default:                        return classicV2Page;
         }
@@ -1358,6 +1365,15 @@ public class PlayerFragment extends BaseFloatFragment {
                     installV2Page(p);
                 }
                 return collageV2Page;
+            case COVER_STYLE_RADIO_V2:
+                if (radioV2Page == null) {
+                    com.jingxin.jingxinmusic.stage.RadioPageV2 p =
+                            new com.jingxin.jingxinmusic.stage.RadioPageV2(sceneHelper);
+                    p.setActions(buildCarouselV2Actions()); // 电台页复用轮播 actions（列表桥同构）
+                    radioV2Page = p;
+                    installV2Page(p);
+                }
+                return radioV2Page;
             case COVER_STYLE_CLASSIC_V2:
             default: // 异常 prefs 值也回落新经典（旧四风格已下线）
                 if (classicV2Page == null) {
@@ -1396,12 +1412,12 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 当前应展示的封面风格：电台固定拼贴（用户偏好仍保存在 coverStyle/prefs，
-     * 离开电台自动恢复）。拼贴对直播流展示友好（无歌词/封面时全屏墙+台名）。
+     * 当前应展示的封面风格：电台走专用星空收音机页，漂浮收音机即选台器
+     *（用户偏好仍保存在 coverStyle/prefs，离开电台自动恢复）。
      */
     private int effectiveCoverStyle() {
         return (song != null && song.sourceType == Song.SOURCE_RADIO)
-                ? COVER_STYLE_COLLAGE_V2 : coverStyle;
+                ? COVER_STYLE_RADIO_V2 : coverStyle;
     }
 
     /**
