@@ -1720,16 +1720,6 @@ public class MiniFloatService extends Service {
 
     // ========== Visualizer 频谱接入 ==========
 
-    /** 临时调试：floatMode 转可读名称（用完删除） */
-    private String floatModeName(int mode) {
-        switch (mode) {
-            case MODE_CAPSULE: return "CAPSULE(" + mode + ")";
-            case MODE_KARAOKE: return "KARAOKE(" + mode + ")";
-            case MODE_CLASSIC: return "CLASSIC(" + mode + ")";
-            default: return "UNKNOWN(" + mode + ")";
-        }
-    }
-
     /**
      * 双缓冲轮换：采集回调写一槽，主线程读另一槽，避免每帧 new float[]
      */
