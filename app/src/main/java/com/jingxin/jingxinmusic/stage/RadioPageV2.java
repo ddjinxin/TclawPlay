@@ -200,10 +200,10 @@ public class RadioPageV2 extends StagePage {
         };
         hb.addObserver(stateObserver);
         stateObserver.onStateChanged(hb.getState());
-        // 电波取色：封面副色亮化后注入（取色未到达/无封面时保持默认青）
+        // 电波取色：封面副色亮化后注入（无封面电台→电波白色，取色不覆盖）
         coverColorObserver = (top, bottom) -> { if (radioHasCover) applyWaveColor(bottom != 0 ? bottom : top); };
         hb.addCoverColorObserver(coverColorObserver);
-        if (hb.hasCoverColors()) {
+        if (radioHasCover && hb.hasCoverColors()) {
             applyWaveColor(hb.getCoverColorBottom() != 0 ? hb.getCoverColorBottom() : hb.getCoverColorTop());
         }
         // 底部图标封面：自行用 CoverLoader 加载电台台标/封面（有→圆封面旋转，无→默认图标）

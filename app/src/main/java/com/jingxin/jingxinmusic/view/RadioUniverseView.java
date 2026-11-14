@@ -127,7 +127,7 @@ public class RadioUniverseView extends View {
     private float waveAlpha;                       // 暂停渐隐因子 0~1
     private int waveColor = COLOR_WAVE;            // 电波色（取色到达后覆盖；默认青）
     private static final int WAVE_COUNT = 5;       // 同屏弧数
-    private static final long WAVE_CYCLE_MS = 3200L;
+    private static final long WAVE_CYCLE_MS = 6400L;
 
     // ===== 预建绘制资源（onDraw 零分配红线） =====
 
@@ -136,6 +136,7 @@ public class RadioUniverseView extends View {
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint wavePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path wavePath = new Path(); // 锯齿弧路径（预建复用；drawWaves 重写不改新建）
     private final RectF arcRect = new RectF();
     private final RectF bmpRect = new RectF();
 
@@ -187,8 +188,12 @@ public class RadioUniverseView extends View {
         if (playing != isPlaying) { playing = isPlaying; invalidate(); }
     }
 
-    /** 电波色注入（页面桥调：电台封面取色到达/变化时同步）；辉光同色随动重建 */
+    /** 是否有封面（页面据此决定电波取色是否可用；无封面恒白） */
+    private boolean coverPresent = false;
+
+    /** 电波色注入（页面桥调：电台封面取色到达时同步）；无封面时拒绝上色保持白色 */
     public void setWaveColor(int argb) {
+        if (!coverPresent) return;
         if (argb != 0 && argb != waveColor) {
             waveColor = argb;
             buildTitleGlow(); // 辉光色跟随封面取色
@@ -201,8 +206,9 @@ public class RadioUniverseView extends View {
         if (coverBitmap == bitmap) return;
         coverBitmap = bitmap;
         coverAngle = 0f;
+        coverPresent = bitmap != null;
         if (bitmap == null) {
-            // 无封面：电波恢复默认白色（封面取色覆盖前的兜底）
+            // 无封面：电波恢复默认白色（重置取色覆盖，辉光同步重建）
             if (waveColor != COLOR_WAVE) {
                 waveColor = COLOR_WAVE;
                 buildTitleGlow();
@@ -255,8 +261,9 @@ public class RadioUniverseView extends View {
         layoutW = w;
         layoutH = h;
         iconSize = Math.min(w, h) * (wide ? 0.13f : 0.15f);
-        iconCx = w / 2f;
-        iconCy = h - iconSize * (wide ? 0.9f : 1.05f);
+        float iconMargin = iconSize * 0.62f; // 左下角边距
+        iconCx = iconMargin;
+        iconCy = h - iconMargin;
         circlePath.reset();
         circlePath.addCircle(iconCx, iconCy, iconSize * 0.5f, Path.Direction.CW);
         ringPaint.setStyle(Paint.Style.STROKE);
@@ -463,22 +470,48 @@ public class RadioUniverseView extends View {
         postInvalidateOnAnimation();
     }
 
-    /** 电波：底部图标 → 中心台名方向的连续圆弧（最远端到达台名中部） */
+    /** 锯齿弧分段数（弧向齿数；齿数适中太密会变虚线） */
+    private static final int WAVE_TEETH = 28;
+    /** 锯齿深度（占半径比例；齿尖向外/基线向内的振幅） */
+    private static final float WAVE_TOOTH_DEPTH = 0.030f;
+
+    /** 电波：图标→中心台名方向的连续锯齿弧（半径推进+透明度衰减；最远端 0.8×台名距） */
     private void drawWaves(Canvas canvas, long now) {
         if (waveAlpha < 0.02f) return;
         float r0 = iconSize * 0.75f;
-        float r1 = Math.max(r0 * 1.4f, iconCy - titleCy); // 终点=台名中心线（图标在下方，距离为正）
+        // 终点=台名中心：辐射范围缩减 20%（终点距图标 = 图标→台名距离 × 0.8）
+        float dx = titleCx - iconCx, dy = titleCy - iconCy;
+        float r1 = Math.max(r0 * 1.4f, (float) Math.sqrt(dx * dx + dy * dy) * 0.8f);
+        // 弧扇区朝向=左下→右上（指向台名；canvas 角度 0°=右，逆时针为负）
+        float centerDeg = (float) Math.toDegrees(Math.atan2(dy, dx));
+        float startDeg = centerDeg - 70f;
+        float sweepDeg = 140f;
+        float tooth = r0 * WAVE_TOOTH_DEPTH + 1.5f; // 齿深近似恒定（小半径时退化小）
         float stroke = 2f * getResources().getDisplayMetrics().density;
         wavePaint.setStrokeWidth(stroke);
+        wavePaint.setStyle(Paint.Style.STROKE);
+        wavePaint.setStrokeJoin(Paint.Join.ROUND); // 锯齿折点圆润（车机 GPU 快线段）
         for (int i = 0; i < WAVE_COUNT; i++) {
             float ph = ((now % WAVE_CYCLE_MS) / (float) WAVE_CYCLE_MS + i / (float) WAVE_COUNT) % 1f;
             float r = r0 + (r1 - r0) * ph;
             int a = (int) ((1f - ph) * 0.5f * waveAlpha * 255);
             if (a <= 4) continue;
             wavePaint.setColor(a << 24 | (waveColor & 0xFFFFFF));
-            arcRect.set(iconCx - r, iconCy - r, iconCx + r, iconCy + r);
-            // 上方扇区弧（200°起扫 140°，覆盖图标正上方 ±70°）
-            canvas.drawArc(arcRect, 200f, 140f, false, wavePaint);
+            // 锯齿弧：分段折线，齿尖（r+tooth）与齿谷（r-tooth）交替
+            wavePath.reset();
+            for (int s = 0; s <= WAVE_TEETH; s++) {
+                float frac = s / (float) WAVE_TEETH;
+                float deg = startDeg + sweepDeg * frac;
+                // 奇数段在齿尖、偶数段在齿谷（两端闭合在基线半径）
+                float rr = (s == 0 || s == WAVE_TEETH) ? r
+                        : ((s % 2 == 1) ? r + tooth : r - tooth);
+                double rad = Math.toRadians(deg);
+                float x = iconCx + (float) (rr * Math.cos(rad));
+                float y = iconCy + (float) (rr * Math.sin(rad));
+                if (s == 0) wavePath.moveTo(x, y);
+                else wavePath.lineTo(x, y);
+            }
+            canvas.drawPath(wavePath, wavePaint);
         }
     }
 
