@@ -11,7 +11,6 @@ import java.util.regex.Pattern;
  */
 public class LrcParser {
 
-    private static final String TAG = "LrcParser";
 
     // 匹配 LRC 时间标签：[mm:ss.xx] 或 [mm:ss]
     private static final Pattern TIME_PATTERN = Pattern.compile("\\[(\\d{2}):(\\d{2})(?:\\.(\\d{1,3}))?\\]");

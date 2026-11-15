@@ -41,7 +41,6 @@ import java.util.concurrent.Executors;
  */
 public class BiliSettingsFragment extends BaseFloatFragment {
 
-    private static final String TAG = "BiliSettings";
     /** 二维码轮询间隔（毫秒） */
     private static final long POLL_INTERVAL = 2000;
     /** 二维码有效期（3分钟） */

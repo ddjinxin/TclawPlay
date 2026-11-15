@@ -94,8 +94,6 @@ public class DioramaLyricView extends View {
     private static final int[] SHOT_KINDS = {SHOT_PUSH_IN, SHOT_PULL_BACK, SHOT_ORBIT, SHOT_TRACK,
             SHOT_CRANE, SHOT_HOLD, SHOT_SWELL, SHOT_SPIRAL, SHOT_PENDULUM, SHOT_FLYBY,
             SHOT_ARC, SHOT_FLOAT, SHOT_GLIDE};
-    private static final String[] SHOT_NAMES = {"pushIn", "pullBack", "orbit", "track", "crane",
-            "hold", "swell", "spiral", "pendulum", "flyby", "arc", "float", "glide"};
     /** 回正上限（ALIGN_SHOT_CEILING 直译） */
     private static final float[] ALIGN_CEILING = {
             0.85f, // pushIn

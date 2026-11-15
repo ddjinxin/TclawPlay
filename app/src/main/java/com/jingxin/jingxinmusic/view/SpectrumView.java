@@ -23,7 +23,6 @@ import java.util.Random;
  */
 public class SpectrumView extends View {
     
-    private static final String TAG = "SpectrumView";
     
     // 频谱样式常量
     public static final int STYLE_BAR = 0;          // 竖条模式
@@ -212,7 +211,6 @@ public class SpectrumView extends View {
     private Random random = new Random();       // 随机数生成器（类字段复用）
     
     // 扩散圆环模式状态（严格匹配原版DiffusionRingView）
-    private static final int DIFFUSION_THRESHOLD = 500;  // 能量触发阈值
     private static final int DIFFUSION_START_RADIUS = 0; // 扩散起始半径偏移
     private java.util.List<DiffusionRingBean> diffusionRings = new java.util.ArrayList<>();
     private Paint diffusionPaint;               // 扩散圆环画笔
@@ -1902,26 +1900,6 @@ public class SpectrumView extends View {
     }
 
     /**
-     * 对称镜像：将半个数组的频段数据镜像展开为完整柱数
-     * 左半 = 原始倒序（高频→低频），右半 = 原始正序（低频→高频）
-     * 结果：低频在中间，高频在两端，形成对称山丘
-     */
-    private float[] mirrorData(float[] half) {
-        if (half == null || half.length == 0) return half;
-        int fullLen = half.length * 2;
-        float[] result = new float[fullLen];
-        // 左半：倒序排列
-        for (int i = 0; i < half.length; i++) {
-            result[i] = half[half.length - 1 - i];
-        }
-        // 右半：正序排列
-        for (int i = 0; i < half.length; i++) {
-            result[half.length + i] = half[i];
-        }
-        return result;
-    }
-
-    /**
      * 用 DFT 幅度数据更新频谱
      * 竖条模式：非线性倒数归一化 + 高斯平滑
      * 圆点/波浪线：保留原有对数映射
@@ -1966,11 +1944,8 @@ public class SpectrumView extends View {
             // 3. 高斯平滑（sigma = 1.5 * 3 = 4.5 → kernelSize=9）
             float sigma = 1.5f;
             offsetData = gaussianSmooth(offsetData, sigma);
-            
-            // 4. 对称镜像：暂不启用
-            // magnitudes = mirrorData(magnitudes);
-            
-            // 5. 赋值给 targetBarHeights
+
+            // 4. 赋值给 targetBarHeights
             float minVal = getMinVal(currentStyle);
             for (int i = 0; i < currentCount; i++) {
                 targetBarHeights[i] = Math.max(minVal, offsetData[i]);

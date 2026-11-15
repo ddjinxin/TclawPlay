@@ -12,9 +12,7 @@ import com.jingxin.jingxinmusic.util.KrcParser;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 
 /**
@@ -87,7 +85,6 @@ public class CadenzaLyricView extends View {
 
     // 行级包络
     private long lineEnterMs = -1L, lineExitStartMs = -1L;
-    private float prevLineOpacity = 1f;
 
     private boolean running = false;
     private long lastFrameNs = -1L;

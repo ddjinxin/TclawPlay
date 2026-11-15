@@ -5,7 +5,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -61,7 +60,6 @@ public class RadioUniverseView extends View {
     private static final long DISMISS_MS = 750L;
     private static final long SWAP_MS = 800L;          // 换台对调漂移动画
     private static final int MAX_FLOATERS = 24;        // 散开台名上限（防百台拥挤）
-    private static final int MAX_SCATTER = 30;         // 电台清单上限散布数
     private static final float OVERLAP_LIMIT = 0.30f;  // 台名间交叉面积上限（占小矩形比例）
 
     // ===== 配色（LED 青 + 暖白星点，星空页同气质） =====
@@ -145,7 +143,6 @@ public class RadioUniverseView extends View {
     private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint wavePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path wavePath = new Path(); // 锯齿弧路径（预建复用；drawWaves 重写不改新建）
-    private final RectF arcRect = new RectF();
     private final RectF bmpRect = new RectF();
 
     private OnRadioAction radioAction;

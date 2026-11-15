@@ -2,7 +2,6 @@ package com.jingxin.jingxinmusic.fragment;
 
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.PorterDuff;
 import android.os.Bundle;
 import android.text.Spannable;
@@ -171,7 +170,6 @@ public class HelpFragment extends BaseFloatFragment {
     // ========== 帮助内容 ==========
 
     private int textColor() { return dynamicBgEnabled ? (isNightMode ? 0xFFFFFFFF : 0xFF222222) : (isNightMode ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary()); }
-    private int secColor() { return dynamicBgEnabled ? (isNightMode ? 0xFFAAAAAA : 0xFF666666) : (isNightMode ? ThemeColors.nightTextSecondary() : ThemeColors.dayTextSecondary()); }
     private int accentColor() { return dynamicBgEnabled ? (isNightMode ? 0xFFFFFFFF : 0xFF222222) : (isNightMode ? ThemeColors.nightTabActive() : ThemeColors.dayTabActive()); }
     private int divColor() { return dynamicBgEnabled ? (isNightMode ? 0xFF2A2A2E : 0xFFE0E0E0) : (isNightMode ? ThemeColors.nightDivider() : ThemeColors.dayDivider()); }
 

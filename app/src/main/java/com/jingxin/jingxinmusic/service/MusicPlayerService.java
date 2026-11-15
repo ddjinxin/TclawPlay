@@ -1,7 +1,6 @@
 package com.jingxin.jingxinmusic.service;
 
 import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -55,7 +54,6 @@ import com.jingxin.jingxinmusic.util.WebDavCacheManager;
 import com.jingxin.jingxinmusic.util.WebDavConfig;
 
 import java.util.HashMap;
-import java.util.Map;
 
 import okhttp3.OkHttpClient;
 

@@ -290,7 +290,6 @@ public class PendoloClockworkView extends View {
 
     private static float cos(float a) { return (float) Math.cos(a); }
     private static float sin(float a) { return (float) Math.sin(a); }
-    private static float clamp01(float v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
     private static int withAlpha(int color, float alpha) {
         int a = (int) (Math.min(1f, Math.max(0f, alpha)) * 255);

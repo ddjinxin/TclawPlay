@@ -9,14 +9,12 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
-import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.util.CoverLoader;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

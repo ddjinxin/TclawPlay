@@ -25,7 +25,6 @@ import com.jingxin.jingxinmusic.ui.FolderCoverView;
 import com.jingxin.jingxinmusic.ui.SquareImageView;
 import com.jingxin.jingxinmusic.util.CoverFetcher;
 import com.jingxin.jingxinmusic.util.RadioBrowserApi;
-import com.jingxin.jingxinmusic.util.RadioFavoriteManager;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.WebDavScanner;
 
@@ -46,7 +45,6 @@ import java.util.concurrent.Executors;
  */
 public class BrowseAdapter extends RecyclerView.Adapter<BrowseAdapter.ViewHolder> {
 
-    private static final String TAG = "BrowseAdapter";
 
     private List<BrowseItem> items = new ArrayList<>();
     private OnItemClickListener listener;

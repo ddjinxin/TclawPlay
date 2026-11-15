@@ -1,7 +1,6 @@
 package com.jingxin.jingxinmusic.service;
 
 import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
@@ -14,7 +13,6 @@ import android.content.ServiceConnection;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Rect;
 import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
 import android.media.audiofx.Visualizer;
@@ -50,7 +48,6 @@ import com.jingxin.jingxinmusic.util.ThemeStyle;
 import com.jingxin.jingxinmusic.view.SpectrumView;
 
 import java.io.File;
-import java.util.List;
 
 /**
  * 悬浮迷你播放窗服务
@@ -1888,19 +1885,6 @@ public class MiniFloatService extends Service {
         android.util.DisplayMetrics screenMetrics = new android.util.DisplayMetrics();
         windowManager.getDefaultDisplay().getMetrics(screenMetrics);
         return (int)(screenMetrics.widthPixels * getKaraokeUnitRatio());
-    }
-
-    /**
-     * 卡拉OK高度 = 两行歌词高度 × 2 (歌词区+频谱) + 上下边距
-     * 频谱高度 = 两行歌词总高度
-     */
-    private int getKaraokeHeight() {
-        float density = getResources().getDisplayMetrics().density;
-        float sf = getKaraokeScaleFactor();
-        int lyricRowH = (int)(40 * density * sf);
-        int twoRowsH = lyricRowH * 2;
-        int pad = (int)(6 * density * sf);
-        return twoRowsH * 2 + pad * 2; // 歌词区(两行) + 频谱(=两行高度) + 上下边距
     }
 
     /**

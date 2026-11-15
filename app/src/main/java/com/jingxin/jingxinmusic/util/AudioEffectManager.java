@@ -22,7 +22,6 @@ import java.util.concurrent.RejectedExecutionException;
  */
 public class AudioEffectManager {
 
-    private static final String TAG = "AudioEffectManager";
 
     /** 效果预设的 SP 存储（与 SettingsFragment.PREFS_NAME 同文件） */
     public static final String EFFECT_PREFS_NAME = "app_settings";

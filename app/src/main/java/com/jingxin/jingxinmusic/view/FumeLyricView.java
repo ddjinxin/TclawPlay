@@ -16,7 +16,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 浮名歌词页（Fume，移植 folia fume：整曲排成文章 + 相机运镜）
@@ -56,8 +55,6 @@ public class FumeLyricView extends View {
     private static final float CAMERA_SCALE_MIN = 0.22f, CAMERA_SCALE_MAX = 2.24f;
     private static final int OVERVIEW_SOURCE = -2;
     private static final float TELEPORT_SCREENS = 2.75f;
-    private static final float BG_PARALLAX_X = 0.9f, BG_PARALLAX_Y = 0.74f;
-    private static final float BG_SCALE_FACTOR = 0.94f;
 
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);

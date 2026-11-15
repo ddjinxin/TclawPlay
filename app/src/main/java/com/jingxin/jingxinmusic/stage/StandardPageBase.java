@@ -13,13 +13,11 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.Toast;
 
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.player.PlayerStateHub;
 import com.jingxin.jingxinmusic.util.BlurUtil;
 import com.jingxin.jingxinmusic.util.CoverColorExtractor;
-import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.AuroraGradientView;
 import com.jingxin.jingxinmusic.view.ControlBar;

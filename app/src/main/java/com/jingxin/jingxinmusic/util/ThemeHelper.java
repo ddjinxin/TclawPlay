@@ -16,7 +16,6 @@ import java.util.Calendar;
  */
 public class ThemeHelper {
 
-    private static final String TAG = "ThemeHelper";
     private static final String PREFS_NAME = "theme";
 
     // 是否启用按时间自动切换（默认关闭，首次安装沿用记忆逻辑）

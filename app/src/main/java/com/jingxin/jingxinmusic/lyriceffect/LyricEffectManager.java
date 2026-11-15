@@ -8,7 +8,6 @@ import android.widget.FrameLayout;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.player.PlayerStateHub;
 import com.jingxin.jingxinmusic.util.EffectWallpaperStore;
-import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.view.CoverFlowView;
 import com.jingxin.jingxinmusic.view.EffectWallpaperView;
 import com.jingxin.jingxinmusic.view.PendoloClockworkView;

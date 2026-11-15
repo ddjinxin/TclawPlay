@@ -38,9 +38,7 @@ public class StarfieldView extends View {
     private final List<Star> stars = new ArrayList<>();
     private final Paint starPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Random random = new Random();
-    private Paint bgCachePaint;
     private Bitmap bgCache;
-    private int cachedW, cachedH;
     private boolean running = false;
     private long animStartMs;
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {

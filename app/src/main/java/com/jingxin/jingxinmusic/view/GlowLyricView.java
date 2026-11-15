@@ -306,8 +306,6 @@ public class GlowLyricView extends View {
         return Math.max(18f, layoutW * ratio);
     }
 
-    private boolean isPortrait() { return layoutH > layoutW; }
-
     /** 词中心线：垂直 42% 屏高（高于星空页 50%——下方留出封面流呼吸位） */
     private float currentLineY() {
         return layoutH * 0.42f;

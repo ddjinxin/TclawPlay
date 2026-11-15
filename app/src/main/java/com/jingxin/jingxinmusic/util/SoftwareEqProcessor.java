@@ -138,12 +138,6 @@ public final class SoftwareEqProcessor implements AudioProcessor {
         return v / 8388608f; // 2^23
     }
 
-    private ByteBuffer allocateEmpty(int capacity) {
-        ByteBuffer b = ByteBuffer.allocateDirect(capacity);
-        b.flip();
-        return b;
-    }
-
     /** 核心：逐帧逐声道滤波。读输入编码三态（16/float/24），写按 outputFormat。 */
     private void processPcm(ByteBuffer in, ByteBuffer out) {
         boolean inFloat = inputFormat.encoding == C.ENCODING_PCM_FLOAT;

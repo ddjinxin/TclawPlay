@@ -4,7 +4,6 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 import com.jingxin.jingxinmusic.R;
-import com.jingxin.jingxinmusic.view.RotatingCoverView;
 import com.jingxin.jingxinmusic.view.TonearmView;
 
 /**

@@ -105,7 +105,6 @@ public class MainFragment extends BaseFloatFragment {
     private View titleAccentLine;
     private View miniShimmerLine;
     private View miniPlayerWrap;
-    private android.animation.ObjectAnimator tabBreathAnimator;
     private RecyclerView rvList;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -834,7 +833,6 @@ public class MainFragment extends BaseFloatFragment {
     public void onDestroyView() {
         super.onDestroyView();
         if (coverRotationHelper != null) coverRotationHelper.release();
-        if (tabBreathAnimator != null) { tabBreathAnimator.cancel(); tabBreathAnimator = null; }
         if (shimmerAnimator != null) { shimmerAnimator.cancel(); shimmerAnimator = null; }
         try {
             if (getContext() != null) getContext().unregisterReceiver(playStateReceiver);
@@ -1365,7 +1363,6 @@ public class MainFragment extends BaseFloatFragment {
 
     /** 电台当前所在分类（null=根分类层） */
     private String radioCurrentTag = null;
-    private boolean radioLoadedOnce = false;
 
     /** 根层：分类目录网格（热门/中国/新闻/.../收藏） */
     private void loadRadioItems() {
@@ -2269,20 +2266,6 @@ public class MainFragment extends BaseFloatFragment {
                 }
             }
         }
-    }
-
-    private void startTabBreathAnimation(int activeColor) {
-        if (tabBreathAnimator != null) tabBreathAnimator.cancel();
-        View activeIndicator = tabIndicator;
-        if (activeIndicator == null) return;
-
-        activeIndicator.setBackgroundColor(activeColor);
-        tabBreathAnimator = android.animation.ObjectAnimator.ofInt(activeIndicator, "backgroundColor",
-                activeColor, com.jingxin.jingxinmusic.util.ColorUtil.adjustAlpha(activeColor, 0.4f), activeColor);
-        tabBreathAnimator.setDuration(2500);
-        tabBreathAnimator.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
-        tabBreathAnimator.setEvaluator(new android.animation.ArgbEvaluator());
-        tabBreathAnimator.start();
     }
 
     /** 更新顶部左右按钮图标颜色（同 Tab 大字查表色） */

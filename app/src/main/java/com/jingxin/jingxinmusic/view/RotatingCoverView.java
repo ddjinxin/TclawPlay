@@ -29,7 +29,6 @@ import androidx.appcompat.widget.AppCompatImageView;
  */
 public class RotatingCoverView extends AppCompatImageView {
     
-    private static final String TAG = "RotatingCoverView";
     private static final float ROTATION_SPEED = 15f;
     
     private float currentRotationAngle = 0f;

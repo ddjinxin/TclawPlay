@@ -32,7 +32,6 @@ import com.jingxin.jingxinmusic.util.ThemeHelper;
 import com.jingxin.jingxinmusic.view.DynamicBgView;
 import com.jingxin.jingxinmusic.view.LyricColorBar;
 
-import java.util.List;
 
 public class SettingsFragment extends BaseFloatFragment {
 

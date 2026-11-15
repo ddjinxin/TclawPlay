@@ -232,13 +232,4 @@ public static void load(Context context, Song song, int reqWidth, int reqHeight,
             Log.e(TAG, "保存缓存封面失败: " + e.getMessage());
         }
     }
-
-    /**
-     * Bitmap 转字节数组（用于降采样二次解码）
-     */
-    private static byte[] bitmapToBytes(Bitmap bmp) {
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-        bmp.compress(Bitmap.CompressFormat.JPEG, 90, baos);
-        return baos.toByteArray();
-    }
 }

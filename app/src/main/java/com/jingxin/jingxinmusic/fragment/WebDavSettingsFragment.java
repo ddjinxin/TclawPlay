@@ -39,7 +39,6 @@ import com.jingxin.jingxinmusic.view.DynamicBgView;
  */
 public class WebDavSettingsFragment extends BaseFloatFragment {
 
-    private static final String TAG = "WebDavSettings";
 
     private WebDavConfig config;
     private boolean isNightMode;

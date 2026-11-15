@@ -28,7 +28,6 @@ import java.util.List;
  */
 public class LyricView extends View {
     
-    private static final String TAG = "LyricView";
     
     // 歌词显示模式
     public enum DisplayMode {
@@ -140,9 +139,6 @@ public class LyricView extends View {
     private static final float TEXT_SIZE_CURRENT_RATIO = 0.048f;
     private static final float TEXT_SIZE_KARAOKE_RATIO = 0.06f;
     
-    // 字体大小限制
-    private static final float TEXT_SIZE_MIN = 24f;
-    private static final float TEXT_SIZE_MAX = 80f;
     
     // 文本折行相关
     private int textAreaWidth;               // 文本可用宽度

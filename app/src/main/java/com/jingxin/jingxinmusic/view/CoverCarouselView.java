@@ -174,12 +174,6 @@ public class CoverCarouselView extends FrameLayout {
         return super.onTouchEvent(ev);
     }
 
-    private float getBaseScale(int index) {
-        if (index == 2) return CENTER_SCALE;
-        if (index == 1 || index == 3) return SIDE_SCALE;
-        return FAR_SCALE;
-    }
-
     private float getBaseAlpha(int index) {
         if (index == 2) return 1.0f;
         if (index == 1 || index == 3) return 0.85f;

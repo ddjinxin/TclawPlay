@@ -13,9 +13,7 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.LayerDrawable;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
@@ -28,7 +26,6 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
@@ -52,7 +49,6 @@ import com.jingxin.jingxinmusic.util.MusicScanner;
 import com.jingxin.jingxinmusic.util.CoverColorExtractor;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.view.LyricView;
-import com.jingxin.jingxinmusic.view.RotatingCoverView;
 import com.jingxin.jingxinmusic.view.SpectrumView;
 
 import java.io.File;
@@ -156,7 +152,6 @@ public class PlayerFragment extends BaseFloatFragment {
     // 横屏模式
     private boolean isLandscapeMode = false; // 宽>高*1.2 时为横屏
     private com.jingxin.jingxinmusic.view.CoverBorderGradientDrawable coverBorderGradient; // 横屏沉浸封面边缘渐变
-    private com.jingxin.jingxinmusic.view.LandscapeGradientOverlay landscapeGradientOverlay; // 横屏沉浸渐变过渡层
 
     // 播放场景：四风格各持一个 StagePage 实例（组件化第5/6步）
     private CoverSceneHelper sceneHelper;
@@ -1626,56 +1621,6 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 从封面提取主色调（简单采样法）
-     * 将图片缩小后采样中心区域像素，计算加权平均色
-     * @param bitmap 封面图片
-     * @return 主色调（ARGB）
-     */
-    private int extractDominantColor(Bitmap bitmap) {
-        // 缩小到 50x50 采样
-        int sampleSize = Math.max(1, Math.min(bitmap.getWidth(), bitmap.getHeight()) / 50);
-        int w = bitmap.getWidth() / sampleSize;
-        int h = bitmap.getHeight() / sampleSize;
-        if (w < 1) w = 1;
-        if (h < 1) h = 1;
-        Bitmap sampled = Bitmap.createScaledBitmap(bitmap, w, h, true);
-        
-        int[] pixels = new int[w * h];
-        sampled.getPixels(pixels, 0, w, 0, 0, w, h);
-        sampled.recycle();
-        
-        // 只采样中心 60% 区域，避免边缘黑边影响
-        int startX = w / 5;
-        int endX = w * 4 / 5;
-        int startY = h / 5;
-        int endY = h * 4 / 5;
-        
-        long rSum = 0, gSum = 0, bSum = 0, count = 0;
-        for (int y = startY; y < endY; y++) {
-            for (int x = startX; x < endX; x++) {
-                int pixel = pixels[y * w + x];
-                int r = (pixel >> 16) & 0xFF;
-                int g = (pixel >> 8) & 0xFF;
-                int b = pixel & 0xFF;
-                // 忽略过暗和过亮的像素
-                if (r + g + b > 60 && r + g + b < 720) {
-                    rSum += r;
-                    gSum += g;
-                    bSum += b;
-                    count++;
-                }
-            }
-        }
-        
-        if (count == 0) return ThemeColors.dominantColorFallback();
-        
-        int r = (int) (rSum / count);
-        int g = (int) (gSum / count);
-        int b = (int) (bSum / count);
-        return Color.rgb(r, g, b);
-    }
-
-    /**
      * 显示播放历史列表（自定义浮窗，随页面分辨率缩放）
      */
     private void showHistoryDialog() {
@@ -2727,26 +2672,6 @@ public class PlayerFragment extends BaseFloatFragment {
         }, "LyricSearch").start();
     }
 
-    private void toggleTheme() {
-        setNightModeSynced(!isNightMode);
-        requireContext().getSharedPreferences("theme", Context.MODE_PRIVATE).edit()
-                .putBoolean("isNight", isNightMode)
-                .putBoolean("amapTriggered", false)  // 手动切换，暂停高德同步
-                .apply();
-        updateThemeUI();
-        if (lyricView != null) {
-            lyricView.setThemeMode(isNightMode
-                    ? com.jingxin.jingxinmusic.view.LyricView.ThemeMode.NIGHT
-                    : com.jingxin.jingxinmusic.view.LyricView.ThemeMode.DAY);
-        }
-        // 双色光晕模式：日夜切换后按新主题重新映射歌词高亮色（QQ固定用深色）
-        if (isAuroraActive() && lyricView != null && lastAuroraCoverColor != 0) {
-            int lyricColor = CoverColorExtractor.getLyricHighlightColor(lastAuroraCoverColor, false);
-            lyricView.setHighlightColor(lyricColor);
-        }
-        android.widget.Toast.makeText(requireContext(), isNightMode ? "夜间模式" : "白天模式", android.widget.Toast.LENGTH_SHORT).show();
-    }
-
     /**
      * 双色光晕是否生效（所有封面模式均生效，包括沉浸模式）
      */
@@ -2757,28 +2682,6 @@ public class PlayerFragment extends BaseFloatFragment {
     private void updateThemeUI() {
         // 同步日夜模式到 sceneHelper
         if (sceneHelper != null) sceneHelper.isNightMode = isNightMode;
-
-        // ===== 背景：皮肤收口（组件化第3步）=====
-        // 原光晕/默认两分支（137行层级+遮罩逻辑）整体移入 bg/ 皮肤包：
-        // DefaultBackgroundSkin（遮罩/日夜）与 AuroraBackgroundSkin（双色光晕+沉浸变体+层级手术）。
-        // 原各叶子分支末尾均调用 applyTextTheme/applyButtonTheme，等价外提为统一收尾。
-        applyTextTheme(isNightMode);
-        applyButtonTheme(isNightMode);
-    }
-
-    /**
-     * 统一设置文字主题颜色
-     */
-    private void applyTextTheme(boolean isNight) {
-        int textColor = isNight ? ThemeColors.nightTextPrimary() : ThemeColors.dayTextPrimary();
-    }
-
-    /**
-     * 统一设置按钮主题颜色
-     * ControlBar 内部按钮由组件自染；顶部栏按钮仍由 Fragment 染色
-     */
-    private void applyButtonTheme(boolean isNight) {
-        // 光晕模式下用专用进度条配色，非光晕模式用原逻辑
     }
 
 

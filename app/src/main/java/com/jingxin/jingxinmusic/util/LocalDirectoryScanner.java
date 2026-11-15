@@ -14,7 +14,6 @@ import java.util.Map;
  */
 public class LocalDirectoryScanner {
 
-    private static final String TAG = "LocalDirScan";
 
     /**
      * 从歌曲列表构建顶层目录和歌曲的浏览项

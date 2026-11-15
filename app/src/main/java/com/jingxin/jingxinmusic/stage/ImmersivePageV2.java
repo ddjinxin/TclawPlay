@@ -86,7 +86,6 @@ public class ImmersivePageV2 extends StagePage {
     /** 沉浸遮罩主色：Fragment 同款提取器产出（50×50采样、中心60%区域、忽暗忽亮像素）——
      * 与 Hub 双色（10×10色相分桶）是两个算法，夜间遮罩直接显主色，必须同源才像素级一致 */
     private int dominantColor = 0;
-    private volatile android.graphics.Bitmap pendingExtractBitmap = null;
     private int lastWidth, lastHeight;
 
     public ImmersivePageV2(com.jingxin.jingxinmusic.scene.CoverSceneHelper helper) {
