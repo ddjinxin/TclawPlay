@@ -15,7 +15,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
-import android.media.audiofx.Visualizer;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -39,6 +38,7 @@ import com.jingxin.jingxinmusic.HostActivity;
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.fragment.SettingsFragment;
 import com.jingxin.jingxinmusic.model.Song;
+import com.jingxin.jingxinmusic.player.SpectrumEngine;
 import com.jingxin.jingxinmusic.util.CoverColorExtractor;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.util.KrcParser;
@@ -46,6 +46,7 @@ import com.jingxin.jingxinmusic.util.LyricFetcher;
 import com.jingxin.jingxinmusic.util.ThemeColors;
 import com.jingxin.jingxinmusic.util.ThemeStyle;
 import com.jingxin.jingxinmusic.view.SpectrumView;
+
 
 import java.io.File;
 
@@ -109,11 +110,6 @@ public class MiniFloatService extends Service {
     // 封面旋转动画
     private com.jingxin.jingxinmusic.util.CoverRotationHelper coverRotationHelper = new com.jingxin.jingxinmusic.util.CoverRotationHelper();
 
-    // 频谱 sessionId 重试（与 PlayerFragment 对齐）
-    private static final int SPECTRUM_RETRY_INTERVAL = 300; // ms
-    private static final int SPECTRUM_MAX_RETRIES = 10;     // 共 3 秒
-    private int spectrumRetryCount = 0;
-
     // 进度更新
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private final Runnable progressRunnable = new Runnable() {
@@ -155,18 +151,7 @@ public class MiniFloatService extends Service {
     private int floatMode = MODE_CLASSIC;     // 当前样式模式
     private float capsuleLyricSpan;           // 歌词/频谱区域宽度（像素）
     private SpectrumView capsuleSpectrum;     // 胶囊内频谱视图
-    private Visualizer visualizer;            // 音频可视化器
-    private boolean visualizerEnabled = false;
-    // 频谱双缓冲：避免每帧 new float[]（低内存设备 GC 压力大）
-    private float[] miniSpectrumBufA, miniSpectrumBufB;
-    private volatile boolean miniSpectrumFlip = false;
-    private int miniSpectrumBufLen = 0;
     private FrameLayout capsuleCenterLayout; // 歌词+频谱中间区域
-
-    // 频谱仲裁广播：PlayerFragment 创建前通知 Service 释放（Service 监听此 action）
-    private static final String ACTION_PLAYER_CLAIM = "com.jingxin.jingxinmusic.PLAYER_CLAIM_VISUALIZER";
-    // Service 创建前通知 PlayerFragment 释放（PlayerFragment 监听此 action）
-    private static final String ACTION_SERVICE_CLAIM = "com.jingxin.jingxinmusic.SERVICE_CLAIM_VISUALIZER";
 
     // ========== 卡拉OK模式字段 ==========
     private static final float KARAOKE_UNIT_RATIO = 0.95f;   // 卡拉OK默认宽度比例（屏宽×95%）
@@ -221,9 +206,6 @@ public class MiniFloatService extends Service {
                     updatePlayPauseButton(playing);
                     updateCoverRotation(playing);
                     updateSpectrumPlaying(playing);
-                } else if (ACTION_PLAYER_CLAIM.equals(action)) {
-                    // PlayerFragment 要创建 Visualizer，MiniFloatService 释放自己的
-                    releaseVisualizer();
                 } else if (MusicPlayerService.ACTION_THEME_CHANGED.equals(action)) {
                     // 日夜切换：悬浮窗不参与 onResume 重读，须广播驱动重建配色
                     isNightMode = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_NIGHT, isNightMode);
@@ -234,7 +216,6 @@ public class MiniFloatService extends Service {
         IntentFilter filter = new IntentFilter();
         filter.addAction(MusicPlayerService.ACTION_SONG_CHANGED);
         filter.addAction(MusicPlayerService.ACTION_PLAY_STATE_CHANGED);
-        filter.addAction(ACTION_PLAYER_CLAIM);
         filter.addAction(MusicPlayerService.ACTION_THEME_CHANGED);
         CompatUtil.safeRegisterReceiver(this, songChangedReceiver, filter);
 
@@ -672,11 +653,11 @@ public class MiniFloatService extends Service {
             updatePlayPauseButton(playerBinder.isPlaying());
             updateCoverRotation(playerBinder.isPlaying());
         }
-        // 切歌时 sessionId 可能变化（ExoPlayer 重建或 MediaPlayer 兜底），需重建 Visualizer
+        // 切歌时 sessionId 可能变化（ExoPlayer 重建或 MediaPlayer 兜底）；引擎 request 幂等：
+        // session 未变 → 原实例无缝续跑；变化 → 引擎内自动重建，无需先 release
         if (bound && playerBinder != null
                 && (floatMode == MODE_CAPSULE || floatMode == MODE_KARAOKE)
                 && SettingsFragment.isSpectrumEnabled(this)) {
-            releaseVisualizer();
             initVisualizer();
         }
     }
@@ -762,11 +743,7 @@ public class MiniFloatService extends Service {
         if (karaokeSpectrum != null) {
             karaokeSpectrum.setPlaying(playing);
         }
-        if (visualizer != null && visualizerEnabled) {
-            try {
-                visualizer.setEnabled(playing);
-            } catch (Exception ignored) {}
-        }
+        SpectrumEngine.getInstance().setPlaying(SpectrumEngine.OWNER_MINI_FLOAT, playing);
     }
 
     private void updateCoverRotation(boolean playing) {
@@ -1720,130 +1697,58 @@ public class MiniFloatService extends Service {
         rebuildFloatViewWithSize();
     }
 
-    // ========== Visualizer 频谱接入 ==========
+    // ========== 频谱采集接入（SpectrumEngine 中心化，采集/重试/双缓冲全在引擎内） ==========
 
-    /**
-     * 双缓冲轮换：采集回调写一槽，主线程读另一槽，避免每帧 new float[]
-     */
-    private float[] acquireMiniSpectrumBuf(int count) {
-        if (count <= 0) count = 1;
-        if (miniSpectrumBufLen < count) {
-            miniSpectrumBufA = new float[count];
-            miniSpectrumBufB = new float[count];
-            miniSpectrumBufLen = count;
-            miniSpectrumFlip = false;
+    /** 引擎帧消费：双频谱 View 共用一个数据流（胶囊/卡拉OK按当前活跃者定频段数） */
+    private final SpectrumEngine.FrameSink engineSink = new SpectrumEngine.FrameSink() {
+        @Override
+        public int getBarCount() {
+            SpectrumView active = capsuleSpectrum != null ? capsuleSpectrum : karaokeSpectrum;
+            return active != null ? active.getBarInputCount() : 0;
         }
-        miniSpectrumFlip = !miniSpectrumFlip;
-        float[] buf = miniSpectrumFlip ? miniSpectrumBufA : miniSpectrumBufB;
-        java.util.Arrays.fill(buf, 0, count, 0f);
-        return buf;
-    }
+
+        @Override
+        public void onSpectrumFrame(float[] magnitudes, float maxMag, int source) {
+            SpectrumView active = capsuleSpectrum != null ? capsuleSpectrum : karaokeSpectrum;
+            if (active == null) return;
+            active.post(() -> {
+                if (capsuleSpectrum != null) {
+                    capsuleSpectrum.updateDTFMagnitudes(magnitudes, maxMag);
+                }
+                if (karaokeSpectrum != null) {
+                    karaokeSpectrum.updateDTFMagnitudes(magnitudes, maxMag);
+                }
+            });
+        }
+    };
 
     /**
-     * 初始化 Visualizer（从 PlayerActivity 移植，精简版）
+     * 请求频谱采集（幂等）：sessionId 变化由引擎比对自动重建；跨端抢占在引擎内同步仲裁
      */
     private void initVisualizer() {
-        if (visualizer != null || !bound || playerBinder == null) return;
+        if (!bound || playerBinder == null) return;
         if (floatMode != MODE_CAPSULE && floatMode != MODE_KARAOKE) return;
         if (!SettingsFragment.isSpectrumEnabled(this)) return;
-        // 通知 PlayerFragment 释放 Visualizer（抢占式仲裁：创建前先释放对方）
-        Intent releaseIntent = new Intent(ACTION_SERVICE_CLAIM);
-        releaseIntent.setPackage(getPackageName());
-        sendBroadcast(releaseIntent);
-        try {
-            int sessionId = playerBinder.getAudioSessionId();
-            if (sessionId == -1 || sessionId == 0) {
-                // sessionId 尚未就绪（ExoPlayer 未 prepare），延迟重试
-                if (spectrumRetryCount < SPECTRUM_MAX_RETRIES) {
-                    spectrumRetryCount++;
-                    uiHandler.postDelayed(this::initVisualizer, SPECTRUM_RETRY_INTERVAL);
-                }
-                return;
-            }
-            spectrumRetryCount = 0;
-
-            visualizer = new Visualizer(sessionId);
-            visualizer.setEnabled(false);
-            int[] range = visualizer.getCaptureSizeRange();
-            if (range == null || range.length < 2) {
-                visualizer.release();
-                visualizer = null;
-                return;
-            }
-            visualizer.setCaptureSize(range[1]);
-            visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
-
-            visualizer.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
-                @Override
-                public void onWaveFormDataCapture(Visualizer v, byte[] waveform, int samplingRate) {}
-
-                @Override
-                public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
-                    // 取当前活跃的频谱View作为基准
-                    SpectrumView activeSpectrum = capsuleSpectrum != null ? capsuleSpectrum : karaokeSpectrum;
-                    if (activeSpectrum == null) return;
-                    int count = activeSpectrum.getBarInputCount();
-                    float[] magnitudes = acquireMiniSpectrumBuf(count);
-                    float maxMag = 0;
-                    for (int i = 0; i < count; i++) {
-                        int idx = (i + 1) * 2;
-                        if (idx + 1 < fft.length) {
-                            byte real = fft[idx];
-                            byte imaginary = fft[idx + 1];
-                            float mag = (float) Math.sqrt(real * real + imaginary * imaginary);
-                            magnitudes[i] = mag;
-                            if (mag > maxMag) maxMag = mag;
-                        }
-                    }
-                    float finalMax = maxMag;
-                    activeSpectrum.post(() -> {
-                        if (capsuleSpectrum != null) {
-                            capsuleSpectrum.updateDTFMagnitudes(magnitudes, finalMax);
-                        }
-                        if (karaokeSpectrum != null) {
-                            karaokeSpectrum.updateDTFMagnitudes(magnitudes, finalMax);
-                        }
-                    });
-                }
-            }, Visualizer.getMaxCaptureRate(), false, true);
-
-            boolean playing = (playerBinder != null && playerBinder.isPlaying());
-            visualizer.setEnabled(playing);
-            visualizerEnabled = true;
+        SpectrumEngine.Result r = SpectrumEngine.getInstance().request(
+                this, SpectrumEngine.OWNER_MINI_FLOAT,
+                () -> playerBinder != null ? playerBinder.getAudioSessionId() : -1,
+                engineSink, false);
+        // 暂停态先行记录到引擎（RETRYING 期也会在建出后按此启用），View 状态仅 RUNNING 时同步
+        boolean playing = playerBinder != null && playerBinder.isPlaying();
+        SpectrumEngine.getInstance().setPlaying(SpectrumEngine.OWNER_MINI_FLOAT, playing);
+        if (r == SpectrumEngine.Result.RUNNING) {
             if (capsuleSpectrum != null) {
                 capsuleSpectrum.setPlaying(playing);
             }
             if (karaokeSpectrum != null) {
                 karaokeSpectrum.setPlaying(playing);
             }
-        } catch (Exception e) {
-            Log.w(TAG, "悬浮窗 Visualizer 初始化失败: " + e.getMessage());
-            if (visualizer != null) {
-                try { visualizer.release(); } catch (Exception ignored) {}
-                visualizer = null;
-            }
         }
     }
 
-    /**
-     * 释放 Visualizer
-     * 先断回调，再延迟 release，避免 native CaptureThread 与 release 并发导致 CFI 崩溃
-     */
+    /** 让出频谱采集（引擎层面释放，含延迟 native release 防御） */
     private void releaseVisualizer() {
-        if (visualizer != null) {
-            final android.media.audiofx.Visualizer v = visualizer;
-            visualizer = null;
-            try {
-                v.setEnabled(false);
-                v.setDataCaptureListener(null, 0, false, false);
-            } catch (Exception ignored) {}
-            // 延迟释放：给 native CaptureThread 退出时间（Android 8.1 立即 release 会 use-after-free）
-            try {
-                uiHandler.postDelayed(v::release, 300);
-            } catch (Exception ignored) {}
-        }
-        visualizerEnabled = false;
-        spectrumRetryCount = 0;
+        SpectrumEngine.getInstance().release(SpectrumEngine.OWNER_MINI_FLOAT);
     }
 
     // ========== 胶囊模式持久化 ==========

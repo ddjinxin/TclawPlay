@@ -14,10 +14,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.media.AudioFormat;
-import android.media.AudioRecord;
-import android.media.MediaRecorder;
-import android.media.audiofx.Visualizer;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -36,6 +32,7 @@ import androidx.lifecycle.Lifecycle;
 
 import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
+import com.jingxin.jingxinmusic.player.SpectrumEngine;
 import com.jingxin.jingxinmusic.scene.CoverSceneHelper;
 import com.jingxin.jingxinmusic.util.CompatUtil;
 import com.jingxin.jingxinmusic.HostActivity;
@@ -178,25 +175,6 @@ public class PlayerFragment extends BaseFloatFragment {
     private boolean userSeeking = false;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    // 频谱：Visualizer（主方案）或 AudioRecord（降级方案）
-    private android.media.audiofx.Visualizer visualizer;
-    private AudioRecord audioRecord;
-    private volatile boolean spectrumRunning = false;
-    private boolean useVisualizer = false; // 当前是否用 Visualizer
-
-    // 频谱双缓冲：采集线程写 bufA/bufB 轮换，主线程读另一个，避免每帧 new float[] 且防撕裂
-    private float[] spectrumBufA;
-    private float[] spectrumBufB;
-    private volatile boolean spectrumBufFlip = false; // true=采集线程写B读A，false=写A读B
-    private int spectrumBufLen = 0;
-
-    // 频谱仲裁广播：PlayerFragment 创建前通知 Service 释放（Service 监听此 action）
-    private static final String ACTION_PLAYER_CLAIM = "com.jingxin.jingxinmusic.PLAYER_CLAIM_VISUALIZER";
-    // Service 创建前通知 PlayerFragment 释放（PlayerFragment 监听此 action）
-    private static final String ACTION_SERVICE_CLAIM = "com.jingxin.jingxinmusic.SERVICE_CLAIM_VISUALIZER";
-    private static final int SAMPLE_RATE = 8000;
-    private static final int FFT_SIZE = 256;
-
     // 广播接收器：监听歌曲切换和播放状态
     private BroadcastReceiver songChangedReceiver = new BroadcastReceiver() {
         @Override
@@ -278,9 +256,6 @@ public class PlayerFragment extends BaseFloatFragment {
                         }
                         updateThemeUI();
                 }
-            } else if (ACTION_SERVICE_CLAIM.equals(action)) {
-                // MiniFloatService 要创建 Visualizer，PlayerFragment 释放自己的
-                stopSpectrum();
             } else if ("com.jingxin.jingxinmusic.FLOAT_LAYOUT_REFRESH".equals(action)) {
                 // 乐酷悬浮进入：按悬浮区域尺寸刷新布局
                 if (!isActivityGone()) {
@@ -296,11 +271,10 @@ public class PlayerFragment extends BaseFloatFragment {
             } else if ("com.jingxin.jingxinmusic.SPECTRUM_RESTART".equals(action)) {
                 // 乐酷悬浮进入/退出时，重建频谱
                 if (com.jingxin.jingxinmusic.floatwindow.LecoFloatManager.getInstance().isFloating() || isSpectrumStartable()) {
-                    // 可见 → 重建频谱
-                    stopSpectrum();
+                    // 可见 → 引擎幂等续跑（已在跑无感），未跑则补启
                     startSpectrumWithPermission();
                 } else {
-                    // 不可见 → 让出 Visualizer，MiniFloatService 接管
+                    // 不可见 → 让出采集器，MiniFloatService 接管
                     stopSpectrum();
                 }
             }
@@ -726,7 +700,6 @@ public class PlayerFragment extends BaseFloatFragment {
             filter.addAction(MusicPlayerService.ACTION_THEME_CHANGED);
             filter.addAction("com.jingxin.jingxinmusic.SPECTRUM_RESTART");
             filter.addAction("com.jingxin.jingxinmusic.FLOAT_LAYOUT_REFRESH");
-            filter.addAction(ACTION_SERVICE_CLAIM);
         CompatUtil.safeRegisterReceiver(requireContext(), songChangedReceiver, filter);
 
         // 绑定播放服务
@@ -815,7 +788,7 @@ public class PlayerFragment extends BaseFloatFragment {
     public void onStop() {
         super.onStop();
         // 不在 onStop 停频谱：车机系统会疯狂循环 onResume/onStop（间隔 20-50ms），每次停掉重建导致频谱闪一下就消失
-        // 频谱只由以下场景停止：ACTION_SERVICE_CLAIM（悬浮窗抢占）、切歌重建、用户关开关、onDestroyView
+        // 频谱只由以下场景停止：跨端抢占（SpectrumEngine 引擎内同步仲裁）、切歌重建、用户关开关、onDestroyView
         // 但 aurora 帧链必须挂起：车机 ROM 退后台不下发窗口隐藏，isShown 仍 true，止损不触发，
         // 后台空转 28Hz（MEK-MX8Q 日志实锤）；闸门幂等且无视觉副作用，快速循环无害
         setStagePagesHostResumed(false);
@@ -1027,8 +1000,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
     private void startSpectrumWithPermission() {
         if (!SettingsFragment.isSpectrumEnabled(requireContext())) return;
-        // 频谱正在用 Visualizer 正常运行，不重复启动（防止 stop→start 死循环）
-        if (spectrumRunning && useVisualizer) return;
+        // 引擎 request 幂等（同 owner 同 session 不重建，session 变化自动重建），防重入
         // 乐酷悬浮模式或 Fragment started 时才启动频谱
         // 注意用 isStarted 而非 isResumed：乐酷分屏下 Activity 长时间 paused 但窗口可见可交互，
         // onServiceConnected 异步回调落在 paused 窗口时 isResumed 守卫会吞掉频谱启动
@@ -2721,11 +2693,9 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 启动频谱：优先 Visualizer（直接读取音频输出），失败则降级到 AudioRecord（麦克风采集）
+     * 频谱：统一经 SpectrumEngine 采集（Visualizer 主案 / AudioRecord 麦克风降级），
+     * 采集/重试/双缓冲/跨端抢占仲裁全部在引擎内完成
      */
-    private static final int SPECTRUM_RETRY_INTERVAL = 300; // ms
-    private static final int SPECTRUM_MAX_RETRIES = 10; // 共 3 秒
-    private int spectrumRetryCount = 0;
     // 频谱启动竞态保险网：Fragment 未 started 时延迟重试（乐酷时序竞态）
     private static final int SPECTRUM_RESUME_MAX_RETRIES = 5;
     private static final long SPECTRUM_RESUME_RETRY_INTERVAL_MS = 200;
@@ -2738,324 +2708,47 @@ public class PlayerFragment extends BaseFloatFragment {
         }
     };
 
-    private void startSpectrum() {
-        // 先停后启：确保每次调用都能得到全新的 Visualizer（避免旧实例回调静默失效后标志卡死）
-        if (spectrumRunning) {
-            stopSpectrum();
+    /** 引擎帧消费：低频包络（时计摆轮，仅播放流）+ 当前舞台页分发 */
+    private final SpectrumEngine.FrameSink engineSink = new SpectrumEngine.FrameSink() {
+        @Override
+        public int getBarCount() {
+            return spectrumView != null ? spectrumView.getBarInputCount() : 0;
         }
-        // 通知 MiniFloatService 释放 Visualizer（抢占式仲裁：创建前先释放对方）
-        Intent releaseIntent = new Intent(ACTION_PLAYER_CLAIM);
-        releaseIntent.setPackage(requireContext().getPackageName());
-        requireContext().sendBroadcast(releaseIntent);
-        spectrumRunning = true;
-        spectrumRetryCount = 0;
-        spectrumResumeRetryCount = 0;
-        tryStartVisualizer();
-    }
 
-    /**
-     * 尝试用 Visualizer 启动频谱，sessionId=0 时延迟重试
-     */
-    private void tryStartVisualizer() {
-        if (!spectrumRunning) {
-            return;
-        }
-        if (bound && playerBinder != null) {
-            try {
-                int sessionId = playerBinder.getAudioSessionId();
-                if (sessionId != -1 && sessionId != 0) {
-                    visualizer = new Visualizer(sessionId);
-                    visualizer.setEnabled(false);
-                    int[] range = visualizer.getCaptureSizeRange();
-                    if (range == null || range.length < 2) {
-                        throw new RuntimeException("getCaptureSizeRange returned invalid range");
-                    }
-                    visualizer.setCaptureSize(range[1]);
-                    visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
-
-                    // rate=Visualizer.getMaxCaptureRate(), 不捕获波形, 捕获FFT
-                    visualizer.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
-                        @Override
-                        public void onWaveFormDataCapture(Visualizer v, byte[] waveform, int samplingRate) {
-                        }
-
-                        @Override
-                        public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
-                            // 低频包络（时计摆轮）：前 4 个频段（低频）幅值均值，不依赖频谱开关
-                            float bassSum = 0;
-                            int bassN = 0;
-                            for (int i = 0; i < 4; i++) {
-                                int idx = (i + 1) * 2;
-                                if (idx + 1 < fft.length) {
-                                    byte real = fft[idx];
-                                    byte imaginary = fft[idx + 1];
-                                    bassSum += (float) Math.sqrt(real * real + imaginary * imaginary);
-                                    bassN++;
-                                }
-                            }
-                            if (bassN > 0) {
-                                // 归一到 0~1（byte 幅度上限 ~127*sqrt2≈180，取 /60 软钳）
-                                float b = Math.min(1f, (bassSum / bassN) / 60f);
-                                float prev = bassEnergySmoothed;
-                                // 快起慢落包络（attack 0.35 / release 0.15 每 20ms 采样近似）
-                                bassEnergySmoothed = b > prev ? prev + (b - prev) * 0.45f : prev + (b - prev) * 0.18f;
-                                bassLastUpdateMs = System.currentTimeMillis();
-                            }
-
-                            if (!spectrumRunning || spectrumView == null) return;
-
-                            // 倒数归一化竖条：FFT 1:1 取幅度，竖条只取半数频段（会镜像展开）
-                            int count = spectrumView.getBarInputCount();
-                            float[] magnitudes = acquireSpectrumBuf(count);
-                            float maxMag = 0;
-                            for (int i = 0; i < count; i++) {
-                                int idx = (i + 1) * 2; // 跳过 DC 分量
-                                if (idx + 1 < fft.length) {
-                                    byte real = fft[idx];
-                                    byte imaginary = fft[idx + 1];
-                                    float mag = (float) Math.sqrt(real * real + imaginary * imaginary);
-                                    magnitudes[i] = mag;
-                                    if (mag > maxMag) maxMag = mag;
-                                }
-                            }
-                            float finalMax = maxMag;
-                            mRootView.post(() -> feedSpectrumData(magnitudes, finalMax));
-                        }
-                    }, Visualizer.getMaxCaptureRate(), false, true);
-
-                    visualizer.setEnabled(true);
-                    useVisualizer = true;
-                    return; // 成功，不需要 AudioRecord
-                } else {
-                    // sessionId 还没准备好（ExoPlayer 正在异步 prepare），延迟重试
-                    if (spectrumRetryCount < SPECTRUM_MAX_RETRIES) {
-                        spectrumRetryCount++;
-                        uiHandler.postDelayed(this::tryStartVisualizer, SPECTRUM_RETRY_INTERVAL);
-                        return;
-                    }
-                    // 超过重试次数，降级到 AudioRecord
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "Visualizer 初始化失败，降级到 AudioRecord: " + e.getMessage());
-                if (visualizer != null) {
-                    try { visualizer.release(); } catch (Exception ignored) {}
-                    visualizer = null;
-                }
+        @Override
+        public void onSpectrumFrame(float[] magnitudes, float maxMag, int source) {
+            // 低频包络（时计摆轮）：前 4 频段幅值均值，不依赖频谱开关，仅播放流（麦克风降级不喂）
+            if (source == SpectrumEngine.SOURCE_PLAYBACK && magnitudes.length >= 4) {
+                float bassSum = 0;
+                for (int i = 0; i < 4; i++) bassSum += magnitudes[i];
+                // 归一到 0~1（byte 幅度上限 ~127*sqrt2≈180，取 /60 软钳）
+                float b = Math.min(1f, (bassSum / 4) / 60f);
+                float prev = bassEnergySmoothed;
+                // 快起慢落包络（attack 0.35 / release 0.15 每 20ms 采样近似）
+                bassEnergySmoothed = b > prev ? prev + (b - prev) * 0.45f : prev + (b - prev) * 0.18f;
+                bassLastUpdateMs = System.currentTimeMillis();
+            }
+            if (mRootView != null) {
+                mRootView.post(() -> feedSpectrumData(magnitudes, maxMag));
             }
         }
+    };
 
-        // 降级：AudioRecord + DFT（和酷狗替身参数一致）
-        useVisualizer = false;
-        startSpectrumAudioRecord();
-    }
-
-    /**
-     * AudioRecord 降级方案：通过麦克风采集音频 + FFT 计算频谱
-     */
-    private void startSpectrumAudioRecord() {
-        // AudioRecord 降级方案需要 RECORD_AUDIO 权限，Visualizer 不需要
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+    private void startSpectrum() {
+        if (!isAdded()) return;
+        SpectrumEngine.Result r = SpectrumEngine.getInstance().request(
+                requireContext(), SpectrumEngine.OWNER_PLAYER,
+                () -> (bound && playerBinder != null) ? playerBinder.getAudioSessionId() : -1,
+                engineSink, true);
+        if (r == SpectrumEngine.Result.NEED_MIC_PERMISSION) {
+            // AudioRecord 降级需要 RECORD_AUDIO（Visualizer 不需要），申请后授权回调重启
             androidx.core.app.ActivityCompat.requestPermissions(requireActivity(),
                     new String[]{Manifest.permission.RECORD_AUDIO}, 100);
-            spectrumRunning = false;
-            return;
         }
-        new Thread(() -> {
-            try {
-                int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE,
-                        AudioFormat.CHANNEL_IN_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT);
-                if (bufferSize == AudioRecord.ERROR || bufferSize == AudioRecord.ERROR_BAD_VALUE) {
-                    Log.e(TAG, "AudioRecord getMinBufferSize 失败");
-                    spectrumRunning = false;
-                    return;
-                }
-
-                audioRecord = null;
-                int[] sources = {
-                        MediaRecorder.AudioSource.MIC,
-                        MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                        MediaRecorder.AudioSource.UNPROCESSED
-                };
-                boolean created = false;
-                // 用局部变量持有实例：并发启动多个采集线程时，成员变量 audioRecord
-                // 会被互相覆盖导致部分实例泄漏（Finalizer 超时崩溃），局部变量保证每个实例必然释放
-                AudioRecord ar = null;
-                for (int source : sources) {
-                    try {
-                        ar = new AudioRecord(
-                                source,
-                                SAMPLE_RATE,
-                                AudioFormat.CHANNEL_IN_MONO,
-                                AudioFormat.ENCODING_PCM_16BIT,
-                                bufferSize);
-                        if (ar.getState() == AudioRecord.STATE_INITIALIZED) {
-                            created = true;
-                            break;
-                        } else {
-                            ar.release();
-                            ar = null;
-                        }
-                    } catch (Exception e) {
-                        if (ar != null) {
-                            ar.release();
-                            ar = null;
-                        }
-                    }
-                }
-
-                if (!created) {
-                    Log.e(TAG, "AudioRecord 所有音频源初始化失败");
-                    spectrumRunning = false;
-                    return;
-                }
-                audioRecord = ar; // 成功后赋给成员变量，供 stopSpectrum 统一释放
-
-                audioRecord.startRecording();
-                Thread.sleep(500);
-
-                // FFT 补零到 1024（2^10），800 采样点零填充
-                final int FFT_SIZE = 1024;
-                short[] readBuffer = new short[800];
-                float[] fftReal = new float[FFT_SIZE];
-                float[] fftImag = new float[FFT_SIZE];
-                // 预计算 bit-reverse 表
-                int[] bitRevTable = new int[FFT_SIZE];
-                int bits = 10; // log2(1024)
-                for (int i = 0; i < FFT_SIZE; i++) {
-                    int rev = 0;
-                    int val = i;
-                    for (int b = 0; b < bits; b++) {
-                        rev = (rev << 1) | (val & 1);
-                        val >>= 1;
-                    }
-                    bitRevTable[i] = rev;
-                }
-
-                while (spectrumRunning) {
-                    int totalRead = audioRecord.read(readBuffer, 0, 800);
-                    if (totalRead <= 0) continue;
-
-                    // 零填充到 FFT_SIZE 并加窗（Hann 窗减少频谱泄漏）
-                    for (int i = 0; i < FFT_SIZE; i++) {
-                        if (i < totalRead) {
-                            double window = 0.5 * (1.0 - Math.cos(2.0 * Math.PI * i / (totalRead - 1)));
-                            fftReal[i] = readBuffer[i] * (float) window;
-                        } else {
-                            fftReal[i] = 0;
-                        }
-                        fftImag[i] = 0;
-                    }
-
-                    // Cooley-Tukey 原地 FFT
-                    for (int i = 0; i < FFT_SIZE; i++) {
-                        int j = bitRevTable[i];
-                        if (j > i) {
-                            float tmp = fftReal[i]; fftReal[i] = fftReal[j]; fftReal[j] = tmp;
-                            tmp = fftImag[i]; fftImag[i] = fftImag[j]; fftImag[j] = tmp;
-                        }
-                    }
-                    for (int len = 2; len <= FFT_SIZE; len <<= 1) {
-                        int halfLen = len >> 1;
-                        double angleStep = -2.0 * Math.PI / len;
-                        for (int i = 0; i < FFT_SIZE; i += len) {
-                            for (int j = 0; j < halfLen; j++) {
-                                double angle = angleStep * j;
-                                float wr = (float) Math.cos(angle);
-                                float wi = (float) Math.sin(angle);
-                                int idx1 = i + j;
-                                int idx2 = i + j + halfLen;
-                                float tr = wr * fftReal[idx2] - wi * fftImag[idx2];
-                                float ti = wr * fftImag[idx2] + wi * fftReal[idx2];
-                                fftReal[idx2] = fftReal[idx1] - tr;
-                                fftImag[idx2] = fftImag[idx1] - ti;
-                                fftReal[idx1] += tr;
-                                fftImag[idx1] += ti;
-                            }
-                        }
-                    }
-
-                    // 从 FFT 结果提取频谱幅度
-                    int count = spectrumView != null ? spectrumView.getBarInputCount() : 65;
-                    float[] magnitudes = acquireSpectrumBuf(count);
-                    float maxMag = 0;
-                    for (int bar = 0; bar < count; bar++) {
-                        int k = bar + 1; // 跳过 DC 分量
-                        if (k >= FFT_SIZE / 2) k = FFT_SIZE / 2 - 1;
-                        float re = fftReal[k];
-                        float im = fftImag[k];
-                        float mag = (float) Math.sqrt(re * re + im * im) / FFT_SIZE;
-                        magnitudes[bar] = mag;
-                        if (mag > maxMag) maxMag = mag;
-                    }
-
-                    float finalMax = maxMag;
-                    if (spectrumView != null) {
-                        mRootView.post(() -> feedSpectrumData(magnitudes, finalMax));
-                    }
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "频谱采集异常: " + e.getMessage());
-            } finally {
-                stopSpectrum();
-            }
-        }, "SpectrumThread").start();
-    }
-
-    /**
-     * 双缓冲轮换：返回当前"写槽"（采集线程写），主线程读另一个槽。
-     * count 变化时自动扩容；flip 标志保证采集与主线程读不共用同一数组。
-     */
-    private float[] acquireSpectrumBuf(int count) {
-        if (count <= 0) count = 1;
-        if (spectrumBufLen < count) {
-            spectrumBufA = new float[count];
-            spectrumBufB = new float[count];
-            spectrumBufLen = count;
-            spectrumBufFlip = false;
-        }
-        spectrumBufFlip = !spectrumBufFlip;
-        // 清零：上一次的残留值会影响本帧（只填部分 idx 时）
-        float[] buf = spectrumBufFlip ? spectrumBufA : spectrumBufB;
-        java.util.Arrays.fill(buf, 0, count, 0f);
-        return buf;
     }
 
     private void stopSpectrum() {
-        spectrumRunning = false;
-        // 释放 Visualizer：先断回调，再延迟 release，避免 native CaptureThread 与 release 并发导致 CFI 崩溃
-        if (visualizer != null) {
-            final android.media.audiofx.Visualizer v = visualizer;
-            visualizer = null;
-            try {
-                v.setEnabled(false);
-                v.setDataCaptureListener(null, 0, false, false);
-            } catch (Exception ignored) {}
-            // 延迟释放：给 native CaptureThread 退出时间（Android 8.1 立即 release 会 use-after-free）
-            try {
-                uiHandler.postDelayed(v::release, 300);
-            } catch (Exception ignored) {}
-        }
-        // 释放 AudioRecord
-        // 注意：stop()/release() 在音频服务异常设备（5.1 模拟器 AudioFlinger Binder 卡死）上
-        // 会长时间阻塞；且本方法可能被主线程（点击播放）与 SpectrumThread（采集结束 finally）
-        // 并发调用，直接在主线程执行会互相抢锁导致 ANR。
-        // 因此：先原子取走引用（防止并发双释放），stop/release 移到子线程执行。
-        final android.media.AudioRecord ar = audioRecord;
-        audioRecord = null;
-        if (ar != null) {
-            new Thread(() -> {
-                try {
-                    if (ar.getState() == AudioRecord.STATE_INITIALIZED) {
-                        ar.stop();
-                    }
-                } catch (Exception ignored) {}
-                try {
-                    ar.release();
-                } catch (Exception ignored) {}
-            }, "AudioRecordRelease").start();
-        }
+        SpectrumEngine.getInstance().release(SpectrumEngine.OWNER_PLAYER);
     }
 
     @Override
