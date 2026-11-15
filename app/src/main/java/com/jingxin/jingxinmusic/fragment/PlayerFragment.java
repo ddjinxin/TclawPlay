@@ -585,6 +585,9 @@ public class PlayerFragment extends BaseFloatFragment {
         // 频谱真值锚：detached 实例（不挂视图树，仅承载 prefs 样式读写与采集参数；
         // 旧 spectrum_view 节点已删，V2 页各持显示实例）
         spectrumView = new SpectrumView(requireContext());
+        // 竖条2（FOLIA）：渲染链 tap 接线——播放线程回调 → 快照 → 主线程分发到活跃页；
+        // 开关随恢复样式初始化（竖条2 才分析，其余样式零开销）
+        initFoliaTap();
         // 进度组件（SeekBar+双时间，事件经 Listener 上抛）
         // 底部控制条组件（内部含7键：播放/上一首/下一首/模式/历史/收藏/下载）
 
@@ -762,7 +765,10 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onResume() {
         super.onResume();
-        // 播放页沉浸：背景/封面顶到状态栏（状态栏透明），按钮避让由 StatusBarAvoid 公式自动接管
+        // 竖条2（FOLIA）：后台冻结（FOLIA backgroundHold 同语义；aurora 帧链同模式的反向半边）
+        foliaHostResumed = true;
+        syncFoliaTapEnabled();
+        // 播放页沉浸：背景/封面顶到状态栏（沉浸透明），按钮避让由 StatusBarAvoid 公式自动接管
         if (getActivity() instanceof HostActivity) {
             ((HostActivity) getActivity()).setStatusBarImmersive(true);
         }
@@ -819,6 +825,10 @@ public class PlayerFragment extends BaseFloatFragment {
     @Override
     public void onStop() {
         super.onStop();
+        // 竖条2（FOLIA）：后台挂起分析止损（真后台空转实锤场景同 aurora；
+        // 纯 boolean 闸门无重建成本，车机 onResume/onStop 快速循环幂等无害）
+        foliaHostResumed = false;
+        com.jingxin.jingxinmusic.util.FoliaTapProcessor.setEnabled(false);
         // 不在 onStop 停频谱：车机系统会疯狂循环 onResume/onStop（间隔 20-50ms），每次停掉重建导致频谱闪一下就消失
         // 频谱只由以下场景停止：ACTION_SERVICE_CLAIM（悬浮窗抢占）、切歌重建、用户关开关、onDestroyView
         // 但 aurora 帧链必须挂起：车机 ROM 退后台不下发窗口隐藏，isShown 仍 true，止损不触发，
@@ -1011,6 +1021,38 @@ public class PlayerFragment extends BaseFloatFragment {
     private void feedSpectrumData(float[] magnitudes, float maxMag) {
         com.jingxin.jingxinmusic.stage.StagePage p = activePage();
         if (p != null) p.feedSpectrumData(magnitudes, maxMag);
+    }
+
+    // ===== 竖条2（FOLIA）：渲染链 tap 接线 =====
+
+    /** 快照四缓冲轮换（tap 复用其输出数组，post 期间不可被覆写） */
+    private final float[][] foliaSnapBufs = new float[4][1024];
+    private int foliaSnapIdx;
+    /** 宿主可见性（与 aurora 帧链同模式：onStop 挂起止损，车机快速循环幂等无害） */
+    private boolean foliaHostResumed;
+
+    /** tap 分析开关 = 宿主可见 && 当前样式为竖条2/曲线2（样式真值唯一来源：spectrumView） */
+    private void syncFoliaTapEnabled() {
+        com.jingxin.jingxinmusic.util.FoliaTapProcessor.setEnabled(foliaHostResumed
+                && spectrumView != null
+                && com.jingxin.jingxinmusic.view.SpectrumView.isFoliaSpectrumStyle(spectrumView.getCurrentStyle()));
+    }
+
+    /** 注册 tap 回调 + 初始化分析开关（onResume 时 syncFoliaTapEnabled 开启） */
+    private void initFoliaTap() {
+        syncFoliaTapEnabled();
+        com.jingxin.jingxinmusic.util.FoliaTapProcessor.setListener(byteSpectrum -> {
+            if (byteSpectrum == null || byteSpectrum.length == 0) return;
+            int idx = foliaSnapIdx;
+            foliaSnapIdx = (idx + 1) & 3;
+            float[] snap = foliaSnapBufs[idx];
+            System.arraycopy(byteSpectrum, 0, snap, 0,
+                    Math.min(byteSpectrum.length, snap.length));
+            mRootView.post(() -> {
+                com.jingxin.jingxinmusic.stage.StagePage p = activePage();
+                if (p != null) p.feedFoliaSpectrum(snap);
+            });
+        });
     }
 
     /**
@@ -2086,7 +2128,7 @@ public class PlayerFragment extends BaseFloatFragment {
     }
 
     /**
-     * 弹出频谱选择浮窗面板（竖屏2列5行，横屏5列2行）
+     * 弹出频谱选择浮窗面板（竖屏2列6行，横屏5列3行）
      */
     private void showSpectrumPicker() {
         if (togglePopupClose(spectrumPickerPopup)) return;
@@ -2180,6 +2222,8 @@ public class PlayerFragment extends BaseFloatFragment {
                 // 样式同步到当前活跃页自持实例（sceneLayout 会重新收敛可见性）
                 com.jingxin.jingxinmusic.stage.StagePage ap = activePage();
                 if (ap != null) ap.applySpectrumStyle(style);
+                // 竖条2（FOLIA）：分析开关随样式切换（宿主可见性由 onResume/onStop 维护）
+                syncFoliaTapEnabled();
                 boolean isRing = spectrumView.isCoverOverlayMode();
                 if (wasRing != isRing) {
                     int w = getLayoutWidth();
@@ -2878,6 +2922,11 @@ public class PlayerFragment extends BaseFloatFragment {
 
                         @Override
                         public void onFftDataCapture(Visualizer v, byte[] fft, int samplingRate) {
+                            // 竖条2/曲线2（FOLIA）走渲染链 tap，旧管道跳过（省逐 bin 解析与主线程空转分发）
+                            if (com.jingxin.jingxinmusic.view.SpectrumView.isFoliaSpectrumStyle(
+                                    com.jingxin.jingxinmusic.view.SpectrumView.getCurrentStyleStatic())) {
+                                return;
+                            }
                             // 低频包络（时计摆轮）：前 4 个频段（低频）幅值均值，不依赖频谱开关
                             float bassSum = 0;
                             int bassN = 0;
@@ -3073,6 +3122,11 @@ public class PlayerFragment extends BaseFloatFragment {
                         }
                     }
 
+                    // 竖条2/曲线2（FOLIA）走渲染链 tap，旧管道跳过
+                    if (com.jingxin.jingxinmusic.view.SpectrumView.isFoliaSpectrumStyle(
+                            com.jingxin.jingxinmusic.view.SpectrumView.getCurrentStyleStatic())) {
+                        continue;
+                    }
                     // 从 FFT 结果提取频谱幅度
                     int count = spectrumView != null ? spectrumView.getBarInputCount() : 65;
                     float[] magnitudes = acquireSpectrumBuf(count);
@@ -3159,6 +3213,9 @@ public class PlayerFragment extends BaseFloatFragment {
     public void onDestroyView() {
         super.onDestroyView();
         stopSpectrum();
+        // 竖条2（FOLIA）：注销 tap 回调与分析开关（页面销毁即停分析）
+        com.jingxin.jingxinmusic.util.FoliaTapProcessor.setListener(null);
+        com.jingxin.jingxinmusic.util.FoliaTapProcessor.setEnabled(false);
         stopControlsHideTimer();
         uiHandler.removeCallbacks(progressRunnable);
         uiHandler.removeCallbacks(spectrumResumeRetryRunnable);

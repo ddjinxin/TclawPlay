@@ -532,6 +532,14 @@ public class ImmersivePageV2 extends StagePage {
         (h.isLandscapeMode ? spectrumL : spectrum).updateDTFMagnitudes(magnitudes, maxMag);
     }
 
+    /** 竖条2（FOLIA）字节谱：渲染链 tap 旁路 */
+    public void feedFoliaSpectrum(float[] byteSpectrum) {
+        SpectrumView sp = h.isLandscapeMode ? spectrumL : spectrum;
+        sp.updateFoliaByteSpectrum(byteSpectrum);
+        // 数据到达即请求重绘（不等下一拍；与 animRunnable 的 invalidate 同 vsync 合帧）
+        sp.invalidate();
+    }
+
     // ===== 染色 =====
 
     private void applyThemeColors() {
