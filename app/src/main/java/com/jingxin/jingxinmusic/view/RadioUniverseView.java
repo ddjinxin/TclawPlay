@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -125,7 +124,16 @@ public class RadioUniverseView extends View {
 
     // 电波参数
     private float waveAlpha;                       // 暂停渐隐因子 0~1
-    private int waveColor = COLOR_WAVE;            // 电波色（取色到达后覆盖；默认青）
+    private int waveColor = COLOR_WAVE;            // 电波色（取色到达后覆盖；默认白）
+    /** 台名逐字辉光色：无封面固定暖黄；有封面跟随电波取色 */
+    private int titleGlowColor = 0xFFFFD75E;
+
+    // ===== 频谱驱动（电波随音乐节奏） =====
+    private float spBass, spMid, spHigh, spBassPrev; // 三频段平滑能量（快起慢落包络）
+    private long spectrumLastMs = -1L;               // 频谱到达时间（超时回落静态涟漪）
+// 节拍速度积分器：波道推进相位按能量积分（能量高扩得快，安静扩得慢）
+    private double waveClock = 0d;                   // 全局波相位积分（秒域）
+    private long waveClockLastMs = -1L;              // 积分时钟基准
     private static final int WAVE_COUNT = 5;       // 同屏弧数
     private static final long WAVE_CYCLE_MS = 6400L;
 
@@ -184,6 +192,45 @@ public class RadioUniverseView extends View {
 
     public void setOnLongPressListener(OnLongPressListener l) { this.longPressListener = l; }
 
+    /**
+     * 频谱数据喂入（页面桥调；Visualizer/AudioRecord 由 Fragment 分发）。
+     * 三频段分解：低频（前1/6）驱动波纹振幅胀缩（鼓点推波）；
+     * 中频（中段1/3）调制波纹密度；高频（后半）加亮度抖动。
+     * 超 800ms 无数据自动回落静态涟漪（暂停/无频谱场景）。
+     */
+    public void feedSpectrum(float[] magnitudes, float maxMag) {
+        if (magnitudes == null || magnitudes.length < 8 || maxMag <= 0f) {
+            spectrumLastMs = -1L;
+            return;
+        }
+        int n = magnitudes.length;
+        float b = 0f, m = 0f, h = 0f;
+        int bN = 0, mN = 0, hN = 0;
+        int bassEnd = Math.max(2, n / 6), midEnd = Math.max(bassEnd + 1, n / 2);
+        for (int i = 0; i < n; i++) {
+            float v = Math.min(1f, magnitudes[i] / maxMag);
+            if (i < bassEnd) { b += v; bN++; }
+            else if (i < midEnd) { m += v; mN++; }
+            else { h += v; hN++; }
+        }
+        b = bN > 0 ? Math.min(1f, b / bN * 2.6f) : 0f;
+        m = mN > 0 ? Math.min(1f, m / mN * 2.2f) : 0f;
+        h = hN > 0 ? Math.min(1f, h / hN * 2.8f) : 0f;
+        // 快起慢落（鼓点冲击有感，回落柔和）
+        spBassPrev = spBass;
+        spBass = b > spBass ? spBass + (b - spBass) * 0.55f : spBass + (b - spBass) * 0.14f;
+        spMid = m > spMid ? spMid + (m - spMid) * 0.35f : spMid + (m - spMid) * 0.12f;
+        spHigh = h > spHigh ? spHigh + (h - spHigh) * 0.5f : spHigh + (h - spHigh) * 0.2f;
+        spectrumLastMs = System.currentTimeMillis();
+    }
+
+    /** 频谱有效（最近 800ms 内有数据且未暂停） */
+    private boolean spectrumLive() {
+        return spectrumLastMs > 0
+                && System.currentTimeMillis() - spectrumLastMs < 800L
+                && playing;
+    }
+
     public void setPlaying(boolean isPlaying) {
         if (playing != isPlaying) { playing = isPlaying; invalidate(); }
     }
@@ -196,7 +243,6 @@ public class RadioUniverseView extends View {
         if (!coverPresent) return;
         if (argb != 0 && argb != waveColor) {
             waveColor = argb;
-            buildTitleGlow(); // 辉光色跟随封面取色
             invalidate();
         }
     }
@@ -211,7 +257,6 @@ public class RadioUniverseView extends View {
             // 无封面：电波恢复默认白色（重置取色覆盖，辉光同步重建）
             if (waveColor != COLOR_WAVE) {
                 waveColor = COLOR_WAVE;
-                buildTitleGlow();
             }
         }
         invalidate();
@@ -275,55 +320,21 @@ public class RadioUniverseView extends View {
     }
 
     /** 台名/字号收敛（长名自适应缩字号；字号=页面中部大字的一半规格） */
-    // ===== 中心台名辉光（离屏预渲染位图；onDraw 只 drawBitmap，无 setShadowLayer） =====
-
-    private Bitmap titleGlowBitmap;  // 当前台名 + 青色外发光
-    private float titleGlowCx, titleGlowCy; // 位图中心（绘制对齐用）
 
     /** 台名/字号收敛（长名自适应缩字号；字号=页面中部大字的一半规格） */
     private void refreshTitle() {
         if (layoutW <= 0) return;
         title = titleOf(currentIndex);
         boolean wide = layoutW > layoutH;
-        float target = Math.max(13f, layoutW * (wide ? 0.028f : 0.042f));
+        float target = Math.max(13f, layoutW * (wide ? 0.0336f : 0.0504f));
         textPaint.setTextSize(target);
         float measured = textPaint.measureText(title);
         float avail = layoutW * 0.9f;
         titleSize = measured <= avail ? target : Math.max(target * 0.5f, target * avail / measured);
         textPaint.setTextSize(titleSize);
         titleW = textPaint.measureText(title);
-        buildTitleGlow();
     }
 
-    /** 离屏渲染台名辉光位图：文字带 BlurMaskFilter 青色外发光 + 实心主体（文字/尺寸/辉光色变化时重建） */
-    private void buildTitleGlow() {
-        if (title.isEmpty() || layoutW <= 0) return;
-        float blur = titleSize * 0.38f;
-        float padH = blur + 6f;
-        float padV = titleSize * 0.55f + blur;
-        int w = (int) (titleW + padH * 2f);
-        int h = (int) (titleSize + padV * 2f);
-        if (w <= 0 || h <= 0) return;
-        Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bmp);
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setTextAlign(Paint.Align.CENTER);
-        p.setTextSize(titleSize);
-        Paint.FontMetrics fm = p.getFontMetrics();
-        float base = h / 2f - (fm.ascent + fm.descent) / 2f;
-        // 辉光层：BlurMaskFilter 外发光（色随电波取色/封面，无取色用默认青）
-        p.setColor(waveColor & 0xFFFFFF);
-        p.setMaskFilter(new BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL));
-        c.drawText(title, w / 2f, base, p);
-        // 主体层：实文字叠在辉光上
-        p.setMaskFilter(null);
-        p.setColor(0xFFF0F8FF);
-        c.drawText(title, w / 2f, base, p);
-        if (titleGlowBitmap != null) titleGlowBitmap.recycle();
-        titleGlowBitmap = bmp;
-        titleGlowCx = w / 2f;
-        titleGlowCy = h / 2f;
-    }
 
     private String titleOf(int i) {
         if (i < 0 || i >= playlist.size()) return "";
@@ -351,7 +362,7 @@ public class RadioUniverseView extends View {
             Floater f = new Floater();
             f.queueIndex = pool.get(p);
             f.size = baseSize * (0.45f + random.nextFloat() * 0.75f);   // 大小不等
-            f.maxAlpha = 0.10f + random.nextFloat() * 0.40f;             // 10%~50%
+            f.maxAlpha = 0.10f + random.nextFloat() * 0.30f;             // 10%~40%
             textPaint.setTextSize(f.size);
             String t = titleOf(f.queueIndex);
             f.textW = textPaint.measureText(t);
@@ -470,15 +481,38 @@ public class RadioUniverseView extends View {
         postInvalidateOnAnimation();
     }
 
-    /** 锯齿弧分段数（弧向齿数；齿数适中太密会变虚线） */
-    private static final int WAVE_TEETH = 28;
-    /** 锯齿深度（占半径比例；齿尖向外/基线向内的振幅） */
-    private static final float WAVE_TOOTH_DEPTH = 0.030f;
+/** 波纹弧采样分段数（弧向正弦采样；足够密保证曲线平滑） */
+    private static final int WAVE_TEETH = 48;
+    /** 波纹振幅（占基线半径比例；涟漪起伏感） */
+    private static final float WAVE_TOOTH_DEPTH = 0.022f;
+    /** 每道波沿弧向的完整正弦波数（多波峰，水面涟漪的不规则感） */
+    private static final float WAVE_RIPPLE_CYCLES = 5.5f;
+    /** 相邻波道的相位错开（半径偏移 + 相位差 → 波纹呈推进感而非同心复制） */
+    private static final float WAVE_PHASE_STEP = 1.7f;
 
-    /** 电波：图标→中心台名方向的连续锯齿弧（半径推进+透明度衰减；最远端 0.8×台名距） */
+    /**
+     * 电波：图标→中心台名方向的音乐频谱涟漪。
+     * 频谱驱动（feedSpectrum 有效时）：
+     * - 低频（bass）：波纹振幅胀缩——鼓点砸下整圈波纹外扩，回落收拢
+     * - 中频（mid）：波峰密度——人声/主旋律密集时波纹变细密
+     * - 高频（high）：亮度抖动——镲片/气声让波纹瞬间增亮
+     * 无频谱/暂停：回落静态涟漪（原形态）。
+     */
     private void drawWaves(Canvas canvas, long now) {
         if (waveAlpha < 0.02f) return;
+        float density = getResources().getDisplayMetrics().density;
         float r0 = iconSize * 0.75f;
+
+        // ===== 节拍速度积分：扩散速度随能量 =====
+        // 速度倍率 = 0.45 + 能量×1.35（安静 0.45×，满能量 1.8×）
+        // 能量 = 三频段加权和（低频主导：鼓点推动最明显）
+        boolean liveForClock = spectrumLive();
+        float energy = liveForClock ? (spBass * 0.62f + spMid * 0.28f + spHigh * 0.10f) : 0f;
+        float speedMul = liveForClock ? (0.45f + energy * 1.35f) : 1f;
+        if (waveClockLastMs < 0) waveClockLastMs = now;
+        double dt = Math.min(0.1d, (now - waveClockLastMs) / 1000d); // 防 resume 大步
+        waveClock += dt * speedMul;
+        waveClockLastMs = now;
         // 终点=台名中心：辐射范围缩减 20%（终点距图标 = 图标→台名距离 × 0.8）
         float dx = titleCx - iconCx, dy = titleCy - iconCy;
         float r1 = Math.max(r0 * 1.4f, (float) Math.sqrt(dx * dx + dy * dy) * 0.8f);
@@ -486,25 +520,45 @@ public class RadioUniverseView extends View {
         float centerDeg = (float) Math.toDegrees(Math.atan2(dy, dx));
         float startDeg = centerDeg - 70f;
         float sweepDeg = 140f;
-        float tooth = r0 * WAVE_TOOTH_DEPTH + 1.5f; // 齿深近似恒定（小半径时退化小）
-        float stroke = 2f * getResources().getDisplayMetrics().density;
+
+        boolean live = spectrumLive();
+        // 振幅：静态基值 + 低频能量放大（鼓点推波，2.6 倍动态范围）
+        float amp = r0 * WAVE_TOOTH_DEPTH + 1.2f * density
+                + (live ? spBass * r0 * 0.055f : 0f);
+        // 波峰数：静态 5.5 + 中频 0~4（密集变细）
+        float cycles = WAVE_RIPPLE_CYCLES + (live ? spMid * 4f : 0f);
+        // 低频冲击：bass 上升沿瞬间波道整体外推（快起慢落的半径脉冲）
+        float punch = live ? Math.max(0f, spBass - spBassPrev) * 30f : 0f;
+        float stroke = 2f * density + (live ? spBass * density : 0f);
         wavePaint.setStrokeWidth(stroke);
         wavePaint.setStyle(Paint.Style.STROKE);
-        wavePaint.setStrokeJoin(Paint.Join.ROUND); // 锯齿折点圆润（车机 GPU 快线段）
+        wavePaint.setStrokeJoin(Paint.Join.ROUND);
         for (int i = 0; i < WAVE_COUNT; i++) {
-            float ph = ((now % WAVE_CYCLE_MS) / (float) WAVE_CYCLE_MS + i / (float) WAVE_COUNT) % 1f;
-            float r = r0 + (r1 - r0) * ph;
-            int a = (int) ((1f - ph) * 0.5f * waveAlpha * 255);
+            // 波道推进相位：节拍积分时钟（速度随能量；静态时=真实时间）
+            float t = (float) (waveClock / (WAVE_CYCLE_MS / 1000f));
+            float ph = (t + i / (float) WAVE_COUNT) % 1f;
+            float baseR = r0 + (r1 - r0) * ph + punch * (1f - ph); // 冲击偏置近端波道强
+            // 涟漪沿弧向流动：同积分时钟（速度与扩散同步变化）
+            float flow = t * (float) Math.PI * 2f + i * WAVE_PHASE_STEP;
+            // 亮度：基础衰减 + 高频抖动（镲片闪）
+            float hiSpark = live ? spHigh * 0.35f * (0.5f + 0.5f
+                    * (float) Math.sin(now / 90.0 + i * 2.1)) : 0f;
+            int a = (int) ((1f - ph) * (0.5f + hiSpark) * waveAlpha * 255);
             if (a <= 4) continue;
             wavePaint.setColor(a << 24 | (waveColor & 0xFFFFFF));
-            // 锯齿弧：分段折线，齿尖（r+tooth）与齿谷（r-tooth）交替
+            // 涟漪弧：沿弧向正弦调制半径（波峰/波谷连续起伏，两端收平）
             wavePath.reset();
             for (int s = 0; s <= WAVE_TEETH; s++) {
                 float frac = s / (float) WAVE_TEETH;
                 float deg = startDeg + sweepDeg * frac;
-                // 奇数段在齿尖、偶数段在齿谷（两端闭合在基线半径）
-                float rr = (s == 0 || s == WAVE_TEETH) ? r
-                        : ((s % 2 == 1) ? r + tooth : r - tooth);
+                // 端部 taper（首末 15% 内正弦包络收 0，避免两端突兀断裂）
+                float env = (frac < 0.15f) ? frac / 0.15f
+                        : (frac > 0.85f) ? (1f - frac) / 0.15f : 1f;
+                // 频谱活时波纹密度按弧向微变（模拟频段分布；低弧端=低频大波峰）
+                float cyc = live ? cycles * (0.8f + 0.4f * frac) : cycles;
+                float ripple = (float) Math.sin(frac * cyc * Math.PI * 2f + flow)
+                        * amp * env;
+                float rr = baseR + ripple;
                 double rad = Math.toRadians(deg);
                 float x = iconCx + (float) (rr * Math.cos(rad));
                 float y = iconCy + (float) (rr * Math.sin(rad));
@@ -607,22 +661,191 @@ public class RadioUniverseView extends View {
         canvas.drawCircle(x, y, 2.2f * getResources().getDisplayMetrics().density, dotPaint);
     }
 
-    private static final long TITLE_CYCLE_MS = 4200L; // 中心台名渐隐循环周期
+    // ===== 中心台名：GlowLyricView 流光完整移植（逐字三态） =====
 
-    /** 中心台名：透明度 100%→1%→100% 连续往返循环（无缩放；无休止段），swap 动画期间不画 */
+    /** 每字配置（确定性随机：seed=台名哈希，重绘不重排） */
+    private static final class TitleChar {
+        float cx, cy;          // 安放中心（含散布）
+        float driftX, driftY;  // 点亮前预摆位（spring 起点）
+        float baseScale;       // 各自稳定 scale（1.1~1.3 大小不一）
+        float rotate;          // 基准微转角（±5°）
+        int state;             // 0=待显 1=点亮中 2=已过
+        long stateChangeMs;
+    }
+    private TitleChar[] titleChars = new TitleChar[0];
+    private long titleCharsSeed = Long.MIN_VALUE; // 台名变化时重排标志
+
+    private static final long TITLE_CHAR_MS = 360L;   // 每字点亮时长（active 窗）
+    private static final long TITLE_PASS_MS = 500L;   // 点亮后回稳时长
+    private static final float T_BASE_ALPHA = 0.82f;  // 回稳后透明度
+    private static final int T_COLOR_BASE = 0xFFC7DCF5;     // 未点亮渐变基色（冷银蓝）
+    private static final int T_COLOR_HILIGHT = 0xFFF0F8FF;  // 点亮满色（浅冰白）
+    /** 低版本降级（GlowLyricView 同款） */
+    private static final boolean TITLE_LIGHT_GLOW = android.os.Build.VERSION.SDK_INT < 23;
+
+    /** 台名逐字配置构建（台名/字号变化时重排；确定性随机同形态） */
+    private void buildTitleChars() {
+        int n = title.length();
+        if (n == titleChars.length && titleCharsSeed == title.hashCode()) return;
+        titleCharsSeed = title.hashCode();
+        titleChars = new TitleChar[n];
+        if (n == 0) return;
+        long seed = titleCharsSeed;
+        float density = getResources().getDisplayMetrics().density;
+        float spread = 14f * density;   // 散布幅度（normal 档折半：台名短居中不强散）
+        float gapBase = titleSize * 0.06f;
+        // 逐字宽度 → 各字 scale → 总宽 → 起点居中
+        float[] widths = new float[n];
+        float[] scales = new float[n];
+        textPaint.setTextSize(titleSize);
+        float total = 0f;
+        for (int i = 0; i < n; i++) {
+            widths[i] = textPaint.measureText(title, i, i + 1);
+            scales[i] = 1.1f + rand01(seed, i, 4) * 0.2f;   // 1.1~1.3 大小不一
+            total += widths[i] * scales[i] + (i < n - 1 ? gapBase : 0f);
+        }
+        float x = titleCx - total / 2f;
+        for (int i = 0; i < n; i++) {
+            TitleChar c = new TitleChar();
+            float dx = (rand01(seed, i, 1) - 0.5f) * spread * 2f;
+            float dy = (rand01(seed, i, 2) - 0.5f) * spread * 1.2f;
+            c.cx = x + widths[i] * scales[i] / 2f + dx;
+            c.cy = titleCy + dy;
+            c.driftX = (rand01(seed, i, 5) - 0.5f) * 80f * density;   // 预漂移
+            c.driftY = (rand01(seed, i, 6) - 0.5f) * 60f * density - 20f * density;
+            c.baseScale = scales[i];
+            c.rotate = (rand01(seed, i, 3) - 0.5f) * 10f;   // ±5° 微方位
+            c.state = 0;
+            c.stateChangeMs = 0L;
+            titleChars[i] = c;
+            x += widths[i] * scales[i] + gapBase;
+        }
+    }
+
+    /** folia 确定性随机：sin 哈希到 [0,1)（GlowLyricView 同款） */
+    private static float rand01(long seed, int index, int offset) {
+        double v = Math.sin((seed + index) * 12.9898 + offset * 78.233) * 43758.5453;
+        return (float) (v - Math.floor(v));
+    }
+
+    /** 欠阻尼弹簧（ζ=0.55/ω=16，GlowLyricView 同手感） */
+    private static float springProgress(long elapsedMs) {
+        float t = elapsedMs / 1000f;
+        if (t <= 0f) return 0f;
+        if (t >= 0.6f) return 1f;
+        double zeta = 0.55, omega = 16.0, wd = omega * Math.sqrt(1 - zeta * zeta);
+        double v = 1 - Math.exp(-zeta * omega * t)
+                * (Math.cos(wd * t) + (zeta * omega / wd) * Math.sin(wd * t));
+        return (float) Math.max(0, Math.min(1.15, v));
+    }
+
+    private static int lerpColor(int from, int to, float t) {
+        if (t <= 0f) return from;
+        if (t >= 1f) return to;
+        int fr = (from >> 16) & 0xFF, fg = (from >> 8) & 0xFF, fb = from & 0xFF;
+        int tr = (to >> 16) & 0xFF, tg = (to >> 8) & 0xFF, tb = to & 0xFF;
+        return 0xFF000000
+                | ((fr + (int) ((tr - fr) * t)) << 16)
+                | ((fg + (int) ((tg - fg) * t)) << 8)
+                | (fb + (int) ((tb - fb) * t));
+    }
+
+    /** 逐字显示节奏轴：进度域 0..n+1（逐字点亮串行推进） */
+    private float titleCharPos(long now) {
+        float sp = (now % TITLE_TOTAL_MS) / (float) TITLE_TOTAL_MS;
+        if (sp < 0.80f) return sp / 0.80f * titleChars.length;  // 逐字点亮窗
+        float hold = (sp - 0.80f) / 0.20f;                        // 保持→重新
+        return titleChars.length;                                  // 全亮保持
+    }
+    private static final long TITLE_TOTAL_MS = 5000L;
+
+    /**
+     * 中心台名（GlowLyricView 词三态逐字移植）：
+     * 每字独立 size（1.1~1.3×）/方位（±散布+±5° 微转角）；
+     * 点亮 = spring 0.5→1.4×base 回稳 + 预转 20° 回正 + 漂移点飞落 +
+     * 颜色基色→高亮渐变 + 字素双圈辉光正弦 ramp；未点亮字不显示。
+     */
     private void drawTitle(Canvas canvas, long now) {
         if (title.isEmpty()) return;
-        // 相位 0→1：透明度 100% 起 → 降到 1%（ph=0.5）→ 回到 100%
-        float ph = (now % TITLE_CYCLE_MS) / (float) TITLE_CYCLE_MS;
-        float amb = 1f - 0.99f * (0.5f - 0.5f * (float) Math.cos(2 * Math.PI * ph));
-        // 淡出段（透明度降到 ~15% 时）星点接棒，文字始终保留 ≥1% 残留
-        if (amb < 0.15f) drawDot(canvas, titleCx, titleCy, 1f - amb / 0.15f);
-        if (titleGlowBitmap == null || titleGlowBitmap.isRecycled()) return;
-        // 辉光位图整体透明度随循环波动（含辉光一起渐隐）
-        bmpPaint.setAlpha((int) (amb * (playing ? 1f : 0.8f) * 255));
-        bmpRect.set(titleCx - titleGlowCx, titleCy - titleGlowCy,
-                titleCx + titleGlowCx, titleCy + titleGlowCy);
-        canvas.drawBitmap(titleGlowBitmap, null, bmpRect, bmpPaint);
+        buildTitleChars();
+        int n = titleChars.length;
+        if (n == 0) return;
+        textPaint.setTextSize(titleSize);
+        Paint.FontMetrics fm = textPaint.getFontMetrics();
+        float baselineOff = -(fm.ascent + fm.descent) * 0.5f - fm.descent; // 中心→基线
+        float pos = titleCharPos(now);     // 点亮轴
+        float baseA = playing ? 1f : 0.8f;
+        float rInner = titleSize * 0.35f, rOuter = titleSize * 0.60f;
+        int glowPasses = TITLE_LIGHT_GLOW ? 1 : 2;
+
+        for (int i = 0; i < n; i++) {
+            TitleChar c = titleChars[i];
+            // 三态：点亮窗 [i, i+1]，已过 > i+1
+            int st = pos <= i ? 0 : (pos <= i + 1f ? 1 : 2);
+            if (st == 0) continue;                     // 未点亮不显示
+            if (st != c.state) { c.state = st; c.stateChangeMs = now; }
+            long el = now - c.stateChangeMs;
+
+            float alpha, scale, rotate, glow;
+            if (st == 1) {
+                // 点亮中：spring 0.5→base×1.4、alpha 100ms、预转 20° 回正、漂移飞落
+                float s = springProgress(el);
+                scale = 0.5f + (c.baseScale * 1.4f - 0.5f) * Math.min(1f, s);
+                alpha = Math.min(1f, el / 100f);
+                rotate = c.rotate + 20f * (1f - Math.min(1f, el / 400f));
+                float px = (float) Math.exp(-el / 260f);
+                c.driftX *= 1f; c.driftY *= 1f;         //（保持配置，不衰减存储值）
+                // 位置 spring：dx/dy 由漂移向安放位收敛
+                float dx = c.driftX * px, dy = c.driftY * px;
+                // 该字点亮进度（0→1）：字素辉光 ramp + 颜色渐变用
+                float tChar = Math.min(1f, el / (float) TITLE_CHAR_MS);
+                glow = (float) Math.sin(tChar * Math.PI) * Math.min(1f, el / 100f);
+                drawTitleChar(canvas, c, i, dx, dy, alpha * baseA, scale, rotate,
+                        lerpColor(T_COLOR_BASE, T_COLOR_HILIGHT, tChar), glow,
+                        rInner, rOuter, glowPasses, baselineOff);
+            } else {
+                // 已过：0.5s 回稳 alpha 0.82 / scale base，辉光退尽
+                float t = Math.min(1f, el / (float) TITLE_PASS_MS);
+                float e = 1f - (1f - t) * (1f - t);
+                scale = c.baseScale * 1.4f + (c.baseScale - c.baseScale * 1.4f) * e;
+                alpha = 1f + (T_BASE_ALPHA - 1f) * e;
+                rotate = c.rotate;
+                glow = 0f;
+                drawTitleChar(canvas, c, i, 0f, 0f, alpha * baseA, scale, rotate,
+                        T_COLOR_HILIGHT, glow, rInner, rOuter, glowPasses, baselineOff);
+            }
+        }
+    }
+
+    /** 单字绘制：字素双圈辉光层（shadowLayer）+ 正文层（GlowLyricView paintWord 同构） */
+    private void drawTitleChar(Canvas canvas, TitleChar c, int idx, float dx, float dy,
+                               float alpha, float scale, float rotate, int color, float glow,
+                               float rInner, float rOuter, int glowPasses, float baselineOff) {
+        int a = (int) (Math.min(1f, alpha) * 255);
+        if (a <= 2) return;
+        int sc = canvas.save();
+        canvas.translate(c.cx + dx, c.cy + dy);
+        canvas.scale(scale, scale);
+        if (rotate != 0f) canvas.rotate(rotate);
+        float baseline = baselineOff;
+        // 辉光层：双圈（内 0.7α/外满 α）。色彩逻辑与电波解耦：
+        // 有封面跟电波取色；无封面电波恒白，辉光恒暖黄（视觉分层）
+        if (glow > 0.02f) {
+            int glowRGB = (coverPresent ? waveColor : titleGlowColor) & 0xFFFFFF;
+            for (int pass = 0; pass < glowPasses; pass++) {
+                float radius = TITLE_LIGHT_GLOW ? rOuter * 0.5f : (pass == 0 ? rInner : rOuter);
+                float alphaScale = (TITLE_LIGHT_GLOW || pass == 1) ? 1f : 0.7f;
+                int ga = (int) (glow * alphaScale * alpha * 235);
+                textPaint.setShadowLayer(radius, 0f, 0f, (ga << 24) | glowRGB);
+                textPaint.setColor(0);
+                canvas.drawText(title, idx, idx + 1, 0f, baseline, textPaint);
+            }
+            textPaint.clearShadowLayer();
+        }
+        // 正文层
+        textPaint.setColor((a << 24) | (color & 0xFFFFFF));
+        canvas.drawText(title, idx, idx + 1, 0f, baseline, textPaint);
+        canvas.restoreToCount(sc);
     }
 
     /** 换台对调：新台名 floater 位→中心放大实化；老台名 中心→新台原位缩成星点 */

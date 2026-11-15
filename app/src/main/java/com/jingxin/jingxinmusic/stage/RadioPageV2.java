@@ -116,7 +116,11 @@ public class RadioPageV2 extends StagePage {
         topBar.setRadioMode(true); // 电台态：动效/搜索/装扮三键禁用
         topBar.setListener(new PlayerTopBar.Listener() {
             @Override public void onBack() { if (actions != null) actions.exitPlayerPage(); }
-            // 音效弹窗可用；频谱/动效/搜索/装扮与直播流无关，保持空操作
+            @Override public void onEffect(View anchor) {
+                // 音效（EQ/软均衡）对电台直播流同样生效，正常弹窗
+                if (actions != null) actions.showEffectPickerPopup(anchor);
+            }
+            // 频谱/动效/搜索/装扮与直播流无关（radioMode 已禁用其触发），保持空操作
         });
         topBar.setVisibility(View.GONE);
 
@@ -183,6 +187,15 @@ public class RadioPageV2 extends StagePage {
         universe.setQueueData(playlist, idx);
         universe.setPlaying(!isPausedNow());
         loadRadioCover(); // 换台刷新底部图标封面
+    }
+
+    /**
+     * 频谱数据分发（Fragment Visualizer/AudioRecord 桥）：电波涟漪随节奏。
+     * 与频谱开关无关（频谱 View 隐藏时数据链仍活，电波继续吃数据）。
+     */
+    @Override
+    public void feedSpectrumData(float[] magnitudes, float maxMag) {
+        if (universe != null) universe.feedSpectrum(magnitudes, maxMag);
     }
 
     private boolean isPausedNow() {
