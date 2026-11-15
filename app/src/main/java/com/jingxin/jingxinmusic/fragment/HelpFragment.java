@@ -301,7 +301,7 @@ public class HelpFragment extends BaseFloatFragment {
         addBullet("8. 波形柱（STYLE_WAVECOLUMN）：", "波形柱状混合模式。横屏 128 根、竖屏 64 根，圆角矩形柱（宽 10px）+ 波形叠加，放大偏移 10px。");
         addBullet("9. 扩散圆环（STYLE_DIFFUSION_RING）：", "扩散圆环频谱。FFT 输入 256 点计算总能量，能量超过阈值时从中心向外扩散圆环，沉浸模式下不可选。");
         addBullet("10. 波浪圆环（STYLE_WAVE_RING）：", "波浪圆环频谱。FFT 输入 256 点，内环距封面外沿 10px，能量点沿圆环动态扩散，沉浸模式下不可选。");
-        addBullet("11. 渐变柱状（STYLE_BUDING）：", "sfcar launcher 移植、几何与配色按静心规则适配。胶囊柱（宽 15px、圆角 7.5px、柱距 25px），柱高随幅度直译像素、满条带高（10px 保底），横竖屏均铺满整页宽，镜像对称低频居中，镜像后高斯平滑 + 60ms 线性过渡，每柱纵向三段渐变跟随封面双色（无封面回落默认金，顶端渐隐）。");
+        addBullet("11. 渐变柱状（STYLE_GRADIENT）：", "胶囊柱频谱，几何与配色按静心规则适配：柱宽 15px、圆角 7.5px、柱距 25px，柱高随幅度直译像素、满条带高（10px 保底），横竖屏均铺满整页宽，镜像对称低频居中，镜像后高斯平滑 + 60ms 线性过渡，每柱纵向三段渐变跟随封面双色（无封面回落默认金，顶端渐隐）。");
         addDivider();
         addPara("");
         addBullet("显示/隐藏：", "长按频谱按钮切换频谱显示和隐藏。");

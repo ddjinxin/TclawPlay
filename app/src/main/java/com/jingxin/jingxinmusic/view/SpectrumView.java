@@ -17,7 +17,7 @@ import java.util.Random;
 
 /**
  * 频谱视图
- * 支持十一种样式：竖条、圆点、波浪线、圆环、ColumnarView、KugouColumn、AiVoiceView、WaveColumnformView、DiffusionRingView、WaveRingView、布丁柱（sfcar launcher 移植，几何/配色按静心规则适配）
+ * 支持十一种样式：竖条、圆点、波浪线、圆环、ColumnarView、KugouColumn、AiVoiceView、WaveColumnformView、DiffusionRingView、WaveRingView、渐变柱状
  * 圆环模式有三种子模式：柱状、爆炸、波形
  * 扩散圆环模式无子模式
  */
@@ -36,7 +36,7 @@ public class SpectrumView extends View {
     public static final int STYLE_WAVECOLUMN = 7;  // WaveColumnformView 波形柱模式（原版）
     public static final int STYLE_DIFFUSION_RING = 8; // DiffusionRingView 扩散圆环模式（原版）
     public static final int STYLE_WAVE_RING = 9;     // WaveRingView 波浪圆环模式（原版）
-    public static final int STYLE_BUDING = 10;       // 布丁柱（sfcar launcher StraightSideAdapter 移植，几何/配色按静心规则适配）
+    public static final int STYLE_GRADIENT = 10;    // 渐变柱状（胶囊柱，几何/配色按静心规则适配）
     
     // 频谱名称数组（对外暴露）
     public static final String[] STYLE_NAMES = {
@@ -65,15 +65,14 @@ public class SpectrumView extends View {
     private static final int COLUMNAR_COUNT_LANDSCAPE = 128;
     private static final int COLUMNAR_COUNT_PORTRAIT = 64;
     private int columnarCount = COLUMNAR_COUNT_PORTRAIT;
-    // 布丁柱：柱数随宽度（原版 onMeasure：coerceAtMost(宽/25, 2010)/2+1）
-    private int budingCount = 22;
-    private float[] budingTransform;   // 布丁柱 BD 放大复用缓冲（数据帧路径，非 onDraw）
-    private float[] budingDisplay;    // 布丁柱当前显示值（60ms 线性插值输出，绘制读此数组）
-    private float[] budingFrom;       // 布丁柱本段动画起点（原版 ValueAnimator.ofFloat(上帧值, 新值)）
-    private long budingAnimStartMs;   // 布丁柱本段动画起点时刻（原版 60ms LinearInterpolator）
-    private long budingLastDataMs;    // 布丁柱数据消费闸门（原版 g 标志：动画未结束不消费新帧）
-    private int budingLogTick;        // TODO 临时诊断计数（验证后删）
-    private final Paint budingPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // 渐变柱状：柱数随宽度（min(宽/25, 1023)/2+1 个 bin，渲染时对称镜像×2）
+    private int gradCount = 22;
+    private float[] gradTransform;    // 渐变柱状倒数放大复用缓冲（数据帧路径，非 onDraw）
+    private float[] gradDisplay;     // 渐变柱状当前显示值（60ms 线性插值输出，绘制读此数组）
+    private float[] gradFrom;        // 渐变柱状本段动画起点（上帧显示值）
+    private long gradAnimStartMs;    // 渐变柱状本段动画起点时刻（60ms 线性插值）
+    private long gradLastDataMs;     // 渐变柱状数据消费闸门（60ms 内不消费新帧）
+    private final Paint gradPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     
     // KugouColumn模式柱数
     private static final int KUGOU_COUNT = 128;
@@ -143,8 +142,8 @@ public class SpectrumView extends View {
     // 频谱条高度数组
     private float[] barHeights;
     private float[] targetBarHeights;
-    // BD竖条模式复用缓冲（替代 updateDTFMagnitudes 里每帧 new float[]）
-    private float[] bdOffsetData;
+    // 竖条倒数归一化复用缓冲（替代 updateDTFMagnitudes 里每帧 new float[]）
+    private float[] barOffsetData;
     
     
     // 峰值指示器
@@ -353,7 +352,7 @@ public class SpectrumView extends View {
         // 恢复上次的频谱样式
         int savedStyle = getContext().getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
                 .getInt(KEY_STYLE, STYLE_BAR);
-        if (savedStyle >= 0 && savedStyle <= STYLE_BUDING) {
+        if (savedStyle >= 0 && savedStyle <= STYLE_GRADIENT) {
             currentStyle = savedStyle;
             initStyleParams(savedStyle);
         }
@@ -362,19 +361,19 @@ public class SpectrumView extends View {
             @Override
             public void run() {
                 if (animRunning && isPlaying) {
-                    // 布丁柱（原版）：每 bin 60ms LinearInterpolator 从上帧显示值线性过渡到新值
-                    if (currentStyle == STYLE_BUDING && budingDisplay != null && budingFrom != null
-                            && budingDisplay.length >= currentCount && budingFrom.length >= currentCount) {
-                        float budingT = (System.currentTimeMillis() - budingAnimStartMs) / 60f;
-                        if (budingT > 1f) budingT = 1f;
-                        if (budingT < 0f) budingT = 0f;
+                    // 渐变柱状：每 bin 60ms 线性插值从上帧显示值过渡到新值
+                    if (currentStyle == STYLE_GRADIENT && gradDisplay != null && gradFrom != null
+                            && gradDisplay.length >= currentCount && gradFrom.length >= currentCount) {
+                        float gradT = (System.currentTimeMillis() - gradAnimStartMs) / 60f;
+                        if (gradT > 1f) gradT = 1f;
+                        if (gradT < 0f) gradT = 0f;
                         for (int i = 0; i < currentCount; i++) {
-                            budingDisplay[i] = budingFrom[i] + (targetBarHeights[i] - budingFrom[i]) * budingT;
+                            gradDisplay[i] = gradFrom[i] + (targetBarHeights[i] - gradFrom[i]) * gradT;
                         }
                     }
                     for (int i = 0; i < currentCount; i++) {
-                        // 布丁柱/AiVoice 不需要重力衰减：直驱样式（数据直传绘制）
-                        if (currentStyle != STYLE_AIVOICE && currentStyle != STYLE_BUDING) {
+                        // 渐变柱状/AiVoice 不需要重力衰减：直驱样式（数据直传绘制）
+                        if (currentStyle != STYLE_AIVOICE && currentStyle != STYLE_GRADIENT) {
                             // 重力衰减：高度越大下落越快，模拟物理重力效果
                             float fallSpeed = targetBarHeights[i] * 0.12f;
                             targetBarHeights[i] -= fallSpeed;
@@ -384,8 +383,8 @@ public class SpectrumView extends View {
                             targetBarHeights[i] = minVal;
                         }
                         
-                        // 布丁柱/AiVoice 不需要峰值指示器（布丁原版无峰值帽）
-                        if (currentStyle != STYLE_AIVOICE && currentStyle != STYLE_BUDING) {
+                        // 渐变柱状/AiVoice 不需要峰值指示器（无峰值帽设计）
+                        if (currentStyle != STYLE_AIVOICE && currentStyle != STYLE_GRADIENT) {
                             // 峰值指示器更新
                             if (barHeights[i] >= peakHeights[i]) {
                                 // 新峰值：更新并重置保持计时器
@@ -411,10 +410,10 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 切换频谱样式：竖条 → 圆点 → ... → 布丁柱 → 竖条
+     * 切换频谱样式：竖条 → 圆点 → ... → 渐变柱状 → 竖条
      */
     public void switchStyle() {
-        int next = (currentStyle + 1) % (STYLE_BUDING + 1);
+        int next = (currentStyle + 1) % (STYLE_GRADIENT + 1);
         setStyle(next);
     }
     
@@ -429,7 +428,7 @@ public class SpectrumView extends View {
      * 直接设置频谱样式并持久化（switchStyle也调用此方法）
      */
     public void setStyle(int style) {
-        if (style < 0 || style > STYLE_BUDING) return;
+        if (style < 0 || style > STYLE_GRADIENT) return;
         setStyleInternal(style);
         // 持久化保存
         getContext().getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
@@ -443,7 +442,7 @@ public class SpectrumView extends View {
      * 冷启动后播放页从 SP 读到柱状，丢失用户选择。
      */
     public void setStyleSilent(int style) {
-        if (style < 0 || style > STYLE_BUDING) return;
+        if (style < 0 || style > STYLE_GRADIENT) return;
         setStyleInternal(style);
     }
 
@@ -530,9 +529,9 @@ public class SpectrumView extends View {
                 waveRingLastRadius.clear();
                 currentCount = 1;
                 break;
-            case STYLE_BUDING:
-                // 布丁柱：原版 transform 后渲染柱数 = bin 数×2（对称镜像），宽度就绪前给默认值
-                currentCount = budingCount * 2;
+            case STYLE_GRADIENT:
+                // 渐变柱状：渲染柱数 = bin 数×2（对称镜像），宽度就绪前给默认值
+                currentCount = gradCount * 2;
                 break;
         }
         rebuildArrays();
@@ -589,9 +588,9 @@ public class SpectrumView extends View {
     
     /**
      * 设置频谱动态跟随色（双色光晕模式由封面双色注入，切歌自动变化）
-     * 生效样式：竖条/圆点/波浪线/圆环/酷狗柱状/布丁柱
-     * @param colorTop    主色（竖条高段/圆点高段/描边亮端/圆环实心线/布丁柱底段实色）
-     * @param colorBottom 副色（竖条低段/圆点低段/填充深端/圆环半透明线/布丁柱中段）
+     * 生效样式：竖条/圆点/波浪线/圆环/双色柱状/渐变柱状
+     * @param colorTop    主色（竖条高段/圆点高段/描边亮端/圆环实心线/渐变柱状底段实色）
+     * @param colorBottom 副色（竖条低段/圆点低段/填充深端/圆环半透明线/渐变柱状中段）
      */
     public void setTint(int colorTop, int colorBottom) {
         tintColors = new int[]{colorTop, colorBottom};
@@ -765,12 +764,12 @@ public class SpectrumView extends View {
                     rebuildArrays();
                 }
             }
-            // 布丁柱模式：随宽度重算（原版 onMeasure：coerceAtMost(宽/25, AnalyticsListener.EVENT_DRM_KEYS_LOADED=1023) 后镜像 /2+1）
-            int newBudingCount = Math.min(w / 25, 1023) / 2 + 1;
-            if (newBudingCount != budingCount) {
-                budingCount = newBudingCount;
-                if (currentStyle == STYLE_BUDING) {
-                    currentCount = budingCount * 2;
+            // 渐变柱状模式：随宽度重算（min(宽/25, 1023) 后镜像 /2+1）
+            int newGradCount = Math.min(w / 25, 1023) / 2 + 1;
+            if (newGradCount != gradCount) {
+                gradCount = newGradCount;
+                if (currentStyle == STYLE_GRADIENT) {
+                    currentCount = gradCount * 2;
                     rebuildArrays();
                 }
             }
@@ -828,8 +827,8 @@ public class SpectrumView extends View {
             case STYLE_WAVE_RING:
                 drawWaveRing(canvas);
                 break;
-            case STYLE_BUDING:
-                drawBuding(canvas);
+            case STYLE_GRADIENT:
+                drawGradientBars(canvas);
                 break;
             default:
                 drawBars(canvas);
@@ -857,21 +856,21 @@ public class SpectrumView extends View {
                 }
                 break;
             }
-            case STYLE_BUDING: {
-                // 布丁柱静态：原版任意数据下柱高均有 10px 保底，空闲画满排底柱（渐变同款，取色链同 drawBuding）
+            case STYLE_GRADIENT: {
+                // 渐变柱状静态：任意数据下柱高均有 10px 保底，空闲画满排底柱（渐变同款，取色链同 drawGradientBars）
                 int h = getHeight();
-                int[] budingColors = customBarColors != null ? customBarColors :
+                int[] gradColors = customBarColors != null ? customBarColors :
                         (tintColors != null ? tintColors :
                         (isNightMode ? nightGradientColors : gradientColors));
                 for (int i = 0; i < currentCount; i++) {
                     float x = i * 25f;
                     float top = h - 10f;
-                    budingPaint.setShader(new LinearGradient(x + 7f, h, x + 7f, top,
-                            new int[]{budingColors[0], budingColors[1], 0x00000000},
+                    gradPaint.setShader(new LinearGradient(x + 7f, h, x + 7f, top,
+                            new int[]{gradColors[0], gradColors[1], 0x00000000},
                             null, Shader.TileMode.MIRROR));
-                    canvas.drawRoundRect(x, top, x + 15f, h, 7.5f, 7.5f, budingPaint);
+                    canvas.drawRoundRect(x, top, x + 15f, h, 7.5f, 7.5f, gradPaint);
                 }
-                budingPaint.setShader(null);
+                gradPaint.setShader(null);
                 break;
             }
             case STYLE_WAVE: {
@@ -1032,33 +1031,33 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 布丁柱（sfcar launcher · VisualizationAudioView + StraightSideAdapter 移植，几何/配色均按静心规则适配）：
+     * 渐变柱状（胶囊柱，几何/配色按静心规则适配）：
      * 柱距 25px、柱宽 15px、圆角 7.5px（胶囊）；柱高 = 显示值直译像素、cap=条带高，
-     * 静心满幅（条带多高柱就多高，如 108px），不用原版 /3（原版条带 400px 高，÷3 比例不适用于静心短条带），
-     * 10px 保底保留；每柱每帧纵向三段渐变结构保留布丁原版（底段实色→中段→顶端透明，MIRROR），
+     * 静心满幅（条带多高柱就多高，如 108px），10px 保底；
+     * 每柱每帧纵向三段渐变（底段实色→中段副色→顶端透明，MIRROR），每帧 new shader 为设计取舍；
      * 颜色按静心取色链：customBarColors → 封面双色 tintColors → 昼/夜默认金渐变；
-     * 原版即每帧 new shader，忠实保留；数据管线保留镜像后高斯平滑（σ=1.5）+ 60ms 线性插值，无重力衰减/无峰值帽。
+     * 数据管线为镜像后高斯平滑（σ=1.5）+ 60ms 线性插值，无重力衰减/无峰值帽。
      */
-    private void drawBuding(Canvas canvas) {
+    private void drawGradientBars(Canvas canvas) {
         int h = getHeight();
-        if (h <= 0 || budingDisplay == null) return;   // 原版：无数据帧时不绘制
-        // 防越界：视图变宽（旋转/页切换/悬浮窗调整）后 currentCount 立即更新，budingDisplay
+        if (h <= 0 || gradDisplay == null) return;   // 无数据帧时不绘制
+        // 防越界：视图变宽（旋转/页切换/悬浮窗调整）后 currentCount 立即更新，gradDisplay
         // 要等下一帧数据到达才重建（数据分支检测长度不足时重新 clone），窗口期按实长绘制
-        int count = Math.min(currentCount, budingDisplay.length);
+        int count = Math.min(currentCount, gradDisplay.length);
         int[] colors = customBarColors != null ? customBarColors :
                 (tintColors != null ? tintColors :
                 (isNightMode ? nightGradientColors : gradientColors));
         for (int i = 0; i < count; i++) {
-            float f3 = budingDisplay[i];                     // 柱高 = 显示值直译像素（静心满幅，cap=条带高）
+            float f3 = gradDisplay[i];                     // 柱高 = 显示值直译像素（静心满幅，cap=条带高）
             float top = f3 <= 10f ? h - 10f : h - f3;        // 10px 保底
             float x = i * 25f;                                // 柱距 25px
-            float cx = x + 7f;                                // 原版：渐变轴 = 柱中心
-            budingPaint.setShader(new LinearGradient(cx, h, cx, top,
+            float cx = x + 7f;                                // 渐变轴 = 柱中心
+            gradPaint.setShader(new LinearGradient(cx, h, cx, top,
                     new int[]{colors[0], colors[1], 0x00000000},
                     null, Shader.TileMode.MIRROR));
-            canvas.drawRoundRect(x, top, x + 15f, h, 7.5f, 7.5f, budingPaint);
+            canvas.drawRoundRect(x, top, x + 15f, h, 7.5f, 7.5f, gradPaint);
         }
-        budingPaint.setShader(null);
+        gradPaint.setShader(null);
     }
 
     /**
@@ -1869,14 +1868,14 @@ public class SpectrumView extends View {
      * 圆环模式返回 RING_INPUT_COUNT（匹配原版SAMPLE_SIZE=256），以便 scope 生效
      */
     public int getBarInputCount() {
-        if (currentStyle == STYLE_BUDING) {
-            // 布丁原版 bin 宽 86Hz（captureSize=512）；本项目 43Hz，取相邻两 bin 合成等效宽度。
-            // 播放页横竖屏是两个 SpectrumView 实例（budingCount 随各自宽度不同），共享同一采集缓冲，
-            // 故按最宽布局（整页宽度口径）供给，实例内 n=min(budingCount, len/2) 再按自身宽度裁剪。
+        if (currentStyle == STYLE_GRADIENT) {
+            // 渐变柱状 bin 宽 86Hz 等效：本项目 43Hz，相邻两 bin 取 max 合成。
+            // 播放页横竖屏是两个 SpectrumView 实例（gradCount 随各自宽度不同），共享同一采集缓冲，
+            // 故按最宽布局（整页宽度口径）供给，实例内 n=min(gradCount, len/2) 再按自身宽度裁剪。
             android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
             int widest = Math.max(dm.widthPixels, dm.heightPixels);
             int maxN = Math.min(widest / 25, 1023) / 2 + 1;
-            return Math.max(budingCount, maxN) * 2;
+            return Math.max(gradCount, maxN) * 2;
         }
         if (currentStyle == STYLE_RING) {
             return RING_INPUT_COUNT;
@@ -1924,24 +1923,24 @@ public class SpectrumView extends View {
 
     /**
      * 用 DFT 幅度数据更新频谱
-     * 竖条模式：BD 方式 — 非线性倒数归一化 + 高斯平滑
+     * 竖条模式：非线性倒数归一化 + 高斯平滑
      * 圆点/波浪线：保留原有对数映射
      */
     public void updateDTFMagnitudes(float[] magnitudes, float maxMag) {
         if (magnitudes == null || magnitudes.length == 0) return;
         
         if (currentStyle == STYLE_BAR) {
-            // ========= BD visualize1 方式：非线性倒数归一化 =========
+            // ========= 非线性倒数归一化 =========
             float maxHeight = getHeight() * 0.9f;
             int offset = 3;  // 跳过前3个超低频频段（直流分量干扰）
             
             // 0. 跳过offset频段：左移数据，前offset根柱子用最小高度
             int dataLen = Math.min(currentCount, magnitudes.length) - offset;
             if (dataLen < 1) dataLen = 1;
-            if (bdOffsetData == null || bdOffsetData.length < currentCount) {
-                bdOffsetData = new float[currentCount];
+            if (barOffsetData == null || barOffsetData.length < currentCount) {
+                barOffsetData = new float[currentCount];
             }
-            float[] offsetData = bdOffsetData;
+            float[] offsetData = barOffsetData;
             for (int i = 0; i < currentCount; i++) {
                 offsetData[i] = (i < offset) ? 0f : ((i - offset < magnitudes.length) ? magnitudes[i - offset] : 0f);
             }
@@ -1991,70 +1990,60 @@ public class SpectrumView extends View {
                 for (int i = 0; i < currentCount && i < magnitudes.length; i++) {
                     targetBarHeights[i] = Math.max(minVal, magnitudes[i]);
                 }
-        // 布丁柱独立分支（原版 VisualizationAudioView.onDraw transform 直译；几何按静心区域适配）：
-        // 相邻两 bin 取 max 合成 86Hz 等效 bin（原版 captureSize=512 的频率覆盖）
-        // → BD 倒数放大 ((max/v)×g+v，g=4.0，阈值 0.2×max，非零且达阈值) → ×5 线性，cap=View高（即条带高，满幅）
-        // → 对称镜像×2 → 高斯平滑 σ=1.5（f12947b）→ 60ms 线性插值显示（g 闸门节流）
-        // 注：渲染端不再 /3，柱高直译像素至条带满幅（见 drawBuding）
-        } else if (currentStyle == STYLE_BUDING) {
-            // 原版 g 闸门：上段 60ms 动画未结束不消费新数据帧（原版采集半速=10Hz，消费节奏等价）
+        // 渐变柱状独立分支（几何按静心频谱区域适配）：
+        // 相邻两 bin 取 max 合成 86Hz 等效 bin
+        // → 倒数自适应放大 ((max/v)×4+v，阈值 0.2×max，非零且达阈值) → ×5 线性，cap=View高（即条带高，满幅）
+        // → 对称镜像×2 → 高斯平滑 σ=1.5 → 60ms 线性插值显示（60ms 闸门节流）
+        // 注：柱高直译像素至条带满幅（见 drawGradientBars）
+        } else if (currentStyle == STYLE_GRADIENT) {
+            // 60ms 闸门：上段动画未结束不消费新数据帧（消费节奏 10Hz）
             long nowMs = System.currentTimeMillis();
-            if (nowMs - budingLastDataMs >= 60L) {
-            budingLastDataMs = nowMs;
-            int n = Math.min(budingCount, magnitudes.length / 2);
+            if (nowMs - gradLastDataMs >= 60L) {
+            gradLastDataMs = nowMs;
+            int n = Math.min(gradCount, magnitudes.length / 2);
             if (n < 1) n = 1;
-            if (budingTransform == null || budingTransform.length < n) {
-                budingTransform = new float[n];
+            if (gradTransform == null || gradTransform.length < n) {
+                gradTransform = new float[n];
             }
             for (int i = 0; i < n; i++) {
                 float a = magnitudes[i * 2];
                 float b = i * 2 + 1 < magnitudes.length ? magnitudes[i * 2 + 1] : a;
-                budingTransform[i] = Math.max(a, b);
+                gradTransform[i] = Math.max(a, b);
             }
             float max = 0f;
             for (int i = 0; i < n; i++) {
-                if (budingTransform[i] > max) max = budingTransform[i];
+                if (gradTransform[i] > max) max = gradTransform[i];
             }
             float g = 4.0f;
             float threshold = 0.2f * max;
             float cap = getHeight();
             for (int i = 0; i < n; i++) {
-                float v = budingTransform[i];
+                float v = gradTransform[i];
                 if (v != 0f && v >= threshold) {
                     v = (max / v) * g + v;
                 }
                 v *= 5.0f;
                 if (v > cap) v = cap;
-                budingTransform[i] = v;
+                gradTransform[i] = v;
             }
-            // 对称镜像（原版 f12946a=true 分支）：左半倒序、右半正序，低频居中
+            // 对称镜像：左半倒序、右半正序，低频居中
             for (int i = 0; i < n && i < targetBarHeights.length - n; i++) {
-                targetBarHeights[n - 1 - i] = budingTransform[i];
-                targetBarHeights[n + i] = budingTransform[i];
+                targetBarHeights[n - 1 - i] = gradTransform[i];
+                targetBarHeights[n + i] = gradTransform[i];
             }
-            // 原版 f12947b=true：镜像后高斯平滑（config.c=1.5 → kernel=(int)(6×1.5)=9；
-            // gaussianSmooth 与原版同构：全核归一 + 边缘越界不补权重 → 两缘自然衰减）
-            float[] budingSmoothed = gaussianSmooth(targetBarHeights, 1.5f);
-            if (budingSmoothed != null && budingSmoothed.length >= currentCount) {
-                System.arraycopy(budingSmoothed, 0, targetBarHeights, 0, currentCount);
+            // 镜像后高斯平滑（σ=1.5 → kernel=9；
+            // 全核归一 + 边缘越界不补权重 → 两缘自然衰减）
+            float[] gradSmoothed = gaussianSmooth(targetBarHeights, 1.5f);
+            if (gradSmoothed != null && gradSmoothed.length >= currentCount) {
+                System.arraycopy(gradSmoothed, 0, targetBarHeights, 0, currentCount);
             }
-            // 原版每 bin ValueAnimator.ofFloat(上帧显示值, 新值)，60ms LinearInterpolator
-            if (budingDisplay == null || budingDisplay.length < currentCount) {
-                budingDisplay = targetBarHeights.clone(); // 首帧直显（原版首帧 h 为空跳过动画）
-                budingFrom = null;
+            // 每 bin 从上帧显示值到新值 60ms 线性插值
+            if (gradDisplay == null || gradDisplay.length < currentCount) {
+                gradDisplay = targetBarHeights.clone(); // 首帧直显
+                gradFrom = null;
             } else {
-                budingFrom = budingDisplay.clone();
-                budingAnimStartMs = nowMs;
-            }
-            // TODO 临时诊断：验证平滑/插值链路（每 30 帧一条，验证后删）
-            budingLogTick++;
-            if (budingLogTick % 30 == 0 && currentCount >= 2 && targetBarHeights.length >= currentCount) {
-                android.util.Log.d("BudingSpec", "n=" + n + " viewH=" + cap
-                        + " max=" + max + " thr=" + threshold
-                        + "|bd0=" + budingTransform[0] + " bdE=" + budingTransform[n - 1]
-                        + "|smC=" + targetBarHeights[currentCount / 2]
-                        + " smE=" + targetBarHeights[currentCount - 1]
-                        + " smL=" + targetBarHeights[0]);
+                gradFrom = gradDisplay.clone();
+                gradAnimStartMs = nowMs;
             }
             }
         } else if (currentStyle == STYLE_COLUMNAR || currentStyle == STYLE_KUGOU
@@ -2195,7 +2184,7 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 高斯平滑（参考 BD 的 DataManipulationUtil 实现）
+     * 高斯平滑（一维核卷积：全核归一 + 边缘越界不补权重）
      * @param data 原始数据
      * @param sigma 高斯核标准差
      * @return 平滑后的数据

@@ -2901,7 +2901,7 @@ public class PlayerFragment extends BaseFloatFragment {
 
                             if (!spectrumRunning || spectrumView == null) return;
 
-                            // BD 方式：FFT 1:1 取幅度，竖条模式只取半数频段（会镜像展开）
+                            // 倒数归一化竖条：FFT 1:1 取幅度，竖条只取半数频段（会镜像展开）
                             int count = spectrumView.getBarInputCount();
                             float[] magnitudes = acquireSpectrumBuf(count);
                             float maxMag = 0;
