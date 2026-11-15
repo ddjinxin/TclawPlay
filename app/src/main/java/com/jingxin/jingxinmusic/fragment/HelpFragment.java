@@ -289,7 +289,7 @@ public class HelpFragment extends BaseFloatFragment {
 
         // ========== 三、频谱可视化 ==========
         addSection("三、频谱可视化");
-        addPara("播放页提供 12 种频谱样式，点击频谱按钮弹出选择面板切换样式。竖屏面板 2 列 6 行，横屏 5 列 3 行，选中样式青色发光高亮。");
+        addPara("播放页提供 13 种频谱样式，点击频谱按钮弹出选择面板切换样式。竖屏面板 2 列 7 行，横屏 5 列 3 行，选中样式青色发光高亮。");
         addDivider();
         addBullet("1. 竖条（STYLE_BAR）：", "经典竖直柱状频谱。柱数为 16 / 屏幕宽度，范围 32~256 根，柱间距 15px，渐变色从低到高。");
         addBullet("2. 圆点（STYLE_DOT）：", "64 个圆点矩阵。取低中高三个频段能量均值，每 30 帧随机 20 个圆点交替跳动，形成跳跃点阵效果，背景底色 60% 透明度。");
@@ -303,6 +303,7 @@ public class HelpFragment extends BaseFloatFragment {
         addBullet("10. 波浪圆环（STYLE_WAVE_RING）：", "波浪圆环频谱。FFT 输入 256 点，内环距封面外沿 10px，能量点沿圆环动态扩散，沉浸模式下不可选。");
         addBullet("11. 竖条2（STYLE_BAR2）：", "FOLIA Monet 移植柱状频谱。72 根固定柱，dB 域字节谱 + 逐帧平滑（0.6）+ 五频带双模式采样（真谱对数轴/假谱锚点插值），sin 门形包络，噪声门与可变 gamma 整形，空闲时正弦呼吸动画。数据源自渲染链 PCM 旁路，频谱跟随实际音量。");
         addBullet("12. 曲线2（STYLE_LINE2）：", "FOLIA Monet line 模式移植。72 采样点平滑曲线（中点二次贝塞尔），面积纵向渐变填充 + 曲线描边，双正弦行波叠加，数据链与竖条2 同源。");
+        addBullet("13. 布丁柱（STYLE_BUDING）：", "sfcar launcher 移植、几何按静心频谱区域适配。胶囊柱（宽 15px、圆角 7.5px、柱距 25px），柱高随幅度直译像素、满条带高（10px 保底），横竖屏均铺满整页宽，镜像对称低频居中，镜像后高斯平滑 + 60ms 线性过渡，每柱纵向三色渐变（暖粉白→淡青蓝→透明）。");
         addDivider();
         addPara("");
         addBullet("显示/隐藏：", "长按频谱按钮切换频谱显示和隐藏。");
