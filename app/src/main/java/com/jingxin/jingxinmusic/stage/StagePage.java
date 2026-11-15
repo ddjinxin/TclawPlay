@@ -58,9 +58,6 @@ public abstract class StagePage {
     /** 频谱数据（各页自持实例的分发入口，无频谱页用空桩） */
     public void feedSpectrumData(float[] magnitudes, float maxMag) {}
 
-    /** 竖条2（FOLIA）字节谱（0..255，getByteFrequencyData 同构；渲染链 tap 旁路分发） */
-    public void feedFoliaSpectrum(float[] byteSpectrum) {}
-
     // ===== 页面能力接口（各页按需覆写，Fragment 经 activePage() 多态分发） =====
 
     /** 控制条触摸隐藏态由宿主同步（无控制条页用空桩） */

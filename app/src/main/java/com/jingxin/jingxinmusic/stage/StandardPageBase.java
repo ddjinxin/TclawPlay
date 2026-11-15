@@ -821,14 +821,6 @@ public class StandardPageBase extends StagePage {
         (bottom.isCoverOverlayMode() ? ring : bottom).updateDTFMagnitudes(magnitudes, maxMag);
     }
 
-    /** 竖条2（FOLIA）字节谱：渲染链 tap 旁路，非环类直接喂底部实例 */
-    public void feedFoliaSpectrum(float[] byteSpectrum) {
-        SpectrumView sp = h.isLandscapeMode ? spectrumL : spectrum;
-        sp.updateFoliaByteSpectrum(byteSpectrum);
-        // 数据到达即请求重绘（不等下一拍；与 animRunnable 的 invalidate 同 vsync 合帧）
-        sp.invalidate();
-    }
-
     // ===== 歌词模式联动（本页闭环，不动全局）=====
 
     /** 歌词点击切模式后的本页联动（复刻 ClassicPage.onLyricModeChanged 竖屏公式；子类可覆写） */

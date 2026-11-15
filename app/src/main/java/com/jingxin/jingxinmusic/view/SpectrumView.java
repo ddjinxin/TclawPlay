@@ -10,7 +10,6 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Shader;import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.view.View;
 
@@ -18,7 +17,7 @@ import java.util.Random;
 
 /**
  * 频谱视图
- * 支持十三种样式：竖条、圆点、波浪线、圆环、ColumnarView、KugouColumn、AiVoiceView、WaveColumnformView、DiffusionRingView、WaveRingView、竖条2、曲线2、布丁柱（竖条2/曲线2为 FOLIA Monet 完整移植，布丁柱为 sfcar launcher 忠实移植）
+ * 支持十一种样式：竖条、圆点、波浪线、圆环、ColumnarView、KugouColumn、AiVoiceView、WaveColumnformView、DiffusionRingView、WaveRingView、布丁柱（sfcar launcher 移植，几何/配色按静心规则适配）
  * 圆环模式有三种子模式：柱状、爆炸、波形
  * 扩散圆环模式无子模式
  */
@@ -37,21 +36,14 @@ public class SpectrumView extends View {
     public static final int STYLE_WAVECOLUMN = 7;  // WaveColumnformView 波形柱模式（原版）
     public static final int STYLE_DIFFUSION_RING = 8; // DiffusionRingView 扩散圆环模式（原版）
     public static final int STYLE_WAVE_RING = 9;     // WaveRingView 波浪圆环模式（原版）
-    public static final int STYLE_BAR2 = 10;         // 竖条2（FOLIA Monet AudioOverlay 完整移植）
-    public static final int STYLE_LINE2 = 11;        // 曲线2（FOLIA Monet line 模式完整移植）
-    public static final int STYLE_BUDING = 12;       // 布丁柱（sfcar launcher StraightSideAdapter 忠实移植）
+    public static final int STYLE_BUDING = 10;       // 布丁柱（sfcar launcher StraightSideAdapter 移植，几何/配色按静心规则适配）
     
     // 频谱名称数组（对外暴露）
     public static final String[] STYLE_NAMES = {
-        "竖条", "圆点", "波浪线", "网易圆环",
-        "柱状", "酷狗柱状", "AI语音", "波形柱",
-        "扩散圆环", "波浪圆环", "竖条2", "曲线2", "布丁柱"
+        "竖条", "圆点", "波浪线", "经典圆环",
+        "柱状", "双色柱状", "AI语音", "波形柱",
+        "扩散圆环", "波浪圆环", "渐变柱状"
     };
-
-    /** FOLIA 移植系样式（竖条2/曲线2）：走渲染链 tap 旁路数据，空闲保持呼吸动画 */
-    public static boolean isFoliaSpectrumStyle(int style) {
-        return style == STYLE_BAR2 || style == STYLE_LINE2;
-    }
     
     // 圆环子模式常量
     private static final int RING_COLUMNAR = 0;      // 柱状（放射白线）
@@ -154,26 +146,6 @@ public class SpectrumView extends View {
     // BD竖条模式复用缓冲（替代 updateDTFMagnitudes 里每帧 new float[]）
     private float[] bdOffsetData;
     
-    // ===== 竖条2（FOLIA Monet 完整移植）=====
-    private final FoliaSpectrum foliaSpectrum = new FoliaSpectrum();
-    private final Paint bar2Paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private LinearGradient bar2Gradient;   // 横向墨色渐变（缓存，尺寸/颜色变化时重建）
-    private int bar2GradWidth = -1;
-    private int bar2GradColor = 0;
-    /**
-     * 视觉增益（方案 B）：FOLIA 原版中柱典型高度仅 ≈27%（gamma 压缩+噪声门+sin 包络三重叠加），
-     * 乘 1.9 后日常中柱 ≈58%、强拍（band≈0.5）≈90%、极强拍偶发触顶，与自研竖条的满屏观感拉平。
-     * 只增益信号项（band/energy/pulse），0.02 基线常驻条保持 FOLIA 原味；机制常数全部不动。
-     */
-    private static final float FOLIA_BAR2_GAIN = 1.9f;
-    // 曲线2专用（FOLIA line 模式）：采样点复用 + 双路径（填充/描边分开）+ 面积渐变缓存
-    private final float[] bar2PtsX = new float[FoliaSpectrum.BAR_COUNT];
-    private final float[] bar2PtsY = new float[FoliaSpectrum.BAR_COUNT];
-    private final android.graphics.Path bar2FillPath = new android.graphics.Path();
-    private final android.graphics.Path bar2StrokePath = new android.graphics.Path();
-    private LinearGradient bar2AreaGradient;    // 纵向面积渐变（primary 0.24α→0α）
-    private int bar2AreaGradHeight = -1;
-    private int bar2AreaGradColor = 0;
     
     // 峰值指示器
     private float[] peakHeights;       // 峰值帽当前高度
@@ -389,9 +361,7 @@ public class SpectrumView extends View {
         animRunnable = new Runnable() {
             @Override
             public void run() {
-                // 竖条2/曲线2（FOLIA）：空闲也保持呼吸动画；其余样式仅播放时驱动
-                if (animRunning && (isPlaying || isFoliaSpectrumStyle(currentStyle))) {
-                    if (isPlaying && !isFoliaSpectrumStyle(currentStyle)) {
+                if (animRunning && isPlaying) {
                     // 布丁柱（原版）：每 bin 60ms LinearInterpolator 从上帧显示值线性过渡到新值
                     if (currentStyle == STYLE_BUDING && budingDisplay != null && budingFrom != null
                             && budingDisplay.length >= currentCount && budingFrom.length >= currentCount) {
@@ -433,7 +403,6 @@ public class SpectrumView extends View {
                             }
                         }
                     }
-                    }
                     invalidate();
                     animHandler.postDelayed(this, ANIM_INTERVAL_MS);
                 }
@@ -442,7 +411,7 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 切换频谱样式：竖条 → 圆点 → ... → 竖条2 → 竖条
+     * 切换频谱样式：竖条 → 圆点 → ... → 布丁柱 → 竖条
      */
     public void switchStyle() {
         int next = (currentStyle + 1) % (STYLE_BUDING + 1);
@@ -561,11 +530,6 @@ public class SpectrumView extends View {
                 waveRingLastRadius.clear();
                 currentCount = 1;
                 break;
-            case STYLE_BAR2:
-            case STYLE_LINE2:
-                // 竖条2/曲线2（FOLIA）：固定 72 柱/采样点，不随宽度自适应
-                currentCount = FoliaSpectrum.BAR_COUNT;
-                break;
             case STYLE_BUDING:
                 // 布丁柱：原版 transform 后渲染柱数 = bin 数×2（对称镜像），宽度就绪前给默认值
                 currentCount = budingCount * 2;
@@ -625,9 +589,9 @@ public class SpectrumView extends View {
     
     /**
      * 设置频谱动态跟随色（双色光晕模式由封面双色注入，切歌自动变化）
-     * 生效样式：竖条/圆点/波浪线/圆环/酷狗柱状
-     * @param colorTop    主色（竖条高段/圆点高段/描边亮端/圆环实心线）
-     * @param colorBottom 副色（竖条低段/圆点低段/填充深端/圆环半透明线）
+     * 生效样式：竖条/圆点/波浪线/圆环/酷狗柱状/布丁柱
+     * @param colorTop    主色（竖条高段/圆点高段/描边亮端/圆环实心线/布丁柱底段实色）
+     * @param colorBottom 副色（竖条低段/圆点低段/填充深端/圆环半透明线/布丁柱中段）
      */
     public void setTint(int colorTop, int colorBottom) {
         tintColors = new int[]{colorTop, colorBottom};
@@ -831,8 +795,7 @@ public class SpectrumView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         
-        // 竖条2/曲线2（FOLIA）：空闲呼吸持续动画，不走静态冻结路径
-        if (!isPlaying && !isFoliaSpectrumStyle(currentStyle)) {
+        if (!isPlaying) {
             drawStatic(canvas);
             return;
         }
@@ -865,12 +828,6 @@ public class SpectrumView extends View {
             case STYLE_WAVE_RING:
                 drawWaveRing(canvas);
                 break;
-            case STYLE_BAR2:
-                drawBar2(canvas);
-                break;
-            case STYLE_LINE2:
-                drawLine2(canvas);
-                break;
             case STYLE_BUDING:
                 drawBuding(canvas);
                 break;
@@ -901,13 +858,16 @@ public class SpectrumView extends View {
                 break;
             }
             case STYLE_BUDING: {
-                // 布丁柱静态：原版任意数据下柱高均有 10px 保底，空闲画满排底柱（渐变同款）
+                // 布丁柱静态：原版任意数据下柱高均有 10px 保底，空闲画满排底柱（渐变同款，取色链同 drawBuding）
                 int h = getHeight();
+                int[] budingColors = customBarColors != null ? customBarColors :
+                        (tintColors != null ? tintColors :
+                        (isNightMode ? nightGradientColors : gradientColors));
                 for (int i = 0; i < currentCount; i++) {
                     float x = i * 25f;
                     float top = h - 10f;
                     budingPaint.setShader(new LinearGradient(x + 7f, h, x + 7f, top,
-                            new int[]{0xFFD9AFD9, 0xFF97D9E1, 0x00000000},
+                            new int[]{budingColors[0], budingColors[1], 0x00000000},
                             null, Shader.TileMode.MIRROR));
                     canvas.drawRoundRect(x, top, x + 15f, h, 7.5f, 7.5f, budingPaint);
                 }
@@ -1072,136 +1032,29 @@ public class SpectrumView extends View {
     }
     
     /**
-     * 竖条2（FOLIA Monet AudioOverlay bars 模式直译）：72 柱，
-     * sin(πx) 门形包络，band 主导（0.82）+ energy 呼吸（0.04）+ pulse 微颤（0.02），
-     * 横向渐变两端 α0.72 中间 α1.0（FOLIA inkGradient）。
-     * 数据：FoliaSpectrum 双模式采样（raw 真谱 / anchor 假谱+呼吸）。
-     */
-    private void drawBar2(Canvas canvas) {
-        int w = getWidth();
-        int h = getHeight();
-        if (w <= 0 || h <= 0) return;
-        int[] colors = customBarColors != null ? customBarColors :
-                (tintColors != null ? tintColors :
-                (isNightMode ? nightGradientColors : gradientColors));
-        int primary = colors[1];
-        if (bar2Gradient == null || bar2GradWidth != w || bar2GradColor != primary) {
-            bar2Gradient = new LinearGradient(0, 0, w, 0,
-                    new int[]{withAlpha(primary, 0xB8), withAlpha(primary, 0xFF), withAlpha(primary, 0xB8)},
-                    new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
-            bar2GradWidth = w;
-            bar2GradColor = primary;
-        }
-        bar2Paint.setShader(bar2Gradient);
-        bar2Paint.setStyle(Paint.Style.FILL); // drawLine2 会置 STROKE，切回时显式恢复
-        float gap = w / (float) FoliaSpectrum.BAR_COUNT;
-        float barWidth = Math.max(1.35f, gap * 0.34f);
-        float now = SystemClock.uptimeMillis();
-        float energy = foliaSpectrum.getEnergy();
-        for (int i = 0; i < FoliaSpectrum.BAR_COUNT; i++) {
-            float sx = i / (float) (FoliaSpectrum.BAR_COUNT - 1);
-            float band = foliaSpectrum.sampleBar(sx);
-            float pulse = (float) (Math.sin(i * 0.45 + now * 0.006) * 0.5 + 0.5);
-            float envelope = (float) Math.sin(sx * Math.PI);
-            float amplitude = energy * 0.04f + band * 0.82f + pulse * 0.02f;
-            // 信号项乘视觉增益（0.02 基线不动）
-            float barHeight = h * (0.02f + amplitude * envelope * FOLIA_BAR2_GAIN);
-            float x = i * gap + gap * 0.14f;
-            canvas.drawRect(x, h - barHeight, x + barWidth, h, bar2Paint);
-        }
-    }
-    
-    /**
-     * 曲线2（FOLIA Monet AudioOverlay line 模式直译）：72 采样点，
-     * band 主导（0.8）+ 双正弦行波（±0.08/±0.05×0.04）+ energy 呼吸（0.04），
-     * sin(πx) 门形包络，中点二次贝塞尔平滑（quadraticCurveTo 同构），
-     * 面积填充（纵向 0.24α→0α）+ 曲线描边（横向渐变，线宽 2dp）。
-     */
-    private void drawLine2(Canvas canvas) {
-        int w = getWidth();
-        int h = getHeight();
-        if (w <= 0 || h <= 0) return;
-        int[] colors = customBarColors != null ? customBarColors :
-                (tintColors != null ? tintColors :
-                (isNightMode ? nightGradientColors : gradientColors));
-        int primary = colors[1];
-        // 描边横向渐变（与 drawBar2 共用缓存）
-        if (bar2Gradient == null || bar2GradWidth != w || bar2GradColor != primary) {
-            bar2Gradient = new LinearGradient(0, 0, w, 0,
-                    new int[]{withAlpha(primary, 0xB8), withAlpha(primary, 0xFF), withAlpha(primary, 0xB8)},
-                    new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
-            bar2GradWidth = w;
-            bar2GradColor = primary;
-        }
-        // 面积纵向渐变：primary 0.24α → 0α（FOLIA areaGradient）
-        if (bar2AreaGradient == null || bar2AreaGradHeight != h || bar2AreaGradColor != primary) {
-            bar2AreaGradient = new LinearGradient(0, 0, 0, h,
-                    withAlpha(primary, 0x3D), withAlpha(primary, 0x00), Shader.TileMode.CLAMP);
-            bar2AreaGradHeight = h;
-            bar2AreaGradColor = primary;
-        }
-        float now = SystemClock.uptimeMillis();
-        float energy = foliaSpectrum.getEnergy();
-        // FOLIA：72 点采样，wave 为双正弦行波（可为负，amplitude 钳非负）
-        for (int i = 0; i < FoliaSpectrum.BAR_COUNT; i++) {
-            float sx = i / (float) (FoliaSpectrum.BAR_COUNT - 1);
-            float band = foliaSpectrum.sampleBar(sx);
-            float wave = (float) (Math.sin(i * 0.24 + now * 0.004) * 0.08
-                    + Math.sin(i * 0.68 + now * 0.0028) * 0.05);
-            float envelope = (float) Math.sin(sx * Math.PI);
-            float amplitude = energy * 0.04f + band * 0.8f + wave * 0.04f;
-            float a = amplitude * envelope * FOLIA_BAR2_GAIN;
-            if (a < 0f) a = 0f;
-            bar2PtsX[i] = sx * w;
-            bar2PtsY[i] = h - a * h;
-        }
-        // 面积填充：曲线 → 右下 → 左下 → 闭合
-        bar2FillPath.rewind();
-        buildLine2Curve(bar2FillPath);
-        bar2FillPath.lineTo(w, h);
-        bar2FillPath.lineTo(0, h);
-        bar2FillPath.close();
-        bar2Paint.setStyle(Paint.Style.FILL);
-        bar2Paint.setShader(bar2AreaGradient);
-        canvas.drawPath(bar2FillPath, bar2Paint);
-        // 曲线描边
-        bar2StrokePath.rewind();
-        buildLine2Curve(bar2StrokePath);
-        bar2Paint.setStyle(Paint.Style.STROKE);
-        bar2Paint.setStrokeWidth(2f * getResources().getDisplayMetrics().density);
-        bar2Paint.setShader(bar2Gradient);
-        canvas.drawPath(bar2StrokePath, bar2Paint);
-        bar2Paint.setShader(null);
-    }
-
-    /** FOLIA drawCurve 直译：moveTo 首点 + 逐段中点二次贝塞尔 + 末点收尾 */
-    private void buildLine2Curve(android.graphics.Path path) {
-        path.moveTo(bar2PtsX[0], bar2PtsY[0]);
-        for (int i = 0; i < FoliaSpectrum.BAR_COUNT - 1; i++) {
-            float xc = (bar2PtsX[i] + bar2PtsX[i + 1]) / 2f;
-            float yc = (bar2PtsY[i] + bar2PtsY[i + 1]) / 2f;
-            path.quadTo(bar2PtsX[i], bar2PtsY[i], xc, yc);
-        }
-        path.lineTo(bar2PtsX[FoliaSpectrum.BAR_COUNT - 1], bar2PtsY[FoliaSpectrum.BAR_COUNT - 1]);
-    }
-
-    /**
-     * 布丁柱（sfcar launcher · VisualizationAudioView + StraightSideAdapter 移植，几何按静心区域适配）：
+     * 布丁柱（sfcar launcher · VisualizationAudioView + StraightSideAdapter 移植，几何/配色均按静心规则适配）：
      * 柱距 25px、柱宽 15px、圆角 7.5px（胶囊）；柱高 = 显示值直译像素、cap=条带高，
      * 静心满幅（条带多高柱就多高，如 108px），不用原版 /3（原版条带 400px 高，÷3 比例不适用于静心短条带），
-     * 10px 保底保留；每柱每帧纵向三色渐变（原版 -2510887/-6825503/0：暖粉白 0xFFD9AFD9 → 淡青蓝 0xFF97D9E1 → 透明，MIRROR）——
+     * 10px 保底保留；每柱每帧纵向三段渐变结构保留布丁原版（底段实色→中段→顶端透明，MIRROR），
+     * 颜色按静心取色链：customBarColors → 封面双色 tintColors → 昼/夜默认金渐变；
      * 原版即每帧 new shader，忠实保留；数据管线保留镜像后高斯平滑（σ=1.5）+ 60ms 线性插值，无重力衰减/无峰值帽。
      */
     private void drawBuding(Canvas canvas) {
         int h = getHeight();
         if (h <= 0 || budingDisplay == null) return;   // 原版：无数据帧时不绘制
-        for (int i = 0; i < currentCount; i++) {
+        // 防越界：视图变宽（旋转/页切换/悬浮窗调整）后 currentCount 立即更新，budingDisplay
+        // 要等下一帧数据到达才重建（数据分支检测长度不足时重新 clone），窗口期按实长绘制
+        int count = Math.min(currentCount, budingDisplay.length);
+        int[] colors = customBarColors != null ? customBarColors :
+                (tintColors != null ? tintColors :
+                (isNightMode ? nightGradientColors : gradientColors));
+        for (int i = 0; i < count; i++) {
             float f3 = budingDisplay[i];                     // 柱高 = 显示值直译像素（静心满幅，cap=条带高）
             float top = f3 <= 10f ? h - 10f : h - f3;        // 10px 保底
             float x = i * 25f;                                // 柱距 25px
             float cx = x + 7f;                                // 原版：渐变轴 = 柱中心
             budingPaint.setShader(new LinearGradient(cx, h, cx, top,
-                    new int[]{0xFFD9AFD9, 0xFF97D9E1, 0x00000000},
+                    new int[]{colors[0], colors[1], 0x00000000},
                     null, Shader.TileMode.MIRROR));
             canvas.drawRoundRect(x, top, x + 15f, h, 7.5f, 7.5f, budingPaint);
         }
@@ -2050,16 +1903,6 @@ public class SpectrumView extends View {
     }
 
     /**
-     * 竖条2（FOLIA）数据入口：FoliaTapProcessor 渲染链 PCM 旁路产出的 0..255 字节谱
-     * （与 getByteFrequencyData 同构）。由 PlayerFragment 从 tap 回调 post 后调用。
-     */
-    public void updateFoliaByteSpectrum(float[] byteSpectrum) {
-        if (isFoliaSpectrumStyle(currentStyle)) {
-            foliaSpectrum.updateByteSpectrum(byteSpectrum);
-        }
-    }
-
-    /**
      * 对称镜像：将半个数组的频段数据镜像展开为完整柱数
      * 左半 = 原始倒序（高频→低频），右半 = 原始正序（低频→高频）
      * 结果：低频在中间，高频在两端，形成对称山丘
@@ -2429,10 +2272,6 @@ public class SpectrumView extends View {
         this.isPlaying = playing;
         if (playing) {
             startAnimation();
-        } else if (isFoliaSpectrumStyle(currentStyle)) {
-            // 竖条2/曲线2（FOLIA 原样）：空闲退呼吸态（anchor 假谱+正弦起伏），动画不停
-            foliaSpectrum.setSpectrumActive(false);
-            if (!animRunning) startAnimation();
         } else {
             stopAnimation();
             float minVal = getStopMinVal(currentStyle);

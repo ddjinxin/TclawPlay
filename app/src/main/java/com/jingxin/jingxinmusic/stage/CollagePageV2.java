@@ -357,17 +357,6 @@ private void revealTopBar() {
         }
     }
 
-    /** 竖条2（FOLIA）字节谱：渲染链 tap 旁路，同样只喂可见卡内实例 */
-    @Override
-    public void feedFoliaSpectrum(float[] byteSpectrum) {
-        SpectrumView sp = h.isLandscapeMode ? cardSpectrumL : cardSpectrum;
-        if (sp != null && sp.getVisibility() == View.VISIBLE) {
-            sp.updateFoliaByteSpectrum(byteSpectrum);
-            // 数据到达即请求重绘（不等下一拍；与 animRunnable 的 invalidate 同 vsync 合帧）
-            sp.invalidate();
-        }
-    }
-
     /** 订阅后初始化卡内频谱（样式/夜间/取色同步真实例） */
     private void pushSpectrumStyle() {
         if (h.spectrumView == null) return;

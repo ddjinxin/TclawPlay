@@ -49,7 +49,6 @@ import com.jingxin.jingxinmusic.util.HistoryManager;
 import com.jingxin.jingxinmusic.util.MusicScanner;
 import com.jingxin.jingxinmusic.util.KrcParser;
 import com.jingxin.jingxinmusic.util.LoudnessScanner;
-import com.jingxin.jingxinmusic.util.FoliaTapProcessor;
 import com.jingxin.jingxinmusic.util.LyricPublicUtil;
 import com.jingxin.jingxinmusic.util.SoftwareEqProcessor;
 import com.jingxin.jingxinmusic.util.WebDavCacheManager;
@@ -127,8 +126,6 @@ public class MusicPlayerService extends Service {
     private AudioEffectManager audioEffectManager;
     // 软件 EQ 处理器：注入 ExoPlayer 渲染链，绕开车机厂商 EQ 在多声道上的静音缺陷
     private SoftwareEqProcessor softwareEqProcessor;
-    // FOLIA 竖条2 频谱 tap：与软件 EQ 同链注入（纯旁路，Chromium AnalyserNode 公式级移植）
-    private FoliaTapProcessor foliaTapProcessor;
 
     // 音量均衡：响度扫描器（无 REPLAYGAIN 标签时 RMS 预扫描，gain_cache.json 缓存）
     private LoudnessScanner loudnessScanner;
@@ -415,9 +412,8 @@ public class MusicPlayerService extends Service {
         // 软件 EQ 处理器注入渲染链：EQ/低音/环绕预设由本应用 DSP 处理，
         // 彻底绕开车机厂商 EQ（NXP）在多声道输出上的静音缺陷。
         softwareEqProcessor = new SoftwareEqProcessor();
-        foliaTapProcessor = new FoliaTapProcessor();
         final DefaultRenderersFactory renderersFactory =
-                new EqRenderersFactory(this, softwareEqProcessor, foliaTapProcessor);
+                new EqRenderersFactory(this, softwareEqProcessor);
         new Thread(() -> {
             try {
                 final ExoPlayer player = new ExoPlayer.Builder(this,
@@ -952,10 +948,6 @@ public class MusicPlayerService extends Service {
         } catch (Exception ignored) {}
         try {
             if (fallbackPlayer != null) fallbackPlayer.setVolume(volume, volume);
-        } catch (Exception ignored) {}
-        // FOLIA 竖条2：分析器挂 gainNode 之后（Chromium 语义），频谱跟随实际听到的音量
-        try {
-            FoliaTapProcessor.setVolume(volume);
         } catch (Exception ignored) {}
     }
 
@@ -1710,8 +1702,8 @@ public class MusicPlayerService extends Service {
             try { oldPlayer.release(); } catch (Exception ignored) {}
         }, "ExoRelease").start();
 
-        // 重建播放器（构造可能阻塞 Binder，移到子线程）；软件 EQ 处理器与 FOLIA tap 继续复用
-        final DefaultRenderersFactory renderersFactory = new EqRenderersFactory(this, softwareEqProcessor, foliaTapProcessor);
+        // 重建播放器（构造可能阻塞 Binder，移到子线程）；软件 EQ 处理器继续复用
+        final DefaultRenderersFactory renderersFactory = new EqRenderersFactory(this, softwareEqProcessor);
         new Thread(() -> {
             try {
                 final ExoPlayer player = new ExoPlayer.Builder(this,
@@ -2452,19 +2444,17 @@ public class MusicPlayerService extends Service {
      */
     private static final class EqRenderersFactory extends DefaultRenderersFactory {
         private final SoftwareEqProcessor eqProcessor;
-        private final FoliaTapProcessor foliaTapProcessor;
 
-        EqRenderersFactory(Context context, SoftwareEqProcessor eqProcessor, FoliaTapProcessor foliaTapProcessor) {
+        EqRenderersFactory(Context context, SoftwareEqProcessor eqProcessor) {
             super(context);
             this.eqProcessor = eqProcessor;
-            this.foliaTapProcessor = foliaTapProcessor;
         }
 
         @Override
         protected androidx.media3.exoplayer.audio.AudioSink buildAudioSink(
                 Context context, boolean enableFloatOutput, boolean enableAudioTrackPlaybackParams) {
             return new androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
-                    .setAudioProcessors(new androidx.media3.common.audio.AudioProcessor[]{eqProcessor, foliaTapProcessor})
+                    .setAudioProcessors(new androidx.media3.common.audio.AudioProcessor[]{eqProcessor})
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                     .build();
