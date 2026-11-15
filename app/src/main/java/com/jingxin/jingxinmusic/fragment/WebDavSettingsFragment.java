@@ -332,9 +332,12 @@ public class WebDavSettingsFragment extends BaseFloatFragment {
         // 同时备份到Download目录，卸载重装后可恢复
         config.exportToDownload();
         // 通知Service重建DataSource（认证头需要更新）
+        // 用 startService 投递：Service 仅在 onStartCommand 处理此 action，广播无接收方（旧实现会静默丢失）
         Intent configIntent = new Intent(com.jingxin.jingxinmusic.service.MusicPlayerService.ACTION_WEBDAV_CONFIG_CHANGED);
-        configIntent.setPackage(requireContext().getPackageName());
-        requireContext().sendBroadcast(configIntent);
+        configIntent.setClass(requireContext(), com.jingxin.jingxinmusic.service.MusicPlayerService.class);
+        try {
+            requireContext().startService(configIntent);
+        } catch (Exception ignored) {}
         // 保存后备份文件可能新建，刷新提取按钮状态
         updateImportButton();
     }

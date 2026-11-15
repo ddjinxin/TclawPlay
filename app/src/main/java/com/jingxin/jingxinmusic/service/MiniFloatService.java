@@ -224,6 +224,10 @@ public class MiniFloatService extends Service {
                 } else if (ACTION_PLAYER_CLAIM.equals(action)) {
                     // PlayerFragment 要创建 Visualizer，MiniFloatService 释放自己的
                     releaseVisualizer();
+                } else if (MusicPlayerService.ACTION_THEME_CHANGED.equals(action)) {
+                    // 日夜切换：悬浮窗不参与 onResume 重读，须广播驱动重建配色
+                    isNightMode = intent.getBooleanExtra(MusicPlayerService.EXTRA_IS_NIGHT, isNightMode);
+                    rebuildFloatView();
                 }
             }
         };
@@ -231,6 +235,7 @@ public class MiniFloatService extends Service {
         filter.addAction(MusicPlayerService.ACTION_SONG_CHANGED);
         filter.addAction(MusicPlayerService.ACTION_PLAY_STATE_CHANGED);
         filter.addAction(ACTION_PLAYER_CLAIM);
+        filter.addAction(MusicPlayerService.ACTION_THEME_CHANGED);
         CompatUtil.safeRegisterReceiver(this, songChangedReceiver, filter);
 
         // 启动进度更新
