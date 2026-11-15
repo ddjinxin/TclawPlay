@@ -124,6 +124,13 @@ public class App extends Application {
                     // 间隙（乐酷调分屏实测1~2秒），否则误判进后台触发悬浮窗启停风暴；
                     // 真进后台时仅晚1.7秒出悬浮窗，无感
                     pendingStartFloat = () -> {
+                        // 乐酷悬浮模式守卫：去抖排队期间进入乐酷悬浮时（Activity 保持 stopped、
+                        // onActivityStarted 不会来取消本回调），不得启动独立悬浮窗——
+                        // 否则播放页（乐酷覆盖窗内）+ 独立悬浮窗双悬浮同屏
+                        if (LecoFloatManager.getInstance().isFloating()) {
+                            pendingStartFloat = null;
+                            return;
+                        }
                         if (activityCount <= 0 && isForeground) {
                             isForeground = false;
                             startFloatService(activity);

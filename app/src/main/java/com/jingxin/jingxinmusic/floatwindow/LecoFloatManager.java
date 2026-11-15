@@ -72,6 +72,10 @@ public class LecoFloatManager {
     // 当前 resumed 的 Activity
     private Activity currentResumedActivity;
 
+    // App 前台标志（FloatLifecycle onActivityStarted/Stopped 维护）：
+    // 乐酷 closemap 时若 App 已回前台，不得启动独立悬浮窗（否则与播放页同屏）
+    private int foregroundActivityCount = 0;
+
     private LecoFloatManager() {}
 
     public static LecoFloatManager getInstance() {
@@ -141,7 +145,10 @@ public class LecoFloatManager {
                 removeFloatWindow();
                 // 只有之前确实处于乐酷悬浮态时才启动独立悬浮窗
                 // 否则是乐酷误发/重复广播（如用户已点击悬浮窗回前台），不应启动
-                if (wasFloating && com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(application)) {
+                // 前台守卫：closemap 到达晚于 App onActivityStarted（用户已回播放页）时跳过启动，
+                // 否则 stopFloatService 已执行而本启动落在其后，独立悬浮窗漏杀与播放页同屏
+                if (wasFloating && foregroundActivityCount <= 0
+                        && com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(application)) {
                     try {
                         Intent floatIntent = new Intent(application, com.jingxin.jingxinmusic.service.MiniFloatService.class);
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -177,9 +184,15 @@ public class LecoFloatManager {
         }
 
         @Override public void onActivityCreated(Activity a, android.os.Bundle b) {}
-        @Override public void onActivityStarted(Activity a) {}
+        @Override
+        public void onActivityStarted(Activity a) {
+            foregroundActivityCount++;
+        }
         @Override public void onActivityPaused(Activity a) {}
-        @Override public void onActivityStopped(Activity a) {}
+        @Override
+        public void onActivityStopped(Activity a) {
+            if (foregroundActivityCount > 0) foregroundActivityCount--;
+        }
         @Override public void onActivitySaveInstanceState(Activity a, android.os.Bundle b) {}
         @Override
         public void onActivityDestroyed(Activity activity) {
