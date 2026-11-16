@@ -64,13 +64,9 @@ public class SpectrumView extends View {
     private static final int COLUMNAR_COUNT_LANDSCAPE = 128;
     private static final int COLUMNAR_COUNT_PORTRAIT = 64;
     private int columnarCount = COLUMNAR_COUNT_PORTRAIT;
-    // 渐变柱状：柱数随宽度（min(宽/25, 1023)/2+1 个 bin，渲染时对称镜像×2）
+    // 渐变柱状：柱数随宽度（min(宽/26, 1023)/2+1 个 bin，渲染时对称镜像×2）
     private int gradCount = 22;
-    private float[] gradTransform;    // 渐变柱状倒数放大复用缓冲（数据帧路径，非 onDraw）
-    private float[] gradDisplay;     // 渐变柱状当前显示值（60ms 线性插值输出，绘制读此数组）
-    private float[] gradFrom;        // 渐变柱状本段动画起点（上帧显示值）
-    private long gradAnimStartMs;    // 渐变柱状本段动画起点时刻（60ms 线性插值）
-    private long gradLastDataMs;     // 渐变柱状数据消费闸门（60ms 内不消费新帧）
+    private final GradientSpectrumPipeline gradPipe = new GradientSpectrumPipeline(); // 渐变柱状数据管线
     private final Paint gradPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     
     // KugouColumn模式柱数
@@ -359,15 +355,9 @@ public class SpectrumView extends View {
             @Override
             public void run() {
                 if (animRunning && isPlaying) {
-                    // 渐变柱状：每 bin 60ms 线性插值从上帧显示值过渡到新值
-                    if (currentStyle == STYLE_GRADIENT && gradDisplay != null && gradFrom != null
-                            && gradDisplay.length >= currentCount && gradFrom.length >= currentCount) {
-                        float gradT = (System.currentTimeMillis() - gradAnimStartMs) / 60f;
-                        if (gradT > 1f) gradT = 1f;
-                        if (gradT < 0f) gradT = 0f;
-                        for (int i = 0; i < currentCount; i++) {
-                            gradDisplay[i] = gradFrom[i] + (targetBarHeights[i] - gradFrom[i]) * gradT;
-                        }
+                    // 渐变柱状：数据管线推进线性插值（独立类，见 GradientSpectrumPipeline）
+                    if (currentStyle == STYLE_GRADIENT) {
+                        gradPipe.advance();
                     }
                     for (int i = 0; i < currentCount; i++) {
                         // 渐变柱状/AiVoice 不需要重力衰减：直驱样式（数据直传绘制）
@@ -762,8 +752,8 @@ public class SpectrumView extends View {
                     rebuildArrays();
                 }
             }
-            // 渐变柱状模式：随宽度重算（min(宽/25, 1023) 后镜像 /2+1）
-            int newGradCount = Math.min(w / 25, 1023) / 2 + 1;
+            // 渐变柱状模式：随宽度重算（min(宽/26, 1023) 后镜像 /2+1）
+            int newGradCount = Math.min(w / 26, 1023) / 2 + 1;
             if (newGradCount != gradCount) {
                 gradCount = newGradCount;
                 if (currentStyle == STYLE_GRADIENT) {
@@ -861,12 +851,12 @@ public class SpectrumView extends View {
                         (tintColors != null ? tintColors :
                         (isNightMode ? nightGradientColors : gradientColors));
                 for (int i = 0; i < currentCount; i++) {
-                    float x = i * 25f;
+                    float x = i * 26f;
                     float top = h - 10f;
-                    gradPaint.setShader(new LinearGradient(x + 7f, h, x + 7f, top,
+                    gradPaint.setShader(new LinearGradient(x + 8f, h, x + 8f, top,
                             new int[]{gradColors[0], gradColors[1], 0x00000000},
                             null, Shader.TileMode.MIRROR));
-                    canvas.drawRoundRect(x, top, x + 15f, h, 7.5f, 7.5f, gradPaint);
+                    canvas.drawRoundRect(x, top, x + 16f, h, 8f, 8f, gradPaint);
                 }
                 gradPaint.setShader(null);
                 break;
@@ -1038,22 +1028,23 @@ public class SpectrumView extends View {
      */
     private void drawGradientBars(Canvas canvas) {
         int h = getHeight();
-        if (h <= 0 || gradDisplay == null) return;   // 无数据帧时不绘制
-        // 防越界：视图变宽（旋转/页切换/悬浮窗调整）后 currentCount 立即更新，gradDisplay
-        // 要等下一帧数据到达才重建（数据分支检测长度不足时重新 clone），窗口期按实长绘制
-        int count = Math.min(currentCount, gradDisplay.length);
+        float[] d = gradPipe.display();
+        if (h <= 0 || d == null) return;   // 无数据帧时不绘制
+        // 防越界：视图变宽（旋转/页切换/悬浮窗调整）后 currentCount 立即更新，显示数组
+        // 待下一帧数据到达才重建（数据分支检测长度不足时重新 clone），窗口期按实长绘制
+        int count = Math.min(currentCount, d.length);
         int[] colors = customBarColors != null ? customBarColors :
                 (tintColors != null ? tintColors :
                 (isNightMode ? nightGradientColors : gradientColors));
         for (int i = 0; i < count; i++) {
-            float f3 = gradDisplay[i];                     // 柱高 = 显示值直译像素（静心满幅，cap=条带高）
-            float top = f3 <= 10f ? h - 10f : h - f3;        // 10px 保底
-            float x = i * 25f;                                // 柱距 25px
-            float cx = x + 7f;                                // 渐变轴 = 柱中心
+            float f3 = d[i];                         // 柱高 = 显示值直译像素（静心满幅，cap=条带高）
+            float top = f3 <= 10f ? h - 10f : h - f3;    // 10px 保底
+            float x = i * 26f;                                // 柱距 26px
+            float cx = x + 8f;                                // 渐变轴 = 柱中心
             gradPaint.setShader(new LinearGradient(cx, h, cx, top,
                     new int[]{colors[0], colors[1], 0x00000000},
                     null, Shader.TileMode.MIRROR));
-            canvas.drawRoundRect(x, top, x + 15f, h, 7.5f, 7.5f, gradPaint);
+            canvas.drawRoundRect(x, top, x + 16f, h, 8f, 8f, gradPaint);
         }
         gradPaint.setShader(null);
     }
@@ -1867,12 +1858,12 @@ public class SpectrumView extends View {
      */
     public int getBarInputCount() {
         if (currentStyle == STYLE_GRADIENT) {
-            // 渐变柱状 bin 宽 86Hz 等效：本项目 43Hz，相邻两 bin 取 max 合成。
+            // 渐变柱状：相邻两 bin 取峰合并降分辨、对称镜像居中。
             // 播放页横竖屏是两个 SpectrumView 实例（gradCount 随各自宽度不同），共享同一采集缓冲，
             // 故按最宽布局（整页宽度口径）供给，实例内 n=min(gradCount, len/2) 再按自身宽度裁剪。
             android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
             int widest = Math.max(dm.widthPixels, dm.heightPixels);
-            int maxN = Math.min(widest / 25, 1023) / 2 + 1;
+            int maxN = Math.min(widest / 26, 1023) / 2 + 1;
             return Math.max(gradCount, maxN) * 2;
         }
         if (currentStyle == STYLE_RING) {
@@ -1971,56 +1962,10 @@ public class SpectrumView extends View {
         // → 对称镜像×2 → 高斯平滑 σ=1.5 → 60ms 线性插值显示（60ms 闸门节流）
         // 注：柱高直译像素至条带满幅（见 drawGradientBars）
         } else if (currentStyle == STYLE_GRADIENT) {
-            // 60ms 闸门：上段动画未结束不消费新数据帧（消费节奏 10Hz）
-            long nowMs = System.currentTimeMillis();
-            if (nowMs - gradLastDataMs >= 60L) {
-            gradLastDataMs = nowMs;
-            int n = Math.min(gradCount, magnitudes.length / 2);
-            if (n < 1) n = 1;
-            if (gradTransform == null || gradTransform.length < n) {
-                gradTransform = new float[n];
-            }
-            for (int i = 0; i < n; i++) {
-                float a = magnitudes[i * 2];
-                float b = i * 2 + 1 < magnitudes.length ? magnitudes[i * 2 + 1] : a;
-                gradTransform[i] = Math.max(a, b);
-            }
-            float max = 0f;
-            for (int i = 0; i < n; i++) {
-                if (gradTransform[i] > max) max = gradTransform[i];
-            }
-            float g = 4.0f;
-            float threshold = 0.2f * max;
-            float cap = getHeight();
-            for (int i = 0; i < n; i++) {
-                float v = gradTransform[i];
-                if (v != 0f && v >= threshold) {
-                    v = (max / v) * g + v;
-                }
-                v *= 5.0f;
-                if (v > cap) v = cap;
-                gradTransform[i] = v;
-            }
-            // 对称镜像：左半倒序、右半正序，低频居中
-            for (int i = 0; i < n && i < targetBarHeights.length - n; i++) {
-                targetBarHeights[n - 1 - i] = gradTransform[i];
-                targetBarHeights[n + i] = gradTransform[i];
-            }
-            // 镜像后高斯平滑（σ=1.5 → kernel=9；
-            // 全核归一 + 边缘越界不补权重 → 两缘自然衰减）
-            float[] gradSmoothed = gaussianSmooth(targetBarHeights, 1.5f);
-            if (gradSmoothed != null && gradSmoothed.length >= currentCount) {
-                System.arraycopy(gradSmoothed, 0, targetBarHeights, 0, currentCount);
-            }
-            // 每 bin 从上帧显示值到新值 60ms 线性插值
-            if (gradDisplay == null || gradDisplay.length < currentCount) {
-                gradDisplay = targetBarHeights.clone(); // 首帧直显
-                gradFrom = null;
-            } else {
-                gradFrom = gradDisplay.clone();
-                gradAnimStartMs = nowMs;
-            }
-            }
+            // 渐变柱状数据管线（独立实现，见 GradientSpectrumPipeline）：
+            // 合并 bin 降分辨 → 峰值增益 → 线性放大限幅 → 对称镜像 → 高斯平滑 → 线性插值。
+            // 柱高直译像素至条带满幅（见 drawGradientBars）
+            gradPipe.feed(magnitudes, gradCount, getHeight());
         } else if (currentStyle == STYLE_COLUMNAR || currentStyle == STYLE_KUGOU
                 || currentStyle == STYLE_AIVOICE || currentStyle == STYLE_WAVECOLUMN) {
                 // 直传模式：直接用原始幅度值（各draw方法自行放大）
