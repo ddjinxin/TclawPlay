@@ -190,12 +190,12 @@ public class RadioPageV2 extends StagePage {
     }
 
     /**
-     * 频谱数据分发（Fragment Visualizer/AudioRecord 桥）：电波涟漪随节奏。
-     * 与频谱开关无关（频谱 View 隐藏时数据链仍活，电波继续吃数据）。
+     * 频谱数据分发：电台页不做（电波为恒定涟漪，不随音乐节奏跳动，取消频谱联动）。
+     * 保留空实现以承接 Fragment 的全页频谱分发链路。
      */
     @Override
     public void feedSpectrumData(float[] magnitudes, float maxMag) {
-        if (universe != null) universe.feedSpectrum(magnitudes, maxMag);
+        // 电台页无频谱消费：电波恒定涟漪
     }
 
     private boolean isPausedNow() {

@@ -126,10 +126,7 @@ public class RadioUniverseView extends View {
     /** 台名逐字辉光色：无封面固定暖黄；有封面跟随电波取色 */
     private int titleGlowColor = 0xFFFFD75E;
 
-    // ===== 频谱驱动（电波随音乐节奏） =====
-    private float spBass, spMid, spHigh, spBassPrev; // 三频段平滑能量（快起慢落包络）
-    private long spectrumLastMs = -1L;               // 频谱到达时间（超时回落静态涟漪）
-// 节拍速度积分器：波道推进相位按能量积分（能量高扩得快，安静扩得慢）
+    // ===== 电波推进 =====
     private double waveClock = 0d;                   // 全局波相位积分（秒域）
     private long waveClockLastMs = -1L;              // 积分时钟基准
     private static final int WAVE_COUNT = 5;       // 同屏弧数
@@ -188,45 +185,6 @@ public class RadioUniverseView extends View {
     public void setOnRadioAction(OnRadioAction a) { this.radioAction = a; }
 
     public void setOnLongPressListener(OnLongPressListener l) { this.longPressListener = l; }
-
-    /**
-     * 频谱数据喂入（页面桥调；Visualizer/AudioRecord 由 Fragment 分发）。
-     * 三频段分解：低频（前1/6）驱动波纹振幅胀缩（鼓点推波）；
-     * 中频（中段1/3）调制波纹密度；高频（后半）加亮度抖动。
-     * 超 800ms 无数据自动回落静态涟漪（暂停/无频谱场景）。
-     */
-    public void feedSpectrum(float[] magnitudes, float maxMag) {
-        if (magnitudes == null || magnitudes.length < 8 || maxMag <= 0f) {
-            spectrumLastMs = -1L;
-            return;
-        }
-        int n = magnitudes.length;
-        float b = 0f, m = 0f, h = 0f;
-        int bN = 0, mN = 0, hN = 0;
-        int bassEnd = Math.max(2, n / 6), midEnd = Math.max(bassEnd + 1, n / 2);
-        for (int i = 0; i < n; i++) {
-            float v = Math.min(1f, magnitudes[i] / maxMag);
-            if (i < bassEnd) { b += v; bN++; }
-            else if (i < midEnd) { m += v; mN++; }
-            else { h += v; hN++; }
-        }
-        b = bN > 0 ? Math.min(1f, b / bN * 2.6f) : 0f;
-        m = mN > 0 ? Math.min(1f, m / mN * 2.2f) : 0f;
-        h = hN > 0 ? Math.min(1f, h / hN * 2.8f) : 0f;
-        // 快起慢落（鼓点冲击有感，回落柔和）
-        spBassPrev = spBass;
-        spBass = b > spBass ? spBass + (b - spBass) * 0.55f : spBass + (b - spBass) * 0.14f;
-        spMid = m > spMid ? spMid + (m - spMid) * 0.35f : spMid + (m - spMid) * 0.12f;
-        spHigh = h > spHigh ? spHigh + (h - spHigh) * 0.5f : spHigh + (h - spHigh) * 0.2f;
-        spectrumLastMs = System.currentTimeMillis();
-    }
-
-    /** 频谱有效（最近 800ms 内有数据且未暂停） */
-    private boolean spectrumLive() {
-        return spectrumLastMs > 0
-                && System.currentTimeMillis() - spectrumLastMs < 800L
-                && playing;
-    }
 
     public void setPlaying(boolean isPlaying) {
         if (playing != isPlaying) { playing = isPlaying; invalidate(); }
@@ -488,27 +446,18 @@ public class RadioUniverseView extends View {
     private static final float WAVE_PHASE_STEP = 1.7f;
 
     /**
-     * 电波：图标→中心台名方向的音乐频谱涟漪。
-     * 频谱驱动（feedSpectrum 有效时）：
-     * - 低频（bass）：波纹振幅胀缩——鼓点砸下整圈波纹外扩，回落收拢
-     * - 中频（mid）：波峰密度——人声/主旋律密集时波纹变细密
-     * - 高频（high）：亮度抖动——镲片/气声让波纹瞬间增亮
-     * 无频谱/暂停：回落静态涟漪（原形态）。
+     * 电波：图标→中心台名方向的恒定涟漪（匀速推进，不随音乐频谱跳动）。
+     * 每道波沿图标→台名方向匀速外扩，弧向正弦调制半径形成推进感。
      */
     private void drawWaves(Canvas canvas, long now) {
         if (waveAlpha < 0.02f) return;
         float density = getResources().getDisplayMetrics().density;
         float r0 = iconSize * 0.75f;
 
-        // ===== 节拍速度积分：扩散速度随能量 =====
-        // 速度倍率 = 0.45 + 能量×1.35（安静 0.45×，满能量 1.8×）
-        // 能量 = 三频段加权和（低频主导：鼓点推动最明显）
-        boolean liveForClock = spectrumLive();
-        float energy = liveForClock ? (spBass * 0.62f + spMid * 0.28f + spHigh * 0.10f) : 0f;
-        float speedMul = liveForClock ? (0.45f + energy * 1.35f) : 1f;
+        // 波道推进相位：真实时间匀速推进
         if (waveClockLastMs < 0) waveClockLastMs = now;
         double dt = Math.min(0.1d, (now - waveClockLastMs) / 1000d); // 防 resume 大步
-        waveClock += dt * speedMul;
+        waveClock += dt;
         waveClockLastMs = now;
         // 终点=台名中心：辐射范围缩减 20%（终点距图标 = 图标→台名距离 × 0.8）
         float dx = titleCx - iconCx, dy = titleCy - iconCy;
@@ -518,29 +467,20 @@ public class RadioUniverseView extends View {
         float startDeg = centerDeg - 70f;
         float sweepDeg = 140f;
 
-        boolean live = spectrumLive();
-        // 振幅：静态基值 + 低频能量放大（鼓点推波，2.6 倍动态范围）
-        float amp = r0 * WAVE_TOOTH_DEPTH + 1.2f * density
-                + (live ? spBass * r0 * 0.055f : 0f);
-        // 波峰数：静态 5.5 + 中频 0~4（密集变细）
-        float cycles = WAVE_RIPPLE_CYCLES + (live ? spMid * 4f : 0f);
-        // 低频冲击：bass 上升沿瞬间波道整体外推（快起慢落的半径脉冲）
-        float punch = live ? Math.max(0f, spBass - spBassPrev) * 30f : 0f;
-        float stroke = 2f * density + (live ? spBass * density : 0f);
-        wavePaint.setStrokeWidth(stroke);
+        // 恒定振幅/波峰数/线宽（静态涟漪形态）
+        float amp = r0 * WAVE_TOOTH_DEPTH + 1.2f * density;
+        float cycles = WAVE_RIPPLE_CYCLES;
+        wavePaint.setStrokeWidth(2f * density);
         wavePaint.setStyle(Paint.Style.STROKE);
         wavePaint.setStrokeJoin(Paint.Join.ROUND);
         for (int i = 0; i < WAVE_COUNT; i++) {
-            // 波道推进相位：节拍积分时钟（速度随能量；静态时=真实时间）
+            // 波道推进相位：真实时间匀速
             float t = (float) (waveClock / (WAVE_CYCLE_MS / 1000f));
             float ph = (t + i / (float) WAVE_COUNT) % 1f;
-            float baseR = r0 + (r1 - r0) * ph + punch * (1f - ph); // 冲击偏置近端波道强
-            // 涟漪沿弧向流动：同积分时钟（速度与扩散同步变化）
+            float baseR = r0 + (r1 - r0) * ph;
+            // 涟漪沿弧向流动：同积分时钟
             float flow = t * (float) Math.PI * 2f + i * WAVE_PHASE_STEP;
-            // 亮度：基础衰减 + 高频抖动（镲片闪）
-            float hiSpark = live ? spHigh * 0.35f * (0.5f + 0.5f
-                    * (float) Math.sin(now / 90.0 + i * 2.1)) : 0f;
-            int a = (int) ((1f - ph) * (0.5f + hiSpark) * waveAlpha * 255);
+            int a = (int) ((1f - ph) * 0.5f * waveAlpha * 255);
             if (a <= 4) continue;
             wavePaint.setColor(a << 24 | (waveColor & 0xFFFFFF));
             // 涟漪弧：沿弧向正弦调制半径（波峰/波谷连续起伏，两端收平）
@@ -551,9 +491,7 @@ public class RadioUniverseView extends View {
                 // 端部 taper（首末 15% 内正弦包络收 0，避免两端突兀断裂）
                 float env = (frac < 0.15f) ? frac / 0.15f
                         : (frac > 0.85f) ? (1f - frac) / 0.15f : 1f;
-                // 频谱活时波纹密度按弧向微变（模拟频段分布；低弧端=低频大波峰）
-                float cyc = live ? cycles * (0.8f + 0.4f * frac) : cycles;
-                float ripple = (float) Math.sin(frac * cyc * Math.PI * 2f + flow)
+                float ripple = (float) Math.sin(frac * cycles * Math.PI * 2f + flow)
                         * amp * env;
                 float rr = baseR + ripple;
                 double rad = Math.toRadians(deg);

@@ -8,7 +8,9 @@ import com.jingxin.jingxinmusic.R;
 import com.jingxin.jingxinmusic.model.Song;
 import com.jingxin.jingxinmusic.util.CoverLoader;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -28,6 +30,16 @@ public class CoverCarouselAdapter {
 
     // 5个歌曲引用，方便封面加载时比对
     private final Song[] visibleSongs = new Song[5];
+
+    // 内存封面缓存（key=歌曲名+艺人），切歌时命中即直接显示，避免默认封面闪烁
+    private static final int MAX_CACHE = 24;
+    private final Map<String, Bitmap> coverCache =
+            new LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Bitmap> eldest) {
+                    return size() > MAX_CACHE;
+                }
+            };
 
     public CoverCarouselAdapter(Context context, ExecutorService executor) {
         this.context = context;
@@ -82,7 +94,16 @@ public class CoverCarouselAdapter {
     }
 
     private void loadCoverForCard(ImageView iv, Song song, int cardIndex) {
-        // 先设置默认封面（品牌图标）
+        // 封面缓存 key 与工程既有缓存命名同源（歌曲名+艺人）
+        String key = Song.toFileName(song.title, song.artist);
+        Bitmap cached = coverCache.get(key);
+        // 命中内存缓存：直接显示正确封面，不经过默认图，消除切歌闪烁
+        if (cached != null) {
+            iv.setImageBitmap(cached);
+            iv.setAlpha(cardIndex == 2 ? 1.0f : (cardIndex == 1 || cardIndex == 3) ? 0.85f : 0.7f);
+            return;
+        }
+        // 未命中：先设默认封面（品牌图标），异步加载完成后替换
         iv.setImageResource(R.mipmap.ic_launcher);
         // 中间卡片不透明，侧边卡片半透明
         iv.setAlpha(cardIndex == 2 ? 1.0f : (cardIndex == 1 || cardIndex == 3) ? 0.85f : 0.7f);
@@ -93,6 +114,8 @@ public class CoverCarouselAdapter {
                     new CoverLoader.CoverCallback() {
                         @Override
                         public void onCoverLoaded(Bitmap bitmap) {
+                            // 加载结果入缓存，供后续切歌直接命中
+                            coverCache.put(key, bitmap);
                             // 确保ImageView还是对应同一首歌
                             if (visibleSongs[cardIndex] == song) {
                                 iv.setImageBitmap(bitmap);

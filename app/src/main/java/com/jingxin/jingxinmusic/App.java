@@ -99,10 +99,13 @@ public class App extends Application {
                     pendingStartFloat = null;
                 }
                 if (!isForeground && activityCount > 0) {
-                    // 从后台回到前台：隐藏悬浮窗
                     isForeground = true;
-                    stopFloatService(activity);
                 }
+                // 前台绝不与独立悬浮窗共存：无论 isFloating/lecoFloatExit 处于何种残留状态
+                // （进程冷启动默认值、乐酷 closemap 置位、stop/start 竞态漏杀），回前台一律
+                // 清除乐酷退出标志并关闭悬浮窗。stopService 对未运行服务是无害空操作。
+                LecoFloatManager.getInstance().clearLecoFloatExit();
+                stopFloatService(activity);
             }
 
             @Override
@@ -112,7 +115,7 @@ public class App extends Application {
                     // 乐酷悬浮模式：应用通过覆盖窗口在悬浮区域内显示，不启动独立悬浮窗
                     if (LecoFloatManager.getInstance().isFloating()) {
                         isForeground = false;
-                            return;
+                        return;
                     }
                     // 乐酷悬浮刚退出时 LecoFloatManager 已启动独立悬浮窗，跳过避免重复启动竞态
                     if (LecoFloatManager.getInstance().isLecoFloatExit()) {
@@ -181,6 +184,11 @@ public class App extends Application {
             // Android 12+ 禁止从后台启动前台服务，忽略即可
             Log.w(TAG, "启动悬浮播放窗失败（可能是后台启动限制）: " + e.getMessage());
         }
+    }
+
+    /** 是否有 Activity 处于 started 状态（供 MiniFloatService 前台共存守卫） */
+    public boolean isAnyActivityStarted() {
+        return activityCount > 0;
     }
 
     private void stopFloatService(Context context) {

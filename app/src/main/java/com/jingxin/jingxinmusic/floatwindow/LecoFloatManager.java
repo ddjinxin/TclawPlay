@@ -140,7 +140,6 @@ public class LecoFloatManager {
             } else if (ACTION_CLOSE_MAP.equals(action)) {
                 boolean wasFloating = isFloating.get();
                 canFloat.set(false);
-                lecoFloatExit = true;
                 restoreCurrentActivity();
                 removeFloatWindow();
                 // 只有之前确实处于乐酷悬浮态时才启动独立悬浮窗
@@ -149,6 +148,11 @@ public class LecoFloatManager {
                 // 否则 stopFloatService 已执行而本启动落在其后，独立悬浮窗漏杀与播放页同屏
                 if (wasFloating && foregroundActivityCount <= 0
                         && com.jingxin.jingxinmusic.fragment.SettingsFragment.isFloatWindowEnabled(application)) {
+                    // 只有确确实要/已启动独立悬浮窗才置 lecoFloatExit 通知 App 跳过重复；
+                    // 条件不满足（误发 wasFloating=false、或 App 已回前台 foregroundActivityCount>0）
+                    // 时不启动也不置标志，让 App 走正常去抖逻辑，
+                    // 否则 App 误以为已启动而跳过，HOME 后独立悬浮窗不弹出
+                    lecoFloatExit = true;
                     try {
                         Intent floatIntent = new Intent(application, com.jingxin.jingxinmusic.service.MiniFloatService.class);
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

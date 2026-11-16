@@ -178,6 +178,16 @@ public class MiniFloatService extends Service {
         createNotificationChannel();
         CompatUtil.safeStartForeground(this, NOTIFICATION_ID, buildNotification());
 
+        // 前台共存守卫：stopService 与 startForegroundService 竞态中 stop 先于 create 被
+        // 吞掉时（乐酷退出瞬间用户立即点开应用），服务照常创建会导致悬浮窗与播放页同屏。
+        // 创建瞬间若 App 已有 Activity 进入前台，立即自毁——窗口都不建。
+        // （此前已 safeStartForeground，满足前台服务 5 秒规则，随即停止安全）
+        if (((com.jingxin.jingxinmusic.App) getApplication()).isAnyActivityStarted()) {
+            stopForeground(true);
+            stopSelf();
+            return;
+        }
+
         lastIsPortrait = isCurrentPortrait();
         floatMode = getSharedPreferences("mini_float_pos", MODE_PRIVATE)
                 .getInt(PREF_STYLE_MODE, MODE_CLASSIC);
