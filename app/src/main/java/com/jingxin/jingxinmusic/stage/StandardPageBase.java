@@ -91,6 +91,9 @@ public class StandardPageBase extends StagePage {
     private boolean controlsHidden = false; // 精简模式态（镜像旧页 controlsHidden）
     private boolean hasCoverImage = false;   // V2 blur 已有位图（默认封面也经 Hub 广播到此）
     protected boolean spectrumHidden = false;  // 频谱用户隐藏态（镜像旧实例）
+    // 频谱强制抑制：歌词动效页激活期间（拼贴页卡内频谱已被拎到 rootLayout 顶层 z=15，
+    // 会盖在动效页之上）。任何路径收频谱可见性（enter/layout/样式广播）都必须尊重此标志。
+    protected boolean spectrumSuppressed = false;
     private int coverColorsTop, coverColorsBottom;
 
     // 频谱圆环圆心（layout 时算出，传给 ring 实例）
@@ -789,13 +792,13 @@ public class StandardPageBase extends StagePage {
         applySpectrumVisibility();
     }
 
-    /** 可见性分层：圆环样式→ring显/bottom藏；其他→bottom显/ring藏；均尊重用户隐藏态；竖屏全屏歌词时圆环随封面收起（旧 FULL 行为：底条保留） */
+    /** 可见性分层：圆环样式→ring显/bottom藏；其他→bottom显/ring藏；均尊重用户隐藏态；竖屏全屏歌词时圆环随封面收起（旧 FULL 行为：底条保留）；动效页激活（spectrumSuppressed）全藏 */
     private void applySpectrumVisibility() {
         boolean overlay = spectrum.isCoverOverlayMode();
         boolean fullPortrait = !h.isLandscapeMode && lyric != null
                 && lyric.getDisplayMode() == LyricView.DisplayMode.FULL;
-        boolean showBottom = !spectrumHidden;
-        boolean showRing = overlay && !spectrumHidden && !fullPortrait;
+        boolean showBottom = !spectrumHidden && !spectrumSuppressed;
+        boolean showRing = overlay && !spectrumHidden && !fullPortrait && !spectrumSuppressed;
         int bottomVis = (overlay || !showBottom) ? View.GONE : View.VISIBLE;
         int ringVis = showRing ? View.VISIBLE : View.GONE;
         spectrum.setVisibility(bottomVis);

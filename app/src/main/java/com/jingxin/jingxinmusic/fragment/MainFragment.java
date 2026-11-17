@@ -1437,6 +1437,12 @@ public class MainFragment extends BaseFloatFragment {
                 stations = RadioBrowserApi.fetchHot(50);
             } else if ("中国".equals(finalTag)) {
                 stations = RadioBrowserApi.fetchByCountry("China", 50);
+            } else if (RadioBrowserApi.TAG_HK.equals(finalTag)) {
+                // 中国香港：社区库 countrycode=HK 分列收录，bycountry/China 查不到
+                stations = RadioBrowserApi.fetchHk(50);
+            } else if (RadioBrowserApi.TAG_TW.equals(finalTag)) {
+                // 中国台湾：社区库 countrycode=TW 分列收录
+                stations = RadioBrowserApi.fetchTw(50);
             } else if (RadioBrowserApi.isCustomCategory(requireContext(), finalTag)) {
                 // 自定义清单分类：本地读 Download/jingxin_radio.json，不走网络
                 stations = RadioBrowserApi.loadCustomStations(requireContext(), finalTag);
@@ -1448,14 +1454,18 @@ public class MainFragment extends BaseFloatFragment {
                     && !RadioBrowserApi.TAG_FAVORITE.equals(finalTag)
                     && !RadioBrowserApi.isCustomCategory(requireContext(), finalTag)) {
                 String cacheKey = RadioBrowserApi.TAG_HOT.equals(finalTag) ? "hot"
-                        : ("中国".equals(finalTag) ? "cn" : "tag_" + finalTag);
+                        : ("中国".equals(finalTag) ? "cn"
+                        : (RadioBrowserApi.TAG_HK.equals(finalTag) ? "hk"
+                        : (RadioBrowserApi.TAG_TW.equals(finalTag) ? "tw"
+                        : "tag_" + finalTag)));
                 String cached = RadioBrowserApi.readCache(requireContext(), cacheKey,
                         24 * 60 * 60 * 1000L);
                 if (cached != null) {
                     stations = RadioBrowserApi.parseStationJson(cached);
                 }
                 if ((stations == null || stations.isEmpty())
-                        && ("热门".equals(finalTag) || "中国".equals(finalTag))) {
+                        && ("热门".equals(finalTag) || "中国".equals(finalTag)
+                        || RadioBrowserApi.TAG_HK.equals(finalTag) || RadioBrowserApi.TAG_TW.equals(finalTag))) {
                     stations = RadioBrowserApi.loadSeed(requireContext());
                 }
             }

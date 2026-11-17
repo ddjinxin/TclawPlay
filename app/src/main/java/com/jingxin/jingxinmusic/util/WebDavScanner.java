@@ -104,44 +104,46 @@ public class WebDavScanner {
      */
     private String encodeUrlPath(String url) {
         try {
-            URI uri = new URI(url);
-            // 对路径部分按/分段编码
-            String path = uri.getRawPath();
-            if (path == null) return url;
+            // 不能先 new URI(url)：含中文/空格/括号的原始 URL 会直接抛 URISyntaxException，
+            // 导致整个编码逻辑不执行、落到 catch 用未编码 URL → 播放失败。
+            // 改为手动拆解，只对 path 段做逐字节 percent-encoding，保留 scheme://host 与 query/fragment。
+            int schemeEnd = url.indexOf("://");
+            if (schemeEnd < 0) return url;
+            String scheme = url.substring(0, schemeEnd + 3);        // "http://"
+            int pathStart = url.indexOf('/', schemeEnd + 3);        // authority 后第一个 '/'
+            String authority = pathStart < 0
+                    ? url.substring(schemeEnd + 3)
+                    : url.substring(schemeEnd + 3, pathStart);
+            String path = pathStart < 0 ? "/" : url.substring(pathStart);
 
-            String[] segments = path.split("/", -1);
-            StringBuilder encodedPath = new StringBuilder();
-            for (int i = 0; i < segments.length; i++) {
-                if (i > 0) encodedPath.append("/");
-                if (segments[i].isEmpty()) continue;
-                // 检查是否已编码（包含%后跟两个十六进制字符）
-                if (segments[i].matches(".*%[0-9A-Fa-f]{2}.*")) {
-                    // 已编码，保留原样
-                    encodedPath.append(segments[i]);
+            // query/fragment 原样保留（path 段截到 ? 或 #）
+            int qIdx = path.indexOf('?'), fIdx = path.indexOf('#');
+            int end = path.length();
+            if (qIdx >= 0) end = Math.min(end, qIdx);
+            if (fIdx >= 0) end = Math.min(end, fIdx);
+            String rawPath = path.substring(0, end);
+            String suffix = path.substring(end);
+
+            // 对 path 逐段编码（已编码段保留，避免重复）
+            String[] segments = rawPath.split("/", -1);
+            StringBuilder encoded = new StringBuilder();
+            for (String seg : segments) {
+                encoded.append("/");
+                if (seg.isEmpty()) continue;
+                if (seg.matches(".*%[0-9A-Fa-f]{2}.*")) {
+                    encoded.append(seg); // 已编码，原样
                 } else {
-                    // 未编码，进行编码
-                    encodedPath.append(URLEncoder.encode(segments[i], "UTF-8")
-                            .replace("+", "%20")); // 空格用%20而非+
+                    encoded.append(URLEncoder.encode(seg, "UTF-8").replace("+", "%20"));
                 }
             }
-            // 确保路径以/结尾（目录）
-            if (path.endsWith("/") && !encodedPath.toString().endsWith("/")) {
-                encodedPath.append("/");
+            // 目录尾斜杠保留
+            if (rawPath.endsWith("/") && encoded.length() > 0
+                    && encoded.charAt(encoded.length() - 1) != '/') {
+                encoded.append("/");
             }
-
-            // 重建URL
-            StringBuilder result = new StringBuilder();
-            result.append(uri.getScheme()).append("://");
-            if (uri.getHost() != null) {
-                result.append(uri.getHost());
-                if (uri.getPort() > 0) {
-                    result.append(":").append(uri.getPort());
-                }
-            }
-            result.append(encodedPath);
-            return result.toString();
+            return scheme + authority + encoded + suffix;
         } catch (Exception e) {
-            Log.w(TAG, "URL编码失败，使用原始URL: " + e.getMessage());
+            Log.w(TAG, "URL 编码失败，使用原始 URL: " + e.getMessage());
             return url;
         }
     }
@@ -276,7 +278,10 @@ public class WebDavScanner {
         song.artist = "";
         song.album = "";
         song.duration = 0;
-        song.filePath = item.path;
+        // filePath 必须存完整 URL（item.url 含 scheme+host）。item.path 只是相对路径
+        // （/downloads/...，缺 scheme+host）；播放主通道 filePath 优先，若存残缺路径
+        // ExoPlayer 会当本地文件打开 → ENOENT 播放失败。
+        song.filePath = item.url;
         song.contentUri = item.url;
         song.displayName = song.title;
         return song;

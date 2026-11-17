@@ -64,7 +64,7 @@ public class SpectrumView extends View {
     private static final int COLUMNAR_COUNT_LANDSCAPE = 128;
     private static final int COLUMNAR_COUNT_PORTRAIT = 64;
     private int columnarCount = COLUMNAR_COUNT_PORTRAIT;
-    // 渐变柱状：柱数随宽度（min(宽/26, 1023)/2+1 个 bin，渲染时对称镜像×2）
+    // 渐变柱状：柱数随宽度（min(宽/25, 1023)/2+1 个 bin，渲染时对称镜像×2）
     private int gradCount = 22;
     private final GradientSpectrumPipeline gradPipe = new GradientSpectrumPipeline(); // 渐变柱状数据管线
     private final Paint gradPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -752,8 +752,8 @@ public class SpectrumView extends View {
                     rebuildArrays();
                 }
             }
-            // 渐变柱状模式：随宽度重算（min(宽/26, 1023) 后镜像 /2+1）
-            int newGradCount = Math.min(w / 26, 1023) / 2 + 1;
+            // 渐变柱状模式：随宽度重算（镜像 2×bin 总宽不超过视宽，绘制水平居中）
+            int newGradCount = Math.max(1, Math.min(w / 25, 1023) / 2);
             if (newGradCount != gradCount) {
                 gradCount = newGradCount;
                 if (currentStyle == STYLE_GRADIENT) {
@@ -847,11 +847,15 @@ public class SpectrumView extends View {
             case STYLE_GRADIENT: {
                 // 渐变柱状静态：任意数据下柱高均有 10px 保底，空闲画满排底柱（渐变同款，取色链同 drawGradientBars）
                 int h = getHeight();
+                int w = getWidth();
+                // 水平居中：起始 x 偏移（总宽=count×柱距，不超过视宽）
+                float xStart = (w - currentCount * 25f) / 2f;
+                if (xStart < 0f) xStart = 0f;
                 int[] gradColors = customBarColors != null ? customBarColors :
                         (tintColors != null ? tintColors :
                         (isNightMode ? nightGradientColors : gradientColors));
                 for (int i = 0; i < currentCount; i++) {
-                    float x = i * 26f;
+                    float x = xStart + i * 25f;
                     float top = h - 10f;
                     gradPaint.setShader(new LinearGradient(x + 8f, h, x + 8f, top,
                             new int[]{gradColors[0], gradColors[1], 0x00000000},
@@ -1028,18 +1032,22 @@ public class SpectrumView extends View {
      */
     private void drawGradientBars(Canvas canvas) {
         int h = getHeight();
+        int w = getWidth();
         float[] d = gradPipe.display();
         if (h <= 0 || d == null) return;   // 无数据帧时不绘制
         // 防越界：视图变宽（旋转/页切换/悬浮窗调整）后 currentCount 立即更新，显示数组
         // 待下一帧数据到达才重建（数据分支检测长度不足时重新 clone），窗口期按实长绘制
         int count = Math.min(currentCount, d.length);
+        // 水平居中：柱排总宽=count×柱距25，起始 x 居中（柱数已按视宽/25 整除，总宽不超过视宽）
+        float xStart = (w - count * 25f) / 2f;
+        if (xStart < 0f) xStart = 0f;
         int[] colors = customBarColors != null ? customBarColors :
                 (tintColors != null ? tintColors :
                 (isNightMode ? nightGradientColors : gradientColors));
         for (int i = 0; i < count; i++) {
             float f3 = d[i];                         // 柱高 = 显示值直译像素（静心满幅，cap=条带高）
             float top = f3 <= 10f ? h - 10f : h - f3;    // 10px 保底
-            float x = i * 26f;                                // 柱距 26px
+            float x = xStart + i * 25f;                          // 柱距 25px
             float cx = x + 8f;                                // 渐变轴 = 柱中心
             gradPaint.setShader(new LinearGradient(cx, h, cx, top,
                     new int[]{colors[0], colors[1], 0x00000000},
@@ -1863,7 +1871,7 @@ public class SpectrumView extends View {
             // 故按最宽布局（整页宽度口径）供给，实例内 n=min(gradCount, len/2) 再按自身宽度裁剪。
             android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
             int widest = Math.max(dm.widthPixels, dm.heightPixels);
-            int maxN = Math.min(widest / 26, 1023) / 2 + 1;
+            int maxN = Math.max(1, Math.min(widest / 25, 1023) / 2);
             return Math.max(gradCount, maxN) * 2;
         }
         if (currentStyle == STYLE_RING) {

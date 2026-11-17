@@ -40,7 +40,7 @@ public class RadioBrowserApi {
 
     // 常用标签（电台页横滑分类）
     public static final String[] TAGS = {
-            "热门", "中国", "新闻", "古典", "爵士", "摇滚", "电子", "轻音乐", "乡村", "流行"
+            "热门", "中国", "香港", "台湾", "新闻", "古典", "爵士", "摇滚", "电子", "轻音乐", "乡村", "流行"
     };
     public static final String TAG_HOT = "热门";
     public static final String TAG_FAVORITE = "收藏";
@@ -60,6 +60,26 @@ public class RadioBrowserApi {
      */
     public static List<Song> fetchByCountry(String country, int limit) {
         return query("/json/stations/bycountry/" + urlEncode(country)
+                + "?limit=" + limit + "&hidebroken=true&order=votes&reverse=true");
+    }
+
+    /**
+     * 港台目录：中国香港 + 中国台湾（社区库按 countrycode 分列收录，
+     * bycountry/China 查不到，各建独立目录查询）
+     */
+    /** 港台目录标签（社区库 countrycode=HK/TW 分列，bycountry/China 查不到） */
+    public static final String TAG_HK = "香港";
+    public static final String TAG_TW = "台湾";
+
+    /** 中国香港电台（countrycode=HK，票数排序） */
+    public static List<Song> fetchHk(int limit) {
+        return query("/json/stations/bycountrycodeexact/HK"
+                + "?limit=" + limit + "&hidebroken=true&order=votes&reverse=true");
+    }
+
+    /** 中国台湾电台（countrycode=TW，票数排序） */
+    public static List<Song> fetchTw(int limit) {
+        return query("/json/stations/bycountrycodeexact/TW"
                 + "?limit=" + limit + "&hidebroken=true&order=votes&reverse=true");
     }
 

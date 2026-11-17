@@ -161,7 +161,12 @@ public static void load(Context context, Song song, int reqWidth, int reqHeight,
 
         executor.execute(() -> {
             // 1. 提取音频文件内嵌封面（useLocal=false 时跳过）
-            if (useLocal) {
+            //    WebDAV/B站/http 流：filePath 若是 http(s) URL，MediaMetadataRetriever 打开
+            //    需认证的 WebDAV 必 401，内部 ~3s×10 次重试后放弃，阻塞单线程 executor 30~60s，
+            //    后续恢复队列任务全排队干等（目录点歌延迟 61 秒 + 旧实例迟到抢播的根因）。
+            //    HTTP URL 本就没有可靠的"内嵌封面"通道，直接跳过走缓存→在线。
+            if (useLocal && song.filePath != null && !song.filePath.startsWith("http://")
+                    && !song.filePath.startsWith("https://")) {
                 Bitmap embedded = CoverFetcher.extractEmbeddedCover(song.filePath, reqWidth, reqHeight);
                 if (embedded != null) {
                     if (saveCache) {

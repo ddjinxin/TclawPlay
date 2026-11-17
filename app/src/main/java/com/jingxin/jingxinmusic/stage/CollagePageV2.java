@@ -290,6 +290,9 @@ private void revealTopBar() {
     /** 动效页占用/释放（Fragment 进/退动效页时调：动效页全屏沉浸，卡内频谱与文字隐藏） */
     public void setEffectPageActive(boolean active) {
         effectPageActive = active;
+        // 页面可见性收敛链（enter/layout/样式广播 → applySpectrumVisibility）不知道动效页，
+        // 必须同步抑制标志，否则乐酷返回触发布局链会把卡内频谱重新 VISIBLE 盖到动效页上
+        spectrumSuppressed = active;
         if (active) {
             if (cardSpectrum != null) cardSpectrum.setVisibility(View.GONE);
             if (cardSpectrumL != null) cardSpectrumL.setVisibility(View.GONE);

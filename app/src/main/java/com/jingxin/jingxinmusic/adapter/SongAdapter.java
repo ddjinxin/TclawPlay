@@ -306,7 +306,10 @@ public class SongAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         Bitmap localCover = null;
         for (Song s : fi.songs) {
             // 1. 尝试提取内嵌封面（开关关闭时跳过）
-            if (preferLocal && localCover == null && s.filePath != null) {
+            //    http(s) URL（收藏的 WebDAV 歌）跳过：MediaRetriever 打不开需认证的
+            //    WebDAV 且无超时保护，bindFolder 在主线程会卡 30~60s
+            if (preferLocal && localCover == null && s.filePath != null
+                    && !s.filePath.startsWith("http://") && !s.filePath.startsWith("https://")) {
                 localCover = CoverFetcher.extractEmbeddedCover(s.filePath, 200, 200);
             }
             // 2. 尝试本地缓存（开关关闭时跳过）

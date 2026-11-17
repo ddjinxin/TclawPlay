@@ -303,6 +303,12 @@ public class PlayerFragment extends BaseFloatFragment {
                     allSongs = MusicScanner.scanMusic(requireContext());
                 }
                  uiHandler.post(() -> {
+                     // 迟到守卫：任务排队期间本实例可能已被替换/离开（用户返回目录又点了新歌，
+                     // 新实例会接管恢复）。旧实例若继续执行，会拿过期的 position 翻新队列
+                     // 播出错歌（实测：点第5首播出了第3首），直接放弃。
+                     if (!isAdded() || isActivityGone()) {
+                         return;
+                     }
                      if (bound && playerBinder != null && allSongs != null) {
                         // 同步队列上下文给 Service：无 UI 播放（乐酷/后台/车键切歌）时
                         // Service 靠它保存 last_played，防记忆残留旧会话（如旧 B 站歌）
@@ -375,7 +381,7 @@ public class PlayerFragment extends BaseFloatFragment {
                                 playerBinder.setPlaylist(allSongs);
                                 playSong();
                             }
-                        } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode) || "radio".equals(playlistMode) || (getArguments() != null && getArguments().getBoolean("from_webdav", false))) {
+                         } else if ("webdav".equals(playlistMode) || "bili".equals(playlistMode) || "radio".equals(playlistMode) || (getArguments() != null && getArguments().getBoolean("from_webdav", false))) {
                             // WebDAV/B站/电台模式：从SharedPreferences恢复播放列表
                             List<Song> savedSongs = loadWebDavPlaylist();
                             if (!savedSongs.isEmpty()) {
